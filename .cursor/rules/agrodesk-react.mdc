@@ -1,0 +1,38 @@
+---
+description: АгроДеск — паттерны React-компонентов
+globs: src/**/*.tsx
+alwaysApply: false
+---
+
+# АгроДеск — React
+
+## Шаблон компонента
+
+```tsx
+export function ShiftCard({ shift }: ShiftCardProps) {
+  const { data, isLoading } = useShifts()
+
+  if (isLoading) return <ShiftCardSkeleton />
+  if (!data?.length) return <EmptyShifts onCreate={openCreate} />
+
+  return (/* ... */)
+}
+```
+
+## Правила
+
+- Логика запросов — в хуке из `features/[module]/hooks.ts`, не в компоненте
+- Формы — `useForm` + `zodResolver`, схема рядом с фичей
+- Состояние UI — Zustand; серверные данные — TanStack Query
+- Роуты — TanStack Router в `src/app/routes/`
+
+## Стилизация
+
+```tsx
+// BAD
+<div style={{ color: '#01696F' }}>
+
+// GOOD
+<div className="bg-surface text-foreground">
+<button className="bg-primary hover:bg-primary-hover text-primary-foreground">
+```

@@ -1,0 +1,32 @@
+---
+description: АгроДеск — соглашения по коду, UI и запреты
+alwaysApply: true
+---
+
+# АгроДеск — соглашения
+
+## Компоненты
+
+- Функциональные, TypeScript 5, **named export**
+- Стили: только Tailwind-классы, без `style={{}}`
+- Размер: не более **150 строк** — при превышении разбивать
+- Иконки: только `lucide-react`, без emoji в UI
+- Язык: русский UI, английский код и комментарии
+
+## Async UI (обязательно)
+
+- **Skeleton loader** для любых async-данных
+- **Empty state** с действием, если данных нет
+
+## Данные и формы
+
+- Запросы: TanStack Query в `features/*/hooks.ts` — никаких прямых `fetch()`
+- Формы: `react-hook-form` + zod-валидация
+- Офлайн: при `!navigator.onLine` писать в Dexie `syncQueue`
+
+## Запрещено
+
+- `any` в TypeScript
+- `!` (non-null assertion) без комментария с обоснованием
+- Жёстко вбитые цвета — только CSS-переменные или Tailwind-токены
+- Прямые `fetch()` — только через TanStack Query хуки

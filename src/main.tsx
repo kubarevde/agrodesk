@@ -1,10 +1,29 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { RouterProvider } from '@tanstack/react-router'
+import { registerSW } from 'virtual:pwa-register'
 import './index.css'
-import App from './App.tsx'
+import { db } from './lib/db'
+import { queryClient } from './lib/queryClient'
+import { flushSyncQueue } from './lib/sync'
+import { router } from './router'
 
-createRoot(document.getElementById('root') as HTMLElement).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+async function enableMocking() {
+  if (import.meta.env.VITE_USE_MOCKS !== 'true') return
+  const { worker } = await import('./mocks/browser')
+  return worker.start({ onUnhandledRequest: 'bypass' })
+}
+
+void db.open()
+
+registerSW({ immediate: true })
+
+enableMocking().then(() => {
+  window.addEventListener('online', flushSyncQueue)
+
+  createRoot(document.getElementById('root') as HTMLElement).render(
+    <StrictMode>
+      <RouterProvider router={router} context={{ queryClient }} />
+    </StrictMode>,
+  )
+})
