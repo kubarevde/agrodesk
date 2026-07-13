@@ -1,0 +1,18 @@
+import { z } from 'zod'
+
+export const incomeSchema = z.object({
+  itemId: z.string().min(1, 'Выберите наименование'),
+  quantity: z.number().positive('Укажите количество больше 0'),
+  supplier: z.string().min(1, 'Выберите поставщика'),
+  cost: z.number().min(0, 'Стоимость не может быть отрицательной'),
+  date: z.string().min(1, 'Выберите дату'),
+})
+
+export const expenseSchema = z.object({
+  itemId: z.string().min(1, 'Выберите наименование'),
+  quantity: z.number().positive('Укажите количество больше 0'),
+  reason: z.string().min(1, 'Укажите причину списания'),
+})
+
+export type IncomeFormValues = z.infer<typeof incomeSchema>
+export type ExpenseFormValues = z.infer<typeof expenseSchema>

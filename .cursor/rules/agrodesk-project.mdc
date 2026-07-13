@@ -1,0 +1,61 @@
+---
+description: АгроДеск — стек, структура, цвета, типы данных
+alwaysApply: true
+---
+
+# АгроДеск — проект
+
+## Стек
+
+React 19, TypeScript 5, Vite 6, Tailwind CSS v4, shadcn/ui,
+TanStack Router v1, TanStack Query v5, Zustand, react-hook-form + zod,
+Dexie.js (IndexedDB), Workbox (PWA), MSW (`VITE_USE_MOCKS=true`), Recharts, date-fns, lucide-react
+
+## Структура
+
+- Страницы: `src/app/routes/[module]/`
+- Бизнес-логика: `src/features/[module]/`
+- UI: `src/components/ui/` (shadcn), `src/components/shared/` (кастомные)
+- Типы: `src/types/`
+- Моки: `src/mocks/handlers/[module].ts`
+
+## Цвета
+
+Использовать только CSS-переменные / Tailwind-токены (`bg-background`, `text-primary`, `text-muted-foreground`, `text-destructive` и т.д.).
+
+| Токен | HEX |
+|-------|-----|
+| primary | `#01696F` |
+| primary-hover | `#0c4e54` |
+| bg | `#F7F6F2` |
+| surface | `#F9F8F5` |
+| text | `#28251D` |
+| muted | `#7A7974` |
+| error | `#A13544` |
+| success | `#437A22` |
+
+Значения задавать в `src/index.css` (`:root`), не хардкодить в компонентах.
+
+## Тип Shift
+
+```typescript
+interface Shift {
+  id: string
+  date: string           // '13.07.2026'
+  employeeCode: string
+  employeeName: string
+  telegramId: string
+  startTime: string      // '08:15:00'
+  endTime: string | null
+  workType: string
+  location: string
+  equipment: string
+  description: string
+  comment: string
+  status: 'open' | 'closed'
+  durationRaw: number | null
+  durationRounded: number | null
+  latitude: number | null
+  longitude: number | null
+}
+```
