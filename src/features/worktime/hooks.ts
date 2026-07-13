@@ -111,6 +111,7 @@ export function useCloseShift() {
       await queryClient.invalidateQueries({ queryKey: ['shifts'] })
       toast.success('Смена закрыта')
     },
+    onError: () => toast.error('Не удалось закрыть смену'),
   })
 }
 

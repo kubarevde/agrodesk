@@ -1,12 +1,14 @@
-import { Download, Play, Plus } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { Clock, Download, Play, Plus } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { SkeletonTable } from '@/components/shared/SkeletonTable'
 import { Button } from '@/components/ui/button'
 import {
-  useCloseShift,
   useDeleteShift,
   useShifts,
 } from '@/features/worktime/hooks'
+import { CloseShiftModal } from '@/features/worktime/CloseShiftModal'
 import { ShiftDetailModal } from '@/features/worktime/ShiftDetailModal'
 import { AddShiftModal } from '@/features/worktime/AddShiftModal'
 import { OpenShiftModal } from '@/features/worktime/OpenShiftModal'
@@ -15,10 +17,8 @@ import { useWorktimeFilters } from '@/features/worktime/useWorktimeFilters'
 import { calcTotalHours } from '@/features/worktime/utils'
 import type { Shift } from '@/types'
 import { ShiftsCardList } from './ShiftsCardList'
-import { ShiftsEmptyState } from './ShiftsEmptyState'
 import { ShiftsFilters } from './ShiftsFilters'
 import { ShiftsTable } from './ShiftsTable'
-import { ShiftsTableSkeleton } from './ShiftsTableSkeleton'
 import type { ShiftRowActions } from './shiftsColumns'
 
 export function WorktimePage() {
@@ -39,9 +39,9 @@ export function WorktimePage() {
   const { data: shifts = [], isLoading, isError } = useShifts(filters)
   const safeShifts = Array.isArray(shifts) ? shifts : []
   const { data: employees = [] } = useEmployees()
-  const closeShift = useCloseShift()
   const deleteShift = useDeleteShift()
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null)
+  const [closeShiftTarget, setCloseShiftTarget] = useState<Shift | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [openShiftOpen, setOpenShiftOpen] = useState(false)
   const [addShiftOpen, setAddShiftOpen] = useState(false)
@@ -49,6 +49,12 @@ export function WorktimePage() {
   const handleOpenShift = () => setOpenShiftOpen(true)
   const handleAddShift = () => setAddShiftOpen(true)
   const handleExport = () => toast.info('Экспорт Excel скоро будет доступен')
+
+  useEffect(() => {
+    if (isError) {
+      toast.error('Не удалось загрузить смены')
+    }
+  }, [isError])
 
   const openDetails = useCallback((shift: Shift) => {
     setSelectedShift(shift)
@@ -58,15 +64,10 @@ export function WorktimePage() {
   const actions = useMemo<ShiftRowActions>(
     () => ({
       onDetails: openDetails,
-      onClose: (shift) =>
-        closeShift.mutate({
-          id: shift.id,
-          endTime: new Date().toTimeString().slice(0, 8),
-          status: 'closed',
-        }),
+      onClose: (shift) => setCloseShiftTarget(shift),
       onDelete: (shift) => deleteShift.mutate(shift.id),
     }),
-    [closeShift, deleteShift, openDetails],
+    [deleteShift, openDetails],
   )
 
   const handleDetails = useCallback(
@@ -116,9 +117,14 @@ export function WorktimePage() {
       />
 
       {isLoading ? (
-        <ShiftsTableSkeleton />
+        <SkeletonTable rows={5} columns={10} />
       ) : safeShifts.length === 0 ? (
-        <ShiftsEmptyState onOpenShift={handleOpenShift} />
+        <EmptyState
+          icon={Clock}
+          title="Смен за этот период нет"
+          description="Откройте первую смену или измените фильтры"
+          action={{ label: 'Открыть первую смену', onClick: handleOpenShift }}
+        />
       ) : (
         <>
           <div className="hidden md:block">
@@ -132,9 +138,6 @@ export function WorktimePage() {
           </p>
         </>
       )}
-      {isError ? (
-        <p className="text-sm text-destructive">Не удалось загрузить смены</p>
-      ) : null}
 
       {selectedShift ? (
         <ShiftDetailModal
@@ -146,6 +149,14 @@ export function WorktimePage() {
 
       <OpenShiftModal open={openShiftOpen} onClose={() => setOpenShiftOpen(false)} />
       <AddShiftModal open={addShiftOpen} onClose={() => setAddShiftOpen(false)} />
+      <CloseShiftModal
+        shiftId={closeShiftTarget?.id ?? ''}
+        startTime={closeShiftTarget?.startTime ?? ''}
+        shiftDate={closeShiftTarget?.date}
+        open={Boolean(closeShiftTarget)}
+        onClose={() => setCloseShiftTarget(null)}
+        onSuccess={() => setCloseShiftTarget(null)}
+      />
     </div>
   )
 }

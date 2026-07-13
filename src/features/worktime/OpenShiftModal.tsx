@@ -107,7 +107,9 @@ export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
 
   const handleGeolocation = () => {
     if (!navigator.geolocation) {
-      setGeoError('Не удалось получить геолокацию')
+      const message = 'Не удалось получить геолокацию'
+      setGeoError(message)
+      toast.error(message)
       return
     }
 
@@ -117,7 +119,11 @@ export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
         setValue('longitude', position.coords.longitude)
         setGeoError(null)
       },
-      () => setGeoError('Не удалось получить геолокацию'),
+      () => {
+        const message = 'Не удалось получить геолокацию'
+        setGeoError(message)
+        toast.error(message)
+      },
     )
   }
 
@@ -176,7 +182,7 @@ export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
         await db.syncQueue.add(queueItem)
         await db.shifts.add(localShift)
         await queryClient.invalidateQueries({ queryKey: ['shifts'] })
-        toast.success('Сохранено офлайн — синхронизируется при подключении')
+        toast.info('Сохранено офлайн')
       }
 
       handleClose()
