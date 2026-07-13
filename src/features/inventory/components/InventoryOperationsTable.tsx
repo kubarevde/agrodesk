@@ -1,6 +1,7 @@
-import { Minus, Plus } from 'lucide-react'
+import { ClipboardList, Minus, Plus } from 'lucide-react'
+import { EmptyState } from '@/components/shared/EmptyState'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
+import { SkeletonTable } from '@/components/shared/SkeletonTable'
 import {
   Table,
   TableBody,
@@ -22,12 +23,12 @@ export function InventoryOperationsTable({ operations, isLoading }: InventoryOpe
     return (
       <Card>
         <CardHeader>
-          <Skeleton className="h-5 w-48" />
+          <CardTitle className="text-base font-semibold text-foreground">
+            Последние операции
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
+        <CardContent>
+          <SkeletonTable rows={5} columns={5} />
         </CardContent>
       </Card>
     )
@@ -41,7 +42,14 @@ export function InventoryOperationsTable({ operations, isLoading }: InventoryOpe
         </CardTitle>
       </CardHeader>
       <CardContent className="overflow-x-auto">
-        <Table>
+        {operations.length === 0 ? (
+          <EmptyState
+            icon={ClipboardList}
+            title="Операций пока нет"
+            description="Здесь появятся приходы и расходы ТМЦ"
+          />
+        ) : (
+          <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Дата</TableHead>
@@ -77,6 +85,7 @@ export function InventoryOperationsTable({ operations, isLoading }: InventoryOpe
             ))}
           </TableBody>
         </Table>
+        )}
       </CardContent>
     </Card>
   )

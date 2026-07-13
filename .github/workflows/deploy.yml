@@ -26,6 +26,7 @@ jobs:
           VITE_USE_MOCKS: false
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
           VITE_APP_NAME: АгроДеск
+          VITE_BASE_PATH: /agrodesk-prod/
 
       - name: Install AWS CLI
         run: |

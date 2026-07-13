@@ -1,11 +1,15 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
-  plugins: [
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+
+  return {
+    base: mode === 'production' ? (env.VITE_BASE_PATH || '/agrodesk-prod/') : '/',
+    plugins: [
     tanstackRouter({
       routesDirectory: './src/app/routes',
       generatedRouteTree: './src/routeTree.gen.ts',
@@ -77,4 +81,27 @@ export default defineConfig({
       '@': '/src',
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+
+          if (id.includes('react-dom') || /\/react\//.test(id)) {
+            return 'vendor'
+          }
+          if (id.includes('@tanstack/react-router') || id.includes('@tanstack/react-query')) {
+            return 'router'
+          }
+          if (id.includes('recharts')) {
+            return 'charts'
+          }
+          if (id.includes('@base-ui/react') || id.includes('sonner')) {
+            return 'ui'
+          }
+        },
+      },
+    },
+  },
+  }
 })

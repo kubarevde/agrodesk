@@ -1,32 +1,43 @@
-# React + TypeScript + Vite
+# АгроДеск
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Веб-платформа (PWA) для управления крестьянско-фермерским хозяйством.
 
-Currently, two official plugins are available:
+## Быстрый старт
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev        # localhost:5173 с MSW моками
+npm run build      # production сборка
+npm run test       # unit тесты Vitest
+npx playwright test  # E2E тесты
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Структура
+
+```
+src/app/routes/    — страницы (TanStack Router)
+src/features/      — бизнес-логика по модулям
+src/components/    — переиспользуемые компоненты
+src/mocks/         — MSW моки (только в dev)
+src/types/         — TypeScript типы
+src/lib/           — утилиты (api.ts, db.ts, sync.ts)
+```
+
+## Переключение на боевой бэкенд
+
+1. Создай Managed PostgreSQL в Яндекс Облако
+2. В `.env.production` измени `VITE_USE_MOCKS=false` и `VITE_API_URL=<твой адрес>`
+3. Схема таблиц PostgreSQL аналогична MSW-мокам (см. `src/mocks/handlers/`)
+4. `npm run build` → деплой в Yandex Object Storage
+
+## Telegram-бот
+
+`bot/` — Python/aiogram бот (работает независимо)
+
+В Этапе 2 бот переходит с Google Sheets на тот же PostgreSQL.
+
+## Хостинг
+
+Яндекс Object Storage (CDN статика) + Яндекс Managed PostgreSQL.
+
+Автодеплой через GitHub Actions при push в `main`.

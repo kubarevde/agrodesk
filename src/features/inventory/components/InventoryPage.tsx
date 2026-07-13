@@ -1,5 +1,6 @@
-import { Minus, Plus } from 'lucide-react'
+import { Minus, Package, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { EmptyState } from '@/components/shared/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useInventory, useInventoryOperations } from '@/features/inventory/hooks'
@@ -55,6 +56,13 @@ export function InventoryPage() {
             <Skeleton key={index} className="h-52 w-full rounded-xl" />
           ))}
         </div>
+      ) : filteredItems.length === 0 ? (
+        <EmptyState
+          icon={Package}
+          title="Нет позиций в этой категории"
+          description="Выберите другую категорию или оформите приход"
+          action={{ label: 'Оформить приход', onClick: () => setIncomeOpen(true) }}
+        />
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
           {filteredItems.map((item) => (
