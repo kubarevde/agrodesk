@@ -61,7 +61,11 @@ export function ImplementAttachModal({ open, onOpenChange, item }: ImplementAtta
               name="equipment_id"
               control={form.control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={equipment.map((eq) => ({ value: eq.id, label: eq.name }))}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Выберите технику" />
                   </SelectTrigger>

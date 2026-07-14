@@ -87,7 +87,11 @@ export function IncomeModal({ open, items, onClose }: IncomeModalProps) {
               name="itemId"
               control={control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={items.map((item) => ({ value: item.id, label: item.name }))}
+                >
                   <SelectTrigger className="w-full" aria-invalid={Boolean(errors.itemId)}>
                     <SelectValue placeholder="Выберите позицию" />
                   </SelectTrigger>
@@ -127,7 +131,11 @@ export function IncomeModal({ open, items, onClose }: IncomeModalProps) {
               name="supplier"
               control={control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={SUPPLIERS.map((supplier) => ({ value: supplier, label: supplier }))}
+                >
                   <SelectTrigger className="w-full" aria-invalid={Boolean(errors.supplier)}>
                     <SelectValue placeholder="Выберите поставщика" />
                   </SelectTrigger>

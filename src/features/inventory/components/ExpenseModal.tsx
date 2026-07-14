@@ -78,7 +78,11 @@ export function ExpenseModal({ open, items, onClose }: ExpenseModalProps) {
               name="itemId"
               control={control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={items.map((item) => ({ value: item.id, label: item.name }))}
+                >
                   <SelectTrigger className="w-full" aria-invalid={Boolean(errors.itemId)}>
                     <SelectValue placeholder="Выберите позицию" />
                   </SelectTrigger>

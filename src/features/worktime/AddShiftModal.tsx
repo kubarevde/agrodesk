@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Plus } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -12,15 +12,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { LabeledSelect } from '@/components/ui/labeled-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { entityOptions } from '@/lib/selectOptions'
 import { addShiftSchema, type AddShiftFormValues } from './addShiftSchema'
 import { ShiftDateTimeField } from './components/ShiftDateTimeField'
 import { ShiftFieldSelect, ShiftImplementSelect } from './components/ShiftFieldImplementFields'
@@ -79,6 +74,37 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
 
   const equipmentId = watch('equipment')
 
+  const employeeOptions = useMemo(
+    () =>
+      entityOptions(
+        employees,
+        (item) => item.id,
+        (item) =>
+          item.employeeCode
+            ? `${item.employeeName} (${item.employeeCode})`
+            : item.employeeName,
+      ),
+    [employees],
+  )
+  const locationOptions = useMemo(
+    () => entityOptions(locations, (item) => item.id, (item) => item.name),
+    [locations],
+  )
+  const workTypeOptions = useMemo(
+    () => entityOptions(workTypes, (item) => item.id, (item) => item.name),
+    [workTypes],
+  )
+  const equipmentOptions = useMemo(
+    () =>
+      entityOptions(
+        equipment,
+        (item) => item.id,
+        (item) => (item.type ? `${item.name} (${item.type})` : item.name),
+        [{ value: 'none', label: 'Не выбрано' }],
+      ),
+    [equipment],
+  )
+
   useEffect(() => {
     if (!open) {
       reset(getDefaultValues())
@@ -133,24 +159,19 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
             {employeesLoading ? (
               <Skeleton className="h-8 w-full" />
             ) : (
-              <Controller
-                name="employeeId"
-                control={control}
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full" aria-invalid={Boolean(errors.employeeId)}>
-                      <SelectValue placeholder="Выберите сотрудника" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {employees.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.employeeName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
+                <Controller
+                  name="employeeId"
+                  control={control}
+                  render={({ field }) => (
+                    <LabeledSelect
+                      value={field.value}
+                      onValueChange={(value) => field.onChange(value ?? '')}
+                      options={employeeOptions}
+                      placeholder="Выберите сотрудника"
+                      aria-invalid={Boolean(errors.employeeId)}
+                    />
+                  )}
+                />
             )}
             {errors.employeeId ? (
               <p className="text-xs text-destructive">{errors.employeeId.message}</p>
@@ -210,18 +231,13 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
                 name="location"
                 control={control}
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full" aria-invalid={Boolean(errors.location)}>
-                      <SelectValue placeholder="Выберите объект" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {locations.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <LabeledSelect
+                    value={field.value}
+                    onValueChange={(value) => field.onChange(value ?? '')}
+                    options={locationOptions}
+                    placeholder="Выберите объект"
+                    aria-invalid={Boolean(errors.location)}
+                  />
                 )}
               />
             )}
@@ -241,18 +257,13 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
                 name="workType"
                 control={control}
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full" aria-invalid={Boolean(errors.workType)}>
-                      <SelectValue placeholder="Выберите тип работ" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {workTypes.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <LabeledSelect
+                    value={field.value}
+                    onValueChange={(value) => field.onChange(value ?? '')}
+                    options={workTypeOptions}
+                    placeholder="Выберите тип работ"
+                    aria-invalid={Boolean(errors.workType)}
+                  />
                 )}
               />
             )}
@@ -272,26 +283,16 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
                 name="equipment"
                 control={control}
                 render={({ field }) => (
-                  <Select
-                    value={field.value ?? ''}
+                  <LabeledSelect
+                    value={field.value || 'none'}
                     onValueChange={(value) => {
-                      const next = value === 'none' ? '' : value
+                      const next = !value || value === 'none' ? '' : value
                       field.onChange(next)
                       if (!next) setValue('implementId', '')
                     }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Не выбрано" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Не выбрано</SelectItem>
-                      {equipment.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    options={equipmentOptions}
+                    placeholder="Не выбрано"
+                  />
                 )}
               />
             )}

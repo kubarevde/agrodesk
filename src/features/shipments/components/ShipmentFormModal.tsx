@@ -151,7 +151,11 @@ export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModal
               name="cropType"
               control={control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={CROP_TYPES.map((crop) => ({ value: crop, label: crop }))}
+                >
                   <SelectTrigger className="w-full" aria-invalid={Boolean(errors.cropType)}>
                     <SelectValue placeholder="Выберите культуру" />
                   </SelectTrigger>

@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Pencil } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -12,15 +12,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { LabeledSelect } from '@/components/ui/labeled-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { entityOptions } from '@/lib/selectOptions'
 import type { Shift } from '@/types'
 import { editShiftSchema, type EditShiftFormValues } from './editShiftSchema'
 import { useUpdateShift } from './hooks'
@@ -37,6 +32,25 @@ export function EditShiftModal({ shift, open, onClose }: EditShiftModalProps) {
   const { data: locations = [], isLoading: locationsLoading } = useLocations()
   const { data: workTypes = [], isLoading: workTypesLoading } = useWorkTypes()
   const { data: equipment = [], isLoading: equipmentLoading } = useEquipment()
+
+  const locationOptions = useMemo(
+    () => entityOptions(locations, (item) => item.id, (item) => item.name),
+    [locations],
+  )
+  const workTypeOptions = useMemo(
+    () => entityOptions(workTypes, (item) => item.id, (item) => item.name),
+    [workTypes],
+  )
+  const equipmentOptions = useMemo(
+    () =>
+      entityOptions(
+        equipment,
+        (item) => item.id,
+        (item) => (item.type ? `${item.name} (${item.type})` : item.name),
+        [{ value: 'none', label: 'Не выбрано' }],
+      ),
+    [equipment],
+  )
 
   const {
     control,
@@ -94,18 +108,12 @@ export function EditShiftModal({ shift, open, onClose }: EditShiftModalProps) {
                 name="location"
                 control={control}
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Выберите объект" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {locations.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <LabeledSelect
+                    value={field.value}
+                    onValueChange={(value) => field.onChange(value ?? '')}
+                    options={locationOptions}
+                    placeholder="Выберите объект"
+                  />
                 )}
               />
             )}
@@ -119,18 +127,12 @@ export function EditShiftModal({ shift, open, onClose }: EditShiftModalProps) {
                 name="workType"
                 control={control}
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Выберите тип работ" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {workTypes.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <LabeledSelect
+                    value={field.value}
+                    onValueChange={(value) => field.onChange(value ?? '')}
+                    options={workTypeOptions}
+                    placeholder="Выберите тип работ"
+                  />
                 )}
               />
             )}
@@ -144,22 +146,14 @@ export function EditShiftModal({ shift, open, onClose }: EditShiftModalProps) {
                 name="equipment"
                 control={control}
                 render={({ field }) => (
-                  <Select
-                    value={field.value ?? ''}
-                    onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Не выбрано" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Не выбрано</SelectItem>
-                      {equipment.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <LabeledSelect
+                    value={field.value || 'none'}
+                    onValueChange={(value) =>
+                      field.onChange(!value || value === 'none' ? '' : value)
+                    }
+                    options={equipmentOptions}
+                    placeholder="Не выбрано"
+                  />
                 )}
               />
             )}

@@ -110,7 +110,11 @@ export function FieldFormDialog({
               name="crop_type"
               control={form.control}
               render={({ field: f }) => (
-                <Select value={f.value ?? undefined} onValueChange={f.onChange}>
+                <Select
+                  value={f.value ?? undefined}
+                  onValueChange={f.onChange}
+                  items={CROP_OPTIONS.map((crop) => ({ value: crop, label: crop }))}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Выберите культуру" />
                   </SelectTrigger>
@@ -142,7 +146,11 @@ export function FieldFormDialog({
               name="soil_type"
               control={form.control}
               render={({ field: f }) => (
-                <Select value={f.value ?? undefined} onValueChange={f.onChange}>
+                <Select
+                  value={f.value ?? undefined}
+                  onValueChange={f.onChange}
+                  items={SOIL_OPTIONS.map((soil) => ({ value: soil, label: soil }))}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Выберите тип почвы" />
                   </SelectTrigger>

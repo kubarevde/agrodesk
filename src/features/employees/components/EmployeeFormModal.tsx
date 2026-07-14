@@ -174,7 +174,15 @@ export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModal
               name="role"
               control={control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={[
+                    { value: 'admin', label: 'Админ' },
+                    { value: 'manager', label: 'Менеджер' },
+                    { value: 'employee', label: 'Сотрудник' },
+                  ]}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>

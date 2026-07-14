@@ -60,7 +60,11 @@ export function EquipmentFormFields({
           name="type"
           control={control}
           render={({ field }) => (
-            <Select value={field.value} onValueChange={field.onChange}>
+            <Select
+              value={field.value}
+              onValueChange={field.onChange}
+              items={EQUIPMENT_TYPES.map((type) => ({ value: type, label: type }))}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Выберите тип" />
               </SelectTrigger>

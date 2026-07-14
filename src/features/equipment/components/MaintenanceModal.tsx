@@ -88,7 +88,11 @@ export function MaintenanceModal({
               name="type"
               control={form.control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={EQUIPMENT_MAINTENANCE_TYPES.map((type) => ({ value: type, label: type }))}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>

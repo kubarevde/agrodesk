@@ -61,7 +61,11 @@ export function ShiftDateTimeField({
           </PopoverContent>
         </Popover>
 
-        <Select value={time} onValueChange={(value) => value && onTimeChange(value)}>
+        <Select
+          value={time}
+          onValueChange={(value) => value && onTimeChange(value)}
+          items={SHIFT_TIME_SLOTS.map((slot) => ({ value: slot, label: slot }))}
+        >
           <SelectTrigger className={cn('w-full', timeError && 'border-destructive')} aria-invalid={Boolean(timeError)}>
             <SelectValue placeholder="Время" />
           </SelectTrigger>

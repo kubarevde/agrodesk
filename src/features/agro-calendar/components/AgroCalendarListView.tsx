@@ -67,6 +67,10 @@ export function AgroCalendarListView({
         <Select
           value={fieldId ?? 'all'}
           onValueChange={(value) => onFieldChange(!value || value === 'all' ? undefined : value)}
+          items={[
+            { value: 'all', label: 'Все поля' },
+            ...fields.map((field) => ({ value: field.id, label: field.name })),
+          ]}
         >
           <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="Поле" />
@@ -86,6 +90,10 @@ export function AgroCalendarListView({
           onValueChange={(value) =>
             onStatusChange(!value || value === 'all' ? undefined : (value as AgroPlanStatus))
           }
+          items={[
+            { value: 'all', label: 'Все статусы' },
+            ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
+          ]}
         >
           <SelectTrigger className="w-full sm:w-44">
             <SelectValue placeholder="Статус" />

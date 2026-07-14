@@ -83,6 +83,10 @@ export function ImplementsPage() {
         <Select
           value={category ?? 'all'}
           onValueChange={(value) => setCategory(!value || value === 'all' ? undefined : value)}
+          items={[
+            { value: 'all', label: 'Все' },
+            ...CATEGORY_OPTIONS.map((option) => ({ value: option, label: option })),
+          ]}
         >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Все" />

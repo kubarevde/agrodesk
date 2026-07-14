@@ -136,7 +136,11 @@ export function ReportGenerateDialog({ report, open, onClose }: ReportGenerateDi
           {report?.periodMode === 'year' ? (
             <div className="space-y-2">
               <Label>Год</Label>
-              <Select value={year} onValueChange={(value) => setYear(value ?? getCurrentYearValue())}>
+              <Select
+                value={year}
+                onValueChange={(value) => setYear(value ?? getCurrentYearValue())}
+                items={yearOptions.map((option) => ({ value: option, label: option }))}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Выберите год" />
                 </SelectTrigger>
@@ -172,6 +176,10 @@ export function ReportGenerateDialog({ report, open, onClose }: ReportGenerateDi
               <Select
                 value={equipmentId}
                 onValueChange={(value) => setEquipmentId(value ?? 'all')}
+                items={[
+                  { value: 'all', label: 'Все' },
+                  ...equipment.map((item) => ({ value: item.id, label: item.name })),
+                ]}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Все" />
@@ -191,7 +199,14 @@ export function ReportGenerateDialog({ report, open, onClose }: ReportGenerateDi
           {report?.fieldFilter ? (
             <div className="space-y-2">
               <Label>Поле</Label>
-              <Select value={fieldId} onValueChange={(value) => setFieldId(value ?? 'all')}>
+              <Select
+                value={fieldId}
+                onValueChange={(value) => setFieldId(value ?? 'all')}
+                items={[
+                  { value: 'all', label: 'Все' },
+                  ...fields.map((item) => ({ value: item.id, label: item.name })),
+                ]}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Все" />
                 </SelectTrigger>

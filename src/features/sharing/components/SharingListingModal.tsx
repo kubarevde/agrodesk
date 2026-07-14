@@ -154,6 +154,7 @@ export function SharingListingModal({
                 <Select
                   value={field.value}
                   disabled={isEdit}
+                  items={listingTypeOptions()}
                   onValueChange={(value) => {
                     field.onChange(value)
                     form.setValue('fieldId', '')
@@ -227,6 +228,7 @@ export function SharingListingModal({
                 render={({ field }) => (
                   <Select
                     value={field.value || '₽/га'}
+                    items={PRICE_UNITS.map((unit) => ({ value: unit, label: unit }))}
                     onValueChange={(value) => {
                       field.onChange(value)
                       if (value === 'договорная') form.setValue('pricePerUnit', null)
