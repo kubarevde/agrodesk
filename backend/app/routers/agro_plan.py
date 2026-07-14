@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.dependencies.auth import get_current_employee, require_admin, require_manager
+from app.dependencies.auth import get_current_employee, require_manager
 from app.models.agro_plan import AgroPlan
 from app.models.employee import Employee
 from app.models.implement import Implement
@@ -246,7 +246,7 @@ async def update_agro_plan(
 async def delete_agro_plan(
     plan_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_admin),
+    _: Employee = Depends(require_manager),
 ) -> None:
     plan = await get_plan_or_404(db, plan_id)
     await db.delete(plan)

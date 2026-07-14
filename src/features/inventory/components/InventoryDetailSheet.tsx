@@ -7,6 +7,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { humanLabel } from '@/lib/display'
 import type { InventoryItem } from '@/types'
 import { getCategoryLabel, isCriticalStock } from '@/features/inventory/utils'
 import { StockProgressBar } from './StockProgressBar'
@@ -26,7 +27,7 @@ export function InventoryDetailSheet({ item, open, onClose }: InventoryDetailShe
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Package className="size-5 text-primary" aria-hidden />
-            {item.name}
+            {humanLabel(item.name, 'Товар')}
           </SheetTitle>
           <SheetDescription className="flex flex-wrap gap-1.5 pt-1">
             <Badge variant="outline">{getCategoryLabel(item.category)}</Badge>

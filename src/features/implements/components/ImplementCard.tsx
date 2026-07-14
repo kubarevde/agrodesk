@@ -2,12 +2,9 @@ import { Link2, Link2Off, Pencil, Share2, Trash2, Wrench } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  CATEGORY_ICONS,
-  conditionClass,
-  conditionLabel,
-  type ImplementResponse,
-} from '../types'
+import type { ImplementResponse } from '../types'
+import { ImplementCategoryBadge } from './ImplementCategoryBadge'
+import { ImplementConditionBadge } from './ImplementConditionBadge'
 
 type ImplementCardProps = {
   item: ImplementResponse
@@ -37,12 +34,8 @@ export function ImplementCard({
       <CardHeader className="space-y-3">
         <CardTitle className="text-lg font-semibold text-foreground">{item.name}</CardTitle>
         <div className="flex flex-wrap gap-2">
-          <Badge variant="secondary">
-            {CATEGORY_ICONS[item.category] ?? '⚙️'} {item.category}
-          </Badge>
-          <Badge className={conditionClass(item.condition)}>
-            {conditionLabel(item.condition)}
-          </Badge>
+          <ImplementCategoryBadge category={item.category} />
+          <ImplementConditionBadge condition={item.condition} />
           {item.current_equipment_name ? (
             <Badge variant="outline">Прикреплено к: {item.current_equipment_name}</Badge>
           ) : (

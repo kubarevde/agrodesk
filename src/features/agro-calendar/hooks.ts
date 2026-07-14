@@ -32,9 +32,13 @@ function filterStoredPlans(plans: AgroPlan[], filters: AgroPlanFilters) {
   })
 }
 
-export function useAgroPlans(filters: AgroPlanFilters = {}) {
+export function useAgroPlans(
+  filters: AgroPlanFilters = {},
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ['agro-plan', filters],
+    enabled: options?.enabled ?? true,
     queryFn: async () => {
       if (!navigator.onLine) {
         const cached = await db.agroPlan.toArray()
@@ -137,6 +141,7 @@ export function useDeleteAgroPlan() {
   return useMutation({
     mutationFn: async (id: string) => {
       await api.delete(`/api/agro-plan/${id}`)
+      await db.agroPlan.delete(id)
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['agro-plan'] })

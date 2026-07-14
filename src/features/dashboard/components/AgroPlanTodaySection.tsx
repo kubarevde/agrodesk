@@ -2,6 +2,7 @@ import { CalendarDays } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { humanLabel } from '@/lib/display'
 import { STATUS_LABELS, type AgroPlanStatus } from '@/features/agro-calendar/types'
 import { statusBadgeClass } from '@/features/agro-calendar/utils'
 import type { DashboardAgroPlanToday } from '@/types'
@@ -41,8 +42,8 @@ export function AgroPlanTodaySection({ items, isLoading }: AgroPlanTodaySectionP
               <Card key={item.id}>
                 <CardContent className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="font-medium text-foreground">{item.fieldName}</p>
-                    <p className="text-sm text-muted-foreground">{item.workTypeName}</p>
+                    <p className="font-medium text-foreground">{humanLabel(item.fieldName, 'Поле')}</p>
+                    <p className="text-sm text-muted-foreground">{humanLabel(item.workTypeName, 'Работа')}</p>
                   </div>
                   <Badge className={statusBadgeClass(status)}>
                     {STATUS_LABELS[status] ?? item.status}

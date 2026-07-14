@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCurrentUser } from '@/features/auth/hooks'
 import type { AgroPlan, AgroPlanStatus } from '../types'
+import { AgroCalendarDaySheet } from './AgroCalendarDaySheet'
 import { AgroCalendarListView } from './AgroCalendarListView'
 import { AgroCalendarMonthView } from './AgroCalendarMonthView'
 import { AgroPlanDetailSheet } from './AgroPlanDetailSheet'
@@ -22,11 +23,18 @@ export function AgroCalendarPage() {
   const [to, setTo] = useState<string | undefined>()
   const [selected, setSelected] = useState<AgroPlan | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [dayKey, setDayKey] = useState<string | null>(null)
+  const [dayOpen, setDayOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
 
   const openPlan = (plan: AgroPlan) => {
     setSelected(plan)
     setDetailOpen(true)
+  }
+
+  const openDay = (key: string) => {
+    setDayKey(key)
+    setDayOpen(true)
   }
 
   return (
@@ -61,6 +69,7 @@ export function AgroCalendarPage() {
             onNextMonth={() => setMonth((current) => addMonths(current, 1))}
             onFieldChange={setFieldId}
             onSelectPlan={openPlan}
+            onSelectDay={openDay}
           />
         </TabsContent>
 
@@ -82,10 +91,23 @@ export function AgroCalendarPage() {
         </TabsContent>
       </Tabs>
 
+      <AgroCalendarDaySheet
+        day={dayKey}
+        fieldId={fieldId}
+        open={dayOpen}
+        onClose={() => setDayOpen(false)}
+        onSelectPlan={(plan) => {
+          setDayOpen(false)
+          openPlan(plan)
+        }}
+      />
+
       <AgroPlanDetailSheet
         plan={selected}
         open={detailOpen}
+        canManage={canManage}
         onClose={() => setDetailOpen(false)}
+        onDeleted={() => setSelected(null)}
       />
 
       {canManage ? (

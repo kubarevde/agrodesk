@@ -44,7 +44,7 @@ export function NotificationBell() {
       >
         <Bell className="size-5 text-foreground" />
         {unread > 0 ? (
-          <Badge className="absolute -top-1 -right-1 min-w-5 justify-center bg-destructive px-1 text-[10px] text-destructive-foreground">
+          <Badge className="absolute -top-0.5 -right-0.5 min-h-5 min-w-5 justify-center border-0 bg-amber-600 px-1.5 text-[11px] font-semibold leading-none text-white shadow-sm">
             {unread > 99 ? '99+' : unread}
           </Badge>
         ) : null}

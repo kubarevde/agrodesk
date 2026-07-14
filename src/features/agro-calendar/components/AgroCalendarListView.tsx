@@ -20,6 +20,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useFields } from '@/features/fields/hooks'
+import { humanLabel, joinLabels } from '@/lib/display'
 import { useAgroPlans } from '../hooks'
 import type { AgroPlan, AgroPlanStatus } from '../types'
 import { STATUS_LABELS } from '../types'
@@ -132,12 +133,12 @@ export function AgroCalendarListView({
                   onClick={() => onSelectPlan(plan)}
                 >
                   <TableCell>{displayFromIsoDate(plan.plannedDate)}</TableCell>
-                  <TableCell>{plan.fieldName}</TableCell>
-                  <TableCell>{plan.workTypeName}</TableCell>
+                  <TableCell>{humanLabel(plan.fieldName, 'Поле')}</TableCell>
+                  <TableCell>{humanLabel(plan.workTypeName, 'Работа')}</TableCell>
                   <TableCell>
-                    {[plan.equipmentName, plan.implementName].filter(Boolean).join(' + ') || '—'}
+                    {joinLabels([plan.equipmentName, plan.implementName])}
                   </TableCell>
-                  <TableCell>{plan.employeeName || '—'}</TableCell>
+                  <TableCell>{humanLabel(plan.employeeName, '—')}</TableCell>
                   <TableCell>
                     <Badge className={statusBadgeClass(plan.status)}>
                       {STATUS_LABELS[plan.status]}

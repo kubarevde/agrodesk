@@ -47,3 +47,24 @@ export function displayFromIsoDate(iso: string): string {
   const [year, month, day] = iso.slice(0, 10).split('-')
   return `${day}.${month}.${year}`
 }
+
+/** All ISO day keys in [plannedDate .. plannedEndDate], inclusive. */
+export function expandPlanDayKeys(plannedDate: string, plannedEndDate?: string | null): string[] {
+  const startKey = plannedDate.slice(0, 10)
+  const endKey = (plannedEndDate ?? plannedDate).slice(0, 10)
+  const rangeStart = startKey <= endKey ? startKey : endKey
+  const rangeEnd = startKey <= endKey ? endKey : startKey
+
+  const keys: string[] = []
+  const cursor = new Date(`${rangeStart}T12:00:00`)
+  const end = new Date(`${rangeEnd}T12:00:00`)
+
+  while (cursor <= end) {
+    keys.push(
+      `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`,
+    )
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  return keys
+}

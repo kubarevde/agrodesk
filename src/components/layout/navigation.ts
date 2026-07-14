@@ -22,6 +22,11 @@ export interface NavItem {
   icon: LucideIcon
 }
 
+export interface NavGroup {
+  title: string
+  items: NavItem[]
+}
+
 const MY_SHIFT_ITEM: NavItem = {
   to: '/my-shift',
   label: 'Моя смена',
@@ -34,29 +39,50 @@ const SHARING_ITEM: NavItem = {
   icon: Handshake,
 }
 
-const MANAGER_ITEMS: NavItem[] = [
+const OPERATIONS_ITEMS: NavItem[] = [
   { to: '/dashboard', label: 'Дашборд', icon: LayoutDashboard },
+  { to: '/worktime', label: 'Смены', icon: Clock },
+  { to: '/agro-calendar', label: 'Агрокалендарь', icon: CalendarDays },
+  SHARING_ITEM,
+]
+
+const RESOURCES_ITEMS: NavItem[] = [
   { to: '/fields', label: 'Поля', icon: Map },
   { to: '/equipment', label: 'Техника', icon: Tractor },
   { to: '/implements', label: 'Приспособления', icon: Wrench },
-  { to: '/worktime', label: 'Рабочее время', icon: Clock },
-  { to: '/agro-calendar', label: 'Агрокалендарь', icon: CalendarDays },
+  { to: '/inventory', label: 'ТМЦ', icon: Package },
+]
+
+const FINANCE_ITEMS: NavItem[] = [
   { to: '/shipments', label: 'Отгрузки', icon: Truck },
-  { to: '/inventory', label: 'Склад ТМЦ', icon: Package },
   { to: '/expenses', label: 'Затраты', icon: DollarSign },
-  SHARING_ITEM,
-  { to: '/employees', label: 'Сотрудники', icon: Users },
   { to: '/reports', label: 'Отчёты', icon: BarChart2 },
+]
+
+const ADMIN_ITEMS: NavItem[] = [
+  { to: '/employees', label: 'Сотрудники', icon: Users },
   { to: '/settings', label: 'Настройки', icon: Settings },
 ]
 
-export const NAV_ITEMS: NavItem[] = [MY_SHIFT_ITEM, ...MANAGER_ITEMS]
+export const NAV_GROUPS: NavGroup[] = [
+  { title: 'Операционные', items: [MY_SHIFT_ITEM, ...OPERATIONS_ITEMS] },
+  { title: 'Ресурсы', items: RESOURCES_ITEMS },
+  { title: 'Финансы и отчёты', items: FINANCE_ITEMS },
+  { title: 'Администрирование', items: ADMIN_ITEMS },
+]
+
+/** Flat list for page titles and legacy lookups. */
+export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((group) => group.items)
+
+export function getNavGroups(role?: CurrentUser['role']): NavGroup[] {
+  if (role === 'employee') {
+    return [{ title: 'Операционные', items: [MY_SHIFT_ITEM, SHARING_ITEM] }]
+  }
+  return NAV_GROUPS
+}
 
 export function getNavItems(role?: CurrentUser['role']): NavItem[] {
-  if (role === 'employee') {
-    return [MY_SHIFT_ITEM, SHARING_ITEM]
-  }
-  return NAV_ITEMS
+  return getNavGroups(role).flatMap((group) => group.items)
 }
 
 export function getPageTitle(pathname: string): string {
