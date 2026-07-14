@@ -133,7 +133,14 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
               name="category"
               control={control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={CATEGORIES.map((category) => ({
+                    value: category,
+                    label: getCategoryLabel(category),
+                  }))}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>

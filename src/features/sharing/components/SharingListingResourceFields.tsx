@@ -1,15 +1,11 @@
+import { useMemo } from 'react'
 import { Controller, type Control, type UseFormSetValue, useWatch } from 'react-hook-form'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { LabeledSelect } from '@/components/ui/labeled-select'
 import { useFields } from '@/features/fields/hooks'
 import { useImplements } from '@/features/implements/hooks'
 import { useEquipment } from '@/features/worktime/referenceHooks'
+import { entityOptions } from '@/lib/selectOptions'
 import type { SharingListingFormValues } from '../schemas'
 
 type Props = {
@@ -29,6 +25,38 @@ export function SharingListingResourceFields({
   const { data: equipment = [] } = useEquipment()
   const { data: implementsList = [] } = useImplements()
 
+  const fieldOptions = useMemo(
+    () =>
+      entityOptions(fields, (item) => item.id, (item) =>
+        item.area_ha != null ? `${item.name} — ${item.area_ha} га` : item.name,
+      ),
+    [fields],
+  )
+  const equipmentOptions = useMemo(
+    () =>
+      entityOptions(equipment, (item) => item.id, (item) =>
+        item.type ? `${item.name} (${item.type})` : item.name,
+      ),
+    [equipment],
+  )
+  const implementOptions = useMemo(
+    () =>
+      entityOptions(implementsList, (item) => item.id, (item) =>
+        item.category ? `${item.name} (${item.category})` : item.name,
+      ),
+    [implementsList],
+  )
+  const relatedEquipmentOptions = useMemo(
+    () =>
+      entityOptions(
+        equipment,
+        (item) => item.id,
+        (item) => item.name,
+        [{ value: 'none', label: 'Не выбрано' }],
+      ),
+    [equipment],
+  )
+
   if (type === 'parts') return null
 
   if (type === 'field') {
@@ -39,9 +67,12 @@ export function SharingListingResourceFields({
           name="fieldId"
           control={control}
           render={({ field, fieldState }) => (
-            <Select
-              value={field.value || undefined}
+            <LabeledSelect
+              value={field.value}
               disabled={disabledResource}
+              options={fieldOptions}
+              placeholder="Поле"
+              aria-invalid={Boolean(fieldState.error)}
               onValueChange={(value) => {
                 field.onChange(value ?? '')
                 const selected = fields.find((item) => item.id === value)
@@ -49,19 +80,7 @@ export function SharingListingResourceFields({
                 setValue('lng', selected?.longitude ?? null)
                 if (selected && !title) setValue('title', `Аренда: ${selected.name}`)
               }}
-            >
-              <SelectTrigger className="w-full" aria-invalid={Boolean(fieldState.error)}>
-                <SelectValue placeholder="Поле" />
-              </SelectTrigger>
-              <SelectContent>
-                {fields.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.name}
-                    {item.area_ha != null ? ` — ${item.area_ha} га` : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           )}
         />
       </div>
@@ -76,9 +95,12 @@ export function SharingListingResourceFields({
           name="equipmentId"
           control={control}
           render={({ field, fieldState }) => (
-            <Select
-              value={field.value || undefined}
+            <LabeledSelect
+              value={field.value}
               disabled={disabledResource}
+              options={equipmentOptions}
+              placeholder="Техника"
+              aria-invalid={Boolean(fieldState.error)}
               onValueChange={(value) => {
                 field.onChange(value ?? '')
                 const selected = equipment.find((item) => item.id === value)
@@ -86,18 +108,7 @@ export function SharingListingResourceFields({
                 setValue('lng', selected?.longitude ?? null)
                 if (selected && !title) setValue('title', selected.name)
               }}
-            >
-              <SelectTrigger className="w-full" aria-invalid={Boolean(fieldState.error)}>
-                <SelectValue placeholder="Техника" />
-              </SelectTrigger>
-              <SelectContent>
-                {equipment.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           )}
         />
       </div>
@@ -112,26 +123,18 @@ export function SharingListingResourceFields({
           name="implementId"
           control={control}
           render={({ field, fieldState }) => (
-            <Select
-              value={field.value || undefined}
+            <LabeledSelect
+              value={field.value}
               disabled={disabledResource}
+              options={implementOptions}
+              placeholder="Приспособление"
+              aria-invalid={Boolean(fieldState.error)}
               onValueChange={(value) => {
                 field.onChange(value ?? '')
                 const selected = implementsList.find((item) => item.id === value)
                 if (selected && !title) setValue('title', selected.name)
               }}
-            >
-              <SelectTrigger className="w-full" aria-invalid={Boolean(fieldState.error)}>
-                <SelectValue placeholder="Приспособление" />
-              </SelectTrigger>
-              <SelectContent>
-                {implementsList.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />
           )}
         />
       </div>
@@ -143,22 +146,14 @@ export function SharingListingResourceFields({
           name="relatedEquipmentId"
           control={control}
           render={({ field }) => (
-            <Select
+            <LabeledSelect
               value={field.value || 'none'}
-              onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Не выбрано" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Не выбрано</SelectItem>
-                {equipment.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              options={relatedEquipmentOptions}
+              placeholder="Не выбрано"
+              onValueChange={(value) =>
+                field.onChange(!value || value === 'none' ? '' : value)
+              }
+            />
           )}
         />
       </div>

@@ -42,6 +42,10 @@ export function ExpensesFilters({
         onValueChange={(value) =>
           onCategoryChange(!value || value === 'all' ? undefined : (value as ExpenseCategory))
         }
+        items={[
+          { value: 'all', label: 'Все категории' },
+          ...EXPENSE_CATEGORIES.map((item) => ({ value: item, label: CATEGORY_LABELS[item] })),
+        ]}
       >
         <SelectTrigger className="w-full sm:w-52">
           <SelectValue placeholder="Все категории" />
@@ -60,6 +64,10 @@ export function ExpensesFilters({
         onValueChange={(value) =>
           onEquipmentChange(!value || value === 'all' ? undefined : value)
         }
+        items={[
+          { value: 'all', label: 'Вся техника' },
+          ...equipment.map((item) => ({ value: item.id, label: item.name })),
+        ]}
       >
         <SelectTrigger className="w-full sm:w-52">
           <SelectValue placeholder="Вся техника" />

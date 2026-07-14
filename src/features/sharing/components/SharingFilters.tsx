@@ -1,12 +1,22 @@
+import { useMemo } from 'react'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { LabeledSelect } from '@/components/ui/labeled-select'
+import { selectOptions } from '@/lib/selectOptions'
 import type { PriceFilter, SharingListingType } from '../types'
+
+const TYPE_OPTIONS = selectOptions([
+  { value: 'all', label: 'Все' },
+  { value: 'field', label: 'Поля' },
+  { value: 'equipment', label: 'Техника' },
+  { value: 'implement', label: 'Приспособления' },
+  { value: 'parts', label: 'Прочее' },
+])
+
+const PRICE_OPTIONS = selectOptions([
+  { value: 'all', label: 'Все' },
+  { value: 'priced', label: 'С ценой' },
+  { value: 'negotiable', label: 'Договорная' },
+])
 
 type SharingFiltersProps = {
   type?: SharingListingType
@@ -25,25 +35,20 @@ export function SharingFilters({
   onRegionChange,
   onPriceChange,
 }: SharingFiltersProps) {
+  const typeOptions = useMemo(() => TYPE_OPTIONS, [])
+  const priceOptions = useMemo(() => PRICE_OPTIONS, [])
+
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-      <Select
+      <LabeledSelect
+        className="sm:w-48"
         value={type ?? 'all'}
+        options={typeOptions}
+        placeholder="Тип ресурса"
         onValueChange={(value) =>
           onTypeChange(!value || value === 'all' ? undefined : (value as SharingListingType))
         }
-      >
-        <SelectTrigger className="w-full sm:w-48">
-          <SelectValue placeholder="Тип" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Все</SelectItem>
-          <SelectItem value="field">Поля</SelectItem>
-          <SelectItem value="equipment">Техника</SelectItem>
-          <SelectItem value="implement">Приспособления</SelectItem>
-          <SelectItem value="parts">Прочее</SelectItem>
-        </SelectContent>
-      </Select>
+      />
 
       <Input
         className="w-full sm:w-52"
@@ -52,16 +57,13 @@ export function SharingFilters({
         onChange={(event) => onRegionChange(event.target.value)}
       />
 
-      <Select value={price} onValueChange={(value) => onPriceChange(value as PriceFilter)}>
-        <SelectTrigger className="w-full sm:w-44">
-          <SelectValue placeholder="Цена" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Все</SelectItem>
-          <SelectItem value="priced">С ценой</SelectItem>
-          <SelectItem value="negotiable">Договорная</SelectItem>
-        </SelectContent>
-      </Select>
+      <LabeledSelect
+        className="sm:w-44"
+        value={price}
+        options={priceOptions}
+        placeholder="Цена"
+        onValueChange={(value) => onPriceChange((value as PriceFilter) || 'all')}
+      />
     </div>
   )
 }

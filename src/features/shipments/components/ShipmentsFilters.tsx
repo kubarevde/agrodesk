@@ -29,6 +29,10 @@ export function ShipmentsFilters({
       <Select
         value={cropType ?? 'all'}
         onValueChange={(value) => onCropChange(!value || value === 'all' ? undefined : value)}
+        items={[
+          { value: 'all', label: 'Все культуры' },
+          ...CROP_TYPES.map((crop) => ({ value: crop, label: crop })),
+        ]}
       >
         <SelectTrigger className="w-full sm:w-52">
           <SelectValue placeholder="Все культуры" />

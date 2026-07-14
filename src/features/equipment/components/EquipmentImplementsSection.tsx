@@ -80,6 +80,7 @@ export function EquipmentImplementsSection({
             <Select
               value={selectedId || undefined}
               onValueChange={(value) => setSelectedId(value ?? '')}
+              items={free.map((item) => ({ value: item.id, label: item.name }))}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Выберите" />

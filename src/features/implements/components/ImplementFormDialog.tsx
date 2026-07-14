@@ -100,7 +100,11 @@ export function ImplementFormDialog({
               name="category"
               control={form.control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={CATEGORY_OPTIONS.map((category) => ({ value: category, label: category }))}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -137,7 +141,7 @@ export function ImplementFormDialog({
               name="condition"
               control={form.control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select value={field.value} onValueChange={field.onChange} items={CONDITION_OPTIONS}>
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -169,6 +173,10 @@ export function ImplementFormDialog({
                   onValueChange={(value) =>
                     field.onChange(value === 'none' ? undefined : value)
                   }
+                  items={[
+                    { value: 'none', label: 'Не прикреплять' },
+                    ...equipment.map((eq) => ({ value: eq.id, label: eq.name })),
+                  ]}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Не прикреплять" />

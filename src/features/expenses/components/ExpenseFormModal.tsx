@@ -160,7 +160,14 @@ export function ExpenseFormModal({
               name="category"
               control={control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={EXPENSE_CATEGORIES.map((category) => ({
+                    value: category,
+                    label: CATEGORY_LABELS[category],
+                  }))}
+                >
                   <SelectTrigger className="w-full" aria-invalid={Boolean(errors.category)}>
                     <SelectValue placeholder="Выберите категорию" />
                   </SelectTrigger>
@@ -223,6 +230,10 @@ export function ExpenseFormModal({
                 <Select
                   value={field.value || 'none'}
                   onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                  items={[
+                    { value: 'none', label: 'Не выбрано' },
+                    ...equipment.map((item) => ({ value: item.id, label: item.name })),
+                  ]}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Не выбрано" />
@@ -246,7 +257,14 @@ export function ExpenseFormModal({
               name="paymentMethod"
               control={control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={PAYMENT_METHODS.map((method) => ({
+                    value: method,
+                    label: PAYMENT_LABELS[method],
+                  }))}
+                >
                   <SelectTrigger className="w-full" aria-invalid={Boolean(errors.paymentMethod)}>
                     <SelectValue placeholder="Выберите способ оплаты" />
                   </SelectTrigger>

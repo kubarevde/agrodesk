@@ -90,6 +90,10 @@ export function AgroCalendarMonthView({
         <Select
           value={fieldId ?? 'all'}
           onValueChange={(value) => onFieldChange(!value || value === 'all' ? undefined : value)}
+          items={[
+            { value: 'all', label: 'Все поля' },
+            ...fields.map((field) => ({ value: field.id, label: field.name })),
+          ]}
         >
           <SelectTrigger className="w-full sm:w-52">
             <SelectValue placeholder="Все поля" />

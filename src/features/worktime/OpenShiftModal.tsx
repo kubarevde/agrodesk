@@ -1,5 +1,5 @@
 import { AlertTriangle, Check, Loader2, MapPin, Play } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -12,15 +12,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { LabeledSelect } from '@/components/ui/labeled-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { entityOptions } from '@/lib/selectOptions'
 import { useCreateShift } from './hooks'
 import {
   openShiftForEmployeeSchema,
@@ -88,6 +83,37 @@ export function OpenShiftModal({
   const equipmentId = watch('equipment')
   const hasGeo = latitude != null && longitude != null
 
+  const employeeOptions = useMemo(
+    () =>
+      entityOptions(
+        employees,
+        (item) => item.id,
+        (item) =>
+          item.employeeCode
+            ? `${item.employeeName} (${item.employeeCode})`
+            : item.employeeName,
+      ),
+    [employees],
+  )
+  const locationOptions = useMemo(
+    () => entityOptions(locations, (item) => item.id, (item) => item.name),
+    [locations],
+  )
+  const workTypeOptions = useMemo(
+    () => entityOptions(workTypes, (item) => item.id, (item) => item.name),
+    [workTypes],
+  )
+  const equipmentOptions = useMemo(
+    () =>
+      entityOptions(
+        equipment,
+        (item) => item.id,
+        (item) => (item.type ? `${item.name} (${item.type})` : item.name),
+        [{ value: 'none', label: 'Не выбрано' }],
+      ),
+    [equipment],
+  )
+
   const handleClose = () => {
     reset(defaultValues)
     setGeoError(null)
@@ -140,7 +166,7 @@ export function OpenShiftModal({
         employeeId: canSelectEmployee ? values.employeeId : undefined,
       })
       if (!result.offline) {
-        toast.success(`🟢 Смена открыта в ${formatShiftTime(result.shift.startTime)}`)
+        toast.success(`Смена открыта в ${formatShiftTime(result.shift.startTime)}`)
       }
       handleClose()
     } catch (error) {
@@ -169,18 +195,13 @@ export function OpenShiftModal({
                   name="employeeId"
                   control={control}
                   render={({ field }) => (
-                    <Select value={field.value ?? ''} onValueChange={field.onChange}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Выберите сотрудника" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {employees.map((item) => (
-                          <SelectItem key={item.id} value={item.id}>
-                            {item.employeeName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <LabeledSelect
+                      value={field.value}
+                      onValueChange={(value) => field.onChange(value ?? '')}
+                      options={employeeOptions}
+                      placeholder="Выберите сотрудника"
+                      aria-invalid={Boolean(errors.employeeId)}
+                    />
                   )}
                 />
               )}
@@ -199,18 +220,13 @@ export function OpenShiftModal({
                 name="location"
                 control={control}
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Выберите объект" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {locations.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <LabeledSelect
+                    value={field.value}
+                    onValueChange={(value) => field.onChange(value ?? '')}
+                    options={locationOptions}
+                    placeholder="Выберите объект"
+                    aria-invalid={Boolean(errors.location)}
+                  />
                 )}
               />
             )}
@@ -230,18 +246,13 @@ export function OpenShiftModal({
                 name="workType"
                 control={control}
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Выберите тип работ" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {workTypes.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <LabeledSelect
+                    value={field.value}
+                    onValueChange={(value) => field.onChange(value ?? '')}
+                    options={workTypeOptions}
+                    placeholder="Выберите тип работ"
+                    aria-invalid={Boolean(errors.workType)}
+                  />
                 )}
               />
             )}
@@ -261,26 +272,16 @@ export function OpenShiftModal({
                 name="equipment"
                 control={control}
                 render={({ field }) => (
-                  <Select
-                    value={field.value ?? ''}
+                  <LabeledSelect
+                    value={field.value || 'none'}
                     onValueChange={(value) => {
-                      const next = value === 'none' ? '' : value
+                      const next = !value || value === 'none' ? '' : value
                       field.onChange(next)
                       if (!next) setValue('implementId', '')
                     }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Не выбрано" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Не выбрано</SelectItem>
-                      {equipment.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    options={equipmentOptions}
+                    placeholder="Не выбрано"
+                  />
                 )}
               />
             )}

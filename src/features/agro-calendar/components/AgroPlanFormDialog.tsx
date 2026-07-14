@@ -14,14 +14,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { LabeledSelect } from '@/components/ui/labeled-select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useFields } from '@/features/fields/hooks'
 import { useImplements } from '@/features/implements/hooks'
@@ -234,29 +228,27 @@ function SelectField({
   error?: string
   disabled?: boolean
 }) {
+  const selectOptions = optional
+    ? [{ value: 'none', label: 'Не выбрано' }, ...options]
+    : options
+
   return (
     <div className="space-y-2">
       <Label>
         {label}
         {optional ? <span className="text-muted-foreground"> (необязательно)</span> : null}
       </Label>
-      <Select
-        value={value || undefined}
-        onValueChange={(next) => onChange(next ?? '')}
+      <LabeledSelect
+        value={optional ? value || 'none' : value}
+        onValueChange={(next) => {
+          if (optional && (!next || next === 'none')) onChange('')
+          else onChange(next ?? '')
+        }}
+        options={selectOptions}
+        placeholder="Выберите"
         disabled={disabled}
-      >
-        <SelectTrigger className="w-full" aria-invalid={Boolean(error)}>
-          <SelectValue placeholder="Выберите" />
-        </SelectTrigger>
-        <SelectContent>
-          {optional ? <SelectItem value="none">Не выбрано</SelectItem> : null}
-          {options.map((item) => (
-            <SelectItem key={item.value} value={item.value}>
-              {item.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        aria-invalid={Boolean(error)}
+      />
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   )

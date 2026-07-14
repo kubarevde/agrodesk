@@ -76,6 +76,10 @@ export function NotificationsPage() {
         <Select
           value={readFilter}
           onValueChange={(value) => setReadFilter(value as ReadFilter)}
+          items={[
+            { value: 'all', label: 'Все' },
+            { value: 'unread', label: 'Непрочитанные' },
+          ]}
         >
           <SelectTrigger className="w-full sm:w-44">
             <SelectValue />
@@ -89,6 +93,11 @@ export function NotificationsPage() {
         <Select
           value={typeFilter}
           onValueChange={(value) => setTypeFilter(value as TypeFilter)}
+          items={[
+            { value: 'all', label: 'Все типы' },
+            { value: 'maintenance', label: 'ТО' },
+            { value: 'sharing', label: 'Шеринг' },
+          ]}
         >
           <SelectTrigger className="w-full sm:w-44">
             <SelectValue />

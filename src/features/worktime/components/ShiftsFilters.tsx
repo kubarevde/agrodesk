@@ -1,14 +1,16 @@
+import { useMemo } from 'react'
 import { DateRangePicker } from '@/components/shared/DateRangePicker'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { LabeledSelect } from '@/components/ui/labeled-select'
+import { entityOptions, selectOptions } from '@/lib/selectOptions'
 import type { Employee } from '@/types'
 import type { ShiftFilters } from '@/types'
+
+const STATUS_OPTIONS = selectOptions([
+  { value: 'all', label: 'Все' },
+  { value: 'open', label: 'Открытые' },
+  { value: 'closed', label: 'Закрытые' },
+])
 
 interface ShiftsFiltersProps {
   from?: string
@@ -37,6 +39,17 @@ export function ShiftsFilters({
   onStatusChange,
   onReset,
 }: ShiftsFiltersProps) {
+  const employeeOptions = useMemo(
+    () =>
+      entityOptions(
+        employees,
+        (item) => item.id,
+        (item) => item.employeeName,
+        [{ value: 'all', label: 'Все сотрудники' }],
+      ),
+    [employees],
+  )
+
   return (
     <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
       <DateRangePicker
@@ -48,38 +61,25 @@ export function ShiftsFilters({
         }}
       />
 
-      <Select
+      <LabeledSelect
+        className="md:w-52"
         value={employeeId ?? 'all'}
+        options={employeeOptions}
+        placeholder="Сотрудник"
         onValueChange={(value) =>
-          onEmployeeChange(value === 'all' || value == null ? undefined : String(value))
+          onEmployeeChange(!value || value === 'all' ? undefined : value)
         }
-      >
-        <SelectTrigger className="w-full md:w-52">
-          <SelectValue placeholder="Сотрудник" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Все сотрудники</SelectItem>
-          {employees.map((employee) => (
-            <SelectItem key={employee.id} value={employee.id}>
-              {employee.employeeName}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      />
 
-      <Select
+      <LabeledSelect
+        className="md:w-40"
         value={status ?? 'all'}
-        onValueChange={(value) => onStatusChange((value ?? 'all') as ShiftFilters['status'])}
-      >
-        <SelectTrigger className="w-full md:w-40">
-          <SelectValue placeholder="Статус" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Все</SelectItem>
-          <SelectItem value="open">Открытые</SelectItem>
-          <SelectItem value="closed">Закрытые</SelectItem>
-        </SelectContent>
-      </Select>
+        options={STATUS_OPTIONS}
+        placeholder="Статус"
+        onValueChange={(value) =>
+          onStatusChange((value ?? 'all') as ShiftFilters['status'])
+        }
+      />
 
       {hasActiveFilters ? (
         <Button type="button" variant="ghost" onClick={onReset}>
