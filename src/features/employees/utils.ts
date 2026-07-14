@@ -34,7 +34,7 @@ export function getStatusBadgeClass(isActive: boolean): string {
 }
 
 export function getStatusLabel(isActive: boolean): string {
-  return isActive ? 'Активен' : 'Уволен'
+  return isActive ? 'Активен' : 'Неактивен'
 }
 
 export function formatTelegramId(telegramId: string): string {

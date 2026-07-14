@@ -1,4 +1,4 @@
-name: Deploy to Yandex Object Storage
+name: Deploy Frontend to Yandex Object Storage
 
 on:
   push:
@@ -7,62 +7,39 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - run: npm ci
 
-      - name: Build
-        run: npm run build
+      - run: npm run build
         env:
           VITE_USE_MOCKS: false
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
-          VITE_APP_NAME: АгроДеск
-          VITE_BASE_PATH: /agrodesk-prod/
 
-      - name: Install AWS CLI
-        run: |
-          pip install awscli
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.YC_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.YC_SECRET_ACCESS_KEY }}
+          aws-region: ru-central1
 
-      - name: Configure AWS CLI for Yandex Object Storage
-        run: |
-          aws configure set aws_access_key_id ${{ secrets.YC_ACCESS_KEY_ID }}
-          aws configure set aws_secret_access_key ${{ secrets.YC_SECRET_ACCESS_KEY }}
-          aws configure set default.region ru-central1
-
-      - name: Sync dist to S3
-        run: |
+      # Статика с долгим кэшем
+      - run: |
           aws s3 sync dist/ s3://${{ secrets.YC_BUCKET_NAME }}/ \
             --endpoint-url https://storage.yandexcloud.net \
             --delete \
             --cache-control "public, max-age=31536000" \
-            --exclude "index.html" \
-            --exclude "sw.js" \
-            --exclude "manifest.webmanifest"
+            --exclude "index.html" --exclude "sw.js" --exclude "manifest.webmanifest"
 
-          # index.html, SW и manifest — без кэша (всегда свежие)
-          aws s3 cp dist/index.html s3://${{ secrets.YC_BUCKET_NAME }}/index.html \
-            --endpoint-url https://storage.yandexcloud.net \
-            --cache-control "no-cache, no-store, must-revalidate" \
-            --content-type "text/html"
-
-          aws s3 cp dist/sw.js s3://${{ secrets.YC_BUCKET_NAME }}/sw.js \
-            --endpoint-url https://storage.yandexcloud.net \
-            --cache-control "no-cache, no-store, must-revalidate" \
-            --content-type "application/javascript"
-
-          aws s3 cp dist/manifest.webmanifest s3://${{ secrets.YC_BUCKET_NAME }}/manifest.webmanifest \
-            --endpoint-url https://storage.yandexcloud.net \
-            --cache-control "no-cache, no-store, must-revalidate" \
-            --content-type "application/manifest+json"
-
-      - name: Notify on success
-        run: echo "✅ Deploy completed. Open https://storage.yandexcloud.net/${{ secrets.YC_BUCKET_NAME }}/index.html"
+      # Без кэша
+      - run: |
+          for f in index.html sw.js manifest.webmanifest; do
+            [ -f "dist/$f" ] && aws s3 cp dist/$f s3://${{ secrets.YC_BUCKET_NAME }}/$f \
+              --endpoint-url https://storage.yandexcloud.net \
+              --cache-control "no-cache,no-store,must-revalidate"
+          done

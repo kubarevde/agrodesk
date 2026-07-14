@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { SkeletonTable } from '@/components/shared/SkeletonTable'
 import { Button } from '@/components/ui/button'
+import { useCurrentUser } from '@/features/auth/hooks'
 import {
   useDeleteShift,
   useShifts,
@@ -22,6 +23,8 @@ import { ShiftsTable } from './ShiftsTable'
 import type { ShiftRowActions } from './shiftsColumns'
 
 export function WorktimePage() {
+  const { data: user } = useCurrentUser()
+  const isManager = user?.role === 'admin' || user?.role === 'manager'
   const {
     from,
     to,
@@ -52,7 +55,7 @@ export function WorktimePage() {
 
   useEffect(() => {
     if (isError) {
-      toast.error('Не удалось загрузить смены')
+      toast.error('Ошибка: Не удалось загрузить смены')
     }
   }, [isError])
 
@@ -65,16 +68,11 @@ export function WorktimePage() {
     () => ({
       onDetails: openDetails,
       onClose: (shift) => setCloseShiftTarget(shift),
-      onDelete: (shift) => deleteShift.mutate(shift.id),
+      onDelete: isManager ? (shift) => deleteShift.mutate(shift.id) : undefined,
+      canClose: (shift) =>
+        isManager || (Boolean(shift.employeeId) && shift.employeeId === user?.id),
     }),
-    [deleteShift, openDetails],
-  )
-
-  const handleDetails = useCallback(
-    (shift: Shift) => {
-      openDetails(shift)
-    },
-    [openDetails],
+    [deleteShift, isManager, openDetails, user?.id],
   )
 
   const totalHours = calcTotalHours(safeShifts)
@@ -84,10 +82,12 @@ export function WorktimePage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold text-foreground">Рабочее время</h1>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={handleAddShift}>
-            <Plus className="size-4" />
-            Добавить смену
-          </Button>
+          {isManager ? (
+            <Button type="button" variant="outline" onClick={handleAddShift}>
+              <Plus className="size-4" />
+              Добавить смену
+            </Button>
+          ) : null}
           <Button
             onClick={handleOpenShift}
             className="bg-primary hover:bg-primary-hover text-primary-foreground"
@@ -95,10 +95,12 @@ export function WorktimePage() {
             <Play className="size-4" />
             Открыть смену
           </Button>
-          <Button type="button" variant="secondary" onClick={handleExport}>
-            <Download className="size-4" />
-            Экспорт Excel
-          </Button>
+          {isManager ? (
+            <Button type="button" variant="secondary" onClick={handleExport}>
+              <Download className="size-4" />
+              Экспорт Excel
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -117,13 +119,13 @@ export function WorktimePage() {
       />
 
       {isLoading ? (
-        <SkeletonTable rows={5} columns={10} />
+        <SkeletonTable />
       ) : safeShifts.length === 0 ? (
         <EmptyState
           icon={Clock}
-          title="Смен за этот период нет"
+          title="Смен за период нет"
           description="Откройте первую смену или измените фильтры"
-          action={{ label: 'Открыть первую смену', onClick: handleOpenShift }}
+          action={{ label: 'Открыть смену', onClick: handleOpenShift }}
         />
       ) : (
         <>
@@ -131,7 +133,7 @@ export function WorktimePage() {
             <ShiftsTable shifts={safeShifts} actions={actions} />
           </div>
           <div className="md:hidden">
-            <ShiftsCardList shifts={safeShifts} onDetails={handleDetails} />
+            <ShiftsCardList shifts={safeShifts} onDetails={openDetails} />
           </div>
           <p className="text-sm text-muted-foreground">
             Итого: {safeShifts.length} смен / {totalHours} часов за период
@@ -148,9 +150,12 @@ export function WorktimePage() {
       ) : null}
 
       <OpenShiftModal open={openShiftOpen} onClose={() => setOpenShiftOpen(false)} />
-      <AddShiftModal open={addShiftOpen} onClose={() => setAddShiftOpen(false)} />
+      {isManager ? (
+        <AddShiftModal open={addShiftOpen} onClose={() => setAddShiftOpen(false)} />
+      ) : null}
       <CloseShiftModal
         shiftId={closeShiftTarget?.id ?? ''}
+        employeeId={closeShiftTarget?.employeeId}
         startTime={closeShiftTarget?.startTime ?? ''}
         shiftDate={closeShiftTarget?.date}
         open={Boolean(closeShiftTarget)}

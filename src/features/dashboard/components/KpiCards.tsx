@@ -1,5 +1,4 @@
-import { AlertTriangle, Clock, Truck, Users } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import { AlertTriangle, Clock, Truck, Users, type LucideIcon } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -20,14 +19,22 @@ interface KpiCardProps {
   value: string
   icon: LucideIcon
   valueClassName?: string
+  cardClassName?: string
   tooltip?: string
 }
 
-function KpiCard({ title, value, icon: Icon, valueClassName, tooltip }: KpiCardProps) {
+function KpiCard({
+  title,
+  value,
+  icon: Icon,
+  valueClassName,
+  cardClassName,
+  tooltip,
+}: KpiCardProps) {
   const content = (
-    <Card>
+    <Card className={cardClassName}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle>{title}</CardTitle>
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <Icon className="size-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
@@ -36,9 +43,7 @@ function KpiCard({ title, value, icon: Icon, valueClassName, tooltip }: KpiCardP
     </Card>
   )
 
-  if (!tooltip) {
-    return content
-  }
+  if (!tooltip) return content
 
   return (
     <Tooltip>
@@ -51,6 +56,7 @@ function KpiCard({ title, value, icon: Icon, valueClassName, tooltip }: KpiCardP
 export function KpiCards({ stats }: KpiCardsProps) {
   const liveTodayHours = useLiveTodayHours(stats.todayHours, stats.activeShifts)
   const activeNames = stats.activeShifts.map((shift) => shift.employeeName).join(', ')
+  const critical = stats.criticalInventoryCount > 0
 
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -66,7 +72,7 @@ export function KpiCards({ stats }: KpiCardsProps) {
         icon={Clock}
       />
       <KpiCard
-        title="Отгрузок за месяц"
+        title="Отгрузки за месяц"
         value={formatTonnes(stats.monthShipmentWeight)}
         icon={Truck}
       />
@@ -74,7 +80,8 @@ export function KpiCards({ stats }: KpiCardsProps) {
         title="ТМЦ требуют внимания"
         value={`${stats.criticalInventoryCount} позиций`}
         icon={AlertTriangle}
-        valueClassName={stats.criticalInventoryCount > 0 ? 'text-destructive' : undefined}
+        cardClassName={critical ? 'border-destructive/40 bg-destructive/5' : undefined}
+        valueClassName={critical ? 'text-destructive' : undefined}
       />
     </div>
   )
@@ -85,11 +92,11 @@ export function KpiCardsSkeleton() {
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       {Array.from({ length: 4 }).map((_, index) => (
         <Card key={index}>
-          <CardHeader className="space-y-2">
+          <CardHeader>
             <Skeleton className="h-4 w-24" />
           </CardHeader>
           <CardContent>
-            <Skeleton className="h-8 w-20" />
+            <Skeleton className="h-8 w-24" />
           </CardContent>
         </Card>
       ))}

@@ -9,16 +9,25 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './app/routes/__root'
+import { Route as LoginRouteImport } from './app/routes/login'
 import { Route as LayoutRouteImport } from './app/routes/_layout'
 import { Route as LayoutIndexRouteImport } from './app/routes/_layout/index'
 import { Route as LayoutDashboardRouteImport } from './app/routes/_layout/dashboard'
 import { Route as LayoutWorktimeIndexRouteImport } from './app/routes/_layout/worktime/index'
 import { Route as LayoutShipmentsIndexRouteImport } from './app/routes/_layout/shipments/index'
+import { Route as LayoutSettingsIndexRouteImport } from './app/routes/_layout/settings/index'
 import { Route as LayoutReportsIndexRouteImport } from './app/routes/_layout/reports/index'
+import { Route as LayoutProfileIndexRouteImport } from './app/routes/_layout/profile/index'
+import { Route as LayoutMyShiftIndexRouteImport } from './app/routes/_layout/my-shift/index'
 import { Route as LayoutInventoryIndexRouteImport } from './app/routes/_layout/inventory/index'
 import { Route as LayoutExpensesIndexRouteImport } from './app/routes/_layout/expenses/index'
 import { Route as LayoutEmployeesIndexRouteImport } from './app/routes/_layout/employees/index'
 
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LayoutRoute = LayoutRouteImport.update({
   id: '/_layout',
   getParentRoute: () => rootRouteImport,
@@ -43,9 +52,24 @@ const LayoutShipmentsIndexRoute = LayoutShipmentsIndexRouteImport.update({
   path: '/shipments/',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutSettingsIndexRoute = LayoutSettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutReportsIndexRoute = LayoutReportsIndexRouteImport.update({
   id: '/reports/',
   path: '/reports/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutProfileIndexRoute = LayoutProfileIndexRouteImport.update({
+  id: '/profile/',
+  path: '/profile/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutMyShiftIndexRoute = LayoutMyShiftIndexRouteImport.update({
+  id: '/my-shift/',
+  path: '/my-shift/',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutInventoryIndexRoute = LayoutInventoryIndexRouteImport.update({
@@ -66,33 +90,45 @@ const LayoutEmployeesIndexRoute = LayoutEmployeesIndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof LayoutIndexRoute
+  '/login': typeof LoginRoute
   '/dashboard': typeof LayoutDashboardRoute
   '/employees/': typeof LayoutEmployeesIndexRoute
   '/expenses/': typeof LayoutExpensesIndexRoute
   '/inventory/': typeof LayoutInventoryIndexRoute
+  '/my-shift/': typeof LayoutMyShiftIndexRoute
+  '/profile/': typeof LayoutProfileIndexRoute
   '/reports/': typeof LayoutReportsIndexRoute
+  '/settings/': typeof LayoutSettingsIndexRoute
   '/shipments/': typeof LayoutShipmentsIndexRoute
   '/worktime/': typeof LayoutWorktimeIndexRoute
 }
 export interface FileRoutesByTo {
+  '/login': typeof LoginRoute
   '/dashboard': typeof LayoutDashboardRoute
   '/': typeof LayoutIndexRoute
   '/employees': typeof LayoutEmployeesIndexRoute
   '/expenses': typeof LayoutExpensesIndexRoute
   '/inventory': typeof LayoutInventoryIndexRoute
+  '/my-shift': typeof LayoutMyShiftIndexRoute
+  '/profile': typeof LayoutProfileIndexRoute
   '/reports': typeof LayoutReportsIndexRoute
+  '/settings': typeof LayoutSettingsIndexRoute
   '/shipments': typeof LayoutShipmentsIndexRoute
   '/worktime': typeof LayoutWorktimeIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_layout': typeof LayoutRouteWithChildren
+  '/login': typeof LoginRoute
   '/_layout/dashboard': typeof LayoutDashboardRoute
   '/_layout/': typeof LayoutIndexRoute
   '/_layout/employees/': typeof LayoutEmployeesIndexRoute
   '/_layout/expenses/': typeof LayoutExpensesIndexRoute
   '/_layout/inventory/': typeof LayoutInventoryIndexRoute
+  '/_layout/my-shift/': typeof LayoutMyShiftIndexRoute
+  '/_layout/profile/': typeof LayoutProfileIndexRoute
   '/_layout/reports/': typeof LayoutReportsIndexRoute
+  '/_layout/settings/': typeof LayoutSettingsIndexRoute
   '/_layout/shipments/': typeof LayoutShipmentsIndexRoute
   '/_layout/worktime/': typeof LayoutWorktimeIndexRoute
 }
@@ -100,42 +136,62 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/login'
     | '/dashboard'
     | '/employees/'
     | '/expenses/'
     | '/inventory/'
+    | '/my-shift/'
+    | '/profile/'
     | '/reports/'
+    | '/settings/'
     | '/shipments/'
     | '/worktime/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/login'
     | '/dashboard'
     | '/'
     | '/employees'
     | '/expenses'
     | '/inventory'
+    | '/my-shift'
+    | '/profile'
     | '/reports'
+    | '/settings'
     | '/shipments'
     | '/worktime'
   id:
     | '__root__'
     | '/_layout'
+    | '/login'
     | '/_layout/dashboard'
     | '/_layout/'
     | '/_layout/employees/'
     | '/_layout/expenses/'
     | '/_layout/inventory/'
+    | '/_layout/my-shift/'
+    | '/_layout/profile/'
     | '/_layout/reports/'
+    | '/_layout/settings/'
     | '/_layout/shipments/'
     | '/_layout/worktime/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   LayoutRoute: typeof LayoutRouteWithChildren
+  LoginRoute: typeof LoginRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_layout': {
       id: '/_layout'
       path: ''
@@ -171,11 +227,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutShipmentsIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/settings/': {
+      id: '/_layout/settings/'
+      path: '/settings'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof LayoutSettingsIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/reports/': {
       id: '/_layout/reports/'
       path: '/reports'
       fullPath: '/reports/'
       preLoaderRoute: typeof LayoutReportsIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/profile/': {
+      id: '/_layout/profile/'
+      path: '/profile'
+      fullPath: '/profile/'
+      preLoaderRoute: typeof LayoutProfileIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/my-shift/': {
+      id: '/_layout/my-shift/'
+      path: '/my-shift'
+      fullPath: '/my-shift/'
+      preLoaderRoute: typeof LayoutMyShiftIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/inventory/': {
@@ -208,7 +285,10 @@ interface LayoutRouteChildren {
   LayoutEmployeesIndexRoute: typeof LayoutEmployeesIndexRoute
   LayoutExpensesIndexRoute: typeof LayoutExpensesIndexRoute
   LayoutInventoryIndexRoute: typeof LayoutInventoryIndexRoute
+  LayoutMyShiftIndexRoute: typeof LayoutMyShiftIndexRoute
+  LayoutProfileIndexRoute: typeof LayoutProfileIndexRoute
   LayoutReportsIndexRoute: typeof LayoutReportsIndexRoute
+  LayoutSettingsIndexRoute: typeof LayoutSettingsIndexRoute
   LayoutShipmentsIndexRoute: typeof LayoutShipmentsIndexRoute
   LayoutWorktimeIndexRoute: typeof LayoutWorktimeIndexRoute
 }
@@ -219,7 +299,10 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutEmployeesIndexRoute: LayoutEmployeesIndexRoute,
   LayoutExpensesIndexRoute: LayoutExpensesIndexRoute,
   LayoutInventoryIndexRoute: LayoutInventoryIndexRoute,
+  LayoutMyShiftIndexRoute: LayoutMyShiftIndexRoute,
+  LayoutProfileIndexRoute: LayoutProfileIndexRoute,
   LayoutReportsIndexRoute: LayoutReportsIndexRoute,
+  LayoutSettingsIndexRoute: LayoutSettingsIndexRoute,
   LayoutShipmentsIndexRoute: LayoutShipmentsIndexRoute,
   LayoutWorktimeIndexRoute: LayoutWorktimeIndexRoute,
 }
@@ -229,6 +312,7 @@ const LayoutRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   LayoutRoute: LayoutRouteWithChildren,
+  LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

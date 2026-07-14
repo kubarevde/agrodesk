@@ -2,6 +2,13 @@ import { useQuery } from '@tanstack/react-query'
 import type { Employee, Equipment, Location, WorkType } from '@/types'
 import { api } from '@/lib/api'
 import { db } from '@/lib/db'
+import {
+  employeeFromApi,
+  equipmentFromApi,
+  locationFromApi,
+  workTypeFromApi,
+} from '@/lib/transformers'
+import { useCurrentUser } from '@/features/auth/hooks'
 
 const REFERENCE_STALE_TIME = Infinity
 
@@ -10,8 +17,13 @@ async function fetchLocations(): Promise<Location[]> {
     return db.locations.toArray()
   }
 
-  const { data } = await api.get<Location[]>('/api/locations')
-  return data
+  const { data } = await api.get<Record<string, unknown>[]>('/api/locations', {
+    params: { is_active: true },
+  })
+  const locations = data.map(locationFromApi)
+  await db.locations.clear()
+  await db.locations.bulkPut(locations)
+  return locations
 }
 
 async function fetchWorkTypes(): Promise<WorkType[]> {
@@ -19,8 +31,13 @@ async function fetchWorkTypes(): Promise<WorkType[]> {
     return db.workTypes.toArray()
   }
 
-  const { data } = await api.get<WorkType[]>('/api/work-types')
-  return data
+  const { data } = await api.get<Record<string, unknown>[]>('/api/work-types', {
+    params: { is_active: true },
+  })
+  const workTypes = data.map(workTypeFromApi)
+  await db.workTypes.clear()
+  await db.workTypes.bulkPut(workTypes)
+  return workTypes
 }
 
 async function fetchEquipment(): Promise<Equipment[]> {
@@ -28,8 +45,13 @@ async function fetchEquipment(): Promise<Equipment[]> {
     return db.equipment.toArray()
   }
 
-  const { data } = await api.get<Equipment[]>('/api/equipment')
-  return data
+  const { data } = await api.get<Record<string, unknown>[]>('/api/equipment', {
+    params: { is_active: true },
+  })
+  const equipment = data.map(equipmentFromApi)
+  await db.equipment.clear()
+  await db.equipment.bulkPut(equipment)
+  return equipment
 }
 
 async function fetchEmployees(): Promise<Employee[]> {
@@ -37,8 +59,13 @@ async function fetchEmployees(): Promise<Employee[]> {
     return db.employees.toArray()
   }
 
-  const { data } = await api.get<Employee[]>('/api/employees')
-  return data
+  const { data } = await api.get<Record<string, unknown>[]>('/api/employees', {
+    params: { is_active: true },
+  })
+  const employees = data.map(employeeFromApi)
+  await db.employees.clear()
+  await db.employees.bulkPut(employees)
+  return employees
 }
 
 export function useLocations() {
@@ -66,9 +93,13 @@ export function useEquipment() {
 }
 
 export function useEmployees() {
+  const { data: user } = useCurrentUser()
+  const canManage = user?.role === 'admin' || user?.role === 'manager'
+
   return useQuery({
-    queryKey: ['employees'],
+    queryKey: ['employees', 'active'],
     queryFn: fetchEmployees,
     staleTime: REFERENCE_STALE_TIME,
+    enabled: canManage,
   })
 }

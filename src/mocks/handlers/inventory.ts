@@ -13,6 +13,7 @@ const mockInventory: InventoryItem[] = [
     currentStock: 2340,
     minStock: 500,
     totalCapacity: 5000,
+    isActive: true,
   },
   {
     id: 'inv-002',
@@ -22,6 +23,7 @@ const mockInventory: InventoryItem[] = [
     currentStock: 1200,
     minStock: 300,
     totalCapacity: 3000,
+    isActive: true,
   },
   {
     id: 'inv-003',
@@ -31,6 +33,7 @@ const mockInventory: InventoryItem[] = [
     currentStock: 850,
     minStock: 200,
     totalCapacity: 2000,
+    isActive: true,
   },
   {
     id: 'inv-004',
@@ -40,6 +43,7 @@ const mockInventory: InventoryItem[] = [
     currentStock: 45,
     minStock: 50,
     totalCapacity: 200,
+    isActive: true,
   },
   {
     id: 'inv-005',
@@ -49,6 +53,7 @@ const mockInventory: InventoryItem[] = [
     currentStock: 80,
     minStock: 100,
     totalCapacity: 200,
+    isActive: true,
   },
   {
     id: 'inv-006',
@@ -58,6 +63,7 @@ const mockInventory: InventoryItem[] = [
     currentStock: 5,
     minStock: 5,
     totalCapacity: 20,
+    isActive: true,
   },
   {
     id: 'inv-007',
@@ -67,6 +73,7 @@ const mockInventory: InventoryItem[] = [
     currentStock: 4500,
     minStock: 1000,
     totalCapacity: 5000,
+    isActive: true,
   },
   {
     id: 'inv-008',
@@ -76,6 +83,7 @@ const mockInventory: InventoryItem[] = [
     currentStock: 600,
     minStock: 200,
     totalCapacity: 1500,
+    isActive: true,
   },
 ]
 

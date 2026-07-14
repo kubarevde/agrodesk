@@ -11,6 +11,17 @@ node_modules
 dist
 dist-ssr
 *.local
+backend/.env
+.env
+.env.*
+!.env.example
+
+# Python
+**/__pycache__/
+*.py[cod]
+
+# TanStack Router temp
+.tanstack/
 
 # Editor directories and files
 .vscode/*

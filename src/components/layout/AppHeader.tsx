@@ -1,7 +1,6 @@
 import { Download, Menu } from 'lucide-react'
-import { useRouterState } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -9,20 +8,24 @@ import {
   BreadcrumbPage,
 } from '@/components/ui/breadcrumb'
 import { Button } from '@/components/ui/button'
-import { useOnlineStatus } from '@/hooks/useOnlineStatus'
+import { useCurrentUser } from '@/features/auth/hooks'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
-import { useSyncQueue } from '@/lib/sync'
-import { cn } from '@/lib/utils'
 import { useLayoutStore } from '@/stores/layoutStore'
 import { getPageTitle } from './navigation'
+import { SyncStatusIndicator } from './SyncStatusIndicator'
+
+function getInitials(fullName?: string): string {
+  if (!fullName) return 'AD'
+  const parts = fullName.trim().split(/\s+/).slice(0, 2)
+  return parts.map((part) => part[0]?.toUpperCase() ?? '').join('') || 'AD'
+}
 
 export function AppHeader() {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
-  const isOnline = useOnlineStatus()
-  const { pendingCount: syncCount } = useSyncQueue()
   const setMobileMenuOpen = useLayoutStore((state) => state.setMobileMenuOpen)
   const pageTitle = getPageTitle(pathname)
   const { canInstall, install } = usePwaInstall()
+  const { data: user } = useCurrentUser()
 
   return (
     <header className="grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-header-border bg-surface px-4">
@@ -46,12 +49,7 @@ export function AppHeader() {
         </Breadcrumb>
       </div>
 
-      <div className="flex items-center justify-center gap-2 text-sm">
-        <span className={cn(isOnline ? 'text-success' : 'text-muted-foreground')}>
-          ● {isOnline ? 'Онлайн' : 'Офлайн'}
-        </span>
-        {syncCount > 0 ? <Badge variant="destructive">{syncCount}</Badge> : null}
-      </div>
+      <SyncStatusIndicator />
 
       <div className="flex items-center justify-end gap-2">
         {canInstall ? (
@@ -60,11 +58,13 @@ export function AppHeader() {
             <span className="hidden sm:inline">Установить приложение</span>
           </Button>
         ) : null}
-        <Avatar className="size-9 bg-primary">
-          <AvatarFallback className="bg-primary text-sm font-medium text-primary-foreground">
-            AD
-          </AvatarFallback>
-        </Avatar>
+        <Link to="/profile" aria-label="Профиль">
+          <Avatar className="size-9 bg-primary">
+            <AvatarFallback className="bg-primary text-sm font-medium text-primary-foreground">
+              {getInitials(user?.fullName)}
+            </AvatarFallback>
+          </Avatar>
+        </Link>
       </div>
     </header>
   )

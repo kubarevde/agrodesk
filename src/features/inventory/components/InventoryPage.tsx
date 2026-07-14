@@ -1,8 +1,10 @@
 import { Minus, Package, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useCurrentUser } from '@/features/auth/hooks'
 import { useInventory, useInventoryOperations } from '@/features/inventory/hooks'
 import type { InventoryCategoryFilter } from '@/features/inventory/utils'
 import { CategoryFilter } from './CategoryFilter'
@@ -12,6 +14,9 @@ import { InventoryCard } from './InventoryCard'
 import { InventoryOperationsTable } from './InventoryOperationsTable'
 
 export function InventoryPage() {
+  const navigate = useNavigate()
+  const { data: user } = useCurrentUser()
+  const canManageSettings = user?.role === 'admin' || user?.role === 'manager'
   const { data: items = [], isLoading } = useInventory()
   const { data: operations = [], isLoading: operationsLoading } = useInventoryOperations()
   const [category, setCategory] = useState<InventoryCategoryFilter>('all')
@@ -56,10 +61,24 @@ export function InventoryPage() {
             <Skeleton key={index} className="h-52 w-full rounded-xl" />
           ))}
         </div>
+      ) : items.length === 0 ? (
+        <EmptyState
+          icon={Package}
+          title="Позиций нет"
+          description="Добавьте позицию ТМЦ в настройках"
+          action={
+            canManageSettings
+              ? {
+                  label: 'Добавить позицию',
+                  onClick: () => void navigate({ to: '/settings' }),
+                }
+              : undefined
+          }
+        />
       ) : filteredItems.length === 0 ? (
         <EmptyState
           icon={Package}
-          title="Нет позиций в этой категории"
+          title="Позиций нет"
           description="Выберите другую категорию или оформите приход"
           action={{ label: 'Оформить приход', onClick: () => setIncomeOpen(true) }}
         />

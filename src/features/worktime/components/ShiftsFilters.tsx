@@ -60,7 +60,7 @@ export function ShiftsFilters({
         <SelectContent>
           <SelectItem value="all">Все сотрудники</SelectItem>
           {employees.map((employee) => (
-            <SelectItem key={employee.id} value={employee.employeeCode}>
+            <SelectItem key={employee.id} value={employee.id}>
               {employee.employeeName}
             </SelectItem>
           ))}

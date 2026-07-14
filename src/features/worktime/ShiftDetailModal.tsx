@@ -20,7 +20,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import type { Shift } from '@/types'
+import { useCurrentUser } from '@/features/auth/hooks'
 import { CloseShiftModal } from './CloseShiftModal'
+import { EditShiftModal } from './EditShiftModal'
 import { LiveDuration } from './components/LiveDuration'
 import { calcLiveHours, formatShiftTime } from './utils'
 
@@ -61,7 +63,13 @@ function getDurationLabel(shift: Shift): string {
 }
 
 export function ShiftDetailModal({ shift, open, onClose }: ShiftDetailModalProps) {
+  const { data: user } = useCurrentUser()
+  const isManager = user?.role === 'admin' || user?.role === 'manager'
+  const canClose =
+    shift.status === 'open' &&
+    (isManager || (Boolean(shift.employeeId) && shift.employeeId === user?.id))
   const [closeModalOpen, setCloseModalOpen] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
   const hasDescription = Boolean(shift.description || shift.comment)
   const hasGeo = shift.latitude != null && shift.longitude != null
   const mapsUrl = hasGeo
@@ -152,13 +160,18 @@ export function ShiftDetailModal({ shift, open, onClose }: ShiftDetailModalProps
           ) : null}
 
           <DialogFooter>
-            {shift.status === 'open' ? (
+            {canClose ? (
               <Button
                 type="button"
                 variant="destructive"
                 onClick={() => setCloseModalOpen(true)}
               >
                 Закрыть смену
+              </Button>
+            ) : null}
+            {isManager ? (
+              <Button type="button" variant="outline" onClick={() => setEditModalOpen(true)}>
+                Редактировать
               </Button>
             ) : null}
             <Button type="button" variant="ghost" onClick={onClose}>
@@ -170,12 +183,21 @@ export function ShiftDetailModal({ shift, open, onClose }: ShiftDetailModalProps
 
       <CloseShiftModal
         shiftId={shift.id}
+        employeeId={shift.employeeId}
         startTime={shift.startTime}
         shiftDate={shift.date}
         open={closeModalOpen}
         onClose={() => setCloseModalOpen(false)}
         onSuccess={onClose}
       />
+
+      {isManager ? (
+        <EditShiftModal
+          shift={shift}
+          open={editModalOpen}
+          onClose={() => setEditModalOpen(false)}
+        />
+      ) : null}
     </>
   )
 }
