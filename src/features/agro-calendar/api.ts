@@ -1,4 +1,5 @@
 import type { AgroPlan as StoredAgroPlan } from '@/types'
+import { humanLabel } from '@/lib/display'
 import type { AgroPlan, AgroPlanFormInput, AgroPlanStatus } from './types'
 
 type ApiRecord = Record<string, unknown>
@@ -20,11 +21,11 @@ export function planFromApi(raw: ApiRecord): AgroPlan {
     employeeId: raw.employee_id != null ? String(raw.employee_id) : null,
     notes: raw.notes != null ? String(raw.notes) : null,
     status: (raw.status as AgroPlanStatus) ?? 'planned',
-    fieldName: String(raw.field_name ?? ''),
-    workTypeName: String(raw.work_type_name ?? ''),
-    equipmentName: raw.equipment_name != null ? String(raw.equipment_name) : null,
-    implementName: raw.implement_name != null ? String(raw.implement_name) : null,
-    employeeName: raw.employee_name != null ? String(raw.employee_name) : null,
+    fieldName: humanLabel(String(raw.field_name ?? ''), 'Поле'),
+    workTypeName: humanLabel(String(raw.work_type_name ?? ''), 'Работа'),
+    equipmentName: raw.equipment_name != null ? humanLabel(String(raw.equipment_name), '') || null : null,
+    implementName: raw.implement_name != null ? humanLabel(String(raw.implement_name), '') || null : null,
+    employeeName: raw.employee_name != null ? humanLabel(String(raw.employee_name), '') || null : null,
     actualShiftId: raw.actual_shift_id != null ? String(raw.actual_shift_id) : null,
   }
 }

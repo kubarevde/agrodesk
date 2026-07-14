@@ -1,4 +1,5 @@
 import type { FieldResponse } from '@/features/fields/types'
+import { humanLabel } from '@/lib/display'
 import type { PriceFilter, SharingListing, SharingListingType } from './types'
 import { TYPE_LABELS } from './types'
 
@@ -48,22 +49,24 @@ export function resourceLabel(
   field?: FieldResponse | null,
 ): string | null {
   if (listing.type === 'field') {
-    if (!listing.fieldName) return null
+    const fieldName = humanLabel(listing.fieldName, '')
+    if (!fieldName) return null
     const area = field?.area_ha != null ? `${field.area_ha} га` : null
     const crop = field?.crop_type ?? null
-    const parts = [listing.fieldName, area, crop].filter(Boolean)
-    if (parts.length === 1) return listing.fieldName
-    return `${listing.fieldName} — ${[area, crop].filter(Boolean).join(', ')}`
+    const parts = [fieldName, area, crop].filter(Boolean)
+    if (parts.length === 1) return fieldName
+    return `${fieldName} — ${[area, crop].filter(Boolean).join(', ')}`
   }
   if (listing.type === 'equipment') {
-    return listing.equipmentName
+    return humanLabel(listing.equipmentName, '') || null
   }
   if (listing.type === 'implement') {
-    if (!listing.implementName) return null
+    const implementName = humanLabel(listing.implementName, '')
+    if (!implementName) return null
     if (listing.implementCategoryLabel) {
-      return `${listing.implementName} (${listing.implementCategoryLabel})`
+      return `${implementName} (${listing.implementCategoryLabel})`
     }
-    return listing.implementName
+    return implementName
   }
   return null
 }

@@ -1,3 +1,4 @@
+import { humanLabel } from '@/lib/display'
 import type {
   SharingListing,
   SharingListingsFilters,
@@ -29,7 +30,7 @@ export function listingFromApi(raw: ApiRecord): SharingListing {
   return {
     id: String(raw.id),
     type: raw.type as SharingListingType,
-    title: String(raw.title ?? ''),
+    title: humanLabel(String(raw.title ?? ''), 'Объявление'),
     description: toStringOrNull(raw.description),
     pricePerUnit: toNumber(raw.price_per_unit),
     priceUnit: toStringOrNull(raw.price_unit),
@@ -42,10 +43,10 @@ export function listingFromApi(raw: ApiRecord): SharingListing {
     lng: toNumber(raw.lng),
     status: (raw.status as SharingListingStatus) ?? 'active',
     ownerId: String(raw.owner_id),
-    ownerName: String(raw.owner_name ?? ''),
-    fieldName: toStringOrNull(raw.field_name),
-    equipmentName: toStringOrNull(raw.equipment_name),
-    implementName: toStringOrNull(raw.implement_name),
+    ownerName: humanLabel(String(raw.owner_name ?? ''), 'Владелец'),
+    fieldName: raw.field_name != null ? humanLabel(String(raw.field_name), '') || null : null,
+    equipmentName: raw.equipment_name != null ? humanLabel(String(raw.equipment_name), '') || null : null,
+    implementName: raw.implement_name != null ? humanLabel(String(raw.implement_name), '') || null : null,
     implementCategoryLabel: toStringOrNull(raw.implement_category_label),
     images,
     requestsCount: Number(raw.requests_count ?? 0),

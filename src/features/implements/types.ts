@@ -33,14 +33,6 @@ export const CATEGORY_OPTIONS = [
   'Транспорт',
 ] as const
 
-export const CATEGORY_ICONS: Record<string, string> = {
-  Посевная: '🌱',
-  Опрыскивание: '💧',
-  'Обработка почвы': '🚜',
-  Уборочная: '🌾',
-  Транспорт: '🚛',
-}
-
 export const CONDITION_OPTIONS = [
   { value: 'good', label: 'Хорошее' },
   { value: 'fair', label: 'Удовл.' },
@@ -59,19 +51,4 @@ export const MAINTENANCE_TYPES = [
 
 export function conditionLabel(condition: string): string {
   return CONDITION_OPTIONS.find((item) => item.value === condition)?.label ?? condition
-}
-
-export function conditionClass(condition: string): string {
-  switch (condition) {
-    case 'good':
-      return 'bg-success text-primary-foreground'
-    case 'fair':
-      return 'bg-amber-500 text-primary-foreground'
-    case 'poor':
-      return 'bg-orange-600 text-primary-foreground'
-    case 'repair':
-      return 'bg-destructive text-primary-foreground'
-    default:
-      return 'bg-muted text-muted-foreground'
-  }
 }

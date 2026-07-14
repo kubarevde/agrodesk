@@ -2,7 +2,9 @@ import { MapView } from '@/components/shared/MapView'
 import { useEquipmentDetail } from '@/features/equipment/hooks'
 import { useFieldDetail } from '@/features/fields/hooks'
 import { useImplementDetail } from '@/features/implements/hooks'
-import { conditionLabel } from '@/features/implements/types'
+import { ImplementConditionBadge } from '@/features/implements/components/ImplementConditionBadge'
+import { getImplementCategoryConfig } from '@/features/implements/categoryConfig'
+import { humanLabel } from '@/lib/display'
 import type { SharingListing } from '../types'
 
 type SharingResourceBlockProps = {
@@ -50,7 +52,7 @@ export function SharingResourceBlock({ listing }: SharingResourceBlockProps) {
     return (
       <div className="space-y-2">
         <p className="text-sm font-medium text-foreground">
-          {listing.fieldName}
+          {humanLabel(listing.fieldName, 'Поле')}
           {field?.area_ha != null ? ` — ${field.area_ha} га` : ''}
           {field?.crop_type ? `, ${field.crop_type}` : ''}
         </p>
@@ -70,7 +72,7 @@ export function SharingResourceBlock({ listing }: SharingResourceBlockProps) {
   if (listing.type === 'equipment') {
     return (
       <div className="space-y-1 text-sm text-foreground">
-        <p>Техника: {equipment?.name ?? listing.equipmentName ?? listing.title}</p>
+        <p>Техника: {humanLabel(equipment?.name ?? listing.equipmentName ?? listing.title, 'Техника')}</p>
         {equipment?.type ? <p>Тип: {equipment.type}</p> : null}
         {equipment?.year_of_manufacture ? <p>Год: {equipment.year_of_manufacture}</p> : null}
         {equipment ? (
@@ -85,11 +87,17 @@ export function SharingResourceBlock({ listing }: SharingResourceBlockProps) {
   if (listing.type === 'implement') {
     return (
       <div className="space-y-1 text-sm text-foreground">
-        <p>Приспособление: {implement?.name ?? listing.implementName ?? listing.title}</p>
+        <p>Приспособление: {humanLabel(implement?.name ?? listing.implementName ?? listing.title, 'Приспособление')}</p>
         {implement ? (
           <>
-            <p>Категория: {implement.category}</p>
-            <p>Состояние: {conditionLabel(implement.condition)}</p>
+            <p className="flex flex-wrap items-center gap-2">
+              Категория:
+              <span>{getImplementCategoryConfig(implement.category).label}</span>
+            </p>
+            <p className="flex flex-wrap items-center gap-2">
+              Состояние:
+              <ImplementConditionBadge condition={implement.condition} />
+            </p>
             <p>Обычно крепится к: {implement.current_equipment_name ?? 'не закреплено'}</p>
           </>
         ) : null}

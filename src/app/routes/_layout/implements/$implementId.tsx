@@ -2,10 +2,10 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { ArrowLeft, Wrench } from 'lucide-react'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { ImplementCategoryBadge } from '@/features/implements/components/ImplementCategoryBadge'
+import { ImplementConditionBadge } from '@/features/implements/components/ImplementConditionBadge'
 import { useImplementDetail } from '@/features/implements/hooks'
-import { conditionClass, conditionLabel } from '@/features/implements/types'
 
 function ImplementDetailRoute() {
   const navigate = useNavigate()
@@ -37,8 +37,8 @@ function ImplementDetailRoute() {
       </Button>
       <h1 className="text-2xl font-semibold text-foreground">{item.name}</h1>
       <div className="flex flex-wrap gap-2">
-        <Badge variant="secondary">{item.category}</Badge>
-        <Badge className={conditionClass(item.condition)}>{conditionLabel(item.condition)}</Badge>
+        <ImplementCategoryBadge category={item.category} />
+        <ImplementConditionBadge condition={item.condition} />
       </div>
       {item.current_equipment_name ? (
         <p className="text-sm text-muted-foreground">

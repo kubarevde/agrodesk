@@ -1,4 +1,5 @@
 import { format, parse } from 'date-fns'
+import { humanLabel } from '@/lib/display'
 import type {
   DashboardActiveShift,
   DashboardAgroPlanToday,
@@ -111,17 +112,17 @@ export function shiftFromApi(raw: ApiRecord): Shift {
     telegramId: '',
     startTime: normalizeTime(raw.start_time),
     endTime: raw.end_time ? normalizeTime(raw.end_time) : null,
-    workType: String(raw.work_type),
-    location: String(raw.location),
-    equipment: raw.equipment ? String(raw.equipment) : '',
+    workType: humanLabel(String(raw.work_type), 'Тип работ'),
+    location: humanLabel(String(raw.location), 'Объект'),
+    equipment: raw.equipment ? humanLabel(String(raw.equipment), '') : '',
     equipmentId: raw.equipment_id != null ? String(raw.equipment_id) : undefined,
     equipmentMeterType: raw.equipment_meter_type != null ? String(raw.equipment_meter_type) : null,
     equipmentMeterLabel:
       raw.equipment_meter_label != null ? String(raw.equipment_meter_label) : null,
     fieldId: raw.field_id != null ? String(raw.field_id) : null,
-    fieldName: raw.field_name != null ? String(raw.field_name) : null,
+    fieldName: raw.field_name != null ? humanLabel(String(raw.field_name), '') || null : null,
     implementId: raw.implement_id != null ? String(raw.implement_id) : null,
-    implementName: raw.implement_name != null ? String(raw.implement_name) : null,
+    implementName: raw.implement_name != null ? humanLabel(String(raw.implement_name), '') || null : null,
     description: String(raw.description ?? ''),
     comment: String(raw.comment ?? ''),
     status: raw.status as Shift['status'],
@@ -262,7 +263,7 @@ export function currentUserFromApi(raw: ApiRecord): CurrentUser {
 export function locationFromApi(raw: ApiRecord): Location {
   return {
     id: String(raw.id),
-    name: String(raw.name),
+    name: humanLabel(String(raw.name), 'Без названия'),
     description: raw.description ? String(raw.description) : undefined,
     isActive: raw.is_active !== false,
   }
@@ -271,7 +272,7 @@ export function locationFromApi(raw: ApiRecord): Location {
 export function workTypeFromApi(raw: ApiRecord): WorkType {
   return {
     id: String(raw.id),
-    name: String(raw.name),
+    name: humanLabel(String(raw.name), 'Без названия'),
     category: raw.category ? String(raw.category) : undefined,
     isActive: raw.is_active !== false,
   }
@@ -280,7 +281,7 @@ export function workTypeFromApi(raw: ApiRecord): WorkType {
 export function equipmentFromApi(raw: ApiRecord): Equipment {
   return {
     id: String(raw.id),
-    name: String(raw.name),
+    name: humanLabel(String(raw.name), 'Без названия'),
     type: raw.type ? String(raw.type) : undefined,
     isActive: raw.is_active !== false,
     latitude: raw.latitude != null ? Number(raw.latitude) : null,
@@ -291,7 +292,7 @@ export function equipmentFromApi(raw: ApiRecord): Equipment {
 export function inventoryItemFromApi(raw: ApiRecord): InventoryItem {
   return {
     id: String(raw.id),
-    name: String(raw.name),
+    name: humanLabel(String(raw.name), 'Без названия'),
     category: raw.category as InventoryItem['category'],
     unit: String(raw.unit),
     currentStock: toNumber(raw.current_stock),
@@ -306,7 +307,7 @@ export function inventoryOperationFromApi(raw: ApiRecord): InventoryOperation {
     id: String(raw.id),
     date: isoDateToDisplay(String(raw.date)),
     itemId: String(raw.item_id),
-    itemName: String(raw.item_name),
+    itemName: humanLabel(String(raw.item_name), 'Товар'),
     type: raw.type as InventoryOperation['type'],
     quantity: toNumber(raw.quantity),
     stockAfter: toNumber(raw.stock_after),
@@ -479,7 +480,7 @@ export function dashboardActiveShiftFromApi(raw: ApiRecord): DashboardActiveShif
 export function dashboardCriticalItemFromApi(raw: ApiRecord): DashboardCriticalItem {
   return {
     id: String(raw.id),
-    name: String(raw.name),
+    name: humanLabel(String(raw.name), 'Без названия'),
     currentStock: toNumber(raw.current_stock),
     minStock: toNumber(raw.min_stock),
     unit: String(raw.unit ?? ''),
@@ -489,7 +490,7 @@ export function dashboardCriticalItemFromApi(raw: ApiRecord): DashboardCriticalI
 export function dashboardEquipmentWarningFromApi(raw: ApiRecord): DashboardEquipmentWarning {
   return {
     id: String(raw.id),
-    name: String(raw.name),
+    name: humanLabel(String(raw.name), 'Без названия'),
     toStatus: String(raw.to_status),
     currentMeter: toNumber(raw.current_meter),
     nextToAt: raw.next_to_at != null ? toNumber(raw.next_to_at) : null,

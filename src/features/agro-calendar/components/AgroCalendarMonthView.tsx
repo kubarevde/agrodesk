@@ -21,10 +21,11 @@ import {
 } from '@/components/ui/select'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { useFields } from '@/features/fields/hooks'
+import { humanLabel } from '@/lib/display'
 import { cn } from '@/lib/utils'
 import { useAgroPlans } from '../hooks'
 import type { AgroPlan } from '../types'
-import { workTypeBadgeClass } from '../utils'
+import { expandPlanDayKeys, workTypeBadgeClass } from '../utils'
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
@@ -35,6 +36,7 @@ type AgroCalendarMonthViewProps = {
   onNextMonth: () => void
   onFieldChange: (fieldId: string | undefined) => void
   onSelectPlan: (plan: AgroPlan) => void
+  onSelectDay: (dayKey: string) => void
 }
 
 export function AgroCalendarMonthView({
@@ -44,6 +46,7 @@ export function AgroCalendarMonthView({
   onNextMonth,
   onFieldChange,
   onSelectPlan,
+  onSelectDay,
 }: AgroCalendarMonthViewProps) {
   const monthKey = format(month, 'yyyy-MM')
   const { data: plans = [], isLoading } = useAgroPlans({ month: monthKey, fieldId })
@@ -58,13 +61,7 @@ export function AgroCalendarMonthView({
   const plansByDay = useMemo(() => {
     const map = new Map<string, AgroPlan[]>()
     for (const plan of plans) {
-      const startKey = plan.plannedDate.slice(0, 10)
-      const endKey = (plan.plannedEndDate ?? plan.plannedDate).slice(0, 10)
-      const rangeStart = startKey <= endKey ? startKey : endKey
-      const rangeEnd = startKey <= endKey ? endKey : startKey
-      for (const day of days) {
-        const key = format(day, 'yyyy-MM-dd')
-        if (key < rangeStart || key > rangeEnd) continue
+      for (const key of expandPlanDayKeys(plan.plannedDate, plan.plannedEndDate)) {
         const list = map.get(key) ?? []
         if (!list.some((item) => item.id === plan.id)) {
           list.push(plan)
@@ -73,7 +70,7 @@ export function AgroCalendarMonthView({
       }
     }
     return map
-  }, [days, plans])
+  }, [plans])
 
   return (
     <div className="space-y-4">
@@ -128,11 +125,20 @@ export function AgroCalendarMonthView({
               return (
                 <div
                   key={key}
+                  role="button"
+                  tabIndex={0}
                   className={cn(
-                    'min-h-24 border-b border-r border-border p-1.5',
+                    'min-h-24 cursor-pointer border-b border-r border-border p-1.5 transition-colors hover:bg-muted/30',
                     !inMonth && 'bg-muted/20',
                     isToday(day) && 'bg-primary/5',
                   )}
+                  onClick={() => onSelectDay(key)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      onSelectDay(key)
+                    }
+                  }}
                 >
                   <p
                     className={cn(
@@ -145,16 +151,22 @@ export function AgroCalendarMonthView({
                   <div className="space-y-1">
                     {dayPlans.slice(0, 3).map((plan) => (
                       <button
-                        key={plan.id}
+                        key={`${plan.id}-${key}`}
                         type="button"
                         className="w-full text-left"
-                        onClick={() => onSelectPlan(plan)}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          onSelectPlan(plan)
+                        }}
                       >
                         <Badge
                           variant="outline"
-                          className={cn('w-full justify-start truncate text-[10px]', workTypeBadgeClass(plan.workTypeName))}
+                          className={cn(
+                            'w-full justify-start truncate text-[10px]',
+                            workTypeBadgeClass(humanLabel(plan.workTypeName, 'Работа')),
+                          )}
                         >
-                          {plan.workTypeName}
+                          {humanLabel(plan.workTypeName, 'Работа')}
                         </Badge>
                       </button>
                     ))}

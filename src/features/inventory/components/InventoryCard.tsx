@@ -1,6 +1,7 @@
 import { AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { humanLabel } from '@/lib/display'
 import type { InventoryItem } from '@/types'
 import { getCategoryLabel, isCriticalStock } from '@/features/inventory/utils'
 import { StockProgressBar } from './StockProgressBar'
@@ -32,7 +33,7 @@ export function InventoryCard({ item, onClick }: InventoryCardProps) {
     >
       <CardHeader className="space-y-2 pb-2">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="text-lg font-semibold text-foreground">{item.name}</h3>
+          <h3 className="text-lg font-semibold text-foreground">{humanLabel(item.name, 'Товар')}</h3>
           {critical ? (
             <Badge variant="destructive" className="shrink-0 gap-1">
               <AlertTriangle className="size-3" />

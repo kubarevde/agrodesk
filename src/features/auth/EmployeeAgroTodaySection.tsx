@@ -1,5 +1,6 @@
 import { CalendarDays } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { humanLabel } from '@/lib/display'
 import { useAgroPlansToday } from '@/features/agro-calendar/hooks'
 import { STATUS_LABELS } from '@/features/agro-calendar/types'
 import { statusBadgeClass } from '@/features/agro-calendar/utils'
@@ -30,8 +31,8 @@ export function EmployeeAgroTodaySection({ employeeId }: EmployeeAgroTodaySectio
             className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2 text-sm"
           >
             <div>
-              <p className="font-medium text-foreground">{plan.workTypeName}</p>
-              <p className="text-xs text-muted-foreground">{plan.fieldName}</p>
+              <p className="font-medium text-foreground">{humanLabel(plan.workTypeName, 'Работа')}</p>
+              <p className="text-xs text-muted-foreground">{humanLabel(plan.fieldName, 'Поле')}</p>
             </div>
             <Badge className={statusBadgeClass(plan.status)}>{STATUS_LABELS[plan.status]}</Badge>
           </li>
