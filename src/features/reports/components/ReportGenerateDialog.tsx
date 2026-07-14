@@ -12,13 +12,24 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { useFields } from '@/features/fields/hooks'
 import { getDefaultMonthRange } from '@/features/worktime/utils'
+import { useEquipment } from '@/features/worktime/referenceHooks'
 import type { ReportDefinition } from '@/features/reports/reportDefinitions'
 import {
   buildReportBody,
   buildReportFilename,
   downloadReport,
   getCurrentMonthValue,
+  getCurrentYearValue,
+  getYearOptions,
 } from '@/features/reports/utils'
 
 interface ReportGenerateDialogProps {
@@ -32,7 +43,13 @@ export function ReportGenerateDialog({ report, open, onClose }: ReportGenerateDi
   const [from, setFrom] = useState(defaultRange.from)
   const [to, setTo] = useState(defaultRange.to)
   const [month, setMonth] = useState(getCurrentMonthValue())
+  const [year, setYear] = useState(getCurrentYearValue())
+  const [equipmentId, setEquipmentId] = useState<string>('all')
+  const [fieldId, setFieldId] = useState<string>('all')
   const [isGenerating, setIsGenerating] = useState(false)
+  const { data: equipment = [] } = useEquipment()
+  const { data: fields = [] } = useFields()
+  const yearOptions = getYearOptions()
 
   useEffect(() => {
     if (!open) {
@@ -40,6 +57,9 @@ export function ReportGenerateDialog({ report, open, onClose }: ReportGenerateDi
       setFrom(range.from)
       setTo(range.to)
       setMonth(getCurrentMonthValue())
+      setYear(getCurrentYearValue())
+      setEquipmentId('all')
+      setFieldId('all')
       setIsGenerating(false)
     }
   }, [open])
@@ -50,7 +70,11 @@ export function ReportGenerateDialog({ report, open, onClose }: ReportGenerateDi
   }
 
   const canSubmit =
-    report?.periodMode === 'month' ? Boolean(month) : Boolean(from && to)
+    report?.periodMode === 'month'
+      ? Boolean(month)
+      : report?.periodMode === 'year'
+        ? Boolean(year)
+        : Boolean(from && to)
 
   const handleGenerate = async () => {
     if (!report || !canSubmit) {
@@ -62,7 +86,14 @@ export function ReportGenerateDialog({ report, open, onClose }: ReportGenerateDi
     const loadingToastId = toast.loading('Формируем отчёт...')
 
     try {
-      const params = { from, to, month }
+      const params = {
+        from,
+        to,
+        month,
+        year,
+        equipmentId: equipmentId === 'all' ? undefined : equipmentId,
+        fieldId: fieldId === 'all' ? undefined : fieldId,
+      }
       await downloadReport(
         report.endpoint,
         buildReportBody(report, params),
@@ -89,30 +120,93 @@ export function ReportGenerateDialog({ report, open, onClose }: ReportGenerateDi
           </DialogTitle>
         </DialogHeader>
 
-        {report?.periodMode === 'month' ? (
-          <div className="space-y-2">
-            <Label htmlFor="report-month">Месяц</Label>
-            <Input
-              id="report-month"
-              type="month"
-              value={month}
-              onChange={(event) => setMonth(event.target.value)}
-            />
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <Label>Период</Label>
-            <DateRangePicker
-              from={from}
-              to={to}
-              onChange={({ from: nextFrom, to: nextTo }) => {
-                if (nextFrom) setFrom(nextFrom)
-                if (nextTo) setTo(nextTo)
-              }}
-              className="w-full"
-            />
-          </div>
-        )}
+        <div className="space-y-4">
+          {report?.periodMode === 'month' ? (
+            <div className="space-y-2">
+              <Label htmlFor="report-month">Месяц</Label>
+              <Input
+                id="report-month"
+                type="month"
+                value={month}
+                onChange={(event) => setMonth(event.target.value)}
+              />
+            </div>
+          ) : null}
+
+          {report?.periodMode === 'year' ? (
+            <div className="space-y-2">
+              <Label>Год</Label>
+              <Select value={year} onValueChange={(value) => setYear(value ?? getCurrentYearValue())}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Выберите год" />
+                </SelectTrigger>
+                <SelectContent>
+                  {yearOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
+          {report?.periodMode === 'range' ? (
+            <div className="space-y-2">
+              <Label>Период</Label>
+              <DateRangePicker
+                from={from}
+                to={to}
+                onChange={({ from: nextFrom, to: nextTo }) => {
+                  if (nextFrom) setFrom(nextFrom)
+                  if (nextTo) setTo(nextTo)
+                }}
+                className="w-full"
+              />
+            </div>
+          ) : null}
+
+          {report?.equipmentFilter ? (
+            <div className="space-y-2">
+              <Label>Техника</Label>
+              <Select
+                value={equipmentId}
+                onValueChange={(value) => setEquipmentId(value ?? 'all')}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Все" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Все</SelectItem>
+                  {equipment.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
+          {report?.fieldFilter ? (
+            <div className="space-y-2">
+              <Label>Поле</Label>
+              <Select value={fieldId} onValueChange={(value) => setFieldId(value ?? 'all')}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Все" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Все</SelectItem>
+                  {fields.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+        </div>
 
         <DialogFooter className="sm:justify-stretch">
           <Button

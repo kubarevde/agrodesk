@@ -4,6 +4,8 @@ const baseOpenShiftSchema = z.object({
   location: z.string().min(1, 'Выберите объект'),
   workType: z.string().min(1, 'Выберите тип работ'),
   equipment: z.string().optional(),
+  fieldId: z.string().optional(),
+  implementId: z.string().optional(),
   latitude: z.number().nullable().optional(),
   longitude: z.number().nullable().optional(),
   employeeId: z.string().optional(),

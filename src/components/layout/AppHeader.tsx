@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/breadcrumb'
 import { Button } from '@/components/ui/button'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { NotificationBell } from '@/features/notifications/NotificationBell'
 import { usePwaInstall } from '@/hooks/usePwaInstall'
 import { useLayoutStore } from '@/stores/layoutStore'
 import { getPageTitle } from './navigation'
@@ -49,7 +50,10 @@ export function AppHeader() {
         </Breadcrumb>
       </div>
 
-      <SyncStatusIndicator />
+      <div className="flex items-center justify-center gap-2">
+        <SyncStatusIndicator />
+        <NotificationBell />
+      </div>
 
       <div className="flex items-center justify-end gap-2">
         {canInstall ? (

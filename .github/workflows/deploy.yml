@@ -15,12 +15,14 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-      - run: npm run build
+      - name: Build
+        run: npm run build
         env:
-          VITE_USE_MOCKS: false
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_USE_MOCKS: 'false'
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:

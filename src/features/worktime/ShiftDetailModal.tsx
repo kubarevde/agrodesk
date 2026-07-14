@@ -106,8 +106,34 @@ export function ShiftDetailModal({ shift, open, onClose }: ShiftDetailModalProps
                 value={`${shift.employeeName} (${shift.employeeCode})`}
               />
               <DetailItem icon={MapPin} label="Объект" value={shift.location} />
+              {shift.fieldName ? (
+                <DetailItem icon={MapPin} label="Поле" value={shift.fieldName} />
+              ) : null}
               <DetailItem icon={Wrench} label="Тип работ" value={shift.workType} />
-              <DetailItem icon={Truck} label="Техника" value={shift.equipment || '—'} />
+              <DetailItem
+                icon={Truck}
+                label="Техника"
+                value={
+                  <span className="space-y-1">
+                    <span className="block">{shift.equipment || '—'}</span>
+                    {shift.equipmentMeterLabel ? (
+                      <span className="block text-xs text-muted-foreground">
+                        Тип счётчика: {shift.equipmentMeterLabel}
+                      </span>
+                    ) : null}
+                    {shift.equipmentMeterType === 'shift_hours' &&
+                    shift.status === 'closed' &&
+                    shift.durationRounded != null ? (
+                      <span className="block text-xs text-muted-foreground">
+                        Эта смена добавила {shift.durationRounded} ч к счётчику
+                      </span>
+                    ) : null}
+                  </span>
+                }
+              />
+              {shift.implementName ? (
+                <DetailItem icon={Wrench} label="Приспособление" value={shift.implementName} />
+              ) : null}
               <DetailItem icon={Clock} label="Начало" value={formatShiftTime(shift.startTime)} />
               <DetailItem
                 icon={Clock}
@@ -186,6 +212,8 @@ export function ShiftDetailModal({ shift, open, onClose }: ShiftDetailModalProps
         employeeId={shift.employeeId}
         startTime={shift.startTime}
         shiftDate={shift.date}
+        equipmentName={shift.equipment || undefined}
+        equipmentMeterType={shift.equipmentMeterType}
         open={closeModalOpen}
         onClose={() => setCloseModalOpen(false)}
         onSuccess={onClose}

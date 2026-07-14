@@ -1,14 +1,17 @@
 import {
   BarChart2,
+  CalendarDays,
   Clock,
   DollarSign,
   Package,
+  Sprout,
   Truck,
   Wallet,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react'
 
-export type ReportPeriodMode = 'range' | 'month'
+export type ReportPeriodMode = 'range' | 'month' | 'year'
 
 export interface ReportDefinition {
   id: string
@@ -17,7 +20,9 @@ export interface ReportDefinition {
   icon: LucideIcon
   endpoint: string
   periodMode: ReportPeriodMode
-  filename: (params: { from?: string; to?: string; month?: string }) => string
+  equipmentFilter?: boolean
+  fieldFilter?: boolean
+  filename: (params: { from?: string; to?: string; month?: string; year?: string }) => string
 }
 
 export const REPORT_DEFINITIONS: ReportDefinition[] = [
@@ -74,5 +79,34 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
     endpoint: '/api/reports/summary',
     periodMode: 'month',
     filename: ({ month }) => `summary_${month}.xlsx`,
+  },
+  {
+    id: 'equipment',
+    title: 'Техника и ресурс',
+    description: 'Сводка по технике, показаниям, ТО, затратам и приспособлениям',
+    icon: Wrench,
+    endpoint: '/api/reports/equipment',
+    periodMode: 'range',
+    equipmentFilter: true,
+    filename: ({ from, to }) => `equipment_${from}_${to}.xlsx`,
+  },
+  {
+    id: 'fields',
+    title: 'Отчёт по полям',
+    description: 'Работы, журнал смен и агрокалендарь по полям',
+    icon: Sprout,
+    endpoint: '/api/reports/fields',
+    periodMode: 'range',
+    fieldFilter: true,
+    filename: ({ from, to }) => `fields_${from}_${to}.xlsx`,
+  },
+  {
+    id: 'season',
+    title: 'Сезонный обзор',
+    description: 'Работы, техника, финансы и сотрудники за год',
+    icon: CalendarDays,
+    endpoint: '/api/reports/season',
+    periodMode: 'year',
+    filename: ({ year }) => `season_${year}.xlsx`,
   },
 ]

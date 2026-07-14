@@ -87,16 +87,29 @@ export default defineConfig(({ mode }) => {
         manualChunks(id) {
           if (!id.includes('node_modules')) return
 
-          if (id.includes('react-dom') || /\/react\//.test(id)) {
+          if (id.includes('react-dom') || /[\\/]react[\\/]/.test(id)) {
             return 'vendor'
           }
           if (id.includes('@tanstack/react-router') || id.includes('@tanstack/react-query')) {
             return 'router'
           }
+          if (
+            id.includes('leaflet') ||
+            id.includes('react-leaflet') ||
+            id.includes('@turf/turf') ||
+            id.includes('@turf/')
+          ) {
+            return 'maps'
+          }
           if (id.includes('recharts')) {
             return 'charts'
           }
-          if (id.includes('@base-ui/react') || id.includes('sonner')) {
+          if (
+            id.includes('@base-ui/react') ||
+            id.includes('@radix-ui/react-dialog') ||
+            id.includes('@radix-ui/react-select') ||
+            id.includes('sonner')
+          ) {
             return 'ui'
           }
         },

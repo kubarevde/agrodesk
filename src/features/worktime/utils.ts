@@ -57,6 +57,16 @@ export function formatDurationMinutes(totalMinutes: number): string {
   return `${hours} ч ${minutes} мин`
 }
 
+export function calcDurationRoundedHours(totalMinutes: number): number {
+  return Math.ceil(Math.max(0, totalMinutes) / 30) * 0.5
+}
+
+export function previewShiftRoundedHours(startTime: string, date?: string): number {
+  const elapsedMs = Date.now() - parseShiftTime(startTime, date).getTime()
+  const totalMinutes = Math.max(0, Math.floor(elapsedMs / 60000))
+  return calcDurationRoundedHours(totalMinutes)
+}
+
 export function formatShiftDuration(shift: Shift): string {
   if (shift.status === 'closed' && shift.durationRounded != null) {
     return `${shift.durationRounded} ч`

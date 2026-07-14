@@ -11,6 +11,8 @@ export const addShiftSchema = z
     location: z.string().min(1, 'Выберите объект'),
     workType: z.string().min(1, 'Выберите тип работ'),
     equipment: z.string().optional(),
+    fieldId: z.string().optional(),
+    implementId: z.string().optional(),
     description: z.string().min(1, 'Заполните описание'),
     comment: z.string().max(300).optional(),
   })

@@ -7,15 +7,20 @@ from uuid import UUID
 
 from fastapi.responses import StreamingResponse
 from openpyxl.workbook.workbook import Workbook
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.agro_plan import AgroPlan
 from app.models.employee import Employee
+from app.models.equipment_log import EquipmentMaintenance, EquipmentMeterLog
 from app.models.expense import Expense
+from app.models.implement import Implement, ImplementMaintenance
 from app.models.inventory import InventoryItem, InventoryOperation
+from app.models.reference import Equipment, Location
 from app.models.shift import Shift, ShiftStatus
 from app.models.shipment import Shipment
+from app.services.equipment_meters import calc_meter_label
 from app.services.excel_styles import new_workbook, write_table
 from app.services.shifts import calc_duration_from_datetimes, combine_date_time
 
@@ -46,6 +51,35 @@ SHIFT_STATUS_LABELS = {
     'open': 'Открыта',
     'closed': 'Закрыта',
 }
+
+IMPLEMENT_CONDITION_LABELS = {
+    'good': 'Хорошее',
+    'fair': 'Удовлетворительное',
+    'poor': 'Плохое',
+    'repair': 'В ремонте',
+}
+
+AGRO_STATUS_LABELS = {
+    'planned': 'Запланировано',
+    'in_progress': 'В работе',
+    'done': 'Выполнено',
+    'cancelled': 'Отменено',
+}
+
+MONTH_LABELS = [
+    'Янв',
+    'Фев',
+    'Мар',
+    'Апр',
+    'Май',
+    'Июн',
+    'Июл',
+    'Авг',
+    'Сен',
+    'Окт',
+    'Ноя',
+    'Дек',
+]
 
 
 def parse_month(month: str) -> tuple[date, date]:
@@ -473,5 +507,604 @@ async def build_summary_workbook(db: AsyncSession, month: str) -> Workbook:
     for offset, row in enumerate(critical_rows, start=1):
         for col, value in enumerate(row, start=1):
             ws_stock.cell(row=critical_start + offset, column=col, value=value)
+
+    return workbook
+
+
+async def fetch_equipment_list(
+    db: AsyncSession,
+    equipment_id: UUID | None = None,
+) -> list[Equipment]:
+    query = select(Equipment).where(Equipment.is_active.is_(True)).order_by(Equipment.name)
+    if equipment_id is not None:
+        query = query.where(Equipment.id == equipment_id)
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
+async def build_equipment_workbook(
+    db: AsyncSession,
+    from_date: date,
+    to_date: date,
+    equipment_id: UUID | None = None,
+) -> Workbook:
+    equipment_list = await fetch_equipment_list(db, equipment_id)
+    equipment_ids = [item.id for item in equipment_list]
+
+    meter_logs: list[EquipmentMeterLog] = []
+    if equipment_ids:
+        logs_result = await db.execute(
+            select(EquipmentMeterLog)
+            .options(
+                selectinload(EquipmentMeterLog.equipment),
+                selectinload(EquipmentMeterLog.created_by_user),
+                selectinload(EquipmentMeterLog.shift).selectinload(Shift.employee),
+            )
+            .where(
+                EquipmentMeterLog.date >= from_date,
+                EquipmentMeterLog.date <= to_date,
+                EquipmentMeterLog.equipment_id.in_(equipment_ids),
+            )
+            .order_by(EquipmentMeterLog.date, EquipmentMeterLog.created_at)
+        )
+        meter_logs = list(logs_result.scalars().all())
+
+    maintenance_records: list[EquipmentMaintenance] = []
+    if equipment_ids:
+        maintenance_result = await db.execute(
+            select(EquipmentMaintenance)
+            .options(selectinload(EquipmentMaintenance.equipment))
+            .where(
+                EquipmentMaintenance.date >= from_date,
+                EquipmentMaintenance.date <= to_date,
+                EquipmentMaintenance.equipment_id.in_(equipment_ids),
+            )
+            .order_by(EquipmentMaintenance.date)
+        )
+        maintenance_records = list(maintenance_result.scalars().all())
+
+    expenses: list[Expense] = []
+    if equipment_ids:
+        expenses_result = await db.execute(
+            select(Expense)
+            .options(selectinload(Expense.equipment))
+            .where(
+                Expense.date >= from_date,
+                Expense.date <= to_date,
+                Expense.equipment_id.in_(equipment_ids),
+            )
+            .order_by(Expense.date)
+        )
+        expenses = list(expenses_result.scalars().all())
+
+    logs_by_equipment: dict[UUID, list[EquipmentMeterLog]] = defaultdict(list)
+    for log in meter_logs:
+        logs_by_equipment[log.equipment_id].append(log)
+
+    maintenance_by_equipment: dict[UUID, list[EquipmentMaintenance]] = defaultdict(list)
+    for record in maintenance_records:
+        maintenance_by_equipment[record.equipment_id].append(record)
+
+    expenses_by_equipment: dict[UUID, list[Expense]] = defaultdict(list)
+    for expense in expenses:
+        if expense.equipment_id is not None:
+            expenses_by_equipment[expense.equipment_id].append(expense)
+
+    workbook = new_workbook()
+
+    summary_rows = []
+    total_added = 0.0
+    total_to = 0
+    total_expenses = 0.0
+    for equipment in equipment_list:
+        added = sum(to_number(log.value_added) for log in logs_by_equipment.get(equipment.id, []))
+        end_meter = to_number(equipment.current_meter)
+        start_meter = round(end_meter - added, 2)
+        to_count = len(maintenance_by_equipment.get(equipment.id, []))
+        expense_sum = sum(
+            to_number(item.amount) for item in expenses_by_equipment.get(equipment.id, [])
+        )
+        total_added += added
+        total_to += to_count
+        total_expenses += expense_sum
+        summary_rows.append(
+            [
+                equipment.name,
+                calc_meter_label(equipment.meter_type),
+                start_meter,
+                end_meter,
+                round(added, 2),
+                to_count,
+                round(expense_sum, 2),
+            ]
+        )
+
+    ws_summary = workbook.active
+    ws_summary.title = 'Сводка'
+    write_table(
+        ws_summary,
+        [
+            'Техника',
+            'Тип счётчика',
+            'Показатель нач.',
+            'Показатель кон.',
+            'Добавлено',
+            'ТО за период',
+            'Затраты ₽',
+        ],
+        summary_rows,
+        ['ИТОГО', '', '', '', round(total_added, 2), total_to, round(total_expenses, 2)],
+    )
+
+    def shift_label(log: EquipmentMeterLog) -> str:
+        if log.shift is None:
+            return ''
+        employee = log.shift.employee.full_name if log.shift.employee else ''
+        return f'{fmt_date(log.shift.date)} {employee}'.strip()
+
+    ws_logs = workbook.create_sheet('Журнал показаний')
+    log_rows = [
+        [
+            fmt_date(log.date),
+            log.equipment.name if log.equipment else '',
+            to_number(log.value_added),
+            to_number(log.meter_after),
+            shift_label(log),
+            log.note or '',
+            log.created_by_user.full_name if log.created_by_user else '',
+        ]
+        for log in meter_logs
+    ]
+    write_table(
+        ws_logs,
+        ['Дата', 'Техника', 'Добавлено', 'Итого', 'Смена', 'Примечание', 'Внёс'],
+        log_rows,
+    )
+
+    ws_maintenance = workbook.create_sheet('История ТО')
+    maintenance_rows = []
+    for record in maintenance_records:
+        next_interval = ''
+        if record.next_to_at is not None and record.meter_at is not None:
+            next_interval = round(
+                to_number(record.next_to_at) - to_number(record.meter_at),
+                2,
+            )
+        maintenance_rows.append(
+            [
+                fmt_date(record.date),
+                record.equipment.name if record.equipment else '',
+                record.type,
+                to_number(record.meter_at) if record.meter_at is not None else '',
+                to_number(record.cost) if record.cost is not None else '',
+                next_interval,
+                record.description or '',
+            ]
+        )
+    write_table(
+        ws_maintenance,
+        [
+            'Дата',
+            'Техника',
+            'Тип ТО',
+            'При показателе',
+            'Стоимость ₽',
+            'До следующего',
+            'Описание',
+        ],
+        maintenance_rows,
+    )
+
+    ws_expenses = workbook.create_sheet('Затраты на технику')
+    expense_rows = [
+        [
+            fmt_date(expense.date),
+            expense.equipment.name if expense.equipment else '',
+            EXPENSE_CATEGORY_LABELS.get(expense.category, expense.category),
+            to_number(expense.amount),
+            expense.description or '',
+            expense.supplier or '',
+        ]
+        for expense in expenses
+    ]
+    write_table(
+        ws_expenses,
+        ['Дата', 'Техника', 'Категория', 'Сумма ₽', 'Описание', 'Поставщик'],
+        expense_rows,
+        ['ИТОГО', '', '', round(total_expenses, 2), '', ''],
+    )
+
+    implements_query = (
+        select(Implement)
+        .options(selectinload(Implement.current_equipment))
+        .where(Implement.is_active.is_(True))
+        .order_by(Implement.name)
+    )
+    if equipment_id is not None:
+        implements_query = implements_query.where(Implement.current_equipment_id == equipment_id)
+    implements_result = await db.execute(implements_query)
+    implements = list(implements_result.scalars().all())
+    implement_ids = [item.id for item in implements]
+
+    implement_maintenance: list[ImplementMaintenance] = []
+    if implement_ids:
+        impl_maint_result = await db.execute(
+            select(ImplementMaintenance).where(
+                ImplementMaintenance.implement_id.in_(implement_ids),
+                ImplementMaintenance.date >= from_date,
+                ImplementMaintenance.date <= to_date,
+            )
+        )
+        implement_maintenance = list(impl_maint_result.scalars().all())
+
+    maint_by_implement: dict[UUID, list[ImplementMaintenance]] = defaultdict(list)
+    for record in implement_maintenance:
+        maint_by_implement[record.implement_id].append(record)
+
+    ws_implements = workbook.create_sheet('Приспособления')
+    implement_rows = []
+    for implement in implements:
+        maint_records = maint_by_implement.get(implement.id, [])
+        maint_cost = sum(to_number(item.cost) for item in maint_records if item.cost is not None)
+        implement_rows.append(
+            [
+                implement.name,
+                implement.category,
+                IMPLEMENT_CONDITION_LABELS.get(implement.condition, implement.condition),
+                implement.current_equipment.name if implement.current_equipment else '—',
+                len(maint_records),
+                round(maint_cost, 2),
+            ]
+        )
+    write_table(
+        ws_implements,
+        [
+            'Название',
+            'Категория',
+            'Состояние',
+            'Привязана к технике',
+            'ТО за период',
+            'Затраты ₽',
+        ],
+        implement_rows,
+    )
+
+    return workbook
+
+
+async def fetch_field_locations(
+    db: AsyncSession,
+    field_id: UUID | None = None,
+) -> list[Location]:
+    query = (
+        select(Location)
+        .where(
+            Location.is_active.is_(True),
+            or_(Location.crop_type.is_not(None), Location.name.like('Поле%')),
+        )
+        .order_by(Location.name)
+    )
+    if field_id is not None:
+        query = query.where(Location.id == field_id)
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
+async def fetch_field_shifts(
+    db: AsyncSession,
+    from_date: date,
+    to_date: date,
+    field_id: UUID | None = None,
+) -> list[Shift]:
+    query = (
+        select(Shift)
+        .options(
+            selectinload(Shift.employee),
+            selectinload(Shift.field),
+            selectinload(Shift.work_type),
+            selectinload(Shift.equipment),
+            selectinload(Shift.implement),
+        )
+        .where(
+            Shift.date >= from_date,
+            Shift.date <= to_date,
+            Shift.field_id.is_not(None),
+        )
+        .order_by(Shift.date, Shift.start_time)
+    )
+    if field_id is not None:
+        query = query.where(Shift.field_id == field_id)
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
+def unique_join(values: list[str]) -> str:
+    seen: list[str] = []
+    for value in values:
+        if value and value not in seen:
+            seen.append(value)
+    return ', '.join(seen)
+
+
+async def build_fields_workbook(
+    db: AsyncSession,
+    from_date: date,
+    to_date: date,
+    field_id: UUID | None = None,
+) -> Workbook:
+    fields = await fetch_field_locations(db, field_id)
+    field_map = {item.id: item for item in fields}
+    shifts = await fetch_field_shifts(db, from_date, to_date, field_id)
+
+    shifts_by_field: dict[UUID, list[Shift]] = defaultdict(list)
+    for shift in shifts:
+        if shift.field_id is not None:
+            shifts_by_field[shift.field_id].append(shift)
+
+    if field_id is not None:
+        field_ids = list(field_map.keys())
+    else:
+        field_ids = list(dict.fromkeys(list(field_map.keys()) + list(shifts_by_field.keys())))
+
+    workbook = new_workbook()
+    summary_rows = []
+    for fid in field_ids:
+        field = field_map.get(fid)
+        if field is None and shifts_by_field.get(fid):
+            field = shifts_by_field[fid][0].field
+        if field is None:
+            continue
+        field_shifts = shifts_by_field.get(fid, [])
+        equipment_names = unique_join(
+            [shift.equipment.name for shift in field_shifts if shift.equipment]
+        )
+        employee_names = unique_join(
+            [shift.employee.full_name for shift in field_shifts if shift.employee]
+        )
+        total_hours = round(sum(shift_hours(shift) for shift in field_shifts), 2)
+        summary_rows.append(
+            [
+                field.name,
+                field.crop_type or '',
+                to_number(field.area_ha) if field.area_ha is not None else '',
+                len(field_shifts),
+                total_hours,
+                equipment_names,
+                employee_names,
+            ]
+        )
+
+    ws_summary = workbook.active
+    ws_summary.title = 'Работы по полям'
+    write_table(
+        ws_summary,
+        [
+            'Поле',
+            'Культура',
+            'Площадь га',
+            'Кол-во смен',
+            'Часов отработано',
+            'Техника (список)',
+            'Сотрудники (список)',
+        ],
+        summary_rows,
+    )
+
+    ws_detail = workbook.create_sheet('Детальный журнал смен')
+    detail_rows = [
+        [
+            fmt_date(shift.date),
+            shift.field.name if shift.field else '',
+            shift.employee.full_name if shift.employee else '',
+            shift.work_type.name if shift.work_type else '',
+            shift.equipment.name if shift.equipment else '',
+            shift.implement.name if shift.implement else '',
+            shift_hours(shift),
+        ]
+        for shift in shifts
+    ]
+    write_table(
+        ws_detail,
+        ['Дата', 'Поле', 'Сотрудник', 'Тип работы', 'Техника', 'Приспособление', 'Часов'],
+        detail_rows,
+    )
+
+    agro_query = (
+        select(AgroPlan)
+        .options(
+            selectinload(AgroPlan.location),
+            selectinload(AgroPlan.work_type),
+            selectinload(AgroPlan.equipment),
+            selectinload(AgroPlan.actual_shift),
+        )
+        .where(
+            AgroPlan.planned_date >= from_date,
+            AgroPlan.planned_date <= to_date,
+        )
+        .order_by(AgroPlan.planned_date)
+    )
+    if field_id is not None:
+        agro_query = agro_query.where(AgroPlan.location_id == field_id)
+    agro_result = await db.execute(agro_query)
+    plans = list(agro_result.scalars().all())
+
+    ws_agro = workbook.create_sheet('Агрокалендарь')
+    agro_rows = []
+    for plan in plans:
+        actual_date = ''
+        if plan.actual_shift is not None:
+            actual_date = fmt_date(plan.actual_shift.date)
+        agro_rows.append(
+            [
+                plan.location.name if plan.location else '',
+                plan.work_type.name if plan.work_type else '',
+                fmt_date(plan.planned_date),
+                actual_date,
+                AGRO_STATUS_LABELS.get(plan.status, plan.status),
+                plan.equipment.name if plan.equipment else '',
+                plan.notes or '',
+            ]
+        )
+    write_table(
+        ws_agro,
+        ['Поле', 'Тип работы', 'Дата план', 'Дата факт', 'Статус', 'Техника', 'Примечания'],
+        agro_rows,
+    )
+
+    return workbook
+
+
+def year_range(year: int) -> tuple[date, date]:
+    return date(year, 1, 1), date(year, 12, 31)
+
+
+async def build_season_workbook(db: AsyncSession, year: int) -> Workbook:
+    from_date, to_date = year_range(year)
+    fields = await fetch_field_locations(db)
+    shifts = await fetch_field_shifts(db, from_date, to_date)
+
+    hours_by_field_month: dict[UUID, dict[int, float]] = defaultdict(lambda: defaultdict(float))
+    for shift in shifts:
+        if shift.field_id is None:
+            continue
+        hours_by_field_month[shift.field_id][shift.date.month] += shift_hours(shift)
+
+    workbook = new_workbook()
+    matrix_headers = ['Поле', 'Культура', 'Площадь га', *MONTH_LABELS, 'Итого']
+    matrix_rows = []
+    for field in fields:
+        month_hours = hours_by_field_month.get(field.id, {})
+        row_total = 0.0
+        month_values = []
+        for month in range(1, 13):
+            value = round(month_hours.get(month, 0.0), 2)
+            month_values.append(value)
+            row_total += value
+        matrix_rows.append(
+            [
+                field.name,
+                field.crop_type or '',
+                to_number(field.area_ha) if field.area_ha is not None else '',
+                *month_values,
+                round(row_total, 2),
+            ]
+        )
+
+    ws_matrix = workbook.active
+    ws_matrix.title = 'Работы по месяцам'
+    write_table(ws_matrix, matrix_headers, matrix_rows)
+
+    equipment_data = await build_equipment_workbook(db, from_date, to_date, None)
+    ws_equipment_src = equipment_data['Сводка']
+    equipment_rows = []
+    for row in ws_equipment_src.iter_rows(
+        min_row=2,
+        max_row=ws_equipment_src.max_row - 1,
+        values_only=True,
+    ):
+        if row and row[0] != 'ИТОГО':
+            equipment_rows.append([row[0], row[2], row[3], row[4], row[5], row[6]])
+
+    ws_equipment = workbook.create_sheet('Техника за год')
+    write_table(
+        ws_equipment,
+        [
+            'Техника',
+            'Показатель нач. года',
+            'Показатель кон.',
+            'Добавлено',
+            'ТО за год',
+            'Затраты ₽',
+        ],
+        equipment_rows,
+    )
+
+    expenses_result = await db.execute(
+        select(Expense).where(Expense.date >= from_date, Expense.date <= to_date)
+    )
+    expenses = list(expenses_result.scalars().all())
+
+    shipments_result = await db.execute(
+        select(Shipment).where(Shipment.date >= from_date, Shipment.date <= to_date)
+    )
+    shipments = list(shipments_result.scalars().all())
+
+    finance_rows = []
+    total_expenses = 0.0
+    total_revenue = 0.0
+    total_net = 0.0
+    for month in range(1, 13):
+        month_expenses = sum(
+            to_number(item.amount) for item in expenses if item.date.month == month
+        )
+        month_revenue = sum(
+            to_number(item.quantity_kg) * to_number(item.price_per_kg)
+            for item in shipments
+            if item.date.month == month and item.price_per_kg is not None
+        )
+        month_net = round(month_revenue - month_expenses, 2)
+        total_expenses += month_expenses
+        total_revenue += month_revenue
+        total_net += month_net
+        finance_rows.append(
+            [
+                MONTH_LABELS[month - 1],
+                round(month_expenses, 2),
+                round(month_revenue, 2),
+                month_net,
+            ]
+        )
+
+    ws_finance = workbook.create_sheet('Финансы по месяцам')
+    write_table(
+        ws_finance,
+        ['Месяц', 'Затраты', 'Отгрузки (выручка)', 'Итого'],
+        finance_rows,
+        ['ИТОГО', round(total_expenses, 2), round(total_revenue, 2), round(total_net, 2)],
+    )
+
+    year_shifts = await fetch_shifts(db, from_date, to_date)
+    employees_result = await db.execute(
+        select(Employee).where(Employee.is_active.is_(True)).order_by(Employee.full_name)
+    )
+    employees = list(employees_result.scalars().all())
+
+    employee_stats: dict[UUID, dict[str, object]] = {
+        employee.id: {
+            'shifts': 0,
+            'hours': 0.0,
+            'name': employee.full_name,
+            'rate': employee.hourly_rate,
+        }
+        for employee in employees
+    }
+    for shift in year_shifts:
+        if shift.employee_id not in employee_stats:
+            continue
+        employee_stats[shift.employee_id]['shifts'] = (
+            int(employee_stats[shift.employee_id]['shifts']) + 1
+        )
+        employee_stats[shift.employee_id]['hours'] = (
+            float(employee_stats[shift.employee_id]['hours']) + shift_hours(shift)
+        )
+
+    employee_rows = []
+    total_hours = 0.0
+    total_pay = 0.0
+    for employee in employees:
+        stats = employee_stats[employee.id]
+        hours = round(float(stats['hours']), 2)
+        pay = round(hours * to_number(stats['rate']), 2)
+        total_hours += hours
+        total_pay += pay
+        employee_rows.append([stats['name'], stats['shifts'], hours, pay])
+
+    ws_employees = workbook.create_sheet('Сотрудники за год')
+    write_table(
+        ws_employees,
+        ['ФИО', 'Смен за год', 'Часов за год', 'К выплате ₽'],
+        employee_rows,
+        ['ИТОГО', sum(int(employee_stats[e.id]['shifts']) for e in employees), total_hours, total_pay],
+    )
 
     return workbook

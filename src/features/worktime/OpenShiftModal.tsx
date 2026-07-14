@@ -33,6 +33,7 @@ import {
   useLocations,
   useWorkTypes,
 } from './referenceHooks'
+import { ShiftFieldSelect, ShiftImplementSelect } from './components/ShiftFieldImplementFields'
 import { formatShiftTime } from './utils'
 
 interface OpenShiftModalProps {
@@ -46,6 +47,8 @@ const defaultValues: OpenShiftFormValues = {
   location: '',
   workType: '',
   equipment: '',
+  fieldId: '',
+  implementId: '',
   latitude: null,
   longitude: null,
   employeeId: '',
@@ -82,6 +85,7 @@ export function OpenShiftModal({
 
   const latitude = watch('latitude')
   const longitude = watch('longitude')
+  const equipmentId = watch('equipment')
   const hasGeo = latitude != null && longitude != null
 
   const handleClose = () => {
@@ -129,6 +133,8 @@ export function OpenShiftModal({
         locationId: values.location,
         workTypeId: values.workType,
         equipmentId: values.equipment || undefined,
+        fieldId: values.fieldId || undefined,
+        implementId: values.implementId || undefined,
         latitude: values.latitude ?? null,
         longitude: values.longitude ?? null,
         employeeId: canSelectEmployee ? values.employeeId : undefined,
@@ -213,6 +219,8 @@ export function OpenShiftModal({
             ) : null}
           </div>
 
+          <ShiftFieldSelect control={control} />
+
           <div className="space-y-2">
             <Label>Тип работ</Label>
             {workTypesLoading ? (
@@ -255,7 +263,11 @@ export function OpenShiftModal({
                 render={({ field }) => (
                   <Select
                     value={field.value ?? ''}
-                    onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                    onValueChange={(value) => {
+                      const next = value === 'none' ? '' : value
+                      field.onChange(next)
+                      if (!next) setValue('implementId', '')
+                    }}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Не выбрано" />
@@ -273,6 +285,8 @@ export function OpenShiftModal({
               />
             )}
           </div>
+
+          <ShiftImplementSelect control={control} equipmentId={equipmentId || undefined} />
 
           <div className="space-y-2 rounded-lg border border-border p-3">
             <Label>Геолокация</Label>

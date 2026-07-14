@@ -1,4 +1,4 @@
-import { AlertTriangle, Clock, Truck, Users, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, Clock, Truck, Users, Wrench, type LucideIcon } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -57,9 +57,10 @@ export function KpiCards({ stats }: KpiCardsProps) {
   const liveTodayHours = useLiveTodayHours(stats.todayHours, stats.activeShifts)
   const activeNames = stats.activeShifts.map((shift) => shift.employeeName).join(', ')
   const critical = stats.criticalInventoryCount > 0
+  const needsTo = stats.equipmentWarningCount > 0
 
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
       <KpiCard
         title="Сейчас на смене"
         value={`${stats.activeShiftsCount} чел.`}
@@ -83,14 +84,25 @@ export function KpiCards({ stats }: KpiCardsProps) {
         cardClassName={critical ? 'border-destructive/40 bg-destructive/5' : undefined}
         valueClassName={critical ? 'text-destructive' : undefined}
       />
+      <KpiCard
+        title="Требует ТО"
+        value={`${stats.equipmentWarningCount}`}
+        icon={Wrench}
+        cardClassName={
+          needsTo
+            ? 'border-destructive/40 bg-destructive/5'
+            : 'border-success/40 bg-success/5'
+        }
+        valueClassName={needsTo ? 'text-destructive' : 'text-success'}
+      />
     </div>
   )
 }
 
 export function KpiCardsSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, index) => (
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      {Array.from({ length: 5 }).map((_, index) => (
         <Card key={index}>
           <CardHeader>
             <Skeleton className="h-4 w-24" />

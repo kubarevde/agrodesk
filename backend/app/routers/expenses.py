@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_admin, require_manager
@@ -24,11 +25,20 @@ def expense_to_response(expense: Expense) -> ExpenseResponse:
         description=expense.description or '',
         supplier=expense.supplier,
         payment_method=expense.payment_method,
+        equipment_id=expense.equipment_id,
+        equipment_name=expense.equipment.name if expense.equipment else None,
     )
 
 
+def expense_load_options():
+    return (selectinload(Expense.equipment),)
+
+
 async def get_expense_or_404(db: AsyncSession, expense_id: UUID) -> Expense:
-    expense = await db.get(Expense, expense_id)
+    result = await db.execute(
+        select(Expense).options(*expense_load_options()).where(Expense.id == expense_id)
+    )
+    expense = result.scalar_one_or_none()
     if expense is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Затрата не найдена')
     return expense
@@ -39,10 +49,11 @@ async def list_expenses(
     from_date: date | None = Query(None),
     to_date: date | None = Query(None),
     category: ExpenseCategory | None = Query(None),
+    equipment_id: UUID | None = Query(None),
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> list[ExpenseResponse]:
-    query = select(Expense)
+    query = select(Expense).options(*expense_load_options())
 
     if from_date is not None:
         query = query.where(Expense.date >= from_date)
@@ -50,6 +61,8 @@ async def list_expenses(
         query = query.where(Expense.date <= to_date)
     if category is not None:
         query = query.where(Expense.category == category.value)
+    if equipment_id is not None:
+        query = query.where(Expense.equipment_id == equipment_id)
 
     query = query.order_by(Expense.date.desc(), Expense.created_at.desc())
     result = await db.execute(query)
@@ -79,13 +92,13 @@ async def create_expense(
         description=payload.description,
         supplier=payload.supplier,
         payment_method=payload.payment_method.value if payload.payment_method else None,
+        equipment_id=payload.equipment_id,
         created_by=current.id,
     )
     db.add(expense)
     await db.commit()
-    await db.refresh(expense)
     clear_dashboard_cache()
-    return expense_to_response(expense)
+    return expense_to_response(await get_expense_or_404(db, expense.id))
 
 
 @router.patch('/{expense_id}', response_model=ExpenseResponse)
@@ -108,9 +121,8 @@ async def update_expense(
 
     db.add(expense)
     await db.commit()
-    await db.refresh(expense)
     clear_dashboard_cache()
-    return expense_to_response(expense)
+    return expense_to_response(await get_expense_or_404(db, expense.id))
 
 
 @router.delete('/{expense_id}', status_code=status.HTTP_204_NO_CONTENT)

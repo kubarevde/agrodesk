@@ -49,6 +49,7 @@ export function ExpensesTable({
             <TableHead>Категория</TableHead>
             <TableHead>Сумма</TableHead>
             <TableHead>Описание</TableHead>
+            <TableHead>Техника</TableHead>
             <TableHead>Поставщик</TableHead>
             <TableHead>Оплата</TableHead>
             {showActions ? <TableHead>Действия</TableHead> : null}
@@ -65,6 +66,7 @@ export function ExpensesTable({
               </TableCell>
               <TableCell className="font-medium">{formatMoney(expense.amount)}</TableCell>
               <TableCell>{expense.description}</TableCell>
+              <TableCell>{expense.equipmentName || '—'}</TableCell>
               <TableCell>{expense.supplier || '—'}</TableCell>
               <TableCell>
                 {expense.paymentMethod

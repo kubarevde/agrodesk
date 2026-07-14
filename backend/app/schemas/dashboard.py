@@ -28,6 +28,22 @@ class DashboardWeeklyHours(BaseModel):
     shifts_count: int
 
 
+class DashboardEquipmentWarning(BaseModel):
+    id: UUID
+    name: str
+    to_status: str
+    current_meter: float
+    next_to_at: float | None
+    meter_label: str
+
+
+class DashboardAgroPlanToday(BaseModel):
+    id: UUID
+    field_name: str
+    work_type_name: str
+    status: str
+
+
 class DashboardStatsResponse(BaseModel):
     active_shifts_count: int
     active_shifts: list[DashboardActiveShift]
@@ -40,3 +56,7 @@ class DashboardStatsResponse(BaseModel):
     critical_inventory_count: int
     critical_inventory: list[DashboardCriticalItem]
     weekly_hours: list[DashboardWeeklyHours]
+    equipment_warning_count: int
+    equipment_warnings: list[DashboardEquipmentWarning]
+    agro_plan_today: list[DashboardAgroPlanToday]
+    sharing_new_requests: int

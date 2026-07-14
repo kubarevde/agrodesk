@@ -1,15 +1,23 @@
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { RefreshCw } from 'lucide-react'
+import { SystemStatus } from '@/components/shared/SystemStatus'
 import { Button } from '@/components/ui/button'
+import { useCurrentUser } from '@/features/auth/hooks'
+import { FieldsMapWidget } from './FieldsMapWidget'
 import { ActiveShiftsSection } from './components/ActiveShiftsSection'
+import { AgroPlanTodaySection } from './components/AgroPlanTodaySection'
 import { CriticalInventorySection } from './components/CriticalInventorySection'
+import { EquipmentWarningsSection } from './components/EquipmentWarningsSection'
 import { FinanceCards, FinanceCardsSkeleton } from './components/FinanceCards'
 import { KpiCards, KpiCardsSkeleton } from './components/KpiCards'
+import { SharingDashboardSection } from './components/SharingDashboardSection'
 import { WeeklyHoursChart, WeeklyHoursChartSkeleton } from './components/WeeklyHoursChart'
 import { useDashboardStats } from './hooks'
 
 export function DashboardPage() {
+  const { data: user } = useCurrentUser()
+  const isAdmin = user?.role === 'admin'
   const { data: stats, isLoading, isFetching, dataUpdatedAt, refetch } = useDashboardStats()
   const updatedLabel = dataUpdatedAt
     ? format(new Date(dataUpdatedAt), 'HH:mm:ss', { locale: ru })
@@ -36,6 +44,20 @@ export function DashboardPage() {
 
       {isLoading || !stats ? <KpiCardsSkeleton /> : <KpiCards stats={stats} />}
 
+      <EquipmentWarningsSection
+        items={stats?.equipmentWarnings ?? []}
+        isLoading={isLoading}
+      />
+
+      <AgroPlanTodaySection items={stats?.agroPlanToday ?? []} isLoading={isLoading} />
+
+      <FieldsMapWidget />
+
+      <SharingDashboardSection
+        newRequests={stats?.sharingNewRequests ?? 0}
+        isLoadingStats={isLoading}
+      />
+
       {isLoading || !stats ? <FinanceCardsSkeleton /> : <FinanceCards stats={stats} />}
 
       {isLoading || !stats ? (
@@ -50,6 +72,8 @@ export function DashboardPage() {
         items={stats?.criticalInventory ?? []}
         isLoading={isLoading}
       />
+
+      {isAdmin ? <SystemStatus /> : null}
     </div>
   )
 }

@@ -1,7 +1,9 @@
 import { format, parse } from 'date-fns'
 import type {
   DashboardActiveShift,
+  DashboardAgroPlanToday,
   DashboardCriticalItem,
+  DashboardEquipmentWarning,
   DashboardStats,
   DashboardWeeklyHours,
   Employee,
@@ -33,6 +35,8 @@ export interface ShiftCreateInput {
   locationId: string
   workTypeId: string
   equipmentId?: string
+  fieldId?: string
+  implementId?: string
   latitude?: number | null
   longitude?: number | null
   employeeId?: string
@@ -46,6 +50,8 @@ export interface ShiftManualAddInput {
   locationId: string
   workTypeId: string
   equipmentId?: string
+  fieldId?: string
+  implementId?: string
   description?: string
   comment?: string
 }
@@ -108,6 +114,14 @@ export function shiftFromApi(raw: ApiRecord): Shift {
     workType: String(raw.work_type),
     location: String(raw.location),
     equipment: raw.equipment ? String(raw.equipment) : '',
+    equipmentId: raw.equipment_id != null ? String(raw.equipment_id) : undefined,
+    equipmentMeterType: raw.equipment_meter_type != null ? String(raw.equipment_meter_type) : null,
+    equipmentMeterLabel:
+      raw.equipment_meter_label != null ? String(raw.equipment_meter_label) : null,
+    fieldId: raw.field_id != null ? String(raw.field_id) : null,
+    fieldName: raw.field_name != null ? String(raw.field_name) : null,
+    implementId: raw.implement_id != null ? String(raw.implement_id) : null,
+    implementName: raw.implement_name != null ? String(raw.implement_name) : null,
     description: String(raw.description ?? ''),
     comment: String(raw.comment ?? ''),
     status: raw.status as Shift['status'],
@@ -124,6 +138,8 @@ export function shiftCreateToApi(payload: ShiftCreateInput): ApiRecord {
     location_id: payload.locationId,
     work_type_id: payload.workTypeId,
     equipment_id: payload.equipmentId || undefined,
+    field_id: payload.fieldId || undefined,
+    implement_id: payload.implementId || undefined,
     latitude: payload.latitude ?? undefined,
     longitude: payload.longitude ?? undefined,
     employee_id: payload.employeeId,
@@ -139,6 +155,8 @@ export function shiftManualAddToApi(payload: ShiftManualAddInput): ApiRecord {
     location_id: payload.locationId,
     work_type_id: payload.workTypeId,
     equipment_id: payload.equipmentId || undefined,
+    field_id: payload.fieldId || undefined,
+    implement_id: payload.implementId || undefined,
     description: payload.description,
     comment: payload.comment,
   }
@@ -265,6 +283,8 @@ export function equipmentFromApi(raw: ApiRecord): Equipment {
     name: String(raw.name),
     type: raw.type ? String(raw.type) : undefined,
     isActive: raw.is_active !== false,
+    latitude: raw.latitude != null ? Number(raw.latitude) : null,
+    longitude: raw.longitude != null ? Number(raw.longitude) : null,
   }
 }
 
@@ -391,6 +411,8 @@ export function expenseFromApi(raw: ApiRecord): Expense {
     paymentMethod: raw.payment_method
       ? (raw.payment_method as Expense['paymentMethod'])
       : undefined,
+    equipmentId: raw.equipment_id != null ? String(raw.equipment_id) : null,
+    equipmentName: raw.equipment_name != null ? String(raw.equipment_name) : null,
   }
 }
 
@@ -399,6 +421,7 @@ export function expenseFiltersToApi(filters: ExpenseFilters): ApiRecord {
   if (filters.from) params.from_date = displayDateToIso(filters.from)
   if (filters.to) params.to_date = displayDateToIso(filters.to)
   if (filters.category) params.category = filters.category
+  if (filters.equipmentId) params.equipment_id = filters.equipmentId
   return params
 }
 
@@ -409,6 +432,7 @@ export function expenseCreateToApi(values: {
   description: string
   supplier?: string
   paymentMethod?: Expense['paymentMethod']
+  equipmentId?: string
 }): ApiRecord {
   return {
     date: displayDateToIso(values.date),
@@ -417,6 +441,7 @@ export function expenseCreateToApi(values: {
     description: values.description,
     supplier: values.supplier || undefined,
     payment_method: values.paymentMethod || undefined,
+    equipment_id: values.equipmentId || undefined,
   }
 }
 
@@ -427,6 +452,7 @@ export function expenseUpdateToApi(values: {
   description?: string
   supplier?: string
   paymentMethod?: Expense['paymentMethod']
+  equipmentId?: string
 }): ApiRecord {
   const body: ApiRecord = {}
   if (values.date !== undefined) body.date = displayDateToIso(values.date)
@@ -435,6 +461,7 @@ export function expenseUpdateToApi(values: {
   if (values.description !== undefined) body.description = values.description
   if (values.supplier !== undefined) body.supplier = values.supplier || null
   if (values.paymentMethod !== undefined) body.payment_method = values.paymentMethod || null
+  if (values.equipmentId !== undefined) body.equipment_id = values.equipmentId || null
   return body
 }
 
@@ -459,6 +486,26 @@ export function dashboardCriticalItemFromApi(raw: ApiRecord): DashboardCriticalI
   }
 }
 
+export function dashboardEquipmentWarningFromApi(raw: ApiRecord): DashboardEquipmentWarning {
+  return {
+    id: String(raw.id),
+    name: String(raw.name),
+    toStatus: String(raw.to_status),
+    currentMeter: toNumber(raw.current_meter),
+    nextToAt: raw.next_to_at != null ? toNumber(raw.next_to_at) : null,
+    meterLabel: String(raw.meter_label ?? 'мч'),
+  }
+}
+
+export function dashboardAgroPlanTodayFromApi(raw: ApiRecord): DashboardAgroPlanToday {
+  return {
+    id: String(raw.id),
+    fieldName: String(raw.field_name ?? ''),
+    workTypeName: String(raw.work_type_name ?? ''),
+    status: String(raw.status ?? 'planned'),
+  }
+}
+
 export function dashboardStatsFromApi(raw: ApiRecord): DashboardStats {
   const weeklyHours = Array.isArray(raw.weekly_hours)
     ? raw.weekly_hours.map((item) => {
@@ -479,6 +526,14 @@ export function dashboardStatsFromApi(raw: ApiRecord): DashboardStats {
     ? raw.critical_inventory.map((item) => dashboardCriticalItemFromApi(item as ApiRecord))
     : []
 
+  const equipmentWarnings = Array.isArray(raw.equipment_warnings)
+    ? raw.equipment_warnings.map((item) => dashboardEquipmentWarningFromApi(item as ApiRecord))
+    : []
+
+  const agroPlanToday = Array.isArray(raw.agro_plan_today)
+    ? raw.agro_plan_today.map((item) => dashboardAgroPlanTodayFromApi(item as ApiRecord))
+    : []
+
   return {
     activeShiftsCount: toNumber(raw.active_shifts_count),
     activeShifts,
@@ -489,5 +544,9 @@ export function dashboardStatsFromApi(raw: ApiRecord): DashboardStats {
     criticalInventoryCount: toNumber(raw.critical_inventory_count),
     criticalInventory,
     weeklyHours,
+    equipmentWarningCount: toNumber(raw.equipment_warning_count),
+    equipmentWarnings,
+    agroPlanToday,
+    sharingNewRequests: toNumber(raw.sharing_new_requests),
   }
 }

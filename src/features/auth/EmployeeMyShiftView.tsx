@@ -7,6 +7,7 @@ import { ShiftDetailModal } from '@/features/worktime/ShiftDetailModal'
 import { useShifts } from '@/features/worktime/hooks'
 import { getDefaultMonthRange } from '@/features/worktime/utils'
 import { CurrentShiftCard } from './CurrentShiftCard'
+import { EmployeeAgroTodaySection } from './EmployeeAgroTodaySection'
 import { MonthShiftsList } from './MonthShiftsList'
 
 interface EmployeeMyShiftViewProps {
@@ -50,6 +51,8 @@ export function EmployeeMyShiftView({ user }: EmployeeMyShiftViewProps) {
         onFinish={setCloseShiftTarget}
       />
 
+      <EmployeeAgroTodaySection employeeId={user.id} />
+
       {monthLoading ? (
         <div className="h-40 animate-pulse rounded-xl border border-border bg-muted/40" />
       ) : (
@@ -67,6 +70,8 @@ export function EmployeeMyShiftView({ user }: EmployeeMyShiftViewProps) {
           employeeId={closeShiftTarget.employeeId ?? user.id}
           startTime={closeShiftTarget.startTime}
           shiftDate={closeShiftTarget.date}
+          equipmentName={closeShiftTarget.equipment || undefined}
+          equipmentMeterType={closeShiftTarget.equipmentMeterType}
           open={Boolean(closeShiftTarget)}
           onClose={() => setCloseShiftTarget(null)}
         />

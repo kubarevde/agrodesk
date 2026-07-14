@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class LocationResponse(BaseModel):
@@ -43,21 +43,59 @@ class WorkTypeUpdate(BaseModel):
     is_active: bool | None = None
 
 
-class EquipmentResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    name: str
-    type: str | None = None
-    is_active: bool
-
-
 class EquipmentCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     type: str | None = Field(default=None, max_length=100)
+    year_of_manufacture: int | None = None
+    serial_number: str | None = Field(default=None, max_length=100)
+    meter_type: str = 'motohours'
+    current_meter: float = 0
+    to_interval: float | None = None
+    next_to_at: float | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    image_url: str | None = Field(default=None, max_length=500)
+    is_active: bool = True
+
+    @field_validator('meter_type')
+    @classmethod
+    def validate_meter_type(cls, value: str) -> str:
+        allowed = {'motohours', 'km', 'shift_hours'}
+        if value not in allowed:
+            raise ValueError(f'meter_type must be one of: {", ".join(sorted(allowed))}')
+        return value
 
 
 class EquipmentUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     type: str | None = Field(default=None, max_length=100)
+    year_of_manufacture: int | None = None
+    serial_number: str | None = Field(default=None, max_length=100)
+    meter_type: str | None = None
+    current_meter: float | None = None
+    to_interval: float | None = None
+    next_to_at: float | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    image_url: str | None = Field(default=None, max_length=500)
     is_active: bool | None = None
+    owner_id: UUID | None = None
+
+    @field_validator('meter_type')
+    @classmethod
+    def validate_meter_type(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        allowed = {'motohours', 'km', 'shift_hours'}
+        if value not in allowed:
+            raise ValueError(f'meter_type must be one of: {", ".join(sorted(allowed))}')
+        return value
+
+
+class EquipmentResponse(EquipmentCreate):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    image_url: str | None = None
+    to_status: str
+    meter_label: str
