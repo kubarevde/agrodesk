@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2, Square } from 'lucide-react'
+import { Info, Loader2, Square } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
@@ -13,16 +13,19 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentUser } from '@/features/auth/hooks'
+import type { Shift } from '@/types'
 import { closeShiftSchema, type CloseShiftFormValues } from './closeShiftSchema'
 import { useCloseShift } from './hooks'
 import { useLiveShiftDuration } from './useLiveShiftDuration'
-import { formatShiftTime } from './utils'
+import { formatShiftTime, previewShiftRoundedHours } from './utils'
 
 interface CloseShiftModalProps {
   shiftId: string
   employeeId?: string
   startTime: string
   shiftDate?: string
+  equipmentName?: string
+  equipmentMeterType?: string | null
   open: boolean
   onClose: () => void
   onSuccess?: () => void
@@ -38,6 +41,8 @@ export function CloseShiftModal({
   employeeId,
   startTime,
   shiftDate,
+  equipmentName,
+  equipmentMeterType,
   open,
   onClose,
   onSuccess,
@@ -51,6 +56,9 @@ export function CloseShiftModal({
   const closeShift = useCloseShift()
   const [commentHidden, setCommentHidden] = useState(false)
   const durationLabel = useLiveShiftDuration(startTime, shiftDate, open)
+  const roundedPreview = open ? previewShiftRoundedHours(startTime, shiftDate) : 0
+  const showMeterHint =
+    Boolean(equipmentName) && equipmentMeterType === 'shift_hours' && roundedPreview > 0
 
   const {
     register,
@@ -154,7 +162,14 @@ export function CloseShiftModal({
           )}
 
           {canClose ? (
-            <DialogFooter className="sm:justify-stretch">
+            <DialogFooter className="flex-col gap-3 sm:flex-col sm:justify-stretch">
+              {showMeterHint ? (
+                <p className="flex items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-muted-foreground">
+                  <Info className="mt-0.5 size-3.5 shrink-0 text-primary" />
+                  При закрытии автоматически запишется {roundedPreview} ч к счётчику{' '}
+                  {equipmentName}
+                </p>
+              ) : null}
               <Button
                 type="submit"
                 variant="destructive"
@@ -175,3 +190,8 @@ export function CloseShiftModal({
     </Dialog>
   )
 }
+
+export type CloseShiftTarget = Pick<
+  Shift,
+  'id' | 'employeeId' | 'startTime' | 'date' | 'equipment' | 'equipmentMeterType'
+>

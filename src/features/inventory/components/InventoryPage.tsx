@@ -4,6 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import type { InventoryItem } from '@/types'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { useInventory, useInventoryOperations } from '@/features/inventory/hooks'
 import type { InventoryCategoryFilter } from '@/features/inventory/utils'
@@ -11,6 +12,7 @@ import { CategoryFilter } from './CategoryFilter'
 import { ExpenseModal } from './ExpenseModal'
 import { IncomeModal } from './IncomeModal'
 import { InventoryCard } from './InventoryCard'
+import { InventoryDetailSheet } from './InventoryDetailSheet'
 import { InventoryOperationsTable } from './InventoryOperationsTable'
 
 export function InventoryPage() {
@@ -22,6 +24,7 @@ export function InventoryPage() {
   const [category, setCategory] = useState<InventoryCategoryFilter>('all')
   const [incomeOpen, setIncomeOpen] = useState(false)
   const [expenseOpen, setExpenseOpen] = useState(false)
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null)
 
   const filteredItems = useMemo(() => {
     if (category === 'all') return items
@@ -85,7 +88,7 @@ export function InventoryPage() {
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
           {filteredItems.map((item) => (
-            <InventoryCard key={item.id} item={item} />
+            <InventoryCard key={item.id} item={item} onClick={setSelectedItem} />
           ))}
         </div>
       )}
@@ -94,6 +97,11 @@ export function InventoryPage() {
 
       <IncomeModal open={incomeOpen} items={items} onClose={() => setIncomeOpen(false)} />
       <ExpenseModal open={expenseOpen} items={items} onClose={() => setExpenseOpen(false)} />
+      <InventoryDetailSheet
+        item={selectedItem}
+        open={Boolean(selectedItem)}
+        onClose={() => setSelectedItem(null)}
+      />
     </div>
   )
 }

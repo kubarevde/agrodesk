@@ -139,9 +139,12 @@ export function useCloseShift() {
     },
     onSuccess: async (result) => {
       if (result.offline) return
-      await queryClient.invalidateQueries({ queryKey: ['shifts'] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['shifts'] }),
+        queryClient.invalidateQueries({ queryKey: ['equipment'] }),
+      ])
       const hours = result.shift.durationRounded ?? 0
-      toast.success(`✅ Смена завершена — ${hours} ч`)
+      toast.success(`Смена завершена — ${hours} ч`)
     },
     onError: (error) => {
       const message =

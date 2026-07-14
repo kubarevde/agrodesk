@@ -53,6 +53,11 @@ export function createShiftColumns(actions: ShiftRowActions): ColumnDef<Shift>[]
       cell: ({ row }) => row.original.location,
     },
     {
+      id: 'field',
+      header: 'Поле',
+      cell: ({ row }) => row.original.fieldName || '—',
+    },
+    {
       accessorKey: 'workType',
       header: 'Тип работ',
       cell: ({ row }) => row.original.workType,
@@ -60,7 +65,11 @@ export function createShiftColumns(actions: ShiftRowActions): ColumnDef<Shift>[]
     {
       accessorKey: 'equipment',
       header: 'Техника',
-      cell: ({ row }) => row.original.equipment,
+      cell: ({ row }) => {
+        const { equipment, implementName } = row.original
+        if (!equipment) return '—'
+        return implementName ? `${equipment} + ${implementName}` : equipment
+      },
     },
     {
       accessorKey: 'startTime',

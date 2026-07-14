@@ -8,7 +8,9 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_admin, require_manager
+from app.models.agro_plan import AgroPlan
 from app.models.employee import Employee, EmployeeRole
+from app.models.implement import Implement
 from app.models.reference import Equipment, Location, WorkType
 from app.models.shift import Shift, ShiftStatus
 from app.schemas.shift import (
@@ -18,18 +20,20 @@ from app.schemas.shift import (
     ShiftResponse,
     ShiftUpdate,
 )
+from app.services.dashboard import clear_dashboard_cache
+from app.services.equipment_meters import add_equipment_meter_log, calc_meter_label
 from app.services.shifts import (
     calc_duration_from_datetimes,
     calc_duration_minutes,
     calc_duration_rounded,
     combine_date_time,
 )
-from app.services.dashboard import clear_dashboard_cache
 
 router = APIRouter()
 
 
 def shift_to_response(shift: Shift) -> ShiftResponse:
+    equipment = shift.equipment
     return ShiftResponse(
         id=shift.id,
         date=shift.date,
@@ -40,7 +44,14 @@ def shift_to_response(shift: Shift) -> ShiftResponse:
         end_time=shift.end_time,
         work_type=shift.work_type.name,
         location=shift.location.name,
-        equipment=shift.equipment.name if shift.equipment else None,
+        equipment=equipment.name if equipment else None,
+        equipment_id=shift.equipment_id,
+        equipment_meter_type=equipment.meter_type if equipment else None,
+        equipment_meter_label=calc_meter_label(equipment.meter_type) if equipment else None,
+        field_id=shift.field_id,
+        field_name=shift.field.name if shift.field else None,
+        implement_id=shift.implement_id,
+        implement_name=shift.implement.name if shift.implement else None,
         description=shift.description,
         comment=shift.comment,
         status=shift.status.value,
@@ -57,6 +68,8 @@ def shift_load_options():
         selectinload(Shift.work_type),
         selectinload(Shift.location),
         selectinload(Shift.equipment),
+        selectinload(Shift.field),
+        selectinload(Shift.implement),
     )
 
 
@@ -81,6 +94,8 @@ async def validate_reference_ids(
     location_id: UUID,
     work_type_id: UUID,
     equipment_id: UUID | None = None,
+    field_id: UUID | None = None,
+    implement_id: UUID | None = None,
 ) -> None:
     location = await db.get(Location, location_id)
     if location is None or not location.is_active:
@@ -94,6 +109,19 @@ async def validate_reference_ids(
         equipment = await db.get(Equipment, equipment_id)
         if equipment is None or not equipment.is_active:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Техника не найдена')
+
+    if field_id is not None:
+        field = await db.get(Location, field_id)
+        if field is None or not field.is_active:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Поле не найдено')
+
+    if implement_id is not None:
+        implement = await db.get(Implement, implement_id)
+        if implement is None or not implement.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Приспособление не найдено',
+            )
 
 
 async def get_employee_or_400(db: AsyncSession, employee_id: UUID) -> Employee:
@@ -188,6 +216,8 @@ async def open_shift(
         location_id=payload.location_id,
         work_type_id=payload.work_type_id,
         equipment_id=payload.equipment_id,
+        field_id=payload.field_id,
+        implement_id=payload.implement_id,
     )
     await ensure_no_open_shift(db, target_employee_id)
 
@@ -199,6 +229,8 @@ async def open_shift(
         work_type_id=payload.work_type_id,
         location_id=payload.location_id,
         equipment_id=payload.equipment_id,
+        field_id=payload.field_id,
+        implement_id=payload.implement_id,
         status=ShiftStatus.open,
         latitude=payload.latitude,
         longitude=payload.longitude,
@@ -223,6 +255,8 @@ async def add_manual_shift(
         location_id=payload.location_id,
         work_type_id=payload.work_type_id,
         equipment_id=payload.equipment_id,
+        field_id=payload.field_id,
+        implement_id=payload.implement_id,
     )
 
     duration_raw = calc_duration_minutes(payload.start_time, payload.end_time)
@@ -240,6 +274,8 @@ async def add_manual_shift(
         work_type_id=payload.work_type_id,
         location_id=payload.location_id,
         equipment_id=payload.equipment_id,
+        field_id=payload.field_id,
+        implement_id=payload.implement_id,
         description=payload.description,
         comment=payload.comment,
         status=ShiftStatus.closed,
@@ -284,6 +320,37 @@ async def close_shift(
     shift.duration_rounded = calc_duration_rounded(duration_raw)
 
     db.add(shift)
+
+    if shift.equipment_id is not None and shift.duration_rounded is not None:
+        equipment = await db.get(Equipment, shift.equipment_id)
+        if (
+            equipment is not None
+            and equipment.meter_type == 'shift_hours'
+            and float(shift.duration_rounded) > 0
+        ):
+            await add_equipment_meter_log(
+                db,
+                equipment_id=equipment.id,
+                value_added=shift.duration_rounded,
+                log_date=shift.date,
+                note='Автоматически из смены',
+                shift_id=shift.id,
+                created_by=current.id,
+            )
+
+    if shift.field_id is not None:
+        result = await db.execute(
+            select(AgroPlan).where(
+                AgroPlan.location_id == shift.field_id,
+                AgroPlan.planned_date == shift.date,
+                AgroPlan.status == 'planned',
+            )
+        )
+        for plan in result.scalars().all():
+            plan.status = 'done'
+            plan.actual_shift_id = shift.id
+            db.add(plan)
+
     await db.commit()
     clear_dashboard_cache()
 
@@ -308,8 +375,13 @@ async def update_shift(
         'location_id': update_data.get('location_id', shift.location_id),
         'work_type_id': update_data.get('work_type_id', shift.work_type_id),
         'equipment_id': update_data.get('equipment_id', shift.equipment_id),
+        'field_id': update_data.get('field_id', shift.field_id),
+        'implement_id': update_data.get('implement_id', shift.implement_id),
     }
-    if any(key in update_data for key in ('location_id', 'work_type_id', 'equipment_id')):
+    if any(
+        key in update_data
+        for key in ('location_id', 'work_type_id', 'equipment_id', 'field_id', 'implement_id')
+    ):
         await validate_reference_ids(db, **reference_ids)
 
     for field, value in update_data.items():

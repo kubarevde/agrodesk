@@ -23,6 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { addShiftSchema, type AddShiftFormValues } from './addShiftSchema'
 import { ShiftDateTimeField } from './components/ShiftDateTimeField'
+import { ShiftFieldSelect, ShiftImplementSelect } from './components/ShiftFieldImplementFields'
 import { useManualAddShift } from './hooks'
 import {
   useEmployees,
@@ -30,9 +31,7 @@ import {
   useLocations,
   useWorkTypes,
 } from './referenceHooks'
-import {
-  formatApiDate,
-} from './utils'
+import { formatApiDate } from './utils'
 
 interface AddShiftModalProps {
   open: boolean
@@ -50,6 +49,8 @@ function getDefaultValues(): AddShiftFormValues {
     location: '',
     workType: '',
     equipment: '',
+    fieldId: '',
+    implementId: '',
     description: '',
     comment: '',
   }
@@ -69,11 +70,14 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
     register,
     reset,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<AddShiftFormValues>({
     resolver: zodResolver(addShiftSchema),
     defaultValues: getDefaultValues(),
   })
+
+  const equipmentId = watch('equipment')
 
   useEffect(() => {
     if (!open) {
@@ -104,6 +108,8 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
         locationId: values.location,
         workTypeId: values.workType,
         equipmentId: values.equipment || undefined,
+        fieldId: values.fieldId || undefined,
+        implementId: values.implementId || undefined,
         description: values.description,
         comment: values.comment ?? '',
       })
@@ -224,6 +230,8 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
             ) : null}
           </div>
 
+          <ShiftFieldSelect control={control} />
+
           <div className="space-y-2">
             <Label>Тип работ</Label>
             {workTypesLoading ? (
@@ -266,7 +274,11 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
                 render={({ field }) => (
                   <Select
                     value={field.value ?? ''}
-                    onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                    onValueChange={(value) => {
+                      const next = value === 'none' ? '' : value
+                      field.onChange(next)
+                      if (!next) setValue('implementId', '')
+                    }}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Не выбрано" />
@@ -284,6 +296,8 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
               />
             )}
           </div>
+
+          <ShiftImplementSelect control={control} equipmentId={equipmentId || undefined} />
 
           <div className="space-y-2">
             <Label htmlFor="description">Что сделано</Label>

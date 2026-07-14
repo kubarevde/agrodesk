@@ -5,6 +5,9 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { SkeletonTable } from '@/components/shared/SkeletonTable'
 import { Button } from '@/components/ui/button'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { REPORT_DEFINITIONS } from '@/features/reports/reportDefinitions'
+import { buildReportFilename, downloadReport } from '@/features/reports/utils'
+import { displayDateToIso } from '@/lib/transformers'
 import {
   useDeleteShift,
   useShifts,
@@ -22,9 +25,12 @@ import { ShiftsFilters } from './ShiftsFilters'
 import { ShiftsTable } from './ShiftsTable'
 import type { ShiftRowActions } from './shiftsColumns'
 
+const TIMESHEET_REPORT = REPORT_DEFINITIONS.find((report) => report.id === 'timesheet')
+
 export function WorktimePage() {
   const { data: user } = useCurrentUser()
   const isManager = user?.role === 'admin' || user?.role === 'manager'
+  const isAdmin = user?.role === 'admin'
   const {
     from,
     to,
@@ -48,10 +54,33 @@ export function WorktimePage() {
   const [detailOpen, setDetailOpen] = useState(false)
   const [openShiftOpen, setOpenShiftOpen] = useState(false)
   const [addShiftOpen, setAddShiftOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   const handleOpenShift = () => setOpenShiftOpen(true)
   const handleAddShift = () => setAddShiftOpen(true)
-  const handleExport = () => toast.info('Экспорт Excel скоро будет доступен')
+
+  const handleExport = async () => {
+    if (!TIMESHEET_REPORT) return
+    setExporting(true)
+    try {
+      const params = { from, to, month: '' }
+      await downloadReport(
+        TIMESHEET_REPORT.endpoint,
+        {
+          from_date: displayDateToIso(from),
+          to_date: displayDateToIso(to),
+          ...(employeeId ? { employee_id: employeeId } : {}),
+        },
+        buildReportFilename(TIMESHEET_REPORT, params),
+      )
+      toast.success('📥 Файл скачан')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Не удалось скачать Excel'
+      toast.error(`Ошибка: ${message}`)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   useEffect(() => {
     if (isError) {
@@ -68,11 +97,11 @@ export function WorktimePage() {
     () => ({
       onDetails: openDetails,
       onClose: (shift) => setCloseShiftTarget(shift),
-      onDelete: isManager ? (shift) => deleteShift.mutate(shift.id) : undefined,
+      onDelete: isAdmin ? (shift) => deleteShift.mutate(shift.id) : undefined,
       canClose: (shift) =>
         isManager || (Boolean(shift.employeeId) && shift.employeeId === user?.id),
     }),
-    [deleteShift, isManager, openDetails, user?.id],
+    [deleteShift, isAdmin, isManager, openDetails, user?.id],
   )
 
   const totalHours = calcTotalHours(safeShifts)
@@ -96,7 +125,12 @@ export function WorktimePage() {
             Открыть смену
           </Button>
           {isManager ? (
-            <Button type="button" variant="secondary" onClick={handleExport}>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={exporting}
+              onClick={() => void handleExport()}
+            >
               <Download className="size-4" />
               Экспорт Excel
             </Button>
@@ -158,6 +192,8 @@ export function WorktimePage() {
         employeeId={closeShiftTarget?.employeeId}
         startTime={closeShiftTarget?.startTime ?? ''}
         shiftDate={closeShiftTarget?.date}
+        equipmentName={closeShiftTarget?.equipment || undefined}
+        equipmentMeterType={closeShiftTarget?.equipmentMeterType}
         open={Boolean(closeShiftTarget)}
         onClose={() => setCloseShiftTarget(null)}
         onSuccess={() => setCloseShiftTarget(null)}

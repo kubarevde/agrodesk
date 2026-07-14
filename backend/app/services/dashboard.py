@@ -1,32 +1,49 @@
 import asyncio
 import time
 from datetime import date, datetime, timedelta
-from decimal import Decimal
+from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.database import AsyncSessionLocal
+from app.models.agro_plan import AgroPlan
 from app.models.expense import Expense
 from app.models.inventory import InventoryItem
+from app.models.reference import Equipment
+from app.models.sharing import SharingListing, SharingRequest
 from app.models.shift import Shift, ShiftStatus
 from app.models.shipment import Shipment
 from app.schemas.dashboard import (
     DashboardActiveShift,
+    DashboardAgroPlanToday,
     DashboardCriticalItem,
+    DashboardEquipmentWarning,
     DashboardStatsResponse,
     DashboardWeeklyHours,
 )
+from app.services.equipment_meters import calc_meter_label
 from app.services.shifts import calc_duration_from_datetimes, combine_date_time
 
 DAY_NAMES = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
-_cache: dict[str, object] = {'data': None, 'expires_at': 0.0}
+_cache: dict[str, object] = {'by_user': {}}
+
+
+def calc_to_status(current_meter: float | None, next_to_at: float | None) -> str:
+    if next_to_at is None:
+        return 'no_data'
+    current = float(current_meter or 0)
+    threshold = float(next_to_at)
+    if current >= threshold:
+        return 'overdue'
+    if current >= threshold * 0.9:
+        return 'warning'
+    return 'ok'
 
 
 def clear_dashboard_cache() -> None:
-    _cache['data'] = None
-    _cache['expires_at'] = 0.0
+    _cache['by_user'] = {}
 
 
 def month_range(today: date) -> tuple[date, date]:
@@ -167,17 +184,94 @@ async def fetch_critical_inventory() -> tuple[int, list[DashboardCriticalItem]]:
     return len(critical), critical
 
 
-async def compute_stats() -> DashboardStatsResponse:
+async def fetch_equipment_warnings() -> tuple[int, list[DashboardEquipmentWarning]]:
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(Equipment)
+            .where(Equipment.is_active.is_(True), Equipment.next_to_at.is_not(None))
+            .order_by(Equipment.name)
+        )
+        items = result.scalars().all()
+
+    warnings: list[DashboardEquipmentWarning] = []
+    for item in items:
+        current = float(item.current_meter or 0)
+        next_to = float(item.next_to_at) if item.next_to_at is not None else None
+        status = calc_to_status(current, next_to)
+        if status not in ('warning', 'overdue'):
+            continue
+        warnings.append(
+            DashboardEquipmentWarning(
+                id=item.id,
+                name=item.name,
+                to_status=status,
+                current_meter=current,
+                next_to_at=next_to,
+                meter_label=calc_meter_label(item.meter_type),
+            )
+        )
+
+    warnings.sort(key=lambda item: (item.to_status != 'overdue', item.next_to_at or 0))
+    return len(warnings), warnings
+
+
+async def fetch_agro_plan_today(today: date) -> list[DashboardAgroPlanToday]:
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(AgroPlan)
+            .options(selectinload(AgroPlan.location), selectinload(AgroPlan.work_type))
+            .where(AgroPlan.planned_date == today)
+            .order_by(AgroPlan.status.asc())
+        )
+        plans = result.scalars().all()
+
+    return [
+        DashboardAgroPlanToday(
+            id=plan.id,
+            field_name=plan.location.name if plan.location else '',
+            work_type_name=plan.work_type.name if plan.work_type else '',
+            status=plan.status,
+        )
+        for plan in plans
+    ]
+
+
+async def fetch_sharing_new_requests(owner_id: UUID) -> int:
+    async with AsyncSessionLocal() as db:
+        count = await db.scalar(
+            select(func.count())
+            .select_from(SharingRequest)
+            .join(SharingListing, SharingRequest.listing_id == SharingListing.id)
+            .where(
+                SharingListing.owner_id == owner_id,
+                SharingRequest.status == 'pending',
+            )
+        )
+    return int(count or 0)
+
+
+async def compute_stats(owner_id: UUID) -> DashboardStatsResponse:
     today = date.today()
     now = datetime.now()
     month_start, month_end = month_range(today)
     week_start, week_end = week_range(today)
 
-    shift_stats, shipment_stats, month_expenses_sum, critical_result = await asyncio.gather(
+    (
+        shift_stats,
+        shipment_stats,
+        month_expenses_sum,
+        critical_result,
+        equipment_result,
+        agro_plan_today,
+        sharing_new_requests,
+    ) = await asyncio.gather(
         fetch_shift_stats(today, month_start, month_end, week_start, week_end, now),
         fetch_shipment_stats(month_start, month_end),
         fetch_expense_stats(month_start, month_end),
         fetch_critical_inventory(),
+        fetch_equipment_warnings(),
+        fetch_agro_plan_today(today),
+        fetch_sharing_new_requests(owner_id),
     )
 
     (
@@ -190,6 +284,7 @@ async def compute_stats() -> DashboardStatsResponse:
     ) = shift_stats
     month_shipments_kg, month_shipments_sum = shipment_stats
     critical_inventory_count, critical_inventory = critical_result
+    equipment_warning_count, equipment_warnings = equipment_result
 
     return DashboardStatsResponse(
         active_shifts_count=active_shifts_count,
@@ -203,17 +298,29 @@ async def compute_stats() -> DashboardStatsResponse:
         critical_inventory_count=critical_inventory_count,
         critical_inventory=critical_inventory,
         weekly_hours=weekly_hours,
+        equipment_warning_count=equipment_warning_count,
+        equipment_warnings=equipment_warnings,
+        agro_plan_today=agro_plan_today,
+        sharing_new_requests=sharing_new_requests,
     )
 
 
-async def get_dashboard_stats() -> DashboardStatsResponse:
+async def get_dashboard_stats(owner_id: UUID) -> DashboardStatsResponse:
     now = time.time()
-    cached = _cache.get('data')
-    expires_at = _cache.get('expires_at', 0.0)
-    if cached is not None and now < float(expires_at):
-        return cached  # type: ignore[return-value]
+    cache_key = str(owner_id)
+    cached_map = _cache.get('by_user')
+    if not isinstance(cached_map, dict):
+        cached_map = {}
+        _cache['by_user'] = cached_map
 
-    data = await compute_stats()
-    _cache['data'] = data
-    _cache['expires_at'] = now + 30
+    entry = cached_map.get(cache_key)
+    if isinstance(entry, dict):
+        expires_at = float(entry.get('expires_at', 0.0))
+        data = entry.get('data')
+        if data is not None and now < expires_at:
+            return data  # type: ignore[return-value]
+
+    data = await compute_stats(owner_id)
+    cached_map[cache_key] = {'data': data, 'expires_at': now + 30}
+    _cache['by_user'] = cached_map
     return data

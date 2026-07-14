@@ -8,6 +8,7 @@ export const expenseFormSchema = z.object({
   description: z.string().min(2, 'Описание не короче 2 символов'),
   supplier: z.string().optional(),
   paymentMethod: z.enum(PAYMENT_METHODS, { message: 'Выберите способ оплаты' }),
+  equipmentId: z.string().optional(),
 })
 
 export type ExpenseFormValues = z.infer<typeof expenseFormSchema>

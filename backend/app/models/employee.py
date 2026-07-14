@@ -35,3 +35,31 @@ class Employee(Base):
     inventory_operations = relationship('InventoryOperation', back_populates='created_by_user')
     shipments = relationship('Shipment', back_populates='created_by_user')
     expenses = relationship('Expense', back_populates='created_by_user')
+    owned_equipment = relationship(
+        'Equipment',
+        back_populates='owner',
+        foreign_keys='Equipment.owner_id',
+    )
+    equipment_meter_logs = relationship('EquipmentMeterLog', back_populates='created_by_user')
+    equipment_maintenance = relationship('EquipmentMaintenance', back_populates='created_by_user')
+    sharing_listings = relationship(
+        'SharingListing',
+        back_populates='owner',
+        foreign_keys='SharingListing.owner_id',
+    )
+    sharing_requests = relationship(
+        'SharingRequest',
+        back_populates='requester',
+        foreign_keys='SharingRequest.requester_id',
+    )
+    notifications = relationship('Notification', back_populates='employee')
+    agro_plan_assignments = relationship(
+        'AgroPlan',
+        back_populates='employee',
+        foreign_keys='AgroPlan.employee_id',
+    )
+    created_agro_plans = relationship(
+        'AgroPlan',
+        back_populates='created_by_user',
+        foreign_keys='AgroPlan.created_by',
+    )

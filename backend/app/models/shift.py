@@ -24,6 +24,8 @@ class Shift(Base):
     work_type_id = Column(UUID(as_uuid=True), ForeignKey('work_types.id'), nullable=False)
     location_id = Column(UUID(as_uuid=True), ForeignKey('locations.id'), nullable=False)
     equipment_id = Column(UUID(as_uuid=True), ForeignKey('equipment.id'), nullable=True)
+    field_id = Column(UUID(as_uuid=True), ForeignKey('locations.id'), nullable=True)
+    implement_id = Column(UUID(as_uuid=True), ForeignKey('implements.id'), nullable=True)
     description = Column(Text, nullable=True)
     comment = Column(Text, nullable=True)
     status = Column(
@@ -45,5 +47,17 @@ class Shift(Base):
 
     employee = relationship('Employee', back_populates='shifts')
     work_type = relationship('WorkType', back_populates='shifts')
-    location = relationship('Location', back_populates='shifts')
+    location = relationship(
+        'Location',
+        back_populates='shifts',
+        foreign_keys=[location_id],
+    )
+    field = relationship(
+        'Location',
+        back_populates='field_shifts',
+        foreign_keys=[field_id],
+    )
     equipment = relationship('Equipment', back_populates='shifts')
+    implement = relationship('Implement', back_populates='shifts')
+    meter_logs = relationship('EquipmentMeterLog', back_populates='shift')
+    agro_plans = relationship('AgroPlan', back_populates='actual_shift')

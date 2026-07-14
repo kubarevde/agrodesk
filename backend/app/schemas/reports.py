@@ -15,3 +15,15 @@ class TimesheetReportRequest(DateRangeRequest):
 
 class MonthReportRequest(BaseModel):
     month: str = Field(pattern=r'^\d{4}-\d{2}$')
+
+
+class EquipmentReportRequest(DateRangeRequest):
+    equipment_id: UUID | None = None
+
+
+class FieldsReportRequest(DateRangeRequest):
+    field_id: UUID | None = None
+
+
+class SeasonReportRequest(BaseModel):
+    year: int = Field(ge=2000, le=2100)

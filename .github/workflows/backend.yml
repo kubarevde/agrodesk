@@ -1,0 +1,35 @@
+# Backend CI — миграции и smoke healthcheck
+# Запускать вручную или при изменениях в backend/
+
+name: Backend Migrations
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    if: ${{ vars.RUN_BACKEND_MIGRATIONS == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Run Alembic migrations
+        run: |
+          cd backend
+          alembic upgrade head
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

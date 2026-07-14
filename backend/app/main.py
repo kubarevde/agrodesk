@@ -1,18 +1,29 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.routers import (
+    agro_plan,
     auth,
     dashboard,
     employees,
+    equipment_logs,
     expenses,
+    fields,
+    implements,
     inventory,
+    maintenance,
+    notifications,
     references,
     reports,
     settings as settings_router,
+    sharing,
     shipments,
     shifts,
+    uploads,
 )
 
 app = FastAPI(title='АгроДеск API', version='2.0.0', docs_url='/docs')
@@ -32,14 +43,27 @@ async def health() -> dict[str, str]:
 
 
 app.include_router(auth.router, prefix='/api/auth', tags=['auth'])
+app.include_router(agro_plan.router, prefix='/api/agro-plan', tags=['agro-plan'])
 app.include_router(employees.router, prefix='/api/employees', tags=['employees'])
 app.include_router(shifts.router, prefix='/api/shifts', tags=['shifts'])
 app.include_router(references.locations_router, prefix='/api/locations', tags=['locations'])
+app.include_router(fields.router, prefix='/api/fields', tags=['fields'])
+app.include_router(implements.router, prefix='/api/implements', tags=['implements'])
 app.include_router(references.work_types_router, prefix='/api/work-types', tags=['work-types'])
+# maintenance before equipment so /maintenance/upcoming is not captured by /{item_id}
+app.include_router(maintenance.router, prefix='/api/equipment', tags=['maintenance'])
 app.include_router(references.equipment_router, prefix='/api/equipment', tags=['equipment'])
+app.include_router(equipment_logs.router, prefix='/api/equipment', tags=['equipment-logs'])
 app.include_router(inventory.router, prefix='/api/inventory', tags=['inventory'])
 app.include_router(shipments.router, prefix='/api/shipments', tags=['shipments'])
 app.include_router(expenses.router, prefix='/api/expenses', tags=['expenses'])
 app.include_router(dashboard.router, prefix='/api/dashboard', tags=['dashboard'])
 app.include_router(reports.router, prefix='/api/reports', tags=['reports'])
 app.include_router(settings_router.router, prefix='/api/settings', tags=['settings'])
+app.include_router(sharing.router, prefix='/api/sharing', tags=['sharing'])
+app.include_router(notifications.router, prefix='/api/notifications', tags=['notifications'])
+app.include_router(uploads.router, prefix='/api/uploads', tags=['uploads'])
+
+uploads_dir = Path('./uploads')
+uploads_dir.mkdir(exist_ok=True)
+app.mount('/uploads', StaticFiles(directory='uploads'), name='uploads')

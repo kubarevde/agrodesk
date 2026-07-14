@@ -28,6 +28,7 @@ class ExpenseCreate(BaseModel):
     description: str = Field(min_length=2)
     supplier: str | None = Field(default=None, max_length=200)
     payment_method: PaymentMethod | None = None
+    equipment_id: UUID | None = None
 
 
 class ExpenseUpdate(BaseModel):
@@ -37,6 +38,7 @@ class ExpenseUpdate(BaseModel):
     description: str | None = Field(default=None, min_length=2)
     supplier: str | None = Field(default=None, max_length=200)
     payment_method: PaymentMethod | None = None
+    equipment_id: UUID | None = None
 
 
 class ExpenseResponse(BaseModel):
@@ -47,3 +49,5 @@ class ExpenseResponse(BaseModel):
     description: str
     supplier: str | None = None
     payment_method: str | None = None
+    equipment_id: UUID | None = None
+    equipment_name: str | None = None

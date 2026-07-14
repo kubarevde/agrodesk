@@ -238,18 +238,21 @@ export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModal
             )}
           />
 
-          <DialogFooter className="sm:justify-stretch">
+          <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={handleClose} disabled={pending}>
+              Отмена
+            </Button>
             <Button
               type="submit"
               disabled={pending}
-              className="w-full bg-primary hover:bg-primary-hover text-primary-foreground"
+              className="bg-primary hover:bg-primary-hover text-primary-foreground sm:min-w-40"
             >
               {pending ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
                 <Plus className="size-4" />
               )}
-              {isEdit ? 'Сохранить' : 'Добавить сотрудника'}
+              {isEdit ? 'Сохранить' : 'Добавить'}
             </Button>
           </DialogFooter>
         </form>

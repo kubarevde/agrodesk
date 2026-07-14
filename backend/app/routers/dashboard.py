@@ -9,5 +9,7 @@ router = APIRouter()
 
 
 @router.get('/stats', response_model=DashboardStatsResponse)
-async def dashboard_stats(_: Employee = Depends(get_current_employee)) -> DashboardStatsResponse:
-    return await get_dashboard_stats()
+async def dashboard_stats(
+    current: Employee = Depends(get_current_employee),
+) -> DashboardStatsResponse:
+    return await get_dashboard_stats(current.id)

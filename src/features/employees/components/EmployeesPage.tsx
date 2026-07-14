@@ -4,6 +4,14 @@ import { toast } from 'sonner'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { SkeletonTable } from '@/components/shared/SkeletonTable'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import type { Employee } from '@/types'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { useEmployees, useUpdateEmployee } from '@/features/employees/hooks'
@@ -21,6 +29,7 @@ export function EmployeesPage() {
   const [detailOpen, setDetailOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
+  const [toggleTarget, setToggleTarget] = useState<Employee | null>(null)
 
   const openDetails = useCallback((employee: Employee) => {
     setSelectedEmployee(employee)
@@ -37,23 +46,22 @@ export function EmployeesPage() {
     setFormOpen(true)
   }, [])
 
-  const handleToggleActive = useCallback(
-    (employee: Employee) => {
-      updateEmployee.mutate({
-        id: employee.id,
-        isActive: !employee.isActive,
-      })
-    },
-    [updateEmployee],
-  )
+  const confirmToggleActive = async () => {
+    if (!toggleTarget) return
+    await updateEmployee.mutateAsync({
+      id: toggleTarget.id,
+      isActive: !toggleTarget.isActive,
+    })
+    setToggleTarget(null)
+  }
 
   const actions = useMemo<EmployeeRowActions | null>(() => {
     if (!isAdmin) return null
     return {
       onEdit: openEdit,
-      onToggleActive: handleToggleActive,
+      onToggleActive: setToggleTarget,
     }
-  }, [handleToggleActive, isAdmin, openEdit])
+  }, [isAdmin, openEdit])
 
   useEffect(() => {
     if (isError) {
@@ -107,6 +115,39 @@ export function EmployeesPage() {
           }}
         />
       ) : null}
+
+      <Dialog open={Boolean(toggleTarget)} onOpenChange={(open) => !open && setToggleTarget(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {toggleTarget?.isActive ? 'Деактивировать сотрудника?' : 'Активировать сотрудника?'}
+            </DialogTitle>
+            <DialogDescription>
+              {toggleTarget
+                ? `${toggleTarget.employeeName} (${toggleTarget.employeeCode})`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setToggleTarget(null)}>
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              variant={toggleTarget?.isActive ? 'destructive' : 'default'}
+              className={
+                toggleTarget?.isActive
+                  ? undefined
+                  : 'bg-primary hover:bg-primary-hover text-primary-foreground'
+              }
+              disabled={updateEmployee.isPending}
+              onClick={() => void confirmToggleActive()}
+            >
+              {toggleTarget?.isActive ? 'Деактивировать' : 'Активировать'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

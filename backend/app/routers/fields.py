@@ -1,0 +1,178 @@
+from decimal import Decimal
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.database import get_db
+from app.dependencies.auth import get_current_employee, require_admin, require_manager
+from app.models.employee import Employee
+from app.models.reference import Location
+from app.schemas.field import FieldCreate, FieldResponse, FieldUpdate
+
+router = APIRouter()
+
+
+def _num(value: Decimal | float | None) -> float | None:
+    if value is None:
+        return None
+    return float(value)
+
+
+def _polygon(value: object | None) -> list[list[float]] | None:
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        return None
+    result: list[list[float]] = []
+    for point in value:
+        if isinstance(point, (list, tuple)) and len(point) >= 2:
+            result.append([float(point[0]), float(point[1])])
+    return result or None
+
+
+def location_to_field(location: Location) -> FieldResponse:
+    sharing_status = None
+    for listing in location.sharing_listings or []:
+        if listing.type == 'field' and listing.status == 'active':
+            sharing_status = 'active'
+            break
+
+    return FieldResponse(
+        id=location.id,
+        name=location.name,
+        crop_type=location.crop_type,
+        area_ha=_num(location.area_ha),
+        soil_type=location.soil_type,
+        description=location.description,
+        latitude=_num(location.latitude),
+        longitude=_num(location.longitude),
+        polygon=_polygon(location.polygon),
+        sharing_status=sharing_status,
+        is_active=bool(location.is_active),
+    )
+
+
+def field_load_options():
+    return (selectinload(Location.sharing_listings),)
+
+
+async def get_field_or_404(db: AsyncSession, field_id: UUID) -> Location:
+    result = await db.execute(
+        select(Location).options(*field_load_options()).where(Location.id == field_id)
+    )
+    location = result.scalar_one_or_none()
+    if location is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Поле не найдено')
+    return location
+
+
+def is_field_location(location: Location) -> bool:
+    if location.crop_type:
+        return True
+    return location.name.startswith('Поле')
+
+
+@router.get('', response_model=list[FieldResponse])
+async def list_fields(
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(get_current_employee),
+) -> list[FieldResponse]:
+    result = await db.execute(
+        select(Location)
+        .options(*field_load_options())
+        .where(
+            Location.is_active.is_(True),
+            or_(Location.crop_type.is_not(None), Location.name.like('Поле%')),
+        )
+        .order_by(Location.name)
+    )
+    return [location_to_field(row) for row in result.scalars().all()]
+
+
+@router.get('/{field_id}', response_model=FieldResponse)
+async def get_field(
+    field_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(get_current_employee),
+) -> FieldResponse:
+    location = await get_field_or_404(db, field_id)
+    if not is_field_location(location):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Поле не найдено')
+    return location_to_field(location)
+
+
+@router.post('', response_model=FieldResponse, status_code=status.HTTP_201_CREATED)
+async def create_field(
+    payload: FieldCreate,
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(require_manager),
+) -> FieldResponse:
+    location = Location(
+        name=payload.name,
+        crop_type=payload.crop_type,
+        area_ha=Decimal(str(payload.area_ha)) if payload.area_ha is not None else None,
+        soil_type=payload.soil_type,
+        description=payload.description,
+        latitude=Decimal(str(payload.latitude)) if payload.latitude is not None else None,
+        longitude=Decimal(str(payload.longitude)) if payload.longitude is not None else None,
+        polygon=payload.polygon,
+        is_active=True,
+    )
+    db.add(location)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Поле с таким названием уже существует',
+        ) from None
+
+    location = await get_field_or_404(db, location.id)
+    return location_to_field(location)
+
+
+@router.patch('/{field_id}', response_model=FieldResponse)
+async def update_field(
+    field_id: UUID,
+    payload: FieldUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(require_manager),
+) -> FieldResponse:
+    location = await get_field_or_404(db, field_id)
+    updates = payload.model_dump(exclude_unset=True)
+
+    for field, value in updates.items():
+        if field in {'area_ha', 'latitude', 'longitude'} and value is not None:
+            setattr(location, field, Decimal(str(value)))
+        else:
+            setattr(location, field, value)
+
+    db.add(location)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Поле с таким названием уже существует',
+        ) from None
+
+    location = await get_field_or_404(db, field_id)
+    return location_to_field(location)
+
+
+@router.delete('/{field_id}', status_code=status.HTTP_204_NO_CONTENT)
+async def delete_field(
+    field_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(require_admin),
+) -> None:
+    location = await get_field_or_404(db, field_id)
+    location.is_active = False
+    db.add(location)
+    await db.commit()

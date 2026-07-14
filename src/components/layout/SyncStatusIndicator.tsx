@@ -1,3 +1,4 @@
+import { AlertCircle, Clock3 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import {
   Tooltip,
@@ -20,15 +21,19 @@ export function SyncStatusIndicator() {
       </span>
 
       {pendingCount > 0 ? (
-        <Badge className="border-transparent bg-amber-500/15 text-amber-700 hover:bg-amber-500/20">
-          ⏳ {pendingCount}
+        <Badge className="gap-1 border-transparent bg-amber-500/15 text-amber-700 hover:bg-amber-500/20">
+          <Clock3 className="size-3" aria-hidden />
+          {pendingCount}
         </Badge>
       ) : null}
 
       {failedCount > 0 ? (
         <Tooltip>
           <TooltipTrigger className="inline-flex cursor-help">
-            <Badge variant="destructive">❌ {failedCount}</Badge>
+            <Badge variant="destructive" className="gap-1">
+              <AlertCircle className="size-3" aria-hidden />
+              {failedCount}
+            </Badge>
           </TooltipTrigger>
           <TooltipContent>Ошибки синхронизации</TooltipContent>
         </Tooltip>

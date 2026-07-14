@@ -29,8 +29,12 @@ export function ExpensesPage() {
   const [from, setFrom] = useState(monthRange.from)
   const [to, setTo] = useState(monthRange.to)
   const [category, setCategory] = useState<ExpenseCategory | undefined>()
+  const [equipmentId, setEquipmentId] = useState<string | undefined>()
 
-  const filters = useMemo(() => ({ from, to, category }), [category, from, to])
+  const filters = useMemo(
+    () => ({ from, to, category, equipmentId }),
+    [category, equipmentId, from, to],
+  )
 
   const {
     data: monthExpenses = [],
@@ -86,17 +90,19 @@ export function ExpensesPage() {
         from={from}
         to={to}
         category={category}
+        equipmentId={equipmentId}
         onRangeChange={({ from: nextFrom, to: nextTo }) => {
           setFrom(nextFrom ?? monthRange.from)
           setTo(nextTo ?? monthRange.to)
         }}
         onCategoryChange={setCategory}
+        onEquipmentChange={setEquipmentId}
       />
 
       <ExpensesByCategoryChart data={chartData} isLoading={isLoading} />
 
       {isLoading ? (
-        <SkeletonTable rows={5} columns={7} />
+        <SkeletonTable rows={5} columns={8} />
       ) : expenses.length === 0 ? (
         <EmptyState
           icon={DollarSign}

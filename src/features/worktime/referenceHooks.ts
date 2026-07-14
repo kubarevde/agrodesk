@@ -42,16 +42,21 @@ async function fetchWorkTypes(): Promise<WorkType[]> {
 
 async function fetchEquipment(): Promise<Equipment[]> {
   if (!navigator.onLine) {
-    return db.equipment.toArray()
+    const items = await db.equipment.toArray()
+    return items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      type: item.type ?? undefined,
+      isActive: item.is_active,
+      latitude: item.latitude,
+      longitude: item.longitude,
+    }))
   }
 
   const { data } = await api.get<Record<string, unknown>[]>('/api/equipment', {
     params: { is_active: true },
   })
-  const equipment = data.map(equipmentFromApi)
-  await db.equipment.clear()
-  await db.equipment.bulkPut(equipment)
-  return equipment
+  return data.map(equipmentFromApi)
 }
 
 async function fetchEmployees(): Promise<Employee[]> {

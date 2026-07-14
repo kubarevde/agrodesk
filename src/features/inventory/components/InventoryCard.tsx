@@ -7,13 +7,29 @@ import { StockProgressBar } from './StockProgressBar'
 
 interface InventoryCardProps {
   item: InventoryItem
+  onClick?: (item: InventoryItem) => void
 }
 
-export function InventoryCard({ item }: InventoryCardProps) {
+export function InventoryCard({ item, onClick }: InventoryCardProps) {
   const critical = isCriticalStock(item)
 
   return (
-    <Card>
+    <Card
+      className={onClick ? 'cursor-pointer transition-colors hover:border-primary/40' : undefined}
+      onClick={onClick ? () => onClick(item) : undefined}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onClick(item)
+              }
+            }
+          : undefined
+      }
+    >
       <CardHeader className="space-y-2 pb-2">
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-lg font-semibold text-foreground">{item.name}</h3>

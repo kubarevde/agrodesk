@@ -33,14 +33,16 @@ import {
   PAYMENT_LABELS,
   PAYMENT_METHODS,
 } from '@/features/expenses/utils'
+import { useEquipment } from '@/features/worktime/referenceHooks'
 
 interface ExpenseFormModalProps {
   open: boolean
   expense?: Expense | null
+  defaultEquipmentId?: string
   onClose: () => void
 }
 
-function getDefaultValues(): ExpenseFormValues {
+function getDefaultValues(equipmentId?: string): ExpenseFormValues {
   return {
     date: formatApiDate(new Date()),
     category: 'fuel',
@@ -48,6 +50,7 @@ function getDefaultValues(): ExpenseFormValues {
     description: '',
     supplier: '',
     paymentMethod: 'cash',
+    equipmentId: equipmentId ?? '',
   }
 }
 
@@ -59,13 +62,20 @@ function toFormValues(expense: Expense): ExpenseFormValues {
     description: expense.description,
     supplier: expense.supplier ?? '',
     paymentMethod: expense.paymentMethod ?? 'cash',
+    equipmentId: expense.equipmentId ?? '',
   }
 }
 
-export function ExpenseFormModal({ open, expense, onClose }: ExpenseFormModalProps) {
+export function ExpenseFormModal({
+  open,
+  expense,
+  defaultEquipmentId,
+  onClose,
+}: ExpenseFormModalProps) {
   const isEdit = Boolean(expense)
   const createExpense = useCreateExpense()
   const updateExpense = useUpdateExpense()
+  const { data: equipment = [] } = useEquipment()
 
   const {
     control,
@@ -75,27 +85,31 @@ export function ExpenseFormModal({ open, expense, onClose }: ExpenseFormModalPro
     formState: { errors, isSubmitting },
   } = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseFormSchema),
-    defaultValues: getDefaultValues(),
+    defaultValues: getDefaultValues(defaultEquipmentId),
   })
 
   useEffect(() => {
     if (!open) {
-      reset(getDefaultValues())
+      reset(getDefaultValues(defaultEquipmentId))
       return
     }
-    reset(expense ? toFormValues(expense) : getDefaultValues())
-  }, [expense, open, reset])
+    reset(expense ? toFormValues(expense) : getDefaultValues(defaultEquipmentId))
+  }, [defaultEquipmentId, expense, open, reset])
 
   const handleClose = () => {
-    reset(getDefaultValues())
+    reset(getDefaultValues(defaultEquipmentId))
     onClose()
   }
 
   const onSubmit = async (values: ExpenseFormValues) => {
+    const payload = {
+      ...values,
+      equipmentId: values.equipmentId || undefined,
+    }
     if (expense) {
-      await updateExpense.mutateAsync({ id: expense.id, ...values })
+      await updateExpense.mutateAsync({ id: expense.id, ...payload })
     } else {
-      await createExpense.mutateAsync(values)
+      await createExpense.mutateAsync(payload)
     }
     handleClose()
   }
@@ -196,6 +210,34 @@ export function ExpenseFormModal({ open, expense, onClose }: ExpenseFormModalPro
           <div className="space-y-2">
             <Label htmlFor="supplier">Поставщик</Label>
             <Input id="supplier" placeholder="ООО «НефтеГаз»" {...register('supplier')} />
+          </div>
+
+          <div className="space-y-2">
+            <Label>
+              Техника <span className="text-muted-foreground">(необязательно)</span>
+            </Label>
+            <Controller
+              name="equipmentId"
+              control={control}
+              render={({ field }) => (
+                <Select
+                  value={field.value || 'none'}
+                  onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Не выбрано" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Не выбрано</SelectItem>
+                    {equipment.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
           </div>
 
           <div className="space-y-2">

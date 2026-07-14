@@ -1,5 +1,5 @@
 import { format } from 'date-fns'
-import type { Equipment, Location, Shift, WorkType } from '@/types'
+import type { Equipment, EquipmentExtended, Location, Shift, WorkType } from '@/types'
 import type { CurrentUser } from '@/lib/transformers'
 import { db } from '@/lib/db'
 import {
@@ -38,6 +38,8 @@ export function buildLocalOpenShift(
     location: locationName,
     workType: workTypeName,
     equipment: equipmentName,
+    fieldId: payload.fieldId ?? null,
+    implementId: payload.implementId ?? null,
     description: '',
     comment: '',
     status: 'open',
@@ -47,6 +49,17 @@ export function buildLocalOpenShift(
     longitude: payload.longitude ?? null,
     _isLocal: true,
   }
+}
+
+function toReferenceEquipment(items: Array<Equipment | EquipmentExtended>): Equipment[] {
+  return items.map((item) => ({
+    id: item.id,
+    name: item.name,
+    type: item.type ?? undefined,
+    isActive: 'is_active' in item ? item.is_active : item.isActive,
+    latitude: item.latitude ?? null,
+    longitude: item.longitude ?? null,
+  }))
 }
 
 export async function enqueueCreateShiftOffline(
@@ -60,7 +73,9 @@ export async function enqueueCreateShiftOffline(
   const body = shiftCreateToApi(payload)
   const resolvedLocations = locations.length > 0 ? locations : await db.locations.toArray()
   const resolvedWorkTypes = workTypes.length > 0 ? workTypes : await db.workTypes.toArray()
-  const resolvedEquipment = equipment.length > 0 ? equipment : await db.equipment.toArray()
+  const resolvedEquipment = toReferenceEquipment(
+    equipment.length > 0 ? equipment : await db.equipment.toArray(),
+  )
   const localShift = buildLocalOpenShift(
     payload,
     user,
