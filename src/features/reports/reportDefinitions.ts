@@ -4,61 +4,75 @@ import {
   DollarSign,
   Package,
   Truck,
-  Users,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react'
 
-export type ReportFormat = 'excel' | 'pdf'
+export type ReportPeriodMode = 'range' | 'month'
 
 export interface ReportDefinition {
   id: string
   title: string
   description: string
   icon: LucideIcon
-  formats: ReportFormat[]
+  endpoint: string
+  periodMode: ReportPeriodMode
+  filename: (params: { from?: string; to?: string; month?: string }) => string
 }
 
 export const REPORT_DEFINITIONS: ReportDefinition[] = [
   {
     id: 'timesheet',
-    title: 'Табель рабочего времени',
-    description: 'Список смен за период с итогами по каждому сотруднику',
+    title: 'Табель',
+    description: 'Список смен за период с итогами по сотрудникам',
     icon: Clock,
-    formats: ['excel', 'pdf'],
+    endpoint: '/api/reports/timesheet',
+    periodMode: 'range',
+    filename: ({ from, to }) => `timesheet_${from}_${to}.xlsx`,
+  },
+  {
+    id: 'salary',
+    title: 'Зарплатная ведомость',
+    description: 'Часы × ставка = к выплате',
+    icon: Wallet,
+    endpoint: '/api/reports/salary',
+    periodMode: 'month',
+    filename: ({ month }) => `salary_${month}.xlsx`,
   },
   {
     id: 'shipments',
-    title: 'Отчёт по отгрузкам',
+    title: 'Отгрузки',
     description: 'История отгрузок с суммами по культурам',
     icon: Truck,
-    formats: ['excel', 'pdf'],
+    endpoint: '/api/reports/shipments',
+    periodMode: 'range',
+    filename: ({ from, to }) => `shipments_${from}_${to}.xlsx`,
   },
   {
     id: 'inventory',
-    title: 'Отчёт по ТМЦ',
+    title: 'Склад ТМЦ',
     description: 'Движение склада за период',
     icon: Package,
-    formats: ['excel'],
+    endpoint: '/api/reports/inventory',
+    periodMode: 'range',
+    filename: ({ from, to }) => `inventory_${from}_${to}.xlsx`,
   },
   {
-    id: 'finance',
-    title: 'Финансовый отчёт',
-    description: 'Доходы − расходы',
+    id: 'expenses',
+    title: 'Затраты',
+    description: 'Затраты по категориям за период',
     icon: DollarSign,
-    formats: ['excel', 'pdf'],
-  },
-  {
-    id: 'payroll',
-    title: 'Зарплатная ведомость',
-    description: 'Часы × ставка = к выплате',
-    icon: Users,
-    formats: ['excel', 'pdf'],
+    endpoint: '/api/reports/expenses',
+    periodMode: 'range',
+    filename: ({ from, to }) => `expenses_${from}_${to}.xlsx`,
   },
   {
     id: 'summary',
-    title: 'Сводный отчёт КФХ',
-    description: 'Все ключевые показатели',
+    title: 'Сводный KPI',
+    description: 'Все ключевые показатели за месяц',
     icon: BarChart2,
-    formats: ['pdf'],
+    endpoint: '/api/reports/summary',
+    periodMode: 'month',
+    filename: ({ month }) => `summary_${month}.xlsx`,
   },
 ]

@@ -19,7 +19,7 @@ import { createEmployeeColumns, type EmployeeRowActions } from './employeesColum
 
 interface EmployeesTableProps {
   employees: Employee[]
-  actions: EmployeeRowActions
+  actions: EmployeeRowActions | null
   onRowClick: (employee: Employee) => void
 }
 

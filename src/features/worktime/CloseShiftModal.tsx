@@ -1,4 +1,3 @@
-import { format } from 'date-fns'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Square } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -13,13 +12,15 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { useCurrentUser } from '@/features/auth/hooks'
 import { closeShiftSchema, type CloseShiftFormValues } from './closeShiftSchema'
 import { useCloseShift } from './hooks'
 import { useLiveShiftDuration } from './useLiveShiftDuration'
-import { formatShiftTime, parseShiftTime } from './utils'
+import { formatShiftTime } from './utils'
 
 interface CloseShiftModalProps {
   shiftId: string
+  employeeId?: string
   startTime: string
   shiftDate?: string
   open: boolean
@@ -34,12 +35,19 @@ const defaultValues: CloseShiftFormValues = {
 
 export function CloseShiftModal({
   shiftId,
+  employeeId,
   startTime,
   shiftDate,
   open,
   onClose,
   onSuccess,
 }: CloseShiftModalProps) {
+  const { data: user } = useCurrentUser()
+  const canClose =
+    user?.role === 'admin' ||
+    user?.role === 'manager' ||
+    (Boolean(employeeId) && employeeId === user?.id)
+
   const closeShift = useCloseShift()
   const [commentHidden, setCommentHidden] = useState(false)
   const durationLabel = useLiveShiftDuration(startTime, shiftDate, open)
@@ -72,21 +80,12 @@ export function CloseShiftModal({
   }
 
   const onSubmit = (values: CloseShiftFormValues) => {
-    const endTime = new Date()
-    const durationRaw = Math.floor(
-      (endTime.getTime() - parseShiftTime(startTime, shiftDate).getTime()) / 60000,
-    )
-    const durationRounded = Math.ceil(durationRaw / 30) * 0.5
-
+    if (!canClose) return
     closeShift.mutate(
       {
         id: shiftId,
-        endTime: format(endTime, 'HH:mm:ss'),
-        status: 'closed',
         description: values.description,
         comment: values.comment ?? '',
-        durationRaw,
-        durationRounded,
       },
       {
         onSuccess: () => {
@@ -154,21 +153,23 @@ export function CloseShiftModal({
             </div>
           )}
 
-          <DialogFooter className="sm:justify-stretch">
-            <Button
-              type="submit"
-              variant="destructive"
-              disabled={isSubmitting || closeShift.isPending}
-              className="w-full"
-            >
-              {isSubmitting || closeShift.isPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Square className="size-4" />
-              )}
-              Завершить смену
-            </Button>
-          </DialogFooter>
+          {canClose ? (
+            <DialogFooter className="sm:justify-stretch">
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={isSubmitting || closeShift.isPending}
+                className="w-full"
+              >
+                {isSubmitting || closeShift.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Square className="size-4" />
+                )}
+                Завершить смену
+              </Button>
+            </DialogFooter>
+          ) : null}
         </form>
       </DialogContent>
     </Dialog>

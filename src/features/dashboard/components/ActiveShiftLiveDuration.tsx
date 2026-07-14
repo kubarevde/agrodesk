@@ -1,38 +1,28 @@
 import { useEffect, useState } from 'react'
 import type { DashboardActiveShift } from '@/types'
-import { calcLiveHours } from '@/features/worktime/utils'
-
-function toOpenShift(shift: DashboardActiveShift) {
-  return {
-    ...shift,
-    status: 'open' as const,
-    employeeCode: '',
-    telegramId: '',
-    endTime: null,
-    workType: '',
-    equipment: '',
-    description: '',
-    comment: '',
-    durationRaw: null,
-    durationRounded: null,
-    latitude: null,
-    longitude: null,
-  }
-}
+import { formatDurationMinutes, parseShiftTime } from '@/features/worktime/utils'
 
 interface ActiveShiftLiveDurationProps {
   shift: DashboardActiveShift
 }
 
+function calcElapsedMinutes(shift: DashboardActiveShift): number {
+  const fromStart = Math.max(
+    0,
+    Math.floor((Date.now() - parseShiftTime(shift.startTime, shift.date).getTime()) / 60_000),
+  )
+  return Math.max(fromStart, shift.durationMinutes)
+}
+
 export function ActiveShiftLiveDuration({ shift }: ActiveShiftLiveDurationProps) {
-  const [hours, setHours] = useState(() => calcLiveHours(toOpenShift(shift)))
+  const [label, setLabel] = useState(() => formatDurationMinutes(calcElapsedMinutes(shift)))
 
   useEffect(() => {
-    const update = () => setHours(calcLiveHours(toOpenShift(shift)))
+    const update = () => setLabel(formatDurationMinutes(calcElapsedMinutes(shift)))
     update()
     const intervalId = window.setInterval(update, 10_000)
     return () => window.clearInterval(intervalId)
   }, [shift])
 
-  return <span>{hours} ч</span>
+  return <span>{label}</span>
 }

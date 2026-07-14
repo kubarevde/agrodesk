@@ -5,7 +5,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { NAV_ITEMS } from './navigation'
+import { useCurrentUser } from '@/features/auth/hooks'
+import { getNavItems } from './navigation'
 
 interface SidebarNavProps {
   collapsed: boolean
@@ -14,10 +15,12 @@ interface SidebarNavProps {
 
 export function SidebarNav({ collapsed, onNavigate }: SidebarNavProps) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const { data: user } = useCurrentUser()
+  const navItems = getNavItems(user?.role)
 
   return (
     <nav className="flex flex-1 flex-col gap-1 px-2">
-      {NAV_ITEMS.map(({ to, label, icon: Icon }) => {
+      {navItems.map(({ to, label, icon: Icon }) => {
         const isActive =
           pathname === to ||
           pathname === `${to}/` ||
@@ -53,3 +56,4 @@ export function SidebarNav({ collapsed, onNavigate }: SidebarNavProps) {
     </nav>
   )
 }
+

@@ -29,6 +29,10 @@ export class AgroDeskDB extends Dexie {
       inventory: 'id, category',
       syncQueue: 'id, createdAt',
     })
+    this.version(2).stores({
+      shifts: 'id, date, status, employeeCode, employeeId',
+      syncQueue: 'id, createdAt, status',
+    })
   }
 }
 

@@ -21,8 +21,11 @@ import {
 } from '@/components/ui/select'
 import type { Employee } from '@/types'
 import { useCreateEmployee, useUpdateEmployee } from '@/features/employees/hooks'
-import { employeeSchema, type EmployeeFormValues } from '@/features/employees/schemas'
-import { POSITION_OPTIONS, ROLE_LABELS } from '@/features/employees/utils'
+import {
+  getEmployeeSchema,
+  type EmployeeFormValues,
+} from '@/features/employees/schemas'
+import { ROLE_LABELS } from '@/features/employees/utils'
 
 interface EmployeeFormModalProps {
   open: boolean
@@ -31,20 +34,24 @@ interface EmployeeFormModalProps {
 }
 
 const defaultValues: EmployeeFormValues = {
+  employeeCode: '',
   employeeName: '',
   position: '',
   hourlyRate: 0,
-  telegramId: '',
   role: 'employee',
+  password: '',
+  isActive: true,
 }
 
 function toFormValues(employee: Employee): EmployeeFormValues {
   return {
+    employeeCode: employee.employeeCode,
     employeeName: employee.employeeName,
     position: employee.position,
     hourlyRate: employee.hourlyRate,
-    telegramId: employee.telegramId,
     role: employee.role,
+    password: '',
+    isActive: employee.isActive,
   }
 }
 
@@ -60,7 +67,7 @@ export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModal
     reset,
     formState: { errors, isSubmitting },
   } = useForm<EmployeeFormValues>({
-    resolver: zodResolver(employeeSchema),
+    resolver: zodResolver(getEmployeeSchema(isEdit)),
     defaultValues,
   })
 
@@ -80,7 +87,15 @@ export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModal
 
   const onSubmit = async (values: EmployeeFormValues) => {
     if (employee) {
-      await updateEmployee.mutateAsync({ id: employee.id, ...values })
+      await updateEmployee.mutateAsync({
+        id: employee.id,
+        employeeName: values.employeeName,
+        position: values.position,
+        hourlyRate: values.hourlyRate,
+        role: values.role,
+        password: values.password || undefined,
+        isActive: values.isActive,
+      })
     } else {
       await createEmployee.mutateAsync(values)
     }
@@ -91,12 +106,27 @@ export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModal
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Редактировать сотрудника' : 'Добавить сотрудника'}</DialogTitle>
         </DialogHeader>
 
         <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+          <div className="space-y-2">
+            <Label htmlFor="employeeCode">Код</Label>
+            <Input
+              id="employeeCode"
+              placeholder="EMP006"
+              readOnly={isEdit}
+              className={isEdit ? 'bg-muted' : undefined}
+              aria-invalid={Boolean(errors.employeeCode)}
+              {...register('employeeCode')}
+            />
+            {errors.employeeCode ? (
+              <p className="text-xs text-destructive">{errors.employeeCode.message}</p>
+            ) : null}
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="employeeName">ФИО</Label>
             <Input
@@ -111,24 +141,12 @@ export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModal
           </div>
 
           <div className="space-y-2">
-            <Label>Должность</Label>
-            <Controller
-              name="position"
-              control={control}
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger className="w-full" aria-invalid={Boolean(errors.position)}>
-                    <SelectValue placeholder="Выберите должность" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {POSITION_OPTIONS.map((position) => (
-                      <SelectItem key={position} value={position}>
-                        {position}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+            <Label htmlFor="position">Должность</Label>
+            <Input
+              id="position"
+              placeholder="тракторист"
+              aria-invalid={Boolean(errors.position)}
+              {...register('position')}
             />
             {errors.position ? (
               <p className="text-xs text-destructive">{errors.position.message}</p>
@@ -136,7 +154,7 @@ export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModal
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="hourlyRate">Ставка, ₽/ч</Label>
+            <Label htmlFor="hourlyRate">Ставка ₽/ч</Label>
             <Input
               id="hourlyRate"
               type="number"
@@ -148,18 +166,6 @@ export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModal
             {errors.hourlyRate ? (
               <p className="text-xs text-destructive">{errors.hourlyRate.message}</p>
             ) : null}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="telegramId">
-              Telegram ID <span className="text-muted-foreground">(необязательно)</span>
-            </Label>
-            <Input
-              id="telegramId"
-              type="number"
-              placeholder="123456789"
-              {...register('telegramId')}
-            />
           </div>
 
           <div className="space-y-2">
@@ -183,6 +189,54 @@ export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModal
               )}
             />
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="password">
+              Пароль
+              {isEdit ? (
+                <span className="text-muted-foreground"> (оставьте пустым, чтобы не менять)</span>
+              ) : null}
+            </Label>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="new-password"
+              aria-invalid={Boolean(errors.password)}
+              {...register('password')}
+            />
+            {errors.password ? (
+              <p className="text-xs text-destructive">{errors.password.message}</p>
+            ) : null}
+          </div>
+
+          <Controller
+            name="isActive"
+            control={control}
+            render={({ field }) => (
+              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+                <span className="text-sm text-foreground">Активен</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={field.value}
+                  onClick={() => field.onChange(!field.value)}
+                  className={
+                    field.value
+                      ? 'relative h-6 w-11 rounded-full bg-success transition-colors'
+                      : 'relative h-6 w-11 rounded-full bg-muted transition-colors'
+                  }
+                >
+                  <span
+                    className={
+                      field.value
+                        ? 'absolute top-0.5 left-5 size-5 rounded-full bg-white shadow transition-all'
+                        : 'absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow transition-all'
+                    }
+                  />
+                </button>
+              </label>
+            )}
+          />
 
           <DialogFooter className="sm:justify-stretch">
             <Button

@@ -23,7 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { addShiftSchema, type AddShiftFormValues } from './addShiftSchema'
 import { ShiftDateTimeField } from './components/ShiftDateTimeField'
-import { useCreateShift } from './hooks'
+import { useManualAddShift } from './hooks'
 import {
   useEmployees,
   useEquipment,
@@ -31,9 +31,7 @@ import {
   useWorkTypes,
 } from './referenceHooks'
 import {
-  calcShiftDurationMinutes,
   formatApiDate,
-  toShiftTimeValue,
 } from './utils'
 
 interface AddShiftModalProps {
@@ -58,7 +56,7 @@ function getDefaultValues(): AddShiftFormValues {
 }
 
 export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
-  const createShift = useCreateShift()
+  const createShift = useManualAddShift()
   const { data: employees = [], isLoading: employeesLoading } = useEmployees()
   const { data: locations = [], isLoading: locationsLoading } = useLocations()
   const { data: workTypes = [], isLoading: workTypesLoading } = useWorkTypes()
@@ -91,40 +89,23 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
   }
 
   const onSubmit = async (values: AddShiftFormValues) => {
-    const employee = employees.find((item) => item.employeeCode === values.employeeId)
+    const employee = employees.find((item) => item.id === values.employeeId)
     if (!employee) {
       toast.error('Сотрудник не найден')
       return
     }
 
-    const startTime = toShiftTimeValue(values.startTime)
-    const endTime = toShiftTimeValue(values.endTime)
-    const durationRaw = calcShiftDurationMinutes(
-      values.startDate,
-      values.startTime,
-      values.endDate,
-      values.endTime,
-    )
-    const durationRounded = Math.ceil(durationRaw / 30) * 0.5
-
     try {
       await createShift.mutateAsync({
+        employeeId: employee.id,
         date: values.startDate,
-        startTime,
-        endTime,
-        employeeCode: employee.employeeCode,
-        employeeName: employee.employeeName,
-        telegramId: employee.telegramId,
-        location: values.location,
-        workType: values.workType,
-        equipment: values.equipment ?? '',
+        startTime: values.startTime,
+        endTime: values.endTime,
+        locationId: values.location,
+        workTypeId: values.workType,
+        equipmentId: values.equipment || undefined,
         description: values.description,
         comment: values.comment ?? '',
-        status: 'closed',
-        durationRaw,
-        durationRounded,
-        latitude: null,
-        longitude: null,
       })
       toast.success('Смена добавлена')
       handleClose()
@@ -156,7 +137,7 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
                     </SelectTrigger>
                     <SelectContent>
                       {employees.map((item) => (
-                        <SelectItem key={item.id} value={item.employeeCode}>
+                        <SelectItem key={item.id} value={item.id}>
                           {item.employeeName}
                         </SelectItem>
                       ))}
@@ -229,7 +210,7 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
                     </SelectTrigger>
                     <SelectContent>
                       {locations.map((item) => (
-                        <SelectItem key={item.id} value={item.name}>
+                        <SelectItem key={item.id} value={item.id}>
                           {item.name}
                         </SelectItem>
                       ))}
@@ -258,7 +239,7 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
                     </SelectTrigger>
                     <SelectContent>
                       {workTypes.map((item) => (
-                        <SelectItem key={item.id} value={item.name}>
+                        <SelectItem key={item.id} value={item.id}>
                           {item.name}
                         </SelectItem>
                       ))}
@@ -293,7 +274,7 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
                     <SelectContent>
                       <SelectItem value="none">Не выбрано</SelectItem>
                       {equipment.map((item) => (
-                        <SelectItem key={item.id} value={item.name}>
+                        <SelectItem key={item.id} value={item.id}>
                           {item.name}
                         </SelectItem>
                       ))}

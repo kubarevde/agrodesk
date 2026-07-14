@@ -1,9 +1,7 @@
-import { format } from 'date-fns'
 import { AlertTriangle, Check, Loader2, MapPin, Play } from 'lucide-react'
 import { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,20 +20,26 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { db } from '@/lib/db'
-import type { Employee, Shift, SyncQueueItem } from '@/types'
+import { useCurrentUser } from '@/features/auth/hooks'
 import { useCreateShift } from './hooks'
-import { openShiftSchema, type OpenShiftFormValues } from './openShiftSchema'
+import {
+  openShiftForEmployeeSchema,
+  openShiftSchema,
+  type OpenShiftFormValues,
+} from './openShiftSchema'
 import {
   useEmployees,
   useEquipment,
   useLocations,
   useWorkTypes,
 } from './referenceHooks'
+import { formatShiftTime } from './utils'
 
 interface OpenShiftModalProps {
   open: boolean
   onClose: () => void
+  /** When true, manager/admin picks an employee instead of using the token user. */
+  selectEmployee?: boolean
 }
 
 const defaultValues: OpenShiftFormValues = {
@@ -44,45 +48,26 @@ const defaultValues: OpenShiftFormValues = {
   equipment: '',
   latitude: null,
   longitude: null,
+  employeeId: '',
 }
 
-function buildShiftPayload(
-  values: OpenShiftFormValues,
-  employee: Employee,
-  startTime: string,
-  date: string,
-): Partial<Shift> {
-  return {
-    date,
-    startTime,
-    endTime: null,
-    employeeCode: employee.employeeCode,
-    employeeName: employee.employeeName,
-    telegramId: employee.telegramId,
-    location: values.location,
-    workType: values.workType,
-    equipment: values.equipment ?? '',
-    description: '',
-    comment: '',
-    status: 'open',
-    durationRaw: null,
-    durationRounded: null,
-    latitude: values.latitude ?? null,
-    longitude: values.longitude ?? null,
-  }
-}
-
-export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
-  const queryClient = useQueryClient()
+export function OpenShiftModal({
+  open,
+  onClose,
+  selectEmployee,
+}: OpenShiftModalProps) {
   const createShift = useCreateShift()
   const { data: locations = [], isLoading: locationsLoading } = useLocations()
   const { data: workTypes = [], isLoading: workTypesLoading } = useWorkTypes()
   const { data: equipment = [], isLoading: equipmentLoading } = useEquipment()
-  const { data: employees = [] } = useEmployees()
+  const { data: employees = [], isLoading: employeesLoading } = useEmployees()
+  const { data: user } = useCurrentUser()
+  const canSelectEmployee =
+    selectEmployee ?? (user?.role === 'admin' || user?.role === 'manager')
   const [geoError, setGeoError] = useState<string | null>(null)
 
   const form = useForm<OpenShiftFormValues>({
-    resolver: zodResolver(openShiftSchema),
+    resolver: zodResolver(canSelectEmployee ? openShiftForEmployeeSchema : openShiftSchema),
     defaultValues,
   })
 
@@ -109,7 +94,7 @@ export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
     if (!navigator.geolocation) {
       const message = 'Не удалось получить геолокацию'
       setGeoError(message)
-      toast.error(message)
+      toast.error(`Ошибка: ${message}`)
       return
     }
 
@@ -122,7 +107,7 @@ export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
       () => {
         const message = 'Не удалось получить геолокацию'
         setGeoError(message)
-        toast.error(message)
+        toast.error(`Ошибка: ${message}`)
       },
     )
   }
@@ -134,60 +119,27 @@ export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
   }
 
   const onSubmit = async (values: OpenShiftFormValues) => {
-    const employee = employees[0]
-    if (!employee) {
-      toast.error('Список сотрудников недоступен')
+    if (!user) {
+      toast.error('Ошибка: Пользователь не авторизован')
       return
     }
 
-    const now = new Date()
-    const startTime = format(now, 'HH:mm:ss')
-    const date = format(now, 'dd.MM.yyyy')
-    const payload = buildShiftPayload(values, employee, startTime, date)
-
     try {
-      if (navigator.onLine) {
-        await createShift.mutateAsync(payload)
-        toast.success(`Смена открыта в ${startTime.slice(0, 5)}`)
-      } else {
-        const queueItem: SyncQueueItem = {
-          id: crypto.randomUUID(),
-          method: 'POST',
-          url: '/api/shifts',
-          body: payload as Record<string, unknown>,
-          createdAt: Date.now(),
-          idempotencyKey: crypto.randomUUID(),
-        }
-
-        const localShift: Shift = {
-          id: crypto.randomUUID(),
-          date,
-          startTime,
-          endTime: null,
-          employeeCode: employee.employeeCode,
-          employeeName: employee.employeeName,
-          telegramId: employee.telegramId,
-          location: values.location,
-          workType: values.workType,
-          equipment: values.equipment ?? '',
-          description: '',
-          comment: '',
-          status: 'open',
-          durationRaw: null,
-          durationRounded: null,
-          latitude: values.latitude ?? null,
-          longitude: values.longitude ?? null,
-        }
-
-        await db.syncQueue.add(queueItem)
-        await db.shifts.add(localShift)
-        await queryClient.invalidateQueries({ queryKey: ['shifts'] })
-        toast.info('Сохранено офлайн')
+      const result = await createShift.mutateAsync({
+        locationId: values.location,
+        workTypeId: values.workType,
+        equipmentId: values.equipment || undefined,
+        latitude: values.latitude ?? null,
+        longitude: values.longitude ?? null,
+        employeeId: canSelectEmployee ? values.employeeId : undefined,
+      })
+      if (!result.offline) {
+        toast.success(`🟢 Смена открыта в ${formatShiftTime(result.shift.startTime)}`)
       }
-
       handleClose()
-    } catch {
-      toast.error('Не удалось открыть смену')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Не удалось открыть смену'
+      toast.error(`Ошибка: ${message}`)
     }
   }
 
@@ -195,10 +147,43 @@ export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Открыть смену</DialogTitle>
+          <DialogTitle>
+            {canSelectEmployee ? 'Открыть смену за сотрудника' : 'Открыть смену'}
+          </DialogTitle>
         </DialogHeader>
 
         <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+          {canSelectEmployee ? (
+            <div className="space-y-2">
+              <Label>Сотрудник</Label>
+              {employeesLoading ? (
+                <Skeleton className="h-8 w-full" />
+              ) : (
+                <Controller
+                  name="employeeId"
+                  control={control}
+                  render={({ field }) => (
+                    <Select value={field.value ?? ''} onValueChange={field.onChange}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Выберите сотрудника" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {employees.map((item) => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {item.employeeName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              )}
+              {errors.employeeId ? (
+                <p className="text-xs text-destructive">{errors.employeeId.message}</p>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="space-y-2">
             <Label>Объект</Label>
             {locationsLoading ? (
@@ -214,7 +199,7 @@ export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
                     </SelectTrigger>
                     <SelectContent>
                       {locations.map((item) => (
-                        <SelectItem key={item.id} value={item.name}>
+                        <SelectItem key={item.id} value={item.id}>
                           {item.name}
                         </SelectItem>
                       ))}
@@ -243,7 +228,7 @@ export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
                     </SelectTrigger>
                     <SelectContent>
                       {workTypes.map((item) => (
-                        <SelectItem key={item.id} value={item.name}>
+                        <SelectItem key={item.id} value={item.id}>
                           {item.name}
                         </SelectItem>
                       ))}
@@ -278,7 +263,7 @@ export function OpenShiftModal({ open, onClose }: OpenShiftModalProps) {
                     <SelectContent>
                       <SelectItem value="none">Не выбрано</SelectItem>
                       {equipment.map((item) => (
-                        <SelectItem key={item.id} value={item.name}>
+                        <SelectItem key={item.id} value={item.id}>
                           {item.name}
                         </SelectItem>
                       ))}

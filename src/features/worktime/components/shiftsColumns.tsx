@@ -14,8 +14,9 @@ import { formatShiftTime } from '@/features/worktime/utils'
 
 export interface ShiftRowActions {
   onDetails: (shift: Shift) => void
-  onClose: (shift: Shift) => void
-  onDelete: (shift: Shift) => void
+  onClose?: (shift: Shift) => void
+  onDelete?: (shift: Shift) => void
+  canClose?: (shift: Shift) => boolean
 }
 
 export function createShiftColumns(actions: ShiftRowActions): ColumnDef<Shift>[] {
@@ -97,6 +98,11 @@ export function createShiftColumns(actions: ShiftRowActions): ColumnDef<Shift>[]
       header: 'Действия',
       cell: ({ row }) => {
         const shift = row.original
+        const showClose =
+          shift.status === 'open' &&
+          Boolean(actions.onClose) &&
+          (actions.canClose?.(shift) ?? true)
+
         return (
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -110,14 +116,19 @@ export function createShiftColumns(actions: ShiftRowActions): ColumnDef<Shift>[]
               <DropdownMenuItem onClick={() => actions.onDetails(shift)}>
                 Детали
               </DropdownMenuItem>
-              {shift.status === 'open' ? (
-                <DropdownMenuItem onClick={() => actions.onClose(shift)}>
+              {showClose ? (
+                <DropdownMenuItem onClick={() => actions.onClose?.(shift)}>
                   Закрыть
                 </DropdownMenuItem>
               ) : null}
-              <DropdownMenuItem variant="destructive" onClick={() => actions.onDelete(shift)}>
-                Удалить
-              </DropdownMenuItem>
+              {actions.onDelete ? (
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => actions.onDelete?.(shift)}
+                >
+                  Удалить
+                </DropdownMenuItem>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
         )

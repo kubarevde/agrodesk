@@ -1,9 +1,8 @@
 import axios from 'axios'
-
-const TOKEN_KEY = 'agrodesk_token'
+import { TOKEN_KEY } from '@/features/auth/utils'
 
 export const api = axios.create({
-  baseURL: import.meta.env.DEV ? '' : import.meta.env.VITE_API_URL,
+  baseURL: import.meta.env.VITE_API_URL,
 })
 
 api.interceptors.request.use((config) => {
@@ -17,7 +16,8 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const requestUrl = error.config?.url ?? ''
+    if (error.response?.status === 401 && !requestUrl.includes('/api/auth/login')) {
       localStorage.removeItem(TOKEN_KEY)
       window.location.href = '/login'
     }

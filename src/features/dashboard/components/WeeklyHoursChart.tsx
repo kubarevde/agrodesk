@@ -40,7 +40,7 @@ export function WeeklyHoursChart({ data }: WeeklyHoursChartProps) {
     <Card>
       <CardHeader>
         <CardTitle className="text-base font-semibold text-foreground">
-          Часы за последние 7 дней
+          Часы по дням
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -82,7 +82,7 @@ export function WeeklyHoursChartSkeleton() {
         <Skeleton className="h-5 w-56" />
       </CardHeader>
       <CardContent>
-        <Skeleton className="h-[240px] w-full" />
+        <Skeleton className="h-60 w-full" />
       </CardContent>
     </Card>
   )

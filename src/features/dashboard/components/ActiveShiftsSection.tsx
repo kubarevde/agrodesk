@@ -1,4 +1,3 @@
-import { useNavigate } from '@tanstack/react-router'
 import { Users } from 'lucide-react'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { SkeletonTable } from '@/components/shared/SkeletonTable'
@@ -17,90 +16,54 @@ import { ActiveShiftLiveDuration } from './ActiveShiftLiveDuration'
 
 interface ActiveShiftsSectionProps {
   shifts: DashboardActiveShift[]
-  isAdmin: boolean
   isLoading: boolean
-}
-
-function ActiveShiftsEmptyState({ isAdmin }: { isAdmin: boolean }) {
-  const navigate = useNavigate()
-
-  return (
-    <EmptyState
-      icon={Users}
-      title="Сейчас никто не работает"
-      description={isAdmin ? 'Откройте смену для сотрудника на странице рабочего времени' : undefined}
-      action={
-        isAdmin
-          ? {
-              label: 'Открыть смену за сотрудника',
-              onClick: () => navigate({ to: '/worktime' }),
-            }
-          : undefined
-      }
-    />
-  )
 }
 
 function ActiveShiftsCardList({ shifts }: { shifts: DashboardActiveShift[] }) {
   return (
     <div className="space-y-3 md:hidden">
       {shifts.map((shift) => (
-        <Card key={shift.id}>
-          <CardContent className="space-y-2 p-4">
-            <p className="font-medium text-foreground">{shift.employeeName}</p>
-            <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
-              <span>Объект</span>
-              <span className="text-foreground">{shift.location}</span>
-              <span>Начало</span>
-              <span className="text-foreground">{formatShiftTime(shift.startTime)}</span>
-              <span>Отработано</span>
-              <span className="text-foreground">
-                <ActiveShiftLiveDuration shift={shift} />
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+        <div key={shift.id} className="rounded-lg border border-border bg-surface p-4">
+          <p className="font-medium text-foreground">{shift.employeeName}</p>
+          <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+            <span>Объект</span>
+            <span className="text-right text-foreground">{shift.location}</span>
+            <span>Начало</span>
+            <span className="text-right text-foreground">{formatShiftTime(shift.startTime)}</span>
+            <span>Идёт</span>
+            <span className="text-right text-foreground">
+              <ActiveShiftLiveDuration shift={shift} />
+            </span>
+          </div>
+        </div>
       ))}
     </div>
   )
 }
 
-export function ActiveShiftsSection({ shifts, isAdmin, isLoading }: ActiveShiftsSectionProps) {
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-semibold text-foreground">
-            Кто сейчас на смене
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <SkeletonTable rows={3} columns={4} />
-        </CardContent>
-      </Card>
-    )
-  }
-
+export function ActiveShiftsSection({ shifts, isLoading }: ActiveShiftsSectionProps) {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base font-semibold text-foreground">
-          Кто сейчас на смене
+          Кто сейчас работает
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {shifts.length === 0 ? (
-          <ActiveShiftsEmptyState isAdmin={isAdmin} />
+        {isLoading ? (
+          <SkeletonTable />
+        ) : shifts.length === 0 ? (
+          <EmptyState icon={Users} title="Сейчас никто не работает" />
         ) : (
           <>
             <div className="hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Сотрудник</TableHead>
+                    <TableHead>ФИО</TableHead>
                     <TableHead>Объект</TableHead>
                     <TableHead>Начало</TableHead>
-                    <TableHead>Отработано</TableHead>
+                    <TableHead>Идёт</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

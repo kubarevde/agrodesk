@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
+import { toast } from 'sonner'
 import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import { db } from './lib/db'
@@ -19,7 +20,15 @@ void db.open()
 registerSW({ immediate: true })
 
 enableMocking().then(() => {
-  window.addEventListener('online', flushSyncQueue)
+  window.addEventListener('online', () => {
+    void (async () => {
+      const result = await flushSyncQueue()
+      await queryClient.invalidateQueries()
+      if (result.synced > 0) {
+        toast.success(`🔄 Данные синхронизированы (${result.synced} записей)`)
+      }
+    })()
+  })
 
   createRoot(document.getElementById('root') as HTMLElement).render(
     <StrictMode>

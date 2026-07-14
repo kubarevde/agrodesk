@@ -9,6 +9,7 @@ const activeShifts = MOCK_SHIFTS.filter((shift) => shift.status === 'open').map(
     location,
     startTime,
     date,
+    durationMinutes: 95,
   }),
 )
 
@@ -17,7 +18,25 @@ const dashboardStats: DashboardStats = {
   activeShifts,
   todayHours: 18.5,
   monthShipmentWeight: 47200,
+  monthShipmentsSum: 1_250_000,
+  monthExpensesSum: 420_000,
   criticalInventoryCount: 2,
+  criticalInventory: [
+    {
+      id: 'inv-1',
+      name: 'Дизель',
+      currentStock: 120,
+      minStock: 500,
+      unit: 'л',
+    },
+    {
+      id: 'inv-2',
+      name: 'Семена кукурузы',
+      currentStock: 8,
+      minStock: 20,
+      unit: 'меш.',
+    },
+  ],
   weeklyHours: [
     { day: 'Пн', hours: 8.5, shiftsCount: 4 },
     { day: 'Вт', hours: 7.0, shiftsCount: 3 },

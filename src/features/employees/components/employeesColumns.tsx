@@ -1,5 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { MessageCircle, MoreHorizontal, Pencil, UserX } from 'lucide-react'
+import { MoreHorizontal, Pencil, UserCheck, UserX } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
@@ -10,7 +10,6 @@ import {
 import type { Employee } from '@/types'
 import {
   ROLE_LABELS,
-  formatTelegramId,
   getRoleBadgeClass,
   getStatusBadgeClass,
   getStatusLabel,
@@ -18,11 +17,13 @@ import {
 
 export interface EmployeeRowActions {
   onEdit: (employee: Employee) => void
-  onDeactivate: (employee: Employee) => void
+  onToggleActive: (employee: Employee) => void
 }
 
-export function createEmployeeColumns(actions: EmployeeRowActions): ColumnDef<Employee>[] {
-  return [
+export function createEmployeeColumns(
+  actions: EmployeeRowActions | null,
+): ColumnDef<Employee>[] {
+  const columns: ColumnDef<Employee>[] = [
     {
       accessorKey: 'employeeCode',
       header: 'Код',
@@ -36,29 +37,12 @@ export function createEmployeeColumns(actions: EmployeeRowActions): ColumnDef<Em
     {
       accessorKey: 'position',
       header: 'Должность',
-      cell: ({ row }) => row.original.position,
+      cell: ({ row }) => row.original.position || '—',
     },
     {
       accessorKey: 'hourlyRate',
-      header: 'Ставка',
+      header: 'Ставка ₽/ч',
       cell: ({ row }) => `${row.original.hourlyRate.toLocaleString('ru-RU')} ₽/ч`,
-    },
-    {
-      id: 'telegram',
-      header: 'Telegram',
-      cell: ({ row }) => {
-        const telegramId = formatTelegramId(row.original.telegramId)
-        if (telegramId === '—') {
-          return <span className="text-muted-foreground">—</span>
-        }
-
-        return (
-          <span className="inline-flex items-center gap-1.5 text-sm">
-            <MessageCircle className="size-3.5 text-primary" />
-            {telegramId}
-          </span>
-        )
-      },
     },
     {
       accessorKey: 'role',
@@ -78,7 +62,10 @@ export function createEmployeeColumns(actions: EmployeeRowActions): ColumnDef<Em
         </Badge>
       ),
     },
-    {
+  ]
+
+  if (actions) {
+    columns.push({
       id: 'actions',
       header: 'Действия',
       cell: ({ row }) => (
@@ -100,20 +87,29 @@ export function createEmployeeColumns(actions: EmployeeRowActions): ColumnDef<Em
               <Pencil className="size-4" />
               Редактировать
             </DropdownMenuItem>
-            {row.original.isActive ? (
-              <DropdownMenuItem
-                onClick={(event) => {
-                  event.stopPropagation()
-                  actions.onDeactivate(row.original)
-                }}
-              >
-                <UserX className="size-4" />
-                Деактивировать
-              </DropdownMenuItem>
-            ) : null}
+            <DropdownMenuItem
+              onClick={(event) => {
+                event.stopPropagation()
+                actions.onToggleActive(row.original)
+              }}
+            >
+              {row.original.isActive ? (
+                <>
+                  <UserX className="size-4" />
+                  Деактивировать
+                </>
+              ) : (
+                <>
+                  <UserCheck className="size-4" />
+                  Активировать
+                </>
+              )}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       ),
-    },
-  ]
+    })
+  }
+
+  return columns
 }

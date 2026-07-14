@@ -16,6 +16,9 @@ export interface Shift {
   durationRounded: number | null
   latitude: number | null
   longitude: number | null
+  /** Present on offline-created rows for local filtering before sync. */
+  employeeId?: string
+  _isLocal?: boolean
 }
 
 export interface Employee {
@@ -33,18 +36,21 @@ export interface Location {
   id: string
   name: string
   description?: string
+  isActive: boolean
 }
 
 export interface WorkType {
   id: string
   name: string
   category?: string
+  isActive: boolean
 }
 
 export interface Equipment {
   id: string
   name: string
   type?: string
+  isActive: boolean
 }
 
 export interface InventoryItem {
@@ -55,6 +61,7 @@ export interface InventoryItem {
   currentStock: number
   minStock: number
   totalCapacity: number
+  isActive: boolean
 }
 
 export interface InventoryOperation {
@@ -70,6 +77,39 @@ export interface InventoryOperation {
   cost?: number
 }
 
+export interface Shipment {
+  id: string
+  date: string
+  cropType: string
+  quantityKg: number
+  destination?: string
+  pricePerKg: number | null
+  totalSum: number | null
+  notes?: string
+}
+
+export interface ShipmentFilters {
+  from?: string
+  to?: string
+  cropType?: string
+}
+
+export interface Expense {
+  id: string
+  date: string
+  category: 'fuel' | 'fertilizer' | 'parts' | 'salary' | 'rent' | 'other'
+  amount: number
+  description: string
+  supplier?: string
+  paymentMethod?: 'cash' | 'transfer' | 'invoice'
+}
+
+export interface ExpenseFilters {
+  from?: string
+  to?: string
+  category?: Expense['category']
+}
+
 export interface SyncQueueItem {
   id: string
   method: 'POST' | 'PATCH' | 'DELETE'
@@ -77,6 +117,8 @@ export interface SyncQueueItem {
   body: Record<string, unknown>
   createdAt: number
   idempotencyKey: string
+  retries: number
+  status: 'pending' | 'failed'
 }
 
 export interface ShiftFilters {
@@ -98,6 +140,15 @@ export interface DashboardActiveShift {
   location: string
   startTime: string
   date: string
+  durationMinutes: number
+}
+
+export interface DashboardCriticalItem {
+  id: string
+  name: string
+  currentStock: number
+  minStock: number
+  unit: string
 }
 
 export interface DashboardStats {
@@ -105,6 +156,9 @@ export interface DashboardStats {
   activeShifts: DashboardActiveShift[]
   todayHours: number
   monthShipmentWeight: number
+  monthShipmentsSum: number
+  monthExpensesSum: number
   criticalInventoryCount: number
+  criticalInventory: DashboardCriticalItem[]
   weeklyHours: DashboardWeeklyHours[]
 }
