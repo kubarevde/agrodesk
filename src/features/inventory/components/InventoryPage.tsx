@@ -2,10 +2,12 @@ import { Minus, Package, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { SectionHelp } from '@/components/shared/SectionHelp'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { InventoryItem } from '@/types'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { inventoryHelp } from '@/features/help/content'
 import { useInventory, useInventoryOperations } from '@/features/inventory/hooks'
 import type { InventoryCategoryFilter } from '@/features/inventory/utils'
 import { CategoryFilter } from './CategoryFilter'
@@ -55,6 +57,8 @@ export function InventoryPage() {
           </Button>
         </div>
       </div>
+
+      <SectionHelp title="Справка: склад" items={inventoryHelp} />
 
       <CategoryFilter value={category} onChange={setCategory} />
 

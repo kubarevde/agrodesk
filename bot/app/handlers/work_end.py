@@ -1,5 +1,4 @@
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
@@ -10,9 +9,9 @@ from app.services.api_client import ApiClient
 from app.services.dual_writer import DualWriter
 from app.states.workday import EndWork
 from app.utils.menu import menu_for_user
+from app.utils.org_time import now_in_org
 
 router = Router()
-TZ = ZoneInfo('Asia/Bangkok')
 
 
 def format_dt(dt: datetime) -> str:
@@ -89,7 +88,7 @@ async def work_end_comment(
         return
 
     data = await state.get_data()
-    end_time_str = format_dt(datetime.now(TZ).replace(tzinfo=None))
+    end_time_str = format_dt(await now_in_org(api, tg_id))
     full_desc = str(data.get('description') or '')
     comment = (message.text or '').strip()
     if comment.lower() not in ('нет', 'no', '-'):

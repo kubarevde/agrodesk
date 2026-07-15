@@ -92,6 +92,15 @@ class EquipmentUpdate(BaseModel):
         return value
 
 
+class MaintenanceSummary(BaseModel):
+    current_hours: float
+    service_interval_hours: float | None = None
+    next_service_hours: float | None = None
+    hours_to_next_service: float | None = None
+    progress_percent: float | None = None
+    status: str
+
+
 class EquipmentResponse(EquipmentCreate):
     model_config = ConfigDict(from_attributes=True)
 
@@ -99,3 +108,4 @@ class EquipmentResponse(EquipmentCreate):
     image_url: str | None = None
     to_status: str
     meter_label: str
+    maintenance: MaintenanceSummary | None = None

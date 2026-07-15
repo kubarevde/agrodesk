@@ -8,7 +8,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import type { ImplementResponse } from '@/features/implements/types'
-import type { EquipmentDetail } from '../types'
+import {
+  nextServiceHours,
+  resolveToStatus,
+  type EquipmentDetail,
+} from '../types'
 import { ToStatusBadge } from './ToStatusBadge'
 
 type EquipmentDetailDialogProps = {
@@ -24,6 +28,9 @@ export function EquipmentDetailDialog({
   item,
   implements: attached,
 }: EquipmentDetailDialogProps) {
+  const nextAt = item ? nextServiceHours(item.next_to_at, item.maintenance) : null
+  const status = item ? resolveToStatus(item.to_status, item.maintenance) : 'no_data'
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -34,11 +41,11 @@ export function EquipmentDetailDialog({
           <div className="space-y-3 text-sm">
             <div className="flex flex-wrap gap-2">
               {item.type ? <Badge variant="secondary">{item.type}</Badge> : null}
-              <ToStatusBadge status={item.to_status} />
+              <ToStatusBadge status={status} />
             </div>
             <p className="text-muted-foreground">
               Счётчик: {item.current_meter} {item.meter_label}
-              {item.next_to_at != null ? ` / ТО на ${item.next_to_at}` : ''}
+              {nextAt != null ? ` / ТО на ${nextAt}` : ''}
             </p>
             {item.year_of_manufacture != null ? (
               <p className="text-muted-foreground">Год: {item.year_of_manufacture}</p>

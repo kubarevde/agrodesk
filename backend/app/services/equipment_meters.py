@@ -24,22 +24,10 @@ def calc_meter_label(meter_type: str | None) -> str:
 
 
 def calc_to_status(current_meter: float | None, next_to_at: float | None) -> str:
-    """TO status from current meter vs planned next TO threshold.
+    """Backward-compatible wrapper — prefer app.services.maintenance."""
+    from app.services.maintenance import calculate_to_status
 
-    - overdue: current >= next_to_at
-    - warning: current >= 90% of next_to_at
-    - ok: below warning band
-    - no_data: next_to_at missing
-    """
-    if next_to_at is None:
-        return 'no_data'
-    current = float(current_meter or 0)
-    threshold = float(next_to_at)
-    if current >= threshold:
-        return 'overdue'
-    if current >= threshold * 0.9:
-        return 'warning'
-    return 'ok'
+    return calculate_to_status(current_meter, next_to_at)
 
 
 async def add_equipment_meter_log(
@@ -63,6 +51,12 @@ async def add_equipment_meter_log(
     current = Decimal(str(equipment.current_meter or 0))
     meter_after = current + added
     equipment.current_meter = meter_after
+    if equipment.to_interval is not None and float(equipment.to_interval) > 0:
+        from app.services.maintenance import calculate_next_service_hours
+
+        nxt = calculate_next_service_hours(float(meter_after), float(equipment.to_interval))
+        if nxt is not None:
+            equipment.next_to_at = Decimal(str(nxt))
 
     log = EquipmentMeterLog(
         equipment_id=equipment.id,

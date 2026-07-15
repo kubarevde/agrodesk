@@ -2,9 +2,14 @@ import { Link2, Link2Off, Pencil, Share2, Trash2, Wrench } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { ImplementResponse } from '../types'
+import { ToStatusBadge } from '@/features/equipment/components/ToStatusBadge'
+import {
+  hoursToNextService,
+  meterProgress,
+  nextServiceHours,
+} from '@/features/equipment/types'
+import { implementToStatus, type ImplementResponse } from '../types'
 import { ImplementCategoryBadge } from './ImplementCategoryBadge'
-import { ImplementConditionBadge } from './ImplementConditionBadge'
 
 type ImplementCardProps = {
   item: ImplementResponse
@@ -29,13 +34,25 @@ export function ImplementCard({
   onShare,
   onDelete,
 }: ImplementCardProps) {
+  const nextAt = nextServiceHours(item.next_service_hours, item.maintenance)
+  const remaining = hoursToNextService(
+    item.current_usage_hours,
+    item.next_service_hours,
+    item.maintenance,
+  )
+  const progress = meterProgress(
+    item.current_usage_hours,
+    item.next_service_hours,
+    item.maintenance,
+  )
+
   return (
     <Card className="flex flex-col">
       <CardHeader className="space-y-3">
         <CardTitle className="text-lg font-semibold text-foreground">{item.name}</CardTitle>
         <div className="flex flex-wrap gap-2">
           <ImplementCategoryBadge category={item.category} />
-          <ImplementConditionBadge condition={item.condition} />
+          <ToStatusBadge status={implementToStatus(item)} />
           {item.current_equipment_name ? (
             <Badge variant="outline">Прикреплено к: {item.current_equipment_name}</Badge>
           ) : (
@@ -49,6 +66,22 @@ export function ImplementCard({
             </Badge>
           ) : null}
         </div>
+        {nextAt != null ? (
+          <div className="space-y-1.5">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-[width]"
+                style={{ width: `${progress}%` }} // dynamic progress fill
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {item.current_usage_hours} ч → ТО на {nextAt} ч
+              {remaining != null ? ` (осталось ${remaining})` : ''}
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">{item.current_usage_hours} ч наработки</p>
+        )}
       </CardHeader>
       <CardContent className="mt-auto flex flex-wrap gap-2">
         {canManage ? (

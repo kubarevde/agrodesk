@@ -1,25 +1,24 @@
 from datetime import date, datetime
-from zoneinfo import ZoneInfo
 
 from aiogram import F, Router
 from aiogram.types import Message
 
 from app.services.api_client import ApiClient
 from app.utils.menu import menu_for_user
+from app.utils.org_time import now_in_org, today_in_org
 
 router = Router()
-TZ = ZoneInfo('Asia/Bangkok')
 
 
-def parse_time(value: object) -> datetime | None:
+def parse_time(value: object, today: date | None = None) -> datetime | None:
     raw = str(value or '').strip()
     if not raw:
         return None
-    today = date.today()
+    day = today or date.today()
     for fmt in ('%H:%M:%S', '%H:%M'):
         try:
             parsed = datetime.strptime(raw[:8] if fmt == '%H:%M:%S' else raw[:5], fmt).time()
-            return datetime.combine(today, parsed)
+            return datetime.combine(day, parsed)
         except ValueError:
             continue
     try:
@@ -35,11 +34,11 @@ def format_clock(value: object) -> str:
     return raw[:16] if len(raw) >= 16 else raw[:5] if len(raw) >= 5 else raw
 
 
-def elapsed_label(start_raw: object) -> str:
-    start_dt = parse_time(start_raw)
+async def elapsed_label(start_raw: object, api: ApiClient, tg_id: int) -> str:
+    now = await now_in_org(api, tg_id)
+    start_dt = parse_time(start_raw, today=now.date())
     if start_dt is None:
         return '0 ч. 0 мин.'
-    now = datetime.now(TZ).replace(tzinfo=None)
     # parse_time uses today's date; for iso datetime with date keep as-is
     raw = str(start_raw or '')
     if 'T' in raw or ' ' in raw and len(raw) > 10:
@@ -98,7 +97,7 @@ async def my_status(message: Message, api: ApiClient) -> None:
 
     await message.answer(
         f'📍 {location} | 🔧 {work_type} | 🚜 {equipment or "—"}\n'
-        f'🕐 Начало: {format_clock(start_time)}  ⏳ Прошло: {elapsed_label(start_time)}',
+        f'🕐 Начало: {format_clock(start_time)}  ⏳ Прошло: {await elapsed_label(start_time, api, tg_id)}',
         reply_markup=menu_for_user(is_admin),
     )
 
@@ -107,7 +106,7 @@ async def my_status(message: Message, api: ApiClient) -> None:
 async def today_info(message: Message, api: ApiClient) -> None:
     tg_id = message.from_user.id
     is_admin = await api.is_admin(tg_id)
-    today = date.today().isoformat()
+    today = (await today_in_org(api, tg_id)).isoformat()
     shifts = await api.get_shifts_for_date(tg_id, today)
 
     if not shifts:

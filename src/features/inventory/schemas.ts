@@ -3,7 +3,7 @@ import { z } from 'zod'
 export const incomeSchema = z.object({
   itemId: z.string().min(1, 'Выберите наименование'),
   quantity: z.number().positive('Укажите количество больше 0'),
-  supplier: z.string().min(1, 'Выберите поставщика'),
+  supplier: z.string().min(1, 'Укажите поставщика'),
   cost: z.number().min(0, 'Стоимость не может быть отрицательной'),
   date: z.string().min(1, 'Выберите дату'),
 })

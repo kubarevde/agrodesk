@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { useCurrentUser } from '@/features/auth/hooks'
 import {
   useEquipmentDetail,
+  useEquipmentInstall,
+  useEquipmentRefuel,
   useUpdateEquipment,
 } from '@/features/equipment/hooks'
 import type { EquipmentFormValues } from '@/features/equipment/schemas'
@@ -18,6 +20,8 @@ import { EquipmentImplementsSection } from './EquipmentImplementsSection'
 import { EquipmentMaintenanceSection } from './EquipmentMaintenanceSection'
 import { EquipmentMeterLogsSection } from './EquipmentMeterLogsSection'
 import { EquipmentSharingModal } from './EquipmentSharingModal'
+import { EquipmentStockModal } from './EquipmentStockModal'
+import { EquipmentStockSection } from './EquipmentStockSection'
 import { MaintenanceModal } from './MaintenanceModal'
 import { MeterLogModal } from './MeterLogModal'
 
@@ -32,11 +36,14 @@ export function EquipmentDetailPage({ equipmentId }: EquipmentDetailPageProps) {
 
   const { data: item, isLoading, isError } = useEquipmentDetail(equipmentId)
   const updateItem = useUpdateEquipment()
+  const refuel = useEquipmentRefuel(equipmentId)
+  const install = useEquipmentInstall(equipmentId)
 
   const [editOpen, setEditOpen] = useState(false)
   const [meterOpen, setMeterOpen] = useState(false)
   const [toOpen, setToOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const [stockOpen, setStockOpen] = useState(false)
 
   if (isLoading) return <PageSkeleton />
   if (isError || !item) {
@@ -72,6 +79,7 @@ export function EquipmentDetailPage({ equipmentId }: EquipmentDetailPageProps) {
         onEdit={() => setEditOpen(true)}
         onMeterLog={() => setMeterOpen(true)}
         onMaintenance={() => setToOpen(true)}
+        onStock={() => setStockOpen(true)}
       />
 
       <EquipmentImplementsSection equipmentId={item.id} canManage={canManage} />
@@ -85,6 +93,25 @@ export function EquipmentDetailPage({ equipmentId }: EquipmentDetailPageProps) {
         canManage={canManage}
         onAdd={() => setToOpen(true)}
       />
+
+      {canManage ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <EquipmentStockSection
+            title="Заправки"
+            equipmentId={item.id}
+            purpose="refuel"
+            isPending={refuel.isPending}
+            onSubmit={(values) => refuel.mutateAsync(values)}
+          />
+          <EquipmentStockSection
+            title="Установленные материалы"
+            equipmentId={item.id}
+            purpose="install"
+            isPending={install.isPending}
+            onSubmit={(values) => install.mutateAsync(values)}
+          />
+        </div>
+      ) : null}
 
       <EquipmentExpensesSection equipmentId={item.id} canManage={canManage} />
 
@@ -126,6 +153,11 @@ export function EquipmentDetailPage({ equipmentId }: EquipmentDetailPageProps) {
         open={shareOpen}
         onOpenChange={setShareOpen}
         item={item}
+      />
+      <EquipmentStockModal
+        open={stockOpen}
+        onOpenChange={setStockOpen}
+        equipmentId={item.id}
       />
     </div>
   )

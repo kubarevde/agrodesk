@@ -1,9 +1,10 @@
 import { MapView } from '@/components/shared/MapView'
+import { ToStatusBadge } from '@/features/equipment/components/ToStatusBadge'
 import { useEquipmentDetail } from '@/features/equipment/hooks'
 import { useFieldDetail } from '@/features/fields/hooks'
 import { useImplementDetail } from '@/features/implements/hooks'
-import { ImplementConditionBadge } from '@/features/implements/components/ImplementConditionBadge'
 import { getImplementCategoryConfig } from '@/features/implements/categoryConfig'
+import { implementToStatus } from '@/features/implements/types'
 import { humanLabel } from '@/lib/display'
 import type { SharingListing } from '../types'
 
@@ -95,8 +96,8 @@ export function SharingResourceBlock({ listing }: SharingResourceBlockProps) {
               <span>{getImplementCategoryConfig(implement.category).label}</span>
             </p>
             <p className="flex flex-wrap items-center gap-2">
-              Состояние:
-              <ImplementConditionBadge condition={implement.condition} />
+              Состояние ТО:
+              <ToStatusBadge status={implementToStatus(implement)} />
             </p>
             <p>Обычно крепится к: {implement.current_equipment_name ?? 'не закреплено'}</p>
           </>

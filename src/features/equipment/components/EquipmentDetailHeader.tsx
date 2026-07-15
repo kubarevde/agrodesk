@@ -1,7 +1,14 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { mediaUrl } from '@/lib/media'
-import { meterProgress, type EquipmentDetail } from '../types'
+import { Tractor } from 'lucide-react'
+import {
+  hoursToNextService,
+  meterProgress,
+  nextServiceHours,
+  resolveToStatus,
+  type EquipmentDetail,
+} from '../types'
 import { ToStatusBadge } from './ToStatusBadge'
 
 type EquipmentDetailHeaderProps = {
@@ -10,6 +17,7 @@ type EquipmentDetailHeaderProps = {
   onEdit: () => void
   onMeterLog: () => void
   onMaintenance: () => void
+  onStock?: () => void
 }
 
 export function EquipmentDetailHeader({
@@ -18,10 +26,12 @@ export function EquipmentDetailHeader({
   onEdit,
   onMeterLog,
   onMaintenance,
+  onStock,
 }: EquipmentDetailHeaderProps) {
-  const progress = meterProgress(item.current_meter, item.next_to_at)
-  const remaining =
-    item.next_to_at != null ? Math.max(0, item.next_to_at - item.current_meter) : null
+  const progress = meterProgress(item.current_meter, item.next_to_at, item.maintenance)
+  const remaining = hoursToNextService(item.current_meter, item.next_to_at, item.maintenance)
+  const nextAt = nextServiceHours(item.next_to_at, item.maintenance)
+  const status = resolveToStatus(item.to_status, item.maintenance)
 
   return (
     <div className="space-y-4">
@@ -31,14 +41,18 @@ export function EquipmentDetailHeader({
           alt={item.name}
           className="h-[100px] w-full rounded-lg object-cover"
         />
-      ) : null}
+      ) : (
+        <div className="flex h-[100px] w-full items-center justify-center rounded-lg bg-muted text-muted-foreground">
+          <Tractor className="size-8 opacity-50" />
+        </div>
+      )}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold text-foreground">{item.name}</h1>
           <div className="flex flex-wrap gap-2">
             {item.type ? <Badge variant="secondary">{item.type}</Badge> : null}
-            <ToStatusBadge status={item.to_status} />
+            <ToStatusBadge status={status} />
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -57,6 +71,11 @@ export function EquipmentDetailHeader({
               Записать ТО
             </Button>
           ) : null}
+          {canManage && onStock ? (
+            <Button type="button" variant="outline" onClick={onStock}>
+              Заправка / ТМЦ
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -65,7 +84,7 @@ export function EquipmentDetailHeader({
         <p className="text-3xl font-semibold text-foreground">
           {item.current_meter} {item.meter_label}
         </p>
-        {item.next_to_at != null ? (
+        {nextAt != null ? (
           <div className="space-y-1.5">
             <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
@@ -74,7 +93,8 @@ export function EquipmentDetailHeader({
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              Осталось до ТО: {remaining} {item.meter_label}
+              Следующее ТО: {nextAt} {item.meter_label}
+              {remaining != null ? ` · осталось ${remaining}` : ''}
             </p>
           </div>
         ) : (

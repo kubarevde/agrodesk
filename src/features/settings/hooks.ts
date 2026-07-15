@@ -270,3 +270,39 @@ export function useUpdateInventoryItem() {
     onError: () => toast.error('Не удалось обновить позицию'),
   })
 }
+
+export type OrganizationSettings = {
+  timezone: string
+  available_timezones: string[]
+}
+
+export function useOrganizationSettings() {
+  return useQuery({
+    queryKey: ['settings', 'organization'],
+    queryFn: async (): Promise<OrganizationSettings> => {
+      const { data } = await api.get<OrganizationSettings>('/api/settings/organization')
+      return {
+        timezone: data.timezone || 'Asia/Bangkok',
+        available_timezones: data.available_timezones ?? [],
+      }
+    },
+  })
+}
+
+export function useUpdateOrganizationSettings() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { timezone: string }) => {
+      const { data } = await api.patch<OrganizationSettings>(
+        '/api/settings/organization',
+        payload,
+      )
+      return data
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['settings', 'organization'] })
+      toast.success('Часовой пояс сохранён')
+    },
+    onError: () => toast.error('Не удалось сохранить часовой пояс'),
+  })
+}

@@ -27,7 +27,6 @@ import type { InventoryItem } from '@/types'
 import { formatApiDate, parseApiDate } from '@/features/worktime/utils'
 import { useCreateIncome } from '@/features/inventory/hooks'
 import { incomeSchema, type IncomeFormValues } from '@/features/inventory/schemas'
-import { SUPPLIERS } from '@/features/inventory/utils'
 
 interface IncomeModalProps {
   open: boolean
@@ -126,28 +125,12 @@ export function IncomeModal({ open, items, onClose }: IncomeModalProps) {
           </div>
 
           <div className="space-y-2">
-            <Label>Поставщик</Label>
-            <Controller
-              name="supplier"
-              control={control}
-              render={({ field }) => (
-                <Select
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  items={SUPPLIERS.map((supplier) => ({ value: supplier, label: supplier }))}
-                >
-                  <SelectTrigger className="w-full" aria-invalid={Boolean(errors.supplier)}>
-                    <SelectValue placeholder="Выберите поставщика" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SUPPLIERS.map((supplier) => (
-                      <SelectItem key={supplier} value={supplier}>
-                        {supplier}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+            <Label htmlFor="supplier">Поставщик</Label>
+            <Input
+              id="supplier"
+              placeholder="Название поставщика"
+              aria-invalid={Boolean(errors.supplier)}
+              {...register('supplier')}
             />
             {errors.supplier ? (
               <p className="text-xs text-destructive">{errors.supplier.message}</p>
