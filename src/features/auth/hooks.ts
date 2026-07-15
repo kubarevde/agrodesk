@@ -37,6 +37,7 @@ export function usePublicOrgs() {
     queryFn: async (): Promise<SelectedOrg[]> => {
       const { data } = await api.get<Array<{ id: string; name: string; slug: string }>>(
         '/api/auth/orgs',
+        { timeout: 10_000 },
       )
       return data.map((item) => ({
         id: item.id,
@@ -45,6 +46,7 @@ export function usePublicOrgs() {
       }))
     },
     staleTime: 60_000,
+    retry: 1,
   })
 }
 

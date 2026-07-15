@@ -1,4 +1,6 @@
 import { format } from 'date-fns'
+import { isoDateToDisplay } from '@/lib/dates'
+import { formatMoney as formatMoneyBase } from '@/lib/format'
 
 /** Preview pay for threshold+2 hours: regular + 2h overtime. */
 export function formatRateCalculator(
@@ -17,14 +19,12 @@ export function formatRateCalculator(
 }
 
 export function formatMoney(value: number): string {
-  return `${value.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽`
+  return formatMoneyBase(value)
 }
 
 export function formatIsoDateRu(value: string | null | undefined): string {
   if (!value) return '—'
-  const [y, m, d] = value.split('-')
-  if (!y || !m || !d) return value
-  return `${d}.${m}.${y}`
+  return isoDateToDisplay(value)
 }
 
 export function todayIsoDate(): string {

@@ -52,10 +52,13 @@ async function fetchShifts(filters: ShiftFilters): Promise<Shift[]> {
     return getShiftsFromDexie(filters)
   }
 
-  const { data } = await api.get<Record<string, unknown>[]>('/api/shifts', {
+  const { data } = await api.get<unknown>('/api/shifts', {
     params: shiftFiltersToApi(filters),
   })
-  return data.map(shiftFromApi)
+  if (!Array.isArray(data)) {
+    throw new Error('Некорректный ответ API смен')
+  }
+  return data.map((item) => shiftFromApi(item as Record<string, unknown>))
 }
 
 async function fetchShift(id: string): Promise<Shift> {

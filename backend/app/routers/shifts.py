@@ -178,7 +178,8 @@ async def list_shifts(
     from_date: date | None = Query(None),
     to_date: date | None = Query(None),
     employee_id: UUID | None = Query(None),
-    status_filter: ShiftStatus | None = Query(None, alias='status'),
+    # Accept 'all' from older clients / UI filters — treat as no status filter.
+    status: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(get_current_employee),
 ) -> list[ShiftResponse]:
@@ -194,8 +195,8 @@ async def list_shifts(
         query = query.where(Shift.date >= from_date)
     if to_date is not None:
         query = query.where(Shift.date <= to_date)
-    if status_filter is not None:
-        query = query.where(Shift.status == status_filter)
+    if status in (ShiftStatus.open.value, ShiftStatus.closed.value):
+        query = query.where(Shift.status == ShiftStatus(status))
 
     query = query.order_by(Shift.date.desc(), Shift.start_time.desc())
     result = await db.execute(query)

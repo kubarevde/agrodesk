@@ -70,31 +70,40 @@ async def report_salary(
 
 @router.post('/inventory')
 async def report_inventory(
+    request: Request,
     payload: DateRangeRequest,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ):
-    workbook = await build_inventory_workbook(db, payload.from_date, payload.to_date)
+    workbook = await build_inventory_workbook(
+        db, payload.from_date, payload.to_date, org_id=get_org_id(request)
+    )
     return workbook_response(workbook, 'inventory.xlsx')
 
 
 @router.post('/shipments')
 async def report_shipments(
+    request: Request,
     payload: DateRangeRequest,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ):
-    workbook = await build_shipments_workbook(db, payload.from_date, payload.to_date)
+    workbook = await build_shipments_workbook(
+        db, payload.from_date, payload.to_date, org_id=get_org_id(request)
+    )
     return workbook_response(workbook, 'shipments.xlsx')
 
 
 @router.post('/expenses')
 async def report_expenses(
+    request: Request,
     payload: DateRangeRequest,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ):
-    workbook = await build_expenses_workbook(db, payload.from_date, payload.to_date)
+    workbook = await build_expenses_workbook(
+        db, payload.from_date, payload.to_date, org_id=get_org_id(request)
+    )
     return workbook_response(workbook, 'expenses.xlsx')
 
 

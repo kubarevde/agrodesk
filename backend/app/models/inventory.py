@@ -1,7 +1,7 @@
 import enum
 import uuid
 
-from sqlalchemy import Boolean, Column, Date, DateTime, Enum, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import Boolean, Column, Date, DateTime, Enum, ForeignKey, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -24,9 +24,11 @@ class InventoryOperationType(str, enum.Enum):
 
 class InventoryItem(Base):
     __tablename__ = 'inventory_items'
+    __table_args__ = (UniqueConstraint('org_id', 'name', name='uq_inventory_items_org_name'),)
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String(200), unique=True, nullable=False)
+    org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id'), nullable=False)
+    name = Column(String(200), nullable=False)
     category = Column(
         Enum(InventoryCategory, name='inventory_category'),
         nullable=False,

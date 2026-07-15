@@ -27,6 +27,7 @@ class InventoryItemUpdate(BaseModel):
 
 class InventoryItemResponse(BaseModel):
     id: UUID
+    org_id: UUID | None = None
     name: str
     category: str
     unit: str

@@ -18,6 +18,10 @@ export function getSelectedOrg(): SelectedOrg | null {
   }
 }
 
-export function setSelectedOrg(org: SelectedOrg): void {
+export function setSelectedOrg(org: SelectedOrg | null): void {
+  if (org == null) {
+    localStorage.removeItem(SELECTED_ORG_KEY)
+    return
+  }
   localStorage.setItem(SELECTED_ORG_KEY, JSON.stringify(org))
 }

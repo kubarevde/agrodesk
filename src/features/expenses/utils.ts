@@ -1,4 +1,5 @@
 import type { Expense } from '@/types'
+import { formatMoney as formatMoneyBase } from '@/lib/format'
 
 export const EXPENSE_CATEGORIES = [
   'fuel',
@@ -40,7 +41,7 @@ export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
 }
 
 export function formatMoney(value: number): string {
-  return `${Math.round(value).toLocaleString('ru-RU')} ₽`
+  return formatMoneyBase(value)
 }
 
 export function getCategoryBadgeClass(category: ExpenseCategory): string {

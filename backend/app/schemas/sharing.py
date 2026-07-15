@@ -47,6 +47,7 @@ class SharingListingStatusUpdate(BaseModel):
 
 class SharingListingResponse(SharingListingCreate):
     id: UUID
+    org_id: UUID | None = None
     status: str
     owner_id: UUID
     owner_name: str

@@ -11,6 +11,7 @@ class Shipment(Base):
     __tablename__ = 'shipments'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id'), nullable=False)
     date = Column(Date, nullable=False)
     crop_type = Column(String(100), nullable=False)
     quantity_kg = Column(Numeric(12, 2), nullable=False)

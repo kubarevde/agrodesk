@@ -10,7 +10,7 @@ from app.database import AsyncSessionLocal
 from app.models.agro_plan import AgroPlan
 from app.models.expense import Expense
 from app.models.inventory import InventoryItem
-from app.models.reference import Equipment
+from app.models.reference import Equipment, Location
 from app.models.sharing import SharingListing, SharingRequest
 from app.models.shift import Shift, ShiftStatus
 from app.models.shipment import Shipment
@@ -22,24 +22,12 @@ from app.schemas.dashboard import (
     DashboardStatsResponse,
     DashboardWeeklyHours,
 )
-from app.services.equipment_meters import calc_meter_label
+from app.services.equipment_meters import calc_meter_label, calc_to_status
 from app.services.shifts import calc_duration_from_datetimes, combine_date_time
 
 DAY_NAMES = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
 _cache: dict[str, object] = {'by_user': {}}
-
-
-def calc_to_status(current_meter: float | None, next_to_at: float | None) -> str:
-    if next_to_at is None:
-        return 'no_data'
-    current = float(current_meter or 0)
-    threshold = float(next_to_at)
-    if current >= threshold:
-        return 'overdue'
-    if current >= threshold * 0.9:
-        return 'warning'
-    return 'ok'
 
 
 def clear_dashboard_cache() -> None:
@@ -160,16 +148,20 @@ async def fetch_shift_stats(
     )
 
 
-async def fetch_shipment_stats(month_start: date, month_end: date) -> tuple[float, float]:
+async def fetch_shipment_stats(
+    month_start: date, month_end: date, org_id: UUID
+) -> tuple[float, float]:
     async with AsyncSessionLocal() as db:
         kg_total = await db.scalar(
             select(func.coalesce(func.sum(Shipment.quantity_kg), 0)).where(
+                Shipment.org_id == org_id,
                 Shipment.date >= month_start,
                 Shipment.date <= month_end,
             )
         )
         sum_total = await db.scalar(
             select(func.coalesce(func.sum(Shipment.quantity_kg * Shipment.price_per_kg), 0)).where(
+                Shipment.org_id == org_id,
                 Shipment.date >= month_start,
                 Shipment.date <= month_end,
                 Shipment.price_per_kg.is_not(None),
@@ -178,10 +170,11 @@ async def fetch_shipment_stats(month_start: date, month_end: date) -> tuple[floa
     return float(kg_total or 0), float(sum_total or 0)
 
 
-async def fetch_expense_stats(month_start: date, month_end: date) -> float:
+async def fetch_expense_stats(month_start: date, month_end: date, org_id: UUID) -> float:
     async with AsyncSessionLocal() as db:
         total = await db.scalar(
             select(func.coalesce(func.sum(Expense.amount), 0)).where(
+                Expense.org_id == org_id,
                 Expense.date >= month_start,
                 Expense.date <= month_end,
             )
@@ -189,11 +182,12 @@ async def fetch_expense_stats(month_start: date, month_end: date) -> float:
     return float(total or 0)
 
 
-async def fetch_critical_inventory() -> tuple[int, list[DashboardCriticalItem]]:
+async def fetch_critical_inventory(org_id: UUID) -> tuple[int, list[DashboardCriticalItem]]:
     async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(InventoryItem)
             .where(
+                InventoryItem.org_id == org_id,
                 InventoryItem.is_active.is_(True),
                 InventoryItem.current_stock < InventoryItem.min_stock,
             )
@@ -249,12 +243,16 @@ async def fetch_equipment_warnings(org_id: UUID) -> tuple[int, list[DashboardEqu
     return len(warnings), warnings
 
 
-async def fetch_agro_plan_today(today: date) -> list[DashboardAgroPlanToday]:
+async def fetch_agro_plan_today(today: date, org_id: UUID) -> list[DashboardAgroPlanToday]:
     async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(AgroPlan)
+            .join(Location, AgroPlan.location_id == Location.id)
             .options(selectinload(AgroPlan.location), selectinload(AgroPlan.work_type))
-            .where(AgroPlan.planned_date == today)
+            .where(
+                Location.org_id == org_id,
+                AgroPlan.planned_date == today,
+            )
             .order_by(AgroPlan.status.asc())
         )
         plans = result.scalars().all()
@@ -300,11 +298,11 @@ async def compute_stats(owner_id: UUID, org_id: UUID) -> DashboardStatsResponse:
         sharing_new_requests,
     ) = await asyncio.gather(
         fetch_shift_stats(today, month_start, month_end, week_start, week_end, now, org_id),
-        fetch_shipment_stats(month_start, month_end),
-        fetch_expense_stats(month_start, month_end),
-        fetch_critical_inventory(),
+        fetch_shipment_stats(month_start, month_end, org_id),
+        fetch_expense_stats(month_start, month_end, org_id),
+        fetch_critical_inventory(org_id),
         fetch_equipment_warnings(org_id),
-        fetch_agro_plan_today(today),
+        fetch_agro_plan_today(today, org_id),
         fetch_sharing_new_requests(owner_id),
     )
 

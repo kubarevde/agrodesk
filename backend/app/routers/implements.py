@@ -1,7 +1,7 @@
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_admin, require_manager
+from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
 from app.models.expense import Expense
 from app.models.implement import Implement, ImplementMaintenance
@@ -29,6 +30,7 @@ router = APIRouter()
 def implement_to_response(item: Implement) -> ImplementResponse:
     return ImplementResponse(
         id=item.id,
+        org_id=item.org_id,
         name=item.name,
         category=item.category,
         serial_number=item.serial_number,
@@ -47,9 +49,11 @@ def load_options():
     return (selectinload(Implement.current_equipment),)
 
 
-async def get_implement_or_404(db: AsyncSession, implement_id: UUID) -> Implement:
+async def get_implement_or_404(db: AsyncSession, implement_id: UUID, org_id: UUID) -> Implement:
     result = await db.execute(
-        select(Implement).options(*load_options()).where(Implement.id == implement_id)
+        select(Implement)
+        .options(*load_options())
+        .where(Implement.id == implement_id, Implement.org_id == org_id)
     )
     item = result.scalar_one_or_none()
     if item is None:
@@ -57,14 +61,29 @@ async def get_implement_or_404(db: AsyncSession, implement_id: UUID) -> Implemen
     return item
 
 
+async def get_org_equipment_or_400(
+    db: AsyncSession, equipment_id: UUID, org_id: UUID
+) -> Equipment:
+    equipment = await db.get(Equipment, equipment_id)
+    if equipment is None or not equipment.is_active or equipment.org_id != org_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Техника не найдена')
+    return equipment
+
+
 @router.get('', response_model=list[ImplementResponse])
 async def list_implements(
+    request: Request,
     category: str | None = Query(None),
     equipment_id: UUID | None = Query(None),
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> list[ImplementResponse]:
-    query = select(Implement).options(*load_options()).where(Implement.is_active.is_(True))
+    org_id = get_org_id(request)
+    query = (
+        select(Implement)
+        .options(*load_options())
+        .where(Implement.org_id == org_id, Implement.is_active.is_(True))
+    )
     if category:
         query = query.where(Implement.category == category)
     if equipment_id is not None:
@@ -76,25 +95,26 @@ async def list_implements(
 
 @router.get('/{implement_id}', response_model=ImplementResponse)
 async def get_implement(
+    request: Request,
     implement_id: UUID,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> ImplementResponse:
-    return implement_to_response(await get_implement_or_404(db, implement_id))
+    return implement_to_response(await get_implement_or_404(db, implement_id, get_org_id(request)))
 
 
 @router.post('', response_model=ImplementResponse, status_code=status.HTTP_201_CREATED)
 async def create_implement(
+    request: Request,
     payload: ImplementCreate,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> ImplementResponse:
+    org_id = get_org_id(request)
     if payload.current_equipment_id is not None:
-        equipment = await db.get(Equipment, payload.current_equipment_id)
-        if equipment is None or not equipment.is_active:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Техника не найдена')
+        await get_org_equipment_or_400(db, payload.current_equipment_id, org_id)
 
-    item = Implement(**payload.model_dump())
+    item = Implement(**payload.model_dump(), org_id=org_id)
     db.add(item)
     try:
         await db.commit()
@@ -104,22 +124,22 @@ async def create_implement(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Приспособление с таким названием уже существует',
         ) from None
-    return implement_to_response(await get_implement_or_404(db, item.id))
+    return implement_to_response(await get_implement_or_404(db, item.id, org_id))
 
 
 @router.patch('/{implement_id}', response_model=ImplementResponse)
 async def update_implement(
+    request: Request,
     implement_id: UUID,
     payload: ImplementUpdate,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> ImplementResponse:
-    item = await get_implement_or_404(db, implement_id)
+    org_id = get_org_id(request)
+    item = await get_implement_or_404(db, implement_id, org_id)
     updates = payload.model_dump(exclude_unset=True)
     if 'current_equipment_id' in updates and updates['current_equipment_id'] is not None:
-        equipment = await db.get(Equipment, updates['current_equipment_id'])
-        if equipment is None or not equipment.is_active:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Техника не найдена')
+        await get_org_equipment_or_400(db, updates['current_equipment_id'], org_id)
 
     for field, value in updates.items():
         setattr(item, field, value)
@@ -132,16 +152,17 @@ async def update_implement(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Приспособление с таким названием уже существует',
         ) from None
-    return implement_to_response(await get_implement_or_404(db, implement_id))
+    return implement_to_response(await get_implement_or_404(db, implement_id, org_id))
 
 
 @router.delete('/{implement_id}', status_code=status.HTTP_204_NO_CONTENT)
 async def delete_implement(
+    request: Request,
     implement_id: UUID,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_admin),
 ) -> None:
-    item = await get_implement_or_404(db, implement_id)
+    item = await get_implement_or_404(db, implement_id, get_org_id(request))
     item.is_active = False
     item.current_equipment_id = None
     db.add(item)
@@ -150,41 +171,44 @@ async def delete_implement(
 
 @router.patch('/{implement_id}/attach', response_model=ImplementResponse)
 async def attach_implement(
+    request: Request,
     implement_id: UUID,
     payload: ImplementAttach,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> ImplementResponse:
-    item = await get_implement_or_404(db, implement_id)
-    equipment = await db.get(Equipment, payload.equipment_id)
-    if equipment is None or not equipment.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Техника не найдена')
+    org_id = get_org_id(request)
+    item = await get_implement_or_404(db, implement_id, org_id)
+    equipment = await get_org_equipment_or_400(db, payload.equipment_id, org_id)
     item.current_equipment_id = equipment.id
     db.add(item)
     await db.commit()
-    return implement_to_response(await get_implement_or_404(db, implement_id))
+    return implement_to_response(await get_implement_or_404(db, implement_id, org_id))
 
 
 @router.patch('/{implement_id}/detach', response_model=ImplementResponse)
 async def detach_implement(
+    request: Request,
     implement_id: UUID,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> ImplementResponse:
-    item = await get_implement_or_404(db, implement_id)
+    org_id = get_org_id(request)
+    item = await get_implement_or_404(db, implement_id, org_id)
     item.current_equipment_id = None
     db.add(item)
     await db.commit()
-    return implement_to_response(await get_implement_or_404(db, implement_id))
+    return implement_to_response(await get_implement_or_404(db, implement_id, org_id))
 
 
 @router.get('/{implement_id}/maintenance', response_model=list[ImplementMaintenanceResponse])
 async def list_implement_maintenance(
+    request: Request,
     implement_id: UUID,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> list[ImplementMaintenanceResponse]:
-    await get_implement_or_404(db, implement_id)
+    await get_implement_or_404(db, implement_id, get_org_id(request))
     result = await db.execute(
         select(ImplementMaintenance)
         .where(ImplementMaintenance.implement_id == implement_id)
@@ -211,16 +235,19 @@ async def list_implement_maintenance(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_implement_maintenance(
+    request: Request,
     implement_id: UUID,
     payload: ImplementMaintenanceCreate,
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(require_manager),
 ) -> ImplementMaintenanceResponse:
-    item = await get_implement_or_404(db, implement_id)
+    org_id = get_org_id(request)
+    item = await get_implement_or_404(db, implement_id, org_id)
 
     expense_id: UUID | None = None
     if payload.cost is not None and payload.cost > 0:
         expense = Expense(
+            org_id=org_id,
             date=payload.date,
             category='parts',
             amount=Decimal(str(payload.cost)),

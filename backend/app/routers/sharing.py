@@ -89,6 +89,7 @@ def listing_to_response(listing: SharingListing) -> SharingListingResponse:
 
     return SharingListingResponse(
         id=listing.id,
+        org_id=listing.org_id,
         type=listing.type,
         title=listing.title,
         description=listing.description,
@@ -186,18 +187,23 @@ async def resolve_coordinates(
     return latitude, longitude
 
 
-async def validate_resources(db: AsyncSession, payload: SharingListingCreate) -> None:
+async def validate_resources(
+    db: AsyncSession,
+    payload: SharingListingCreate,
+    org_id: UUID,
+) -> None:
+    """Ensure linked resources exist and belong to the caller's organization."""
     if payload.field_id is not None:
         field = await db.get(Location, payload.field_id)
-        if field is None:
+        if field is None or field.org_id != org_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Поле не найдено')
     if payload.equipment_id is not None:
         equipment = await db.get(Equipment, payload.equipment_id)
-        if equipment is None:
+        if equipment is None or equipment.org_id != org_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Техника не найдена')
     if payload.implement_id is not None:
         implement = await db.get(Implement, payload.implement_id)
-        if implement is None:
+        if implement is None or implement.org_id != org_id:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail='Приспособление не найдено',
@@ -230,9 +236,14 @@ async def list_listings(
     status: str = Query('active'),
     region: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(get_current_employee),
+    current: Employee = Depends(get_current_employee),
 ) -> list[SharingListingResponse]:
-    query = select(SharingListing).options(*listing_load_options())
+    # Tenant-scoped catalog (own org only). Cross-org marketplace can be layered later.
+    query = (
+        select(SharingListing)
+        .options(*listing_load_options())
+        .where(SharingListing.org_id == current.org_id)
+    )
 
     if type is not None:
         query = query.where(SharingListing.type == type)
@@ -268,9 +279,12 @@ async def list_my_listings(
 async def get_listing(
     listing_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(get_current_employee),
+    current: Employee = Depends(get_current_employee),
 ) -> SharingListingResponse:
-    return listing_to_response(await get_listing_or_404(db, listing_id))
+    listing = await get_listing_or_404(db, listing_id)
+    if listing.org_id != current.org_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Объявление не найдено')
+    return listing_to_response(listing)
 
 
 @router.post('/listings', response_model=SharingListingResponse, status_code=status.HTTP_201_CREATED)
@@ -279,10 +293,11 @@ async def create_listing(
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(get_current_employee),
 ) -> SharingListingResponse:
-    await validate_resources(db, payload)
+    await validate_resources(db, payload, current.org_id)
     latitude, longitude = await resolve_coordinates(db, payload)
 
     listing = SharingListing(
+        org_id=current.org_id,
         type=payload.type,
         title=payload.title,
         description=payload.description,
@@ -312,6 +327,8 @@ async def update_listing(
     current: Employee = Depends(get_current_employee),
 ) -> SharingListingResponse:
     listing = await get_listing_or_404(db, listing_id)
+    if listing.org_id != current.org_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Объявление не найдено')
     if not is_owner_or_admin(listing, current):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Недостаточно прав')
 
@@ -344,6 +361,8 @@ async def update_listing_status(
     current: Employee = Depends(get_current_employee),
 ) -> SharingListingResponse:
     listing = await get_listing_or_404(db, listing_id)
+    if listing.org_id != current.org_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Объявление не найдено')
     if not is_owner_or_admin(listing, current):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Недостаточно прав')
 
@@ -360,6 +379,8 @@ async def delete_listing(
     current: Employee = Depends(get_current_employee),
 ) -> None:
     listing = await get_listing_or_404(db, listing_id)
+    if listing.org_id != current.org_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Объявление не найдено')
     if not is_owner_or_admin(listing, current):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Недостаточно прав')
 
@@ -375,6 +396,8 @@ async def create_request(
     current: Employee = Depends(get_current_employee),
 ) -> SharingRequestResponse:
     listing = await get_listing_or_404(db, payload.listing_id)
+    if listing.org_id != current.org_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Объявление не найдено')
 
     if listing.owner_id == current.id:
         raise HTTPException(
@@ -450,7 +473,7 @@ async def update_request(
     request = await get_request_or_404(db, request_id)
     listing = request.listing
 
-    if listing is None or listing.owner_id != current.id:
+    if listing is None or listing.org_id != current.org_id or listing.owner_id != current.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Недостаточно прав')
 
     request.status = payload.status

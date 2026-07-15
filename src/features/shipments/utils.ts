@@ -1,4 +1,5 @@
 import type { Shipment } from '@/types'
+import { formatMoney as formatMoneyBase } from '@/lib/format'
 
 export const CROP_TYPES = [
   'Пшеница',
@@ -19,7 +20,7 @@ export function formatTonnes(kg: number): string {
 }
 
 export function formatMoney(value: number): string {
-  return `${Math.round(value).toLocaleString('ru-RU')} ₽`
+  return formatMoneyBase(value)
 }
 
 export function calcShipmentSum(quantityKg: number, pricePerKg: number): number {

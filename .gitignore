@@ -17,6 +17,7 @@ bot/.env
 .env.*
 !.env.example
 !.env.development
+!.env.production.example
 
 # Legacy Sheets-only bot copies (do not use)
 bot-main/
@@ -27,8 +28,9 @@ legacy/
 **/__pycache__/
 *.py[cod]
 
-# Local uploads
+# Local uploads / backups
 backend/uploads/
+backups/
 
 # TanStack Router temp
 .tanstack/

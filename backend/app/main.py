@@ -1,12 +1,16 @@
+import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import settings
-from app.database import AsyncSessionLocal
+from app.core.logging import setup_logging
+from app.database import AsyncSessionLocal, engine
 from app.middleware.org_context import OrgContextMiddleware
 from app.models.organization import SuperAdminUser
 from app.routers import (
@@ -35,17 +39,8 @@ from app.seed import ensure_demo_data
 from app.services.auth import hash_password
 from app.services.telegram_notify import TelegramNotifier
 
-app = FastAPI(title='АгроДеск API', version='5.0.0', docs_url='/docs')
-app.state.notifier = TelegramNotifier(settings.telegram_bot_token)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=['*'],
-    allow_headers=['*'],
-)
-app.add_middleware(OrgContextMiddleware)
+setup_logging()
+logger = logging.getLogger(__name__)
 
 
 async def _seed_superadmin() -> None:
@@ -67,11 +62,52 @@ async def _seed_superadmin() -> None:
         await db.commit()
 
 
-@app.on_event('startup')
-async def bootstrap_on_startup() -> None:
-    await _seed_superadmin()
+async def _bootstrap() -> None:
+    """Best-effort bootstrap. Missing migrations must not kill the API process."""
+    try:
+        await _seed_superadmin()
+    except SQLAlchemyError as exc:
+        logger.warning(
+            'Superadmin seed skipped (run: alembic upgrade head). Detail: %s',
+            exc,
+        )
+
     if settings.RUN_SEED_ON_START:
-        await ensure_demo_data()
+        try:
+            await ensure_demo_data()
+        except SQLAlchemyError as exc:
+            logger.warning(
+                'Demo seed skipped (run: alembic upgrade head && python -m app.seed). Detail: %s',
+                exc,
+            )
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    logger.info('API starting (graceful shutdown enabled)')
+    await _bootstrap()
+    yield
+    logger.info('API shutting down — disposing DB engine')
+    await engine.dispose()
+    logger.info('Graceful shutdown complete')
+
+
+app = FastAPI(
+    title='АгроДеск API',
+    version='5.0.0',
+    docs_url='/docs',
+    lifespan=lifespan,
+)
+app.state.notifier = TelegramNotifier(settings.telegram_bot_token)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=['*'],
+    allow_headers=['*'],
+)
+app.add_middleware(OrgContextMiddleware)
 
 
 @app.get('/health')
@@ -108,6 +144,6 @@ app.include_router(sharing.router, prefix='/api/sharing', tags=['sharing'])
 app.include_router(notifications.router, prefix='/api/notifications', tags=['notifications'])
 app.include_router(uploads.router, prefix='/api/uploads', tags=['uploads'])
 
-uploads_dir = Path('./uploads')
-uploads_dir.mkdir(exist_ok=True)
-app.mount('/uploads', StaticFiles(directory='uploads'), name='uploads')
+uploads_dir = Path(settings.UPLOADS_DIR)
+uploads_dir.mkdir(parents=True, exist_ok=True)
+app.mount('/uploads', StaticFiles(directory=str(uploads_dir)), name='uploads')

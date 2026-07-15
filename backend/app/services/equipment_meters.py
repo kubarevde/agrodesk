@@ -23,6 +23,25 @@ def calc_meter_label(meter_type: str | None) -> str:
     return METER_LABELS.get(meter_type or 'motohours', 'мч')
 
 
+def calc_to_status(current_meter: float | None, next_to_at: float | None) -> str:
+    """TO status from current meter vs planned next TO threshold.
+
+    - overdue: current >= next_to_at
+    - warning: current >= 90% of next_to_at
+    - ok: below warning band
+    - no_data: next_to_at missing
+    """
+    if next_to_at is None:
+        return 'no_data'
+    current = float(current_meter or 0)
+    threshold = float(next_to_at)
+    if current >= threshold:
+        return 'overdue'
+    if current >= threshold * 0.9:
+        return 'warning'
+    return 'ok'
+
+
 async def add_equipment_meter_log(
     db: AsyncSession,
     *,

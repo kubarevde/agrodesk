@@ -1,13 +1,14 @@
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_admin, require_manager
+from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
 from app.models.expense import Expense
 from app.schemas.expense import ExpenseCategory, ExpenseCreate, ExpenseResponse, ExpenseUpdate
@@ -19,6 +20,7 @@ router = APIRouter()
 def expense_to_response(expense: Expense) -> ExpenseResponse:
     return ExpenseResponse(
         id=expense.id,
+        org_id=expense.org_id,
         date=expense.date,
         category=expense.category,
         amount=expense.amount,
@@ -34,9 +36,11 @@ def expense_load_options():
     return (selectinload(Expense.equipment),)
 
 
-async def get_expense_or_404(db: AsyncSession, expense_id: UUID) -> Expense:
+async def get_expense_or_404(db: AsyncSession, expense_id: UUID, org_id: UUID) -> Expense:
     result = await db.execute(
-        select(Expense).options(*expense_load_options()).where(Expense.id == expense_id)
+        select(Expense)
+        .options(*expense_load_options())
+        .where(Expense.id == expense_id, Expense.org_id == org_id)
     )
     expense = result.scalar_one_or_none()
     if expense is None:
@@ -46,6 +50,7 @@ async def get_expense_or_404(db: AsyncSession, expense_id: UUID) -> Expense:
 
 @router.get('', response_model=list[ExpenseResponse])
 async def list_expenses(
+    request: Request,
     from_date: date | None = Query(None),
     to_date: date | None = Query(None),
     category: ExpenseCategory | None = Query(None),
@@ -53,7 +58,8 @@ async def list_expenses(
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> list[ExpenseResponse]:
-    query = select(Expense).options(*expense_load_options())
+    org_id = get_org_id(request)
+    query = select(Expense).options(*expense_load_options()).where(Expense.org_id == org_id)
 
     if from_date is not None:
         query = query.where(Expense.date >= from_date)
@@ -71,21 +77,25 @@ async def list_expenses(
 
 @router.get('/{expense_id}', response_model=ExpenseResponse)
 async def get_expense(
+    request: Request,
     expense_id: UUID,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> ExpenseResponse:
-    expense = await get_expense_or_404(db, expense_id)
+    expense = await get_expense_or_404(db, expense_id, get_org_id(request))
     return expense_to_response(expense)
 
 
 @router.post('', response_model=ExpenseResponse, status_code=status.HTTP_201_CREATED)
 async def create_expense(
+    request: Request,
     payload: ExpenseCreate,
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(require_manager),
 ) -> ExpenseResponse:
+    org_id = get_org_id(request)
     expense = Expense(
+        org_id=org_id,
         date=payload.date,
         category=payload.category.value,
         amount=payload.amount,
@@ -98,17 +108,19 @@ async def create_expense(
     db.add(expense)
     await db.commit()
     clear_dashboard_cache()
-    return expense_to_response(await get_expense_or_404(db, expense.id))
+    return expense_to_response(await get_expense_or_404(db, expense.id, org_id))
 
 
 @router.patch('/{expense_id}', response_model=ExpenseResponse)
 async def update_expense(
+    request: Request,
     expense_id: UUID,
     payload: ExpenseUpdate,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> ExpenseResponse:
-    expense = await get_expense_or_404(db, expense_id)
+    org_id = get_org_id(request)
+    expense = await get_expense_or_404(db, expense_id, org_id)
     update_data = payload.model_dump(exclude_unset=True)
 
     if 'category' in update_data and update_data['category'] is not None:
@@ -122,16 +134,17 @@ async def update_expense(
     db.add(expense)
     await db.commit()
     clear_dashboard_cache()
-    return expense_to_response(await get_expense_or_404(db, expense.id))
+    return expense_to_response(await get_expense_or_404(db, expense.id, org_id))
 
 
 @router.delete('/{expense_id}', status_code=status.HTTP_204_NO_CONTENT)
 async def delete_expense(
+    request: Request,
     expense_id: UUID,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_admin),
 ) -> None:
-    expense = await get_expense_or_404(db, expense_id)
+    expense = await get_expense_or_404(db, expense_id, get_org_id(request))
     await db.delete(expense)
     await db.commit()
     clear_dashboard_cache()

@@ -1,101 +1,94 @@
 # =============================================================================
-# AgroDesk — Docker Compose
-# =============================================================================
-#
-# Адреса (запомните):
-#   Backend available at:  http://localhost:8000
-#   API docs:              http://localhost:8000/docs
-#   Health:                http://localhost:8000/health
-#                          http://localhost:8000/api/health
-#   Frontend (dev Vite):   http://localhost:5173   ← npm run dev
-#   Frontend (prod nginx): http://localhost/       ← сервис web
-#
-# Рекомендуемый DEV-сценарий:
-#   1) docker compose up -d db api
-#   2) в другом терминале: npm install && npm run dev
-#   3) открыть http://localhost:5173
-#
-# Полный PROD-стенд (nginx + собранный фронт):
-#   docker compose --profile prod up --build
-#   → http://localhost/  и  http://localhost/api/
-#
-# Опционально поднять Vite внутри Docker:
-#   docker compose --profile frontend up
-#   → http://localhost:5173
+# АгроДеск — production Docker Compose
+# Server: http://213.183.104.142:3010
+# Usage:  docker compose --env-file .env.production up -d --build
+# Docs:   docs/DEPLOY.md
 # =============================================================================
 
 services:
   db:
     image: postgres:16-alpine
+    container_name: agrodesk_db
     environment:
-      POSTGRES_DB: agrodesk
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-agrodesk}
+      POSTGRES_USER: ${POSTGRES_USER:-agrodesk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
     volumes:
-      - agrodesk_pg:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    # Bind to localhost only — backups/pg_dump from the host; not public internet
     ports:
-      - '5432:5432'
+      - '127.0.0.1:5432:5432'
+    restart: unless-stopped
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres -d agrodesk']
-      interval: 5s
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+      interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 5
 
-  # Backend → http://localhost:8000
   api:
-    build:
-      context: ./backend
+    build: ./backend
+    container_name: agrodesk_api
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/agrodesk
-      SECRET_KEY: change-me-in-production
-      BOT_INTERNAL_SECRET: agrodesk-bot-secret-change-me
-      TELEGRAM_BOT_TOKEN: ''
-      ALLOWED_ORIGINS: http://localhost:5173,http://localhost,http://127.0.0.1:5173,http://127.0.0.1
-      API_URL: http://localhost:8000
-      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-admin@agrodesk.local}
-      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-ChangeMe123!}
-      RUN_SEED_ON_START: ${RUN_SEED_ON_START:-true}
-    ports:
-      - '8000:8000'
+      # asyncpg driver required by SQLAlchemy + Alembic (env.py)
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-agrodesk}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-agrodesk}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY}
+      BOT_INTERNAL_SECRET: ${BOT_INTERNAL_SECRET:?Set BOT_INTERNAL_SECRET}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-1440}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      UPLOADS_DIR: /app/uploads
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://213.183.104.142:3010,http://localhost:3010}
+      API_URL: ${API_URL:-http://213.183.104.142:3010}
+      RUN_SEED_ON_START: ${RUN_SEED_ON_START:-false}
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - agrodesk_uploads:/app/uploads
+    # Optional direct API access for debugging (nginx proxies :3010/api)
+    ports:
+      - '8000:8000'
+    restart: unless-stopped
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8000/health']
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
 
-  # Frontend PROD (nginx) → http://localhost/
-  # Backend через nginx: http://localhost/api/
-  web:
-    profiles: ['prod']
+  bot:
+    build: ./bot
+    container_name: agrodesk_bot
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN:?Set BOT_TOKEN for the Telegram bot}
+      API_BASE_URL: http://api:8000
+      BOT_INTERNAL_SECRET: ${BOT_INTERNAL_SECRET}
+      SHEETS_MIRROR_ENABLED: ${SHEETS_MIRROR_ENABLED:-false}
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
     build:
       context: .
+      dockerfile: frontend/Dockerfile
       args:
         VITE_API_URL: ''
         VITE_BASE_PATH: /
+    container_name: agrodesk_nginx
     ports:
-      - '80:80'
+      - '3010:80'
     depends_on:
-      - api
-
-  # Frontend DEV (Vite) → http://localhost:5173
-  # Запускать: docker compose --profile frontend up frontend
-  frontend:
-    profiles: ['frontend']
-    image: node:20-alpine
-    working_dir: /app
-    volumes:
-      - .:/app
-      - frontend_node_modules:/app/node_modules
-    environment:
-      VITE_API_URL: http://localhost:8000
-      VITE_USE_MOCKS: 'false'
-    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5173"
-    ports:
-      - '5173:5173'
-    depends_on:
-      - api
+      api:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
-  agrodesk_pg:
-  agrodesk_uploads:
-  frontend_node_modules:
+  postgres_data:
+  uploads_data:

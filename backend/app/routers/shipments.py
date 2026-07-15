@@ -2,12 +2,13 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_admin, require_manager
+from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
 from app.models.shipment import Shipment
 from app.schemas.shipment import ShipmentCreate, ShipmentResponse, ShipmentUpdate
@@ -25,6 +26,7 @@ def calc_total_sum(quantity_kg: Decimal, price_per_kg: Decimal | None) -> Decima
 def shipment_to_response(shipment: Shipment) -> ShipmentResponse:
     return ShipmentResponse(
         id=shipment.id,
+        org_id=shipment.org_id,
         date=shipment.date,
         crop_type=shipment.crop_type,
         quantity_kg=shipment.quantity_kg,
@@ -35,8 +37,11 @@ def shipment_to_response(shipment: Shipment) -> ShipmentResponse:
     )
 
 
-async def get_shipment_or_404(db: AsyncSession, shipment_id: UUID) -> Shipment:
-    shipment = await db.get(Shipment, shipment_id)
+async def get_shipment_or_404(db: AsyncSession, shipment_id: UUID, org_id: UUID) -> Shipment:
+    result = await db.execute(
+        select(Shipment).where(Shipment.id == shipment_id, Shipment.org_id == org_id)
+    )
+    shipment = result.scalar_one_or_none()
     if shipment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Отгрузка не найдена')
     return shipment
@@ -44,13 +49,15 @@ async def get_shipment_or_404(db: AsyncSession, shipment_id: UUID) -> Shipment:
 
 @router.get('', response_model=list[ShipmentResponse])
 async def list_shipments(
+    request: Request,
     from_date: date | None = Query(None),
     to_date: date | None = Query(None),
     crop_type: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> list[ShipmentResponse]:
-    query = select(Shipment)
+    org_id = get_org_id(request)
+    query = select(Shipment).where(Shipment.org_id == org_id)
 
     if from_date is not None:
         query = query.where(Shipment.date >= from_date)
@@ -66,21 +73,24 @@ async def list_shipments(
 
 @router.get('/{shipment_id}', response_model=ShipmentResponse)
 async def get_shipment(
+    request: Request,
     shipment_id: UUID,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> ShipmentResponse:
-    shipment = await get_shipment_or_404(db, shipment_id)
+    shipment = await get_shipment_or_404(db, shipment_id, get_org_id(request))
     return shipment_to_response(shipment)
 
 
 @router.post('', response_model=ShipmentResponse, status_code=status.HTTP_201_CREATED)
 async def create_shipment(
+    request: Request,
     payload: ShipmentCreate,
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(require_manager),
 ) -> ShipmentResponse:
     shipment = Shipment(
+        org_id=get_org_id(request),
         date=payload.date,
         crop_type=payload.crop_type,
         quantity_kg=payload.quantity_kg,
@@ -98,12 +108,13 @@ async def create_shipment(
 
 @router.patch('/{shipment_id}', response_model=ShipmentResponse)
 async def update_shipment(
+    request: Request,
     shipment_id: UUID,
     payload: ShipmentUpdate,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> ShipmentResponse:
-    shipment = await get_shipment_or_404(db, shipment_id)
+    shipment = await get_shipment_or_404(db, shipment_id, get_org_id(request))
 
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(shipment, field, value)
@@ -117,11 +128,12 @@ async def update_shipment(
 
 @router.delete('/{shipment_id}', status_code=status.HTTP_204_NO_CONTENT)
 async def delete_shipment(
+    request: Request,
     shipment_id: UUID,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_admin),
 ) -> None:
-    shipment = await get_shipment_or_404(db, shipment_id)
+    shipment = await get_shipment_or_404(db, shipment_id, get_org_id(request))
     await db.delete(shipment)
     await db.commit()
     clear_dashboard_cache()

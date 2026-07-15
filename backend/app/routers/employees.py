@@ -18,6 +18,7 @@ router = APIRouter()
 def employee_to_response(employee: Employee) -> EmployeeResponse:
     return EmployeeResponse(
         id=employee.id,
+        org_id=employee.org_id,
         employee_code=employee.employee_code,
         full_name=employee.full_name,
         position=employee.position,
