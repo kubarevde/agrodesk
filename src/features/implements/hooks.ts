@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { Implement } from '@/types'
 import { api } from '@/lib/api'
 import { db } from '@/lib/db'
 import type {
@@ -33,7 +32,10 @@ function toPayload(values: ImplementFormValues) {
   }
 }
 
-function filterImplements(items: Implement[], filters?: ImplementFilters): Implement[] {
+function filterImplements(
+  items: ImplementResponse[],
+  filters?: ImplementFilters,
+): ImplementResponse[] {
   return items.filter((item) => {
     if (!item.is_active) return false
     if (filters?.category && item.category !== filters.category) return false
@@ -45,10 +47,10 @@ function filterImplements(items: Implement[], filters?: ImplementFilters): Imple
 export function useImplements(filters?: ImplementFilters) {
   return useQuery({
     queryKey: ['implements', filters?.category ?? 'all', filters?.equipmentId ?? 'all'],
-    queryFn: async () => {
+    queryFn: async (): Promise<ImplementResponse[]> => {
       if (!navigator.onLine) {
         const cached = await db.implements.toArray()
-        return filterImplements(cached, filters)
+        return filterImplements(cached as ImplementResponse[], filters)
       }
 
       const params: Record<string, string> = {}

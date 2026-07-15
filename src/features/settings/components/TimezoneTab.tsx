@@ -52,7 +52,9 @@ export function TimezoneTab() {
         <Label>Часовой пояс организации</Label>
         <Select
           value={timezone}
-          onValueChange={setTimezone}
+          onValueChange={(value) => {
+            if (value) setTimezone(value)
+          }}
           items={options.map((tz) => ({
             value: tz,
             label: TIMEZONE_LABELS[tz] ?? tz,
