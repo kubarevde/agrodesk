@@ -421,8 +421,11 @@ async def update_shift(
         shift.end_time = None
         shift.duration_raw = None
         shift.duration_rounded = None
-    elif update_data.get('status') == ShiftStatus.closed and shift.end_time is not None:
+        shift.calculated_amount = None
+        shift.rate_snapshot = None
+    elif shift.status == ShiftStatus.closed and shift.end_time is not None:
         recalculate_duration(shift)
+        await apply_salary_to_shift(db, shift)
 
     db.add(shift)
     await db.commit()

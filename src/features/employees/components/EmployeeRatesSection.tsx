@@ -1,7 +1,9 @@
 import { Loader2, Pencil, Plus, Trash2, Wallet } from 'lucide-react'
 import { useState } from 'react'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { SectionHelp } from '@/components/shared/SectionHelp'
 import { Badge } from '@/components/ui/badge'
+import { employeesHelp } from '@/features/help/content'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -49,6 +51,8 @@ export function EmployeeRatesSection({ employeeId }: EmployeeRatesSectionProps) 
           Добавить ставку
         </Button>
       </div>
+
+      <SectionHelp title="Как настроить ставки" items={employeesHelp} />
 
       {isLoading ? (
         <div className="space-y-2">

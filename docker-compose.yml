@@ -1,3 +1,29 @@
+# =============================================================================
+# AgroDesk — Docker Compose
+# =============================================================================
+#
+# Адреса (запомните):
+#   Backend available at:  http://localhost:8000
+#   API docs:              http://localhost:8000/docs
+#   Health:                http://localhost:8000/health
+#                          http://localhost:8000/api/health
+#   Frontend (dev Vite):   http://localhost:5173   ← npm run dev
+#   Frontend (prod nginx): http://localhost/       ← сервис web
+#
+# Рекомендуемый DEV-сценарий:
+#   1) docker compose up -d db api
+#   2) в другом терминале: npm install && npm run dev
+#   3) открыть http://localhost:5173
+#
+# Полный PROD-стенд (nginx + собранный фронт):
+#   docker compose --profile prod up --build
+#   → http://localhost/  и  http://localhost/api/
+#
+# Опционально поднять Vite внутри Docker:
+#   docker compose --profile frontend up
+#   → http://localhost:5173
+# =============================================================================
+
 services:
   db:
     image: postgres:16-alpine
@@ -15,6 +41,7 @@ services:
       timeout: 5s
       retries: 10
 
+  # Backend → http://localhost:8000
   api:
     build:
       context: ./backend
@@ -23,10 +50,11 @@ services:
       SECRET_KEY: change-me-in-production
       BOT_INTERNAL_SECRET: agrodesk-bot-secret-change-me
       TELEGRAM_BOT_TOKEN: ''
-      ALLOWED_ORIGINS: http://localhost,http://localhost:5173
+      ALLOWED_ORIGINS: http://localhost:5173,http://localhost,http://127.0.0.1:5173,http://127.0.0.1
       API_URL: http://localhost:8000
       SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-admin@agrodesk.local}
       SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-ChangeMe123!}
+      RUN_SEED_ON_START: ${RUN_SEED_ON_START:-true}
     ports:
       - '8000:8000'
     depends_on:
@@ -35,16 +63,39 @@ services:
     volumes:
       - agrodesk_uploads:/app/uploads
 
+  # Frontend PROD (nginx) → http://localhost/
+  # Backend через nginx: http://localhost/api/
   web:
+    profiles: ['prod']
     build:
       context: .
       args:
         VITE_API_URL: ''
+        VITE_BASE_PATH: /
     ports:
       - '80:80'
+    depends_on:
+      - api
+
+  # Frontend DEV (Vite) → http://localhost:5173
+  # Запускать: docker compose --profile frontend up frontend
+  frontend:
+    profiles: ['frontend']
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+      - frontend_node_modules:/app/node_modules
+    environment:
+      VITE_API_URL: http://localhost:8000
+      VITE_USE_MOCKS: 'false'
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5173"
+    ports:
+      - '5173:5173'
     depends_on:
       - api
 
 volumes:
   agrodesk_pg:
   agrodesk_uploads:
+  frontend_node_modules:

@@ -1,12 +1,13 @@
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_admin, require_manager
+from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
 from app.models.equipment_log import EquipmentMeterLog
 from app.models.reference import Equipment
@@ -21,15 +22,18 @@ from app.services.equipment_meters import (
 router = APIRouter()
 
 
-async def _get_equipment_or_404(db: AsyncSession, equipment_id: UUID) -> Equipment:
+async def _get_equipment_or_404(
+    db: AsyncSession, equipment_id: UUID, org_id: UUID
+) -> Equipment:
     equipment = await db.get(Equipment, equipment_id)
-    if equipment is None:
+    if equipment is None or equipment.org_id != org_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Техника не найдена')
     return equipment
 
 
 @router.get('/{id}/meter-logs', response_model=list[MeterLogResponse])
 async def list_meter_logs(
+    request: Request,
     id: UUID,
     from_date: date | None = Query(None),
     to_date: date | None = Query(None),
@@ -37,7 +41,7 @@ async def list_meter_logs(
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> list[MeterLogResponse]:
-    await _get_equipment_or_404(db, id)
+    await _get_equipment_or_404(db, id, get_org_id(request))
 
     query = (
         select(EquipmentMeterLog)
@@ -64,12 +68,13 @@ async def list_meter_logs(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_meter_log(
+    request: Request,
     id: UUID,
     payload: MeterLogCreate,
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(require_manager),
 ) -> MeterLogResponse:
-    await _get_equipment_or_404(db, id)
+    await _get_equipment_or_404(db, id, get_org_id(request))
 
     try:
         log = await add_equipment_meter_log(
@@ -95,12 +100,13 @@ async def create_meter_log(
 
 @router.delete('/{id}/meter-logs/{log_id}', status_code=status.HTTP_204_NO_CONTENT)
 async def delete_meter_log(
+    request: Request,
     id: UUID,
     log_id: UUID,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_admin),
 ) -> None:
-    await _get_equipment_or_404(db, id)
+    await _get_equipment_or_404(db, id, get_org_id(request))
 
     result = await db.execute(
         select(EquipmentMeterLog).where(

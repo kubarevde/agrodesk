@@ -163,3 +163,40 @@ class DualWriter:
                 logger.warning('[SheetsMirror] open_shift_for_employee failed: %s', e)
 
         return result
+
+    async def close_shift_for_employee(
+        self,
+        admin_tg_id: int,
+        shift_id: str,
+        description: str,
+        employee: dict[str, Any],
+        end_time_str: str,
+    ) -> dict | None:
+        result = await self.api.close_shift_for_employee(admin_tg_id, shift_id, description)
+        if result is None:
+            return None
+
+        if self.enabled and self.sheets is not None:
+            try:
+                employee_tg = employee.get('telegram_id')
+                tg_for_lookup = int(employee_tg) if employee_tg else None
+                row_index = None
+                if tg_for_lookup:
+                    row_index = await asyncio.to_thread(
+                        self.sheets.get_open_shift_row_index,
+                        tg_for_lookup,
+                    )
+                if row_index:
+                    await asyncio.to_thread(
+                        self.sheets.close_shift,
+                        row_index=row_index,
+                        end_time=end_time_str,
+                        description=description,
+                        comment='',
+                        duration_raw=int(result.get('duration_raw', 0)),
+                        duration_rounded=float(result.get('duration_rounded', 0)),
+                    )
+            except Exception as e:
+                logger.warning('[SheetsMirror] close_shift_for_employee failed: %s', e)
+
+        return result

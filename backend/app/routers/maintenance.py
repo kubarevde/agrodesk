@@ -1,13 +1,14 @@
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_admin, require_manager
+from app.middleware.org_context import get_org_id
 from app.models.employee import Employee, EmployeeRole
 from app.models.equipment_log import EquipmentMaintenance
 from app.models.expense import Expense
@@ -22,9 +23,11 @@ from app.services.equipment_meters import calc_meter_label
 router = APIRouter()
 
 
-async def _get_equipment_or_404(db: AsyncSession, equipment_id: UUID) -> Equipment:
+async def _get_equipment_or_404(
+    db: AsyncSession, equipment_id: UUID, org_id: UUID
+) -> Equipment:
     equipment = await db.get(Equipment, equipment_id)
-    if equipment is None:
+    if equipment is None or equipment.org_id != org_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Техника не найдена')
     return equipment
 
@@ -59,6 +62,7 @@ def maintenance_load_options():
 async def notify_managers(
     db: AsyncSession,
     *,
+    org_id: UUID,
     notif_type: str,
     title: str,
     body: str | None = None,
@@ -66,6 +70,7 @@ async def notify_managers(
 ) -> None:
     result = await db.execute(
         select(Employee).where(
+            Employee.org_id == org_id,
             Employee.role.in_([EmployeeRole.admin, EmployeeRole.manager]),
             Employee.is_active.is_(True),
         )
@@ -84,11 +89,14 @@ async def notify_managers(
 
 @router.get('/maintenance/upcoming', response_model=list[EquipmentResponse])
 async def list_upcoming_maintenance(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> list[EquipmentResponse]:
+    org_id = get_org_id(request)
     result = await db.execute(
         select(Equipment).where(
+            Equipment.org_id == org_id,
             Equipment.is_active.is_(True),
             Equipment.next_to_at.is_not(None),
         )
@@ -105,12 +113,13 @@ async def list_upcoming_maintenance(
 
 @router.get('/{id}/maintenance', response_model=list[MaintenanceResponse])
 async def list_maintenance(
+    request: Request,
     id: UUID,
     limit: int = Query(20, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> list[MaintenanceResponse]:
-    await _get_equipment_or_404(db, id)
+    await _get_equipment_or_404(db, id, get_org_id(request))
     result = await db.execute(
         select(EquipmentMaintenance)
         .options(*maintenance_load_options())
@@ -127,12 +136,14 @@ async def list_maintenance(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_maintenance(
+    request: Request,
     id: UUID,
     payload: MaintenanceCreate,
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(require_manager),
 ) -> MaintenanceResponse:
-    equipment = await _get_equipment_or_404(db, id)
+    org_id = get_org_id(request)
+    equipment = await _get_equipment_or_404(db, id, org_id)
     current_meter = Decimal(str(equipment.current_meter or 0))
     meter_at = (
         Decimal(str(payload.meter_at)) if payload.meter_at is not None else current_meter
@@ -176,6 +187,7 @@ async def create_maintenance(
 
     await notify_managers(
         db,
+        org_id=org_id,
         notif_type='maintenance_done',
         title=f'ТО выполнено: {equipment.name}',
         body=(
@@ -202,13 +214,14 @@ async def create_maintenance(
 
 @router.patch('/{id}/maintenance/{mid}', response_model=MaintenanceResponse)
 async def update_maintenance(
+    request: Request,
     id: UUID,
     mid: UUID,
     payload: MaintenanceUpdate,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> MaintenanceResponse:
-    equipment = await _get_equipment_or_404(db, id)
+    equipment = await _get_equipment_or_404(db, id, get_org_id(request))
     result = await db.execute(
         select(EquipmentMaintenance)
         .options(*maintenance_load_options())
@@ -261,12 +274,13 @@ async def update_maintenance(
 
 @router.delete('/{id}/maintenance/{mid}', status_code=status.HTTP_204_NO_CONTENT)
 async def delete_maintenance(
+    request: Request,
     id: UUID,
     mid: UUID,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_admin),
 ) -> None:
-    await _get_equipment_or_404(db, id)
+    await _get_equipment_or_404(db, id, get_org_id(request))
     result = await db.execute(
         select(EquipmentMaintenance).where(
             EquipmentMaintenance.id == mid,

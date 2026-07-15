@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     API_URL: str = 'http://localhost:8000'
     SUPERADMIN_EMAIL: str | None = None
     SUPERADMIN_PASSWORD: str | None = None
+    RUN_SEED_ON_START: bool = True
 
     @property
     def bot_internal_secret(self) -> str:

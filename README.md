@@ -1,111 +1,131 @@
-# АгроДеск v3.0
+# АгроДеск v5.0
 
-Веб-платформа (PWA) для управления крестьянско-фермерским хозяйством.
+PWA + FastAPI + Telegram-бот для учёта работ в КФХ: мультитенантность, суперадмин, ставки оплаты, dual-write в Google Sheets (зеркало БД).
 
-## Версия 3.0 — Этап 3
+## Куда заходить
 
-Новые модули: Поля, Техника (полный), Приспособления, Шеринг, Агрокалендарь, Уведомления.
+### Dev (рекомендуется)
 
-| Раздел | Описание |
-|--------|----------|
-| `/fields` | Управление полями |
-| `/equipment` | Техника и моточасы |
-| `/implements` | Приспособления и навесное |
-| `/sharing` | Шеринг полей, техники и приспособлений |
-| `/agro-calendar` | Планирование работ |
-| `/notifications` | Все уведомления |
+| Сервис | URL |
+|--------|-----|
+| **Frontend (Vite)** | http://localhost:5173 |
+| **Backend (FastAPI)** | http://localhost:8000 |
+| API docs | http://localhost:8000/docs |
+| Health | http://localhost:8000/health и http://localhost:8000/api/health |
+| Вход | http://localhost:5173/login |
+| Суперадмин | http://localhost:5173/superadmin/login |
 
-## Запуск локально
+### Prod (nginx)
 
-Требования: Node.js 20+, Python 3.12+, PostgreSQL 16
+| Сервис | URL |
+|--------|-----|
+| Frontend (лендинг + SPA) | http://localhost/ |
+| API | http://localhost/api/ |
+| Health через nginx | http://localhost/api/health |
+| Суперадмин | http://localhost/superadmin/login |
 
-### Бэкенд
+Логины и пароли демо: [docs/seed-users.md](docs/seed-users.md).
 
-**Перед запуском backend обязательно выполнить миграции:**
+---
+
+## Быстрый старт (Dev)
+
+Требования: Node.js 20+, Python 3.12+, PostgreSQL 16 (или Docker только для БД).
+
+### 1. Backend + БД
 
 ```bash
-cd backend
-alembic upgrade head
-```
+# Вариант A: Postgres в Docker
+docker compose up -d db api
 
-Полный старт:
-
-```bash
+# Вариант B: локальный Postgres
 cd backend
-cp .env.example .env        # заполни пароль от PostgreSQL
+cp .env.example .env   # DATABASE_URL, SECRET_KEY, SUPERADMIN_*
 pip install -r requirements.txt
-pip install Pillow python-multipart
-alembic upgrade head        # обязательно перед uvicorn
-python -m app.seed          # начальные данные (первый раз)
-uvicorn app.main:app --reload --port 8000
+alembic upgrade head
+python -m app.seed
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Stage 3 миграции: `002` … `008` (в т.ч. `008_agro_plan_implement_id` — столбец `agro_plan.implement_id`).
+Backend: **http://localhost:8000**
 
-### Фронтенд
-
-Моки отключены. Работает только живой API.
+### 2. Frontend
 
 ```bash
 npm install
-cp .env.example .env.development   # VITE_API_URL=http://localhost:8000, VITE_USE_MOCKS=false
+# .env.development уже содержит VITE_API_URL=http://localhost:8000
 npm run dev
 ```
 
-Открой: http://localhost:5173  
-Логин: `EMP000` / `1234`
+Frontend: **http://localhost:5173**
 
-Другие тестовые пользователи (пароль `1234`):
+Vite проксирует `/api` → `:8000`, если нужно ходить relative (обычно достаточно `VITE_API_URL`).
 
-| Код    | Роль     |
-|--------|----------|
-| EMP000 | admin    |
-| EMP001 | employee |
-| EMP002 | employee |
-| EMP003 | manager  |
+### 3. Telegram-бот (опционально)
 
-## Как проверить Stage 3
-
-1. Backend `:8000` + frontend `:5173`, `VITE_USE_MOCKS=false`.
-2. E2E по API:
+Канонический бот — папка `bot/` (не `bot-main/`).
 
 ```bash
-cd backend
-python scripts/stage3_e2e_test.py
+cd bot
+cp .env.example .env   # если есть; иначе создайте BOT_TOKEN, API_BASE_URL, BOT_INTERNAL_SECRET
+# SHEETS_MIRROR_ENABLED=false  → только PostgreSQL
+python bot.py
 ```
 
-Ожидаемо: поля (5 шт., Поле №5 = 70 га), 8 единиц техники, приспособления, смены с полем/техникой/приспособлением, агрокалендарь, шеринг, уведомления, Excel-отчёты (5/3/4 листа).
+---
 
-3. Ручной смоук: `/fields`, `/equipment`, `/implements`, `/worktime`, `/agro-calendar`, `/sharing`, уведомления в хедере, offline (Dexie после первого online-визита).
+## Prod через Docker + nginx
 
-4. Сборка: `npm run build`.
-
-## Карта и медиа
-
-| Библиотека | Для чего |
-|---|---|
-| `leaflet` + `react-leaflet` | Карта полей и техники |
-| `@turf/turf` | Площадь полигонов, GeoJSON |
-| `react-leaflet-draw` | Рисование контура поля |
-| `yet-another-react-lightbox` | Галерея фото |
-| `react-image-crop` | Кадрирование при загрузке |
-
-Импорт стилей и настройка иконок Leaflet: `import '@/lib/maps/setup'` в компонентах карты.
-
-## Структура
-
-```
-backend/           — FastAPI + SQLAlchemy + Alembic
-src/app/routes/    — страницы (TanStack Router)
-src/features/      — бизнес-логика по модулям
-src/components/    — переиспользуемые компоненты
-src/types/         — TypeScript типы
-src/lib/           — api.ts, db.ts (Dexie), sync.ts
+```bash
+docker compose --profile prod up --build
 ```
 
-## Хостинг
+- Frontend: http://localhost/
+- API через nginx: http://localhost/api/
+- Прямой API: http://localhost:8000
 
-Яндекс Object Storage (статика) + GitHub Actions при push в `main`.  
-Секрет `VITE_API_URL` задаёт адрес API в production-сборке (`VITE_USE_MOCKS=false`).
+Альтернатива: `uvicorn` на хосте + конфиг `nginx/agrodesk.conf` (proxy на `127.0.0.1:8000`).
 
-Backend-миграции в CI: workflow `.github/workflows/backend.yml` (включается переменной `RUN_BACKEND_MIGRATIONS=true` и секретом `DATABASE_URL`).
+Опционально Vite в Docker: `docker compose --profile frontend up` → http://localhost:5173
+
+---
+
+## Демо-вход
+
+| Роль | Организация | Логин | Пароль |
+|------|-------------|-------|--------|
+| Суперадмин | — | `admin@agrodesk.local` | `ChangeMe123!` |
+| Админ орг | Demo AgroDesk | `EMP000` или `admin@demo.agrodesk` | `1234` |
+| Сотрудник | Demo AgroDesk | `EMP001` | `1234` |
+| Telegram ID сотрудника | — | `111111111` | — |
+
+Подробнее: [docs/seed-users.md](docs/seed-users.md).
+
+---
+
+## Архитектура кратко
+
+- **Один источник правды по сменам** — PostgreSQL через API.
+- **Google Sheets** — только зеркало (`DualWriter`), включается `SHEETS_MIRROR_ENABLED=true`.
+- **Ставки** — `employee_rates` + `employees.hourly_rate` как fallback; расчёт в `salary.py`.
+- **Мультитенантность** — `org_id` в JWT, `OrgContextMiddleware` на `/api/*`.
+
+Структура:
+
+```
+backend/     FastAPI + Alembic
+bot/         Telegram dual-write (канон)
+src/         React SPA (TanStack Router)
+nginx/       agrodesk.conf (host) / agrodesk.docker.conf (compose)
+docs/        seed-users.md
+```
+
+Устаревшие копии бота (`bot-main/`) не используются — см. `bot/README.md`.
+
+---
+
+## E2E чеклист
+
+См. [docs/e2e-checklist.md](docs/e2e-checklist.md).
+
+Сборка фронта: `npm run build`.

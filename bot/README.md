@@ -1,38 +1,35 @@
-# Worktime Bot
+# Telegram-бот АгроДеск
 
-Телеграм-бот учёта рабочего времени с записью в Google Sheets.
+Каноническая реализация — **эта папка `bot/`**.
 
-## Быстрый старт (локально)
+Папки `bot-main/` и копии — **legacy** (Sheets как источник правды). Не запускайте их.
 
-1. Клонируйте репозиторий
-2. Установите зависимости: `pip install -r requirements.txt`
-3. Скопируйте `.env.example` в `.env` и заполните значения
-4. Положите `service_account.json` в папку `credentials/`
-5. Запустите: `python bot.py`
+## Как работает
 
-## Деплой на Bothost
+1. Авторизация: `POST /api/auth/bot-token` (`telegram_id` + `BOT_INTERNAL_SECRET`).
+2. Все чтения и записи смен — через `ApiClient` → PostgreSQL.
+3. При `SHEETS_MIRROR_ENABLED=true` `DualWriter` дополнительно пишет/закрывает строку в Google Sheets.
+4. Ошибки Sheets **не блокируют** бота.
 
-1. Создайте репозиторий на GitHub и залейте код
-2. В панели Bothost при создании бота укажите Git URL
-3. В переменных окружения Bothost добавьте:
-   - `BOT_TOKEN` — токен бота
-   - `GOOGLE_SHEETS_NAME` — название таблицы
-   - `GOOGLE_CREDS_JSON` — содержимое `service_account.json` одной строкой
+## Env
 
-## Структура проекта
-
+```env
+BOT_TOKEN=
+API_BASE_URL=http://localhost:8000
+BOT_INTERNAL_SECRET=agrodesk-bot-secret-change-me
+SHEETS_MIRROR_ENABLED=false
+GOOGLE_SHEETS_NAME=worktime_bot
+GOOGLE_CREDS_PATH=credentials/service_account.json
 ```
-worktime_bot/
-├── bot.py                  # Точка входа
-├── requirements.txt        # Зависимости
-├── .env                    # Секреты (НЕ заливать на GitHub!)
-├── .env.example            # Шаблон (можно заливать)
-├── .gitignore              # Что исключить из Git
-├── credentials/            # JSON-ключ Google (НЕ заливать на GitHub!)
-│   └── service_account.json
-└── app/
-    ├── config.py           # Настройки из env
-    ├── handlers/           # Хэндлеры команд бота
-    └── services/
-        └── sheets.py       # Клиент Google Sheets
+
+## Демо сотрудник
+
+См. [docs/seed-users.md](../docs/seed-users.md): `EMP001`, пароль `1234`, `telegram_id=111111111`.
+
+## Запуск
+
+```bash
+cd bot
+pip install -r requirements.txt
+python bot.py
 ```

@@ -6,6 +6,8 @@ import { OpenShiftModal } from '@/features/worktime/OpenShiftModal'
 import { ShiftDetailModal } from '@/features/worktime/ShiftDetailModal'
 import { useShifts } from '@/features/worktime/hooks'
 import { getDefaultMonthRange } from '@/features/worktime/utils'
+import { SectionHelp } from '@/components/shared/SectionHelp'
+import { myShiftHelp } from '@/features/help/content'
 import { CurrentShiftCard } from './CurrentShiftCard'
 import { EmployeeAgroTodaySection } from './EmployeeAgroTodaySection'
 import { MonthShiftsList } from './MonthShiftsList'
@@ -45,6 +47,8 @@ export function EmployeeMyShiftView({ user }: EmployeeMyShiftViewProps) {
         <p className="text-sm text-muted-foreground">{user.fullName}</p>
       </div>
 
+      <SectionHelp title="Справка: мои смены и начисления" items={myShiftHelp} />
+
       <CurrentShiftCard
         shift={activeShift}
         isLoading={openLoading}
@@ -57,11 +61,7 @@ export function EmployeeMyShiftView({ user }: EmployeeMyShiftViewProps) {
       {monthLoading ? (
         <div className="h-40 animate-pulse rounded-xl border border-border bg-muted/40" />
       ) : (
-        <MonthShiftsList
-          shifts={monthShifts}
-          hourlyRate={user.hourlyRate}
-          onDetails={setDetailShift}
-        />
+        <MonthShiftsList shifts={monthShifts} onDetails={setDetailShift} />
       )}
 
       <MyEarningsSection />

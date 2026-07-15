@@ -42,7 +42,7 @@ export function createEmployeeColumns(
     },
     {
       id: 'rateBadge',
-      header: 'Ставка',
+      header: 'Базовая ставка',
       cell: ({ row }) =>
         employeeIdsWithRates.has(row.original.id) ? (
           <Badge variant="outline" className="border-success/40 bg-success/10 text-success">

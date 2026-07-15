@@ -16,7 +16,8 @@ class Settings:
         "BOT_INTERNAL_SECRET",
         "agrodesk-bot-secret-change-me",
     )
-    sheets_mirror_enabled: bool = os.environ.get("SHEETS_MIRROR_ENABLED", "true").lower() in (
+    # Sheets is an optional mirror of PostgreSQL — off by default for local/API-only use
+    sheets_mirror_enabled: bool = os.environ.get("SHEETS_MIRROR_ENABLED", "false").lower() in (
         "1",
         "true",
         "yes",

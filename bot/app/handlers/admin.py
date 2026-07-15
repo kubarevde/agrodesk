@@ -1069,7 +1069,12 @@ async def admin_close_shift_description(message: Message, state: FSMContext, api
 
 
 @router.message(AdminCloseShift.comment)
-async def admin_close_shift_comment(message: Message, state: FSMContext, api: ApiClient) -> None:
+async def admin_close_shift_comment(
+    message: Message,
+    state: FSMContext,
+    api: ApiClient,
+    dual: DualWriter,
+) -> None:
     if message.text == "❌ Отмена":
         await state.clear()
         await message.answer("Отменено.", reply_markup=admin_menu_keyboard())
@@ -1087,8 +1092,15 @@ async def admin_close_shift_comment(message: Message, state: FSMContext, api: Ap
     full_desc = description if not comment_text else f"{description}\n{comment_text}"
     shift_id = str(data.get("shift_id") or "")
     employee = data.get("employee") or {}
+    end_time_str = str(data.get("end_time_iso") or data.get("end_time") or "")
 
-    result = await api.close_shift_for_employee(tg_id, shift_id, full_desc)
+    result = await dual.close_shift_for_employee(
+        tg_id,
+        shift_id,
+        full_desc,
+        employee,
+        end_time_str,
+    )
     await state.clear()
 
     if result:
