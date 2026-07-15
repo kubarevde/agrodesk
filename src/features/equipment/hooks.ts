@@ -3,7 +3,6 @@ import { toast } from 'sonner'
 import type { EquipmentExtended } from '@/types'
 import { api } from '@/lib/api'
 import { db } from '@/lib/db'
-import type { ImplementResponse } from '@/features/implements/types'
 import { mapImplementFromApi } from '@/features/implements/types'
 import type {
   EquipmentFormValues,

@@ -127,7 +127,7 @@ export interface Implement {
   current_equipment_name: string | null
   sharing_status: string | null
   is_active: boolean
-  current_usage_hours?: number
+  current_usage_hours: number
   service_interval_hours?: number | null
   next_service_hours?: number | null
   last_service_date?: string | null
