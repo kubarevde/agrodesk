@@ -45,3 +45,10 @@ backups/
 *.njsproj
 *.sln
 *.sw?
+
+gitignore
+# Секреты
+.env
+.env.*
+!.env.production.example
+!.env.example
