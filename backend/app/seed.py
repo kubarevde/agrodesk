@@ -13,6 +13,8 @@ from app.models.inventory import InventoryCategory, InventoryItem
 from app.models.organization import Organization
 from app.models.reference import Equipment, Location, WorkType
 from app.models.shift import Shift, ShiftStatus
+from app.services.maintenance import calculate_next_service_hours
+from app.services.org_timezone import DEFAULT_TIMEZONE
 
 DEFAULT_PASSWORD_HASH = bcrypt.hashpw(b'1234', bcrypt.gensalt()).decode('utf-8')
 
@@ -58,8 +60,9 @@ WORK_TYPES = [
 
 EQUIPMENT = [
     # name, type, meter_type, to_interval, current_meter, lat, lng
-    ('МТЗ-82', 'Трактор', 'motohours', Decimal('250'), Decimal('1240'), Decimal('51.512340'), Decimal('36.241120')),
-    ('К-700', 'Трактор', 'motohours', Decimal('500'), Decimal('3120'), Decimal('51.521800'), Decimal('36.265400')),
+    # Demo cases: 216/250→250, 1301/250→1500
+    ('МТЗ-82', 'Трактор', 'motohours', Decimal('250'), Decimal('216'), Decimal('51.512340'), Decimal('36.241120')),
+    ('К-700', 'Трактор', 'motohours', Decimal('250'), Decimal('1301'), Decimal('51.521800'), Decimal('36.265400')),
     ('Дон-1500Б', 'Комбайн', 'motohours', Decimal('250'), Decimal('890'), Decimal('51.498200'), Decimal('36.228900')),
     ('Газель', 'Грузовик', 'km', Decimal('10000'), Decimal('87400'), Decimal('51.535100'), Decimal('36.251300')),
     ('КамАЗ', 'Грузовик', 'km', Decimal('15000'), Decimal('124000'), Decimal('51.490500'), Decimal('36.279800')),
@@ -96,12 +99,12 @@ INVENTORY_ITEMS = [
     ('Аммофос', InventoryCategory.fertilizer, 'кг', Decimal('600'), Decimal('200'), Decimal('1500')),
 ]
 
-# name, category, condition, year, serial
+# name, category, condition(legacy), year, serial, usage_hours, service_interval
 IMPLEMENTS = [
-    ('Сеялка СЗ-3.6', 'Посевная', 'good', 2018, 'SZ-3600-01'),
-    ('Опрыскиватель навесной', 'Опрыскивание', 'fair', 2019, 'SPR-1100'),
-    ('Плуг ПЛН-3-35', 'Обработка почвы', 'good', 2015, 'PLN-335'),
-    ('Жатка 6 метров', 'Уборочная', 'repair', 2016, 'HT-6M'),
+    ('Сеялка СЗ-3.6', 'Посевная', 'good', 2018, 'SZ-3600-01', Decimal('216'), Decimal('250')),
+    ('Опрыскиватель навесной', 'Опрыскивание', 'fair', 2019, 'SPR-1100', Decimal('180'), Decimal('200')),
+    ('Плуг ПЛН-3-35', 'Обработка почвы', 'good', 2015, 'PLN-335', Decimal('480'), Decimal('500')),
+    ('Жатка 6 метров', 'Уборочная', 'repair', 2016, 'HT-6M', Decimal('90'), Decimal('100')),
 ]
 
 
@@ -125,6 +128,11 @@ async def get_or_create_demo_org(session) -> Organization:
             ):
                 org.name = DEMO_ORG_NAME
                 changed = True
+            settings = dict(org.settings) if isinstance(org.settings, dict) else {}
+            if not settings.get('timezone'):
+                settings['timezone'] = DEFAULT_TIMEZONE
+                org.settings = settings
+                changed = True
             if changed:
                 session.add(org)
                 await session.commit()
@@ -138,6 +146,7 @@ async def get_or_create_demo_org(session) -> Organization:
         plan='trial',
         is_active=True,
         max_employees=50,
+        settings={'timezone': DEFAULT_TIMEZONE},
     )
     session.add(org)
     await session.commit()
@@ -200,6 +209,10 @@ async def seed_work_types(session, org_id) -> None:
 
 
 async def seed_equipment(session, org_id) -> None:
+    def next_to(current_meter: Decimal, to_interval: Decimal) -> Decimal:
+        nxt = calculate_next_service_hours(float(current_meter), float(to_interval))
+        return Decimal(str(nxt if nxt is not None else to_interval))
+
     if await is_table_empty(session, Equipment):
         session.add_all(
             [
@@ -210,7 +223,7 @@ async def seed_equipment(session, org_id) -> None:
                     meter_type=meter_type,
                     to_interval=to_interval,
                     current_meter=current_meter,
-                    next_to_at=current_meter + to_interval,
+                    next_to_at=next_to(current_meter, to_interval),
                     latitude=latitude,
                     longitude=longitude,
                     is_active=True,
@@ -234,7 +247,7 @@ async def seed_equipment(session, org_id) -> None:
         item.meter_type = meter_type
         item.to_interval = to_interval
         item.current_meter = current_meter
-        item.next_to_at = current_meter + to_interval
+        item.next_to_at = next_to(current_meter, to_interval)
         item.latitude = latitude
         item.longitude = longitude
         updated += 1
@@ -486,8 +499,10 @@ async def seed_inventory_items(session, org_id) -> None:
 
 async def seed_implements(session, org_id) -> None:
     if await is_table_empty(session, Implement):
-        session.add_all(
-            [
+        rows = []
+        for name, category, condition, year, serial, usage, interval in IMPLEMENTS:
+            nxt = calculate_next_service_hours(float(usage), float(interval))
+            rows.append(
                 Implement(
                     org_id=org_id,
                     name=name,
@@ -495,13 +510,35 @@ async def seed_implements(session, org_id) -> None:
                     condition=condition,
                     year_of_manufacture=year,
                     serial_number=serial,
+                    current_usage_hours=usage,
+                    service_interval_hours=interval,
+                    next_service_hours=Decimal(str(nxt)) if nxt is not None else None,
                     is_active=True,
                 )
-                for name, category, condition, year, serial in IMPLEMENTS
-            ]
-        )
+            )
+        session.add_all(rows)
         await session.commit()
         print(f'implements: seeded {len(IMPLEMENTS)} rows')
+    else:
+        result = await session.execute(select(Implement).where(Implement.org_id == org_id))
+        by_name = {item.name: item for item in result.scalars().all()}
+        updated = 0
+        for name, category, condition, year, serial, usage, interval in IMPLEMENTS:
+            item = by_name.get(name)
+            if item is None:
+                continue
+            item.category = category
+            item.condition = condition
+            item.year_of_manufacture = year
+            item.serial_number = serial
+            item.current_usage_hours = usage
+            item.service_interval_hours = interval
+            nxt = calculate_next_service_hours(float(usage), float(interval))
+            item.next_service_hours = Decimal(str(nxt)) if nxt is not None else None
+            updated += 1
+        if updated:
+            await session.commit()
+            print(f'implements: updated service meters for {updated} rows')
 
     # Attach a few implements to equipment for UI demos.
     equip_result = await session.execute(select(Equipment).where(Equipment.org_id == org_id))

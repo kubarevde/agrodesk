@@ -4,6 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
+import { SectionHelp } from '@/components/shared/SectionHelp'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCurrentUser } from '@/features/auth/hooks'
@@ -14,6 +15,7 @@ import {
 } from '@/features/equipment/hooks'
 import type { EquipmentFormValues } from '@/features/equipment/schemas'
 import type { EquipmentDetail } from '@/features/equipment/types'
+import { equipmentHelp } from '@/features/help/content'
 import { useImplements } from '@/features/implements/hooks'
 import { EquipmentCard } from './EquipmentCard'
 import { EquipmentFormDialog } from './EquipmentFormDialog'
@@ -76,6 +78,8 @@ export function EquipmentPage() {
           </Button>
         ) : null}
       </div>
+
+      <SectionHelp title="Справка: техника" items={equipmentHelp} />
 
       <Tabs value={view} onValueChange={(value) => setView(value as 'list' | 'map')}>
         <TabsList>

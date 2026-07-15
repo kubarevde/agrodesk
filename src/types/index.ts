@@ -120,13 +120,17 @@ export interface Implement {
   category: string
   serial_number: string | null
   year_of_manufacture: number | null
-  condition: ImplementCondition | string
+  condition?: ImplementCondition | string | null
   description: string | null
   image_url: string | null
   current_equipment_id: string | null
   current_equipment_name: string | null
   sharing_status: string | null
   is_active: boolean
+  current_usage_hours?: number
+  service_interval_hours?: number | null
+  next_service_hours?: number | null
+  last_service_date?: string | null
 }
 
 export type SharingListingType = 'field' | 'equipment' | 'implement' | 'parts'

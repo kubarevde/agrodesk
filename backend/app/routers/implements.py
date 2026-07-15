@@ -23,11 +23,27 @@ from app.schemas.implement import (
     ImplementUpdate,
 )
 from app.services.dashboard import clear_dashboard_cache
+from app.services.maintenance import (
+    build_maintenance_summary,
+    calculate_next_service_hours,
+    next_after_completed_service,
+)
 
 router = APIRouter()
 
 
 def implement_to_response(item: Implement) -> ImplementResponse:
+    current = float(item.current_usage_hours or 0)
+    interval = (
+        float(item.service_interval_hours) if item.service_interval_hours is not None else None
+    )
+    summary = build_maintenance_summary(
+        current_hours=current,
+        interval_hours=interval,
+        next_service_hours=(
+            float(item.next_service_hours) if item.next_service_hours is not None else None
+        ),
+    )
     return ImplementResponse(
         id=item.id,
         org_id=item.org_id,
@@ -42,6 +58,22 @@ def implement_to_response(item: Implement) -> ImplementResponse:
         current_equipment_name=item.current_equipment.name if item.current_equipment else None,
         sharing_status=None,
         is_active=bool(item.is_active),
+        current_usage_hours=current,
+        service_interval_hours=interval,
+        next_service_hours=(
+            float(summary['next_service_hours'])
+            if summary['next_service_hours'] is not None
+            else None
+        ),
+        last_service_date=item.last_service_date,
+        maintenance={
+            'current_hours': summary['current_hours'],
+            'service_interval_hours': summary['service_interval_hours'],
+            'next_service_hours': summary['next_service_hours'],
+            'hours_to_next_service': summary['hours_to_next_service'],
+            'progress_percent': summary['progress_percent'],
+            'status': summary['status'],
+        },
     )
 
 
@@ -114,7 +146,11 @@ async def create_implement(
     if payload.current_equipment_id is not None:
         await get_org_equipment_or_400(db, payload.current_equipment_id, org_id)
 
-    item = Implement(**payload.model_dump(), org_id=org_id)
+    data = payload.model_dump()
+    data['condition'] = data.get('condition') or 'good'
+    nxt = calculate_next_service_hours(data.get('current_usage_hours'), data.get('service_interval_hours'))
+    data['next_service_hours'] = nxt
+    item = Implement(**data, org_id=org_id)
     db.add(item)
     try:
         await db.commit()
@@ -143,6 +179,11 @@ async def update_implement(
 
     for field, value in updates.items():
         setattr(item, field, value)
+
+    if 'current_usage_hours' in updates or 'service_interval_hours' in updates:
+        nxt = calculate_next_service_hours(item.current_usage_hours, item.service_interval_hours)
+        item.next_service_hours = nxt
+
     db.add(item)
     try:
         await db.commit()
@@ -268,6 +309,17 @@ async def create_implement_maintenance(
         created_by=current.id,
     )
     db.add(record)
+
+    interval = payload.next_service_interval
+    if interval is None and item.service_interval_hours is not None:
+        interval = float(item.service_interval_hours)
+    if interval is not None and interval > 0:
+        item.service_interval_hours = Decimal(str(interval))
+        computed = next_after_completed_service(float(item.current_usage_hours or 0), interval)
+        item.next_service_hours = Decimal(str(computed)) if computed is not None else None
+        item.last_service_date = payload.date
+        db.add(item)
+
     await db.commit()
     clear_dashboard_cache()
     await db.refresh(record)

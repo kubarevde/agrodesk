@@ -22,7 +22,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { useEquipment } from '@/features/worktime/referenceHooks'
 import { implementFormSchema, type ImplementFormValues } from '../schemas'
-import { CATEGORY_OPTIONS, CONDITION_OPTIONS, type ImplementResponse } from '../types'
+import { CATEGORY_OPTIONS, type ImplementResponse } from '../types'
 
 type ImplementFormDialogProps = {
   open: boolean
@@ -37,10 +37,11 @@ const defaults: ImplementFormValues = {
   category: 'Посевная',
   serial_number: '',
   year_of_manufacture: undefined,
-  condition: 'good',
   description: '',
   current_equipment_id: undefined,
   image_url: undefined,
+  current_usage_hours: 0,
+  service_interval_hours: undefined,
 }
 
 export function ImplementFormDialog({
@@ -65,10 +66,11 @@ export function ImplementFormDialog({
             category: item.category as ImplementFormValues['category'],
             serial_number: item.serial_number ?? '',
             year_of_manufacture: item.year_of_manufacture ?? undefined,
-            condition: item.condition as ImplementFormValues['condition'],
             description: item.description ?? '',
             current_equipment_id: item.current_equipment_id ?? undefined,
             image_url: item.image_url ?? undefined,
+            current_usage_hours: item.current_usage_hours ?? 0,
+            service_interval_hours: item.service_interval_hours ?? undefined,
           }
         : defaults,
     )
@@ -135,26 +137,27 @@ export function ImplementFormDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Состояние</Label>
-            <Controller
-              name="condition"
-              control={form.control}
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange} items={CONDITION_OPTIONS}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CONDITION_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="impl-hours">Наработка, ч</Label>
+              <Input
+                id="impl-hours"
+                type="number"
+                min={0}
+                step="any"
+                {...form.register('current_usage_hours', { valueAsNumber: true })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="impl-interval">Интервал ТО, ч</Label>
+              <Input
+                id="impl-interval"
+                type="number"
+                min={0}
+                step="any"
+                {...form.register('service_interval_hours', { valueAsNumber: true })}
+              />
+            </div>
           </div>
 
           <div className="space-y-2">

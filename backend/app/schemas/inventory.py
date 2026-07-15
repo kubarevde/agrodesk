@@ -46,6 +46,18 @@ class InventoryOperationCreate(BaseModel):
     supplier: str | None = Field(default=None, max_length=200)
     cost: Decimal | None = Field(default=None, ge=0)
     date: date_type | None = None
+    equipment_id: UUID | None = None
+    purpose: str = Field(default='general', max_length=30)
+
+
+class EquipmentStockAction(BaseModel):
+    """Refuel or install material from stock onto equipment."""
+
+    item_id: UUID
+    quantity: Decimal = Field(gt=0)
+    date: date_type | None = None
+    comment: str | None = Field(default=None, max_length=500)
+    purpose: str = Field(description='refuel | install')
 
 
 class InventoryOperationResponse(BaseModel):
@@ -62,3 +74,6 @@ class InventoryOperationResponse(BaseModel):
     supplier: str | None = None
     cost: Decimal | None = None
     created_by: UUID | None = None
+    equipment_id: UUID | None = None
+    purpose: str = 'general'
+    equipment_name: str | None = None

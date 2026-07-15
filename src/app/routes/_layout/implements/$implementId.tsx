@@ -3,9 +3,10 @@ import { ArrowLeft, Wrench } from 'lucide-react'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { Button } from '@/components/ui/button'
+import { ToStatusBadge } from '@/features/equipment/components/ToStatusBadge'
 import { ImplementCategoryBadge } from '@/features/implements/components/ImplementCategoryBadge'
-import { ImplementConditionBadge } from '@/features/implements/components/ImplementConditionBadge'
 import { useImplementDetail } from '@/features/implements/hooks'
+import { implementToStatus } from '@/features/implements/types'
 
 function ImplementDetailRoute() {
   const navigate = useNavigate()
@@ -38,7 +39,7 @@ function ImplementDetailRoute() {
       <h1 className="text-2xl font-semibold text-foreground">{item.name}</h1>
       <div className="flex flex-wrap gap-2">
         <ImplementCategoryBadge category={item.category} />
-        <ImplementConditionBadge condition={item.condition} />
+        <ToStatusBadge status={implementToStatus(item)} />
       </div>
       {item.current_equipment_name ? (
         <p className="text-sm text-muted-foreground">

@@ -1,6 +1,5 @@
 from datetime import datetime
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
@@ -10,9 +9,9 @@ from app.services.api_client import ApiClient
 from app.services.dual_writer import DualWriter
 from app.states.workday import StartWork
 from app.utils.menu import menu_for_user
+from app.utils.org_time import now_in_org
 
 router = Router()
-TZ = ZoneInfo('Asia/Bangkok')
 
 SKIP_EQUIPMENT = 'Нет / пропустить'
 
@@ -99,7 +98,7 @@ async def work_start_begin(
         )
         return
 
-    start_time_str = format_dt(datetime.now(TZ).replace(tzinfo=None))
+    start_time_str = format_dt(await now_in_org(api, tg_id))
     await state.update_data(
         _locations=locations,
         employee=employee,

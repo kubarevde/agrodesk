@@ -1,6 +1,15 @@
 export type MeterType = 'motohours' | 'km' | 'shift_hours'
 export type ToStatus = 'ok' | 'warning' | 'overdue' | 'no_data'
 
+export type MaintenanceSummary = {
+  current_hours: number
+  service_interval_hours: number | null
+  next_service_hours: number | null
+  hours_to_next_service: number | null
+  progress_percent: number | null
+  status: ToStatus
+}
+
 export type EquipmentDetail = {
   id: string
   name: string
@@ -17,6 +26,7 @@ export type EquipmentDetail = {
   is_active: boolean
   to_status: ToStatus
   meter_label: string
+  maintenance?: MaintenanceSummary | null
 }
 
 export type MeterLogResponse = {
@@ -119,9 +129,84 @@ export function toStatusIcon(status: ToStatus): 'ok' | 'warning' | 'overdue' | '
   }
 }
 
-export function meterProgress(current: number, nextToAt: number | null): number {
+export function meterProgress(
+  current: number,
+  nextToAt: number | null,
+  maintenance?: MaintenanceSummary | null,
+): number {
+  if (maintenance?.progress_percent != null) {
+    return Math.min(100, Math.max(0, maintenance.progress_percent))
+  }
   if (nextToAt == null || nextToAt <= 0) return 0
   return Math.min(100, Math.max(0, (current / nextToAt) * 100))
+}
+
+export function hoursToNextService(
+  current: number,
+  nextToAt: number | null,
+  maintenance?: MaintenanceSummary | null,
+): number | null {
+  if (maintenance?.hours_to_next_service != null) {
+    return Math.max(0, maintenance.hours_to_next_service)
+  }
+  if (nextToAt == null) return null
+  return Math.max(0, nextToAt - current)
+}
+
+export function nextServiceHours(
+  nextToAt: number | null,
+  maintenance?: MaintenanceSummary | null,
+): number | null {
+  return maintenance?.next_service_hours ?? nextToAt
+}
+
+export function resolveToStatus(
+  toStatus: ToStatus,
+  maintenance?: MaintenanceSummary | null,
+): ToStatus {
+  return maintenance?.status ?? toStatus
+}
+
+const TO_STATUSES: ToStatus[] = ['ok', 'warning', 'overdue', 'no_data']
+
+export function mapMaintenanceFromApi(raw: unknown): MaintenanceSummary | null {
+  if (!raw || typeof raw !== 'object') return null
+  const row = raw as Record<string, unknown>
+  const status = String(row.status ?? 'no_data')
+  return {
+    current_hours: Number(row.current_hours ?? 0),
+    service_interval_hours:
+      row.service_interval_hours != null ? Number(row.service_interval_hours) : null,
+    next_service_hours:
+      row.next_service_hours != null ? Number(row.next_service_hours) : null,
+    hours_to_next_service:
+      row.hours_to_next_service != null ? Number(row.hours_to_next_service) : null,
+    progress_percent: row.progress_percent != null ? Number(row.progress_percent) : null,
+    status: TO_STATUSES.includes(status as ToStatus) ? (status as ToStatus) : 'no_data',
+  }
+}
+
+export function mapEquipmentFromApi(raw: Record<string, unknown>): EquipmentDetail {
+  const status = String(raw.to_status ?? 'no_data')
+  return {
+    id: String(raw.id),
+    name: String(raw.name ?? ''),
+    type: raw.type != null ? String(raw.type) : null,
+    year_of_manufacture:
+      raw.year_of_manufacture != null ? Number(raw.year_of_manufacture) : null,
+    serial_number: raw.serial_number != null ? String(raw.serial_number) : null,
+    meter_type: (raw.meter_type as MeterType) ?? 'motohours',
+    current_meter: Number(raw.current_meter ?? 0),
+    to_interval: raw.to_interval != null ? Number(raw.to_interval) : null,
+    next_to_at: raw.next_to_at != null ? Number(raw.next_to_at) : null,
+    latitude: raw.latitude != null ? Number(raw.latitude) : null,
+    longitude: raw.longitude != null ? Number(raw.longitude) : null,
+    image_url: raw.image_url != null ? String(raw.image_url) : null,
+    is_active: raw.is_active !== false,
+    to_status: TO_STATUSES.includes(status as ToStatus) ? (status as ToStatus) : 'no_data',
+    meter_label: String(raw.meter_label ?? 'мч'),
+    maintenance: mapMaintenanceFromApi(raw.maintenance),
+  }
 }
 
 export function formatMeterDate(value: string): string {

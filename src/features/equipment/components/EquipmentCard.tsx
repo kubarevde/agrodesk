@@ -3,7 +3,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { ImplementResponse } from '@/features/implements/types'
 import { mediaUrl } from '@/lib/media'
-import { meterProgress, type EquipmentDetail } from '../types'
+import { Tractor } from 'lucide-react'
+import {
+  hoursToNextService,
+  meterProgress,
+  nextServiceHours,
+  resolveToStatus,
+  type EquipmentDetail,
+} from '../types'
 import { ToStatusBadge } from './ToStatusBadge'
 
 type EquipmentCardProps = {
@@ -27,7 +34,10 @@ export function EquipmentCard({
   onShare,
   onDeactivate,
 }: EquipmentCardProps) {
-  const progress = meterProgress(item.current_meter, item.next_to_at)
+  const progress = meterProgress(item.current_meter, item.next_to_at, item.maintenance)
+  const nextAt = nextServiceHours(item.next_to_at, item.maintenance)
+  const remaining = hoursToNextService(item.current_meter, item.next_to_at, item.maintenance)
+  const status = resolveToStatus(item.to_status, item.maintenance)
   const visible = attached.slice(0, 3)
   const extra = attached.length - visible.length
 
@@ -39,15 +49,19 @@ export function EquipmentCard({
           alt={item.name}
           className="h-36 w-full object-cover"
         />
-      ) : null}
+      ) : (
+        <div className="flex h-36 w-full items-center justify-center bg-muted text-muted-foreground">
+          <Tractor className="size-10 opacity-50" />
+        </div>
+      )}
       <CardHeader className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <CardTitle className="text-lg font-semibold text-foreground">{item.name}</CardTitle>
           {item.type ? <Badge variant="secondary">{item.type}</Badge> : null}
         </div>
-        <ToStatusBadge status={item.to_status} />
+        <ToStatusBadge status={status} />
 
-        {item.next_to_at != null ? (
+        {nextAt != null ? (
           <div className="space-y-1.5">
             <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
@@ -56,8 +70,8 @@ export function EquipmentCard({
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              {item.current_meter} {item.meter_label} → / {item.next_to_at}{' '}
-              {item.meter_label} до ТО
+              {item.current_meter} {item.meter_label} → {nextAt} {item.meter_label}
+              {remaining != null ? ` (осталось ${remaining})` : ''}
             </p>
           </div>
         ) : (

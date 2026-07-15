@@ -23,6 +23,7 @@ from app.schemas.shift import (
 )
 from app.services.dashboard import clear_dashboard_cache
 from app.services.equipment_meters import add_equipment_meter_log, calc_meter_label
+from app.services.org_timezone import now_in_org
 from app.services.salary import apply_salary_to_shift
 from app.services.shifts import (
     calc_duration_from_datetimes,
@@ -236,7 +237,7 @@ async def open_shift(
     )
     await ensure_no_open_shift(db, target_employee_id, org_id)
 
-    now = datetime.now()
+    now = await now_in_org(db, org_id)
     shift = Shift(
         org_id=org_id,
         date=now.date(),
@@ -332,7 +333,7 @@ async def close_shift(
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Недостаточно прав')
 
-    now = datetime.now()
+    now = await now_in_org(db, org_id)
     shift.end_time = now.time().replace(microsecond=0)
     shift.description = payload.description
     shift.comment = payload.comment

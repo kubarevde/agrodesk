@@ -4,13 +4,19 @@ import type { EquipmentExtended } from '@/types'
 import { api } from '@/lib/api'
 import { db } from '@/lib/db'
 import type { ImplementResponse } from '@/features/implements/types'
+import { mapImplementFromApi } from '@/features/implements/types'
 import type {
   EquipmentFormValues,
   MaintenanceFormValues,
   MeterLogFormValues,
 } from './schemas'
 import type { EquipmentDetail, MaintenanceResponse, MeterLogResponse } from './types'
-import { toIsoDate } from './types'
+import { mapEquipmentFromApi, toIsoDate } from './types'
+import type { InventoryItem, InventoryOperation } from '@/types'
+import {
+  inventoryItemFromApi,
+  inventoryOperationFromApi,
+} from '@/lib/transformers'
 
 type EquipmentFilters = {
   is_active?: boolean
@@ -44,11 +50,12 @@ export function useEquipment(filters?: EquipmentFilters) {
         return cached.filter((item) => item.is_active)
       }
 
-      const { data } = await api.get<EquipmentDetail[]>('/api/equipment', {
+      const { data } = await api.get<Record<string, unknown>[]>('/api/equipment', {
         params: filters,
       })
-      await db.equipment.bulkPut(data)
-      return data
+      const mapped = data.map(mapEquipmentFromApi)
+      await db.equipment.bulkPut(mapped)
+      return mapped
     },
   })
 }
@@ -63,9 +70,10 @@ export function useEquipmentDetail(id: string | undefined) {
         if (cached) return cached as EquipmentDetail
       }
 
-      const { data } = await api.get<EquipmentDetail>(`/api/equipment/${id}`)
-      await db.equipment.put(data)
-      return data
+      const { data } = await api.get<Record<string, unknown>>(`/api/equipment/${id}`)
+      const mapped = mapEquipmentFromApi(data)
+      await db.equipment.put(mapped)
+      return mapped
     },
   })
 }
@@ -207,9 +215,12 @@ export function useUpcomingMaintenance() {
         ) as EquipmentExtended[] as EquipmentDetail[]
       }
 
-      const { data } = await api.get<EquipmentDetail[]>('/api/equipment/maintenance/upcoming')
-      await db.equipment.bulkPut(data)
-      return data
+      const { data } = await api.get<Record<string, unknown>[]>(
+        '/api/equipment/maintenance/upcoming',
+      )
+      const mapped = data.map(mapEquipmentFromApi)
+      await db.equipment.bulkPut(mapped)
+      return mapped
     },
   })
 }
@@ -219,10 +230,101 @@ export function useImplementsByEquipment(id: string | undefined) {
     queryKey: ['implements', 'by-equipment', id],
     enabled: Boolean(id),
     queryFn: async () => {
-      const { data } = await api.get<ImplementResponse[]>('/api/implements', {
+      const { data } = await api.get<Record<string, unknown>[]>('/api/implements', {
         params: { equipment_id: id },
       })
+      return data.map(mapImplementFromApi)
+    },
+  })
+}
+
+export type EquipmentStockPurpose = 'refuel' | 'install'
+
+export type EquipmentStockFormValues = {
+  item_id: string
+  quantity: number
+  date?: string
+  comment?: string
+}
+
+export function useEquipmentStockOperations(
+  equipmentId: string | undefined,
+  purpose: EquipmentStockPurpose,
+) {
+  return useQuery({
+    queryKey: ['inventory', 'operations', equipmentId, purpose],
+    enabled: Boolean(equipmentId),
+    queryFn: async (): Promise<InventoryOperation[]> => {
+      const { data } = await api.get<Record<string, unknown>[]>('/api/inventory/operations', {
+        params: { equipment_id: equipmentId, purpose },
+      })
+      return data.map(inventoryOperationFromApi)
+    },
+  })
+}
+
+export function useEquipmentStockItems() {
+  return useQuery({
+    queryKey: ['inventory', 'for-equipment-stock'],
+    queryFn: async (): Promise<InventoryItem[]> => {
+      const { data } = await api.get<Record<string, unknown>[]>('/api/inventory', {
+        params: { is_active: true },
+      })
+      return data.map(inventoryItemFromApi)
+    },
+  })
+}
+
+export function useEquipmentRefuel(equipmentId: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (values: EquipmentStockFormValues) => {
+      const { data } = await api.post(
+        `/api/inventory/equipment/${equipmentId}/refuel`,
+        {
+          item_id: values.item_id,
+          quantity: values.quantity,
+          date: values.date || null,
+          comment: values.comment || null,
+          purpose: 'refuel',
+        },
+      )
       return data
     },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['inventory'] }),
+        queryClient.invalidateQueries({ queryKey: ['equipment'] }),
+      ])
+      toast.success('Заправка записана')
+    },
+    onError: () => toast.error('Не удалось записать заправку'),
+  })
+}
+
+export function useEquipmentInstall(equipmentId: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (values: EquipmentStockFormValues) => {
+      const { data } = await api.post(
+        `/api/inventory/equipment/${equipmentId}/install`,
+        {
+          item_id: values.item_id,
+          quantity: values.quantity,
+          date: values.date || null,
+          comment: values.comment || null,
+          purpose: 'install',
+        },
+      )
+      return data
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['inventory'] }),
+        queryClient.invalidateQueries({ queryKey: ['equipment'] }),
+      ])
+      toast.success('Установка записана')
+    },
+    onError: () => toast.error('Не удалось записать установку'),
   })
 }

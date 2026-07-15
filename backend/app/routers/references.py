@@ -27,17 +27,22 @@ from app.schemas.reference import (
     WorkTypeUpdate,
 )
 
-from app.services.equipment_meters import calc_meter_label, calc_to_status
-
-ModelT = Any
-CreateT = type[BaseModel]
-UpdateT = type[BaseModel]
-ResponseT = type[BaseModel]
+from app.services.equipment_meters import calc_meter_label
+from app.services.maintenance import (
+    build_maintenance_summary,
+    calculate_next_service_hours,
+)
 
 
 def equipment_to_response(item: Equipment) -> EquipmentResponse:
     current = float(item.current_meter or 0)
-    next_to = float(item.next_to_at) if item.next_to_at is not None else None
+    interval = float(item.to_interval) if item.to_interval is not None else None
+    summary = build_maintenance_summary(
+        current_hours=current,
+        interval_hours=interval,
+        next_service_hours=float(item.next_to_at) if item.next_to_at is not None else None,
+    )
+    next_to = summary['next_service_hours']
     return EquipmentResponse(
         id=item.id,
         name=item.name,
@@ -46,14 +51,22 @@ def equipment_to_response(item: Equipment) -> EquipmentResponse:
         serial_number=item.serial_number,
         meter_type=item.meter_type or 'motohours',
         current_meter=current,
-        to_interval=float(item.to_interval) if item.to_interval is not None else None,
-        next_to_at=next_to,
+        to_interval=interval,
+        next_to_at=float(next_to) if next_to is not None else None,
         latitude=float(item.latitude) if item.latitude is not None else None,
         longitude=float(item.longitude) if item.longitude is not None else None,
         is_active=bool(item.is_active),
         image_url=item.image_url,
-        to_status=calc_to_status(current, next_to),
+        to_status=str(summary['status']),
         meter_label=calc_meter_label(item.meter_type),
+        maintenance={
+            'current_hours': summary['current_hours'],
+            'service_interval_hours': summary['service_interval_hours'],
+            'next_service_hours': summary['next_service_hours'],
+            'hours_to_next_service': summary['hours_to_next_service'],
+            'progress_percent': summary['progress_percent'],
+            'status': summary['status'],
+        },
     )
 
 
@@ -61,14 +74,15 @@ def resolve_next_to_at(
     *,
     current_meter: float | Decimal | None,
     to_interval: float | Decimal | None,
-    next_to_at: float | Decimal | None,
+    next_to_at: float | Decimal | None = None,
 ) -> Decimal | None:
+    """Prefer ceil formula from interval; explicit next_to_at only if no interval."""
+    if to_interval is not None and float(to_interval) > 0:
+        nxt = calculate_next_service_hours(current_meter, to_interval)
+        return Decimal(str(nxt)) if nxt is not None else None
     if next_to_at is not None:
         return Decimal(str(next_to_at))
-    if to_interval is None:
-        return None
-    current = Decimal(str(current_meter or 0))
-    return current + Decimal(str(to_interval))
+    return None
 
 
 def build_reference_router(

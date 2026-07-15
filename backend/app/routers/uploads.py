@@ -14,7 +14,13 @@ from app.models.employee import Employee
 
 UPLOADS_DIR = Path(settings.UPLOADS_DIR)
 ALLOWED_FOLDERS = frozenset({'equipment', 'implements', 'sharing', 'profile'})
-ALLOWED_TYPES = frozenset({'image/jpeg', 'image/png', 'image/webp'})
+ALLOWED_TYPES = frozenset({'image/jpeg', 'image/jpg', 'image/png', 'image/webp'})
+EXT_TYPES = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+}
 MAX_SIZE = 5 * 1024 * 1024
 
 router = APIRouter()
@@ -24,23 +30,33 @@ class UploadImageResponse(BaseModel):
     url: str
 
 
+def _resolve_content_type(file: UploadFile) -> str:
+    ctype = (file.content_type or '').lower().strip()
+    if ctype in ALLOWED_TYPES:
+        return 'image/jpeg' if ctype == 'image/jpg' else ctype
+    suffix = Path(file.filename or '').suffix.lower()
+    mapped = EXT_TYPES.get(suffix)
+    if mapped:
+        return mapped
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail='Только JPEG, PNG или WebP',
+    )
+
+
 async def save_image_locally(file: UploadFile, folder: str) -> str:
     if folder not in ALLOWED_FOLDERS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Недопустимая папка',
         )
-    if file.content_type not in ALLOWED_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail='Только JPEG/PNG/WEBP',
-        )
+    _resolve_content_type(file)
 
     contents = await file.read()
     if len(contents) > MAX_SIZE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail='Файл больше 5MB',
+            detail='Файл больше 5 МБ',
         )
 
     try:
@@ -54,7 +70,8 @@ async def save_image_locally(file: UploadFile, folder: str) -> str:
 
     save_dir = UPLOADS_DIR / folder
     save_dir.mkdir(parents=True, exist_ok=True)
-    filename = f'{uuid.uuid4()}.jpg'
+    # Safe UUID name — never trust client filename
+    filename = f'{uuid.uuid4().hex}.jpg'
     img.convert('RGB').save(save_dir / filename, 'JPEG', quality=85)
     return f'/uploads/{folder}/{filename}'
 

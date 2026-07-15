@@ -59,6 +59,9 @@ class InventoryOperation(Base):
     cost = Column(Numeric(12, 2), nullable=True)
     created_by = Column(UUID(as_uuid=True), ForeignKey('employees.id'), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    equipment_id = Column(UUID(as_uuid=True), ForeignKey('equipment.id'), nullable=True)
+    purpose = Column(String(30), nullable=False, default='general', server_default='general')
 
     item = relationship('InventoryItem', back_populates='operations')
     created_by_user = relationship('Employee', back_populates='inventory_operations')
+    equipment = relationship('Equipment')

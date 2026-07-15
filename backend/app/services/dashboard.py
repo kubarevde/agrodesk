@@ -22,7 +22,8 @@ from app.schemas.dashboard import (
     DashboardStatsResponse,
     DashboardWeeklyHours,
 )
-from app.services.equipment_meters import calc_meter_label, calc_to_status
+from app.services.equipment_meters import calc_meter_label
+from app.services.maintenance import calculate_to_status as calc_to_status
 from app.services.shifts import calc_duration_from_datetimes, combine_date_time
 
 DAY_NAMES = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']

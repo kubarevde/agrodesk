@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { ImagePlus, Loader2, X } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
@@ -9,12 +10,36 @@ import { cn } from '@/lib/utils'
 
 export type UploadFolder = 'equipment' | 'implements' | 'sharing' | 'profile'
 
+const MAX_BYTES = 5 * 1024 * 1024
+const ACCEPT = {
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
+  'image/webp': ['.webp'],
+}
+
 type ImageUploaderProps = {
   value: string[]
   onChange: (urls: string[]) => void
   maxFiles?: number
   folder: UploadFolder
   className?: string
+}
+
+function uploadErrorMessage(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const detail = error.response?.data?.detail
+    if (typeof detail === 'string' && detail.trim()) return detail
+    if (Array.isArray(detail)) {
+      const parts = detail.map((item) => {
+        if (typeof item === 'string') return item
+        if (item && typeof item === 'object' && 'msg' in item) return String(item.msg)
+        return ''
+      })
+      const joined = parts.filter(Boolean).join('; ')
+      if (joined) return joined
+    }
+  }
+  return 'Не удалось загрузить фото'
 }
 
 export function ImageUploader({
@@ -29,6 +54,10 @@ export function ImageUploader({
 
   const uploadFile = useCallback(
     async (file: File, current: string[]) => {
+      if (file.size > MAX_BYTES) {
+        toast.error('Максимальный размер файла — 5 МБ')
+        return current
+      }
       const formData = new FormData()
       formData.append('file', file)
       formData.append('folder', folder)
@@ -43,8 +72,8 @@ export function ImageUploader({
         const next = [...current, data.url].slice(0, maxFiles)
         onChange(next)
         return next
-      } catch {
-        toast.error('Не удалось загрузить фото')
+      } catch (error) {
+        toast.error(uploadErrorMessage(error))
         return current
       } finally {
         setProgress(null)
@@ -54,7 +83,7 @@ export function ImageUploader({
   )
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: { 'image/*': [] },
+    accept: ACCEPT,
     maxFiles: Math.max(1, maxFiles - value.length),
     disabled: uploading || value.length >= maxFiles,
     onDrop: (files) => {
@@ -66,6 +95,9 @@ export function ImageUploader({
           current = await uploadFile(file, current)
         }
       })()
+    },
+    onDropRejected: () => {
+      toast.error('Допустимы только JPEG, PNG или WebP до 5 МБ')
     },
   })
 
@@ -112,7 +144,7 @@ export function ImageUploader({
           ) : (
             <ImagePlus className="size-5" />
           )}
-          <span>{uploading ? 'Загрузка…' : 'Перетащите фото или нажмите'}</span>
+          <span>{uploading ? 'Загрузка…' : 'JPEG, PNG или WebP до 5 МБ'}</span>
         </div>
       ) : null}
 

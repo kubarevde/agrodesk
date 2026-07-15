@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
+import { SectionHelp } from '@/components/shared/SectionHelp'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
@@ -13,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { implementsHelp } from '@/features/help/content'
 import {
   useCreateImplement,
   useDeleteImplement,
@@ -77,6 +79,8 @@ export function ImplementsPage() {
           </Button>
         ) : null}
       </div>
+
+      <SectionHelp title="Справка: приспособления" items={implementsHelp} />
 
       <div className="space-y-2 max-w-xs">
         <Label>Категория</Label>

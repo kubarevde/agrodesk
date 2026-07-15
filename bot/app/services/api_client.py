@@ -257,6 +257,17 @@ class ApiClient:
             logger.exception('get_dashboard_stats parse failed')
             return None
 
+    async def get_org_settings(self, tg_id: int) -> dict | None:
+        response = await self._request(tg_id, 'GET', '/api/settings/organization')
+        if response is None or response.status_code != 200:
+            return None
+        try:
+            data = response.json()
+            return data if isinstance(data, dict) else None
+        except Exception:
+            logger.exception('get_org_settings parse failed')
+            return None
+
     def invalidate_token(self, tg_id: int) -> None:
         self._tokens.pop(tg_id, None)
 

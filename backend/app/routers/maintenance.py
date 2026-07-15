@@ -166,10 +166,13 @@ async def create_maintenance(
 
     next_to_at: Decimal | None = None
     if payload.next_to_interval is not None:
-        next_to_at = current_meter + Decimal(str(payload.next_to_interval))
+        from app.services.maintenance import next_after_completed_service
+
+        interval = Decimal(str(payload.next_to_interval))
+        computed = next_after_completed_service(float(current_meter), float(interval))
+        next_to_at = Decimal(str(computed)) if computed is not None else current_meter + interval
         equipment.next_to_at = next_to_at
-        if equipment.to_interval is None:
-            equipment.to_interval = Decimal(str(payload.next_to_interval))
+        equipment.to_interval = interval
         db.add(equipment)
 
     record = EquipmentMaintenance(
@@ -244,9 +247,16 @@ async def update_maintenance(
             setattr(record, field, value)
 
     if next_to_interval is not None:
+        from app.services.maintenance import next_after_completed_service
+
         current_meter = Decimal(str(equipment.current_meter or 0))
-        next_to_at = current_meter + Decimal(str(next_to_interval))
+        interval = Decimal(str(next_to_interval))
+        computed = next_after_completed_service(float(current_meter), float(interval))
+        next_to_at = Decimal(str(computed)) if computed is not None else current_meter + interval
         record.next_to_at = next_to_at
+        equipment.next_to_at = next_to_at
+        equipment.to_interval = interval
+        db.add(equipment)
         equipment.next_to_at = next_to_at
         db.add(equipment)
 

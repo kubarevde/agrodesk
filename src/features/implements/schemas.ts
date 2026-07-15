@@ -1,20 +1,29 @@
 import { z } from 'zod'
-import { CATEGORY_OPTIONS, CONDITION_OPTIONS, MAINTENANCE_TYPES } from './types'
+import { CATEGORY_OPTIONS, MAINTENANCE_TYPES } from './types'
 
-const conditionValues = CONDITION_OPTIONS.map((item) => item.value) as [
-  (typeof CONDITION_OPTIONS)[number]['value'],
-  ...(typeof CONDITION_OPTIONS)[number]['value'][],
-]
+const optionalNonNeg = z.preprocess(
+  (value) => (typeof value === 'number' && Number.isNaN(value) ? undefined : value),
+  z.number().min(0).optional(),
+)
+
+const optionalPositive = z.preprocess(
+  (value) => (typeof value === 'number' && Number.isNaN(value) ? undefined : value),
+  z.number().positive().optional(),
+)
 
 export const implementFormSchema = z.object({
   name: z.string().min(1, 'Укажите название'),
   category: z.enum(CATEGORY_OPTIONS, { message: 'Выберите категорию' }),
   serial_number: z.string().optional(),
-  year_of_manufacture: z.number().int().min(1950).max(2100).optional(),
-  condition: z.enum(conditionValues),
+  year_of_manufacture: z.preprocess(
+    (value) => (typeof value === 'number' && Number.isNaN(value) ? undefined : value),
+    z.number().int().min(1950).max(2100).optional(),
+  ),
   description: z.string().optional(),
   current_equipment_id: z.string().optional(),
   image_url: z.string().optional(),
+  current_usage_hours: optionalNonNeg,
+  service_interval_hours: optionalPositive,
 })
 
 export type ImplementFormValues = z.infer<typeof implementFormSchema>

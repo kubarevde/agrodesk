@@ -9,6 +9,7 @@ import type {
   MaintenanceFormValues,
 } from './schemas'
 import type { ImplementMaintenanceResponse, ImplementResponse } from './types'
+import { mapImplementFromApi } from './types'
 
 type ImplementFilters = {
   category?: string
@@ -16,15 +17,19 @@ type ImplementFilters = {
 }
 
 function toPayload(values: ImplementFormValues) {
+  const clean = (n: number | undefined) =>
+    n == null || Number.isNaN(n) ? null : n
+
   return {
     name: values.name,
     category: values.category,
     serial_number: values.serial_number || null,
-    year_of_manufacture: values.year_of_manufacture ?? null,
-    condition: values.condition,
+    year_of_manufacture: clean(values.year_of_manufacture),
     description: values.description || null,
     current_equipment_id: values.current_equipment_id || null,
     image_url: values.image_url || null,
+    current_usage_hours: clean(values.current_usage_hours) ?? 0,
+    service_interval_hours: clean(values.service_interval_hours),
   }
 }
 
@@ -49,11 +54,12 @@ export function useImplements(filters?: ImplementFilters) {
       const params: Record<string, string> = {}
       if (filters?.category) params.category = filters.category
       if (filters?.equipmentId) params.equipment_id = filters.equipmentId
-      const { data } = await api.get<ImplementResponse[]>('/api/implements', {
+      const { data } = await api.get<Record<string, unknown>[]>('/api/implements', {
         params: Object.keys(params).length ? params : undefined,
       })
-      await db.implements.bulkPut(data)
-      return data
+      const mapped = data.map(mapImplementFromApi)
+      await db.implements.bulkPut(mapped)
+      return mapped
     },
   })
 }
@@ -68,9 +74,10 @@ export function useImplementDetail(id: string | undefined) {
         if (cached) return cached as ImplementResponse
       }
 
-      const { data } = await api.get<ImplementResponse>(`/api/implements/${id}`)
-      await db.implements.put(data)
-      return data
+      const { data } = await api.get<Record<string, unknown>>(`/api/implements/${id}`)
+      const mapped = mapImplementFromApi(data)
+      await db.implements.put(mapped)
+      return mapped
     },
   })
 }
