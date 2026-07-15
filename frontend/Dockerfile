@@ -1,6 +1,7 @@
 # Build context: repository root (docker-compose: dockerfile: frontend/Dockerfile).
 
-FROM node:18-alpine AS build
+# Vite 8 / rolldown need Node >= 20 (styleText in node:util)
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
