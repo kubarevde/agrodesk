@@ -1,11 +1,10 @@
+/**
+ * Routing is TanStack Router (`src/router.ts` + `src/app/routes`).
+ * Public landing: `/` (no auth).
+ * App login: `/login`. Superadmin: `/superadmin/*`.
+ */
 function App() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100">
-      <h1 className="text-3xl font-bold text-emerald-700">
-        AgroDesk работает
-      </h1>
-    </div>
-  )
+  return null
 }
 
 export default App

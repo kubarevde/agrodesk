@@ -1,8 +1,8 @@
 import enum
 import uuid
 
-from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, Time, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, Integer, Numeric, Text, Time, func
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -17,6 +17,7 @@ class Shift(Base):
     __tablename__ = 'shifts'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id'), nullable=False)
     date = Column(Date, nullable=False)
     employee_id = Column(UUID(as_uuid=True), ForeignKey('employees.id'), nullable=False)
     start_time = Column(Time, nullable=False)
@@ -37,6 +38,8 @@ class Shift(Base):
     duration_rounded = Column(Numeric(4, 1), nullable=True)
     latitude = Column(Numeric(9, 6), nullable=True)
     longitude = Column(Numeric(9, 6), nullable=True)
+    calculated_amount = Column(Numeric(10, 2), nullable=True)
+    rate_snapshot = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(
         DateTime(timezone=True),

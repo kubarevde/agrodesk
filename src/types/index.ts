@@ -331,6 +331,8 @@ export interface DashboardStats {
   monthShipmentWeight: number
   monthShipmentsSum: number
   monthExpensesSum: number
+  monthSalaryTotal: number
+  noRateShiftsCount: number
   criticalInventoryCount: number
   criticalInventory: DashboardCriticalItem[]
   weeklyHours: DashboardWeeklyHours[]

@@ -4,8 +4,20 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class LoginRequest(BaseModel):
-    employee_code: str
+    email: str = Field(min_length=1)
     password: str
+    org_id: UUID
+
+
+class OrgPublicResponse(BaseModel):
+    id: UUID
+    name: str
+    slug: str
+
+
+class BotTokenRequest(BaseModel):
+    telegram_id: int
+    secret: str
 
 
 class EmployeeMe(BaseModel):

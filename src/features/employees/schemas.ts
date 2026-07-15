@@ -32,3 +32,25 @@ export function getEmployeeSchema(isEdit: boolean) {
     }
   })
 }
+
+export const employeeRateFormSchema = z
+  .object({
+    workTypeId: z.string().nullable(),
+    rate: z.number().min(0, 'Ставка не может быть отрицательной'),
+    overtimeThresholdHours: z.number().min(0, 'Порог не может быть отрицательным'),
+    overtimeMultiplier: z.number().min(0, 'Множитель не может быть отрицательным'),
+    validFrom: z.string().min(1, 'Укажите дату начала'),
+    validTo: z.string().nullable(),
+    notes: z.string().nullable(),
+  })
+  .superRefine((values, ctx) => {
+    if (values.validTo && values.validTo < values.validFrom) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['validTo'],
+        message: 'Дата окончания не раньше начала',
+      })
+    }
+  })
+
+export type EmployeeRateFormValues = z.infer<typeof employeeRateFormSchema>

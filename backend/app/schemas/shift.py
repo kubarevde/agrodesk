@@ -79,5 +79,7 @@ class ShiftResponse(BaseModel):
     status: str
     duration_raw: int | None = None
     duration_rounded: Decimal | None = None
+    calculated_amount: Decimal | None = None
+    rate_snapshot: dict | None = None
     latitude: Decimal | None = None
     longitude: Decimal | None = None

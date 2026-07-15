@@ -1,14 +1,15 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_admin, require_manager
+from app.middleware.org_context import get_org_id
 from app.models.employee import Employee, EmployeeRole
-from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate
+from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate, LinkTelegramRequest
 from app.services.auth import hash_password
 
 router = APIRouter()
@@ -23,11 +24,14 @@ def employee_to_response(employee: Employee) -> EmployeeResponse:
         hourly_rate=employee.hourly_rate,
         role=employee.role.value,
         is_active=employee.is_active,
+        telegram_id=employee.telegram_id,
     )
 
 
-async def get_employee_or_404(db: AsyncSession, employee_id: UUID) -> Employee:
-    result = await db.execute(select(Employee).where(Employee.id == employee_id))
+async def get_employee_or_404(db: AsyncSession, employee_id: UUID, org_id: UUID) -> Employee:
+    result = await db.execute(
+        select(Employee).where(Employee.id == employee_id, Employee.org_id == org_id)
+    )
     employee = result.scalar_one_or_none()
     if employee is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Сотрудник не найден')
@@ -36,12 +40,14 @@ async def get_employee_or_404(db: AsyncSession, employee_id: UUID) -> Employee:
 
 @router.get('', response_model=list[EmployeeResponse])
 async def list_employees(
+    request: Request,
     role: EmployeeRole | None = Query(None),
     is_active: bool | None = Query(None),
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> list[EmployeeResponse]:
-    query = select(Employee)
+    org_id = get_org_id(request)
+    query = select(Employee).where(Employee.org_id == org_id)
     if role is not None:
         query = query.where(Employee.role == role)
     if is_active is not None:
@@ -56,23 +62,76 @@ async def get_me(employee: Employee = Depends(get_current_employee)) -> Employee
     return employee_to_response(employee)
 
 
+@router.get('/me/earnings')
+async def get_my_earnings(
+    request: Request,
+    month: str = Query(..., pattern=r'^\d{4}-\d{2}$'),
+    db: AsyncSession = Depends(get_db),
+    current: Employee = Depends(get_current_employee),
+):
+    from app.services.reports import build_employee_earnings
+
+    return await build_employee_earnings(db, current.id, month, get_org_id(request))
+
+
 @router.get('/{employee_id}', response_model=EmployeeResponse)
 async def get_employee(
+    request: Request,
     employee_id: UUID,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> EmployeeResponse:
-    employee = await get_employee_or_404(db, employee_id)
+    employee = await get_employee_or_404(db, employee_id, get_org_id(request))
+    return employee_to_response(employee)
+
+
+@router.patch('/{employee_id}/link-telegram', response_model=EmployeeResponse)
+async def link_telegram(
+    request: Request,
+    employee_id: UUID,
+    payload: LinkTelegramRequest,
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(require_manager),
+) -> EmployeeResponse:
+    org_id = get_org_id(request)
+    employee = await get_employee_or_404(db, employee_id, org_id)
+
+    existing = await db.execute(
+        select(Employee).where(
+            Employee.org_id == org_id,
+            Employee.telegram_id == payload.telegram_id,
+            Employee.id != employee_id,
+        )
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail='Этот Telegram ID уже привязан к другому сотруднику',
+        )
+
+    employee.telegram_id = payload.telegram_id
+    db.add(employee)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail='Этот Telegram ID уже привязан к другому сотруднику',
+        ) from None
+    await db.refresh(employee)
     return employee_to_response(employee)
 
 
 @router.post('', response_model=EmployeeResponse, status_code=status.HTTP_201_CREATED)
 async def create_employee(
+    request: Request,
     payload: EmployeeCreate,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_admin),
 ) -> EmployeeResponse:
     employee = Employee(
+        org_id=get_org_id(request),
         employee_code=payload.employee_code,
         full_name=payload.full_name,
         position=payload.position,
@@ -96,12 +155,13 @@ async def create_employee(
 
 @router.patch('/{employee_id}', response_model=EmployeeResponse)
 async def update_employee(
+    request: Request,
     employee_id: UUID,
     payload: EmployeeUpdate,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_admin),
 ) -> EmployeeResponse:
-    employee = await get_employee_or_404(db, employee_id)
+    employee = await get_employee_or_404(db, employee_id, get_org_id(request))
     update_data = payload.model_dump(exclude_unset=True)
 
     password = update_data.pop('password', None)
@@ -126,6 +186,7 @@ async def update_employee(
 
 @router.delete('/{employee_id}', status_code=status.HTTP_204_NO_CONTENT)
 async def delete_employee(
+    request: Request,
     employee_id: UUID,
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(require_admin),
@@ -136,7 +197,7 @@ async def delete_employee(
             detail='Нельзя удалить себя',
         )
 
-    employee = await get_employee_or_404(db, employee_id)
+    employee = await get_employee_or_404(db, employee_id, get_org_id(request))
     employee.is_active = False
     db.add(employee)
     await db.commit()

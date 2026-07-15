@@ -23,6 +23,7 @@ class EmployeeUpdate(BaseModel):
     role: EmployeeRole | None = None
     password: str | None = Field(default=None, min_length=4)
     is_active: bool | None = None
+    telegram_id: int | None = None
 
 
 class EmployeeResponse(BaseModel):
@@ -35,3 +36,8 @@ class EmployeeResponse(BaseModel):
     hourly_rate: Decimal
     role: str
     is_active: bool
+    telegram_id: int | None = None
+
+
+class LinkTelegramRequest(BaseModel):
+    telegram_id: int

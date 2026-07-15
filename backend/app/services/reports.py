@@ -131,6 +131,7 @@ async def fetch_shifts(
     from_date: date,
     to_date: date,
     employee_id: UUID | None = None,
+    org_id: UUID | None = None,
 ) -> list[Shift]:
     query = (
         select(Shift)
@@ -143,6 +144,8 @@ async def fetch_shifts(
         .where(Shift.date >= from_date, Shift.date <= to_date)
         .order_by(Shift.date, Shift.start_time)
     )
+    if org_id is not None:
+        query = query.where(Shift.org_id == org_id)
     if employee_id is not None:
         query = query.where(Shift.employee_id == employee_id)
     result = await db.execute(query)
@@ -154,17 +157,21 @@ async def build_timesheet_workbook(
     from_date: date,
     to_date: date,
     employee_id: UUID | None = None,
+    org_id: UUID | None = None,
 ) -> Workbook:
-    shifts = await fetch_shifts(db, from_date, to_date, employee_id)
+    shifts = await fetch_shifts(db, from_date, to_date, employee_id, org_id=org_id)
     workbook = new_workbook()
 
     detail_rows = []
     summary_map: dict[UUID, dict[str, object]] = defaultdict(
-        lambda: {'shifts': 0, 'hours': 0.0, 'rate': Decimal('0'), 'name': '', 'code': ''}
+        lambda: {'shifts': 0, 'hours': 0.0, 'pay': 0.0, 'name': '', 'code': ''}
     )
+
+    from app.services.salary import shift_pay_amount
 
     for shift in shifts:
         hours = shift_hours(shift)
+        pay = shift_pay_amount(shift, hours)
         detail_rows.append(
             [
                 fmt_date(shift.date),
@@ -182,9 +189,9 @@ async def build_timesheet_workbook(
         employee_summary = summary_map[shift.employee_id]
         employee_summary['name'] = shift.employee.full_name
         employee_summary['code'] = shift.employee.employee_code
-        employee_summary['rate'] = shift.employee.hourly_rate
         employee_summary['shifts'] = int(employee_summary['shifts']) + 1
         employee_summary['hours'] = float(employee_summary['hours']) + hours
+        employee_summary['pay'] = float(employee_summary['pay']) + pay
 
     ws_detail = workbook.active
     ws_detail.title = 'Табель'
@@ -199,72 +206,311 @@ async def build_timesheet_workbook(
     total_pay = 0.0
     for item in sorted(summary_map.values(), key=lambda row: str(row['name'])):
         hours = float(item['hours'])
-        rate = to_number(item['rate'])
-        pay = round(hours * rate, 2)
+        pay = round(float(item['pay']), 2)
         total_hours += hours
         total_pay += pay
-        summary_rows.append([item['name'], item['code'], item['shifts'], hours, rate, pay])
+        summary_rows.append([item['name'], item['code'], item['shifts'], hours, pay])
 
     ws_summary = workbook.create_sheet('Сводка')
     write_table(
         ws_summary,
-        ['ФИО', 'Код', 'Смен', 'Часов', 'Ставка', 'К выплате'],
+        ['ФИО', 'Код', 'Смен', 'Часов', 'К выплате'],
         summary_rows,
-        ['ИТОГО', '', sum(int(item['shifts']) for item in summary_map.values()), total_hours, '', total_pay],
+        ['ИТОГО', '', sum(int(item['shifts']) for item in summary_map.values()), total_hours, total_pay],
     )
     return workbook
 
 
-async def build_salary_workbook(db: AsyncSession, month: str) -> Workbook:
+async def build_salary_workbook(
+    db: AsyncSession, month: str, org_id: UUID | None = None
+) -> Workbook:
     from_date, to_date = parse_month(month)
-    shifts = await fetch_shifts(db, from_date, to_date)
-    employees_result = await db.execute(
-        select(Employee).where(Employee.is_active.is_(True)).order_by(Employee.full_name)
-    )
+    shifts = [
+        shift
+        for shift in await fetch_shifts(db, from_date, to_date, org_id=org_id)
+        if shift.status == ShiftStatus.closed
+    ]
+    employees_query = select(Employee).where(Employee.is_active.is_(True))
+    if org_id is not None:
+        employees_query = employees_query.where(Employee.org_id == org_id)
+    employees_result = await db.execute(employees_query.order_by(Employee.full_name))
     employees = employees_result.scalars().all()
 
+    from app.models.employee_rate import EmployeeRate
+    from app.services.salary import shift_pay_amount, shift_source_label
+
+    rates_query = (
+        select(EmployeeRate)
+        .options(selectinload(EmployeeRate.employee), selectinload(EmployeeRate.work_type))
+        .where(
+            EmployeeRate.valid_from <= to_date,
+            or_(EmployeeRate.valid_to.is_(None), EmployeeRate.valid_to >= to_date),
+        )
+    )
+    if org_id is not None:
+        rates_query = rates_query.where(EmployeeRate.org_id == org_id)
+    rates_result = await db.execute(
+        rates_query.order_by(EmployeeRate.employee_id, EmployeeRate.valid_from.desc())
+    )
+    active_rates = list(rates_result.scalars().all())
+
     stats: dict[UUID, dict[str, object]] = {
-        employee.id: {'shifts': 0, 'hours': 0.0} for employee in employees
+        employee.id: {
+            'name': employee.full_name,
+            'code': employee.employee_code,
+            'shifts': 0,
+            'hours': 0.0,
+            'regular_h': 0.0,
+            'overtime_h': 0.0,
+            'pay': 0.0,
+            'notes': '',
+        }
+        for employee in employees
     }
+
+    detail_rows = []
     for shift in shifts:
+        hours = shift_hours(shift)
+        pay = shift_pay_amount(shift, hours)
+        snap = shift.rate_snapshot if isinstance(shift.rate_snapshot, dict) else {}
+        regular_h = float(snap.get('regular_h', min(hours, 8.0)))
+        overtime_h = float(snap.get('overtime_h', max(0.0, hours - 8.0)))
+        source = shift_source_label(shift)
+
+        detail_rows.append(
+            [
+                fmt_date(shift.date),
+                shift.employee.full_name,
+                shift.employee.employee_code,
+                shift.work_type.name if shift.work_type else '',
+                hours,
+                regular_h,
+                overtime_h,
+                pay,
+                source,
+            ]
+        )
+
         if shift.employee_id not in stats:
             continue
-        stats[shift.employee_id]['shifts'] = int(stats[shift.employee_id]['shifts']) + 1
-        stats[shift.employee_id]['hours'] = float(stats[shift.employee_id]['hours']) + shift_hours(shift)
+        row = stats[shift.employee_id]
+        row['shifts'] = int(row['shifts']) + 1
+        row['hours'] = float(row['hours']) + hours
+        row['regular_h'] = float(row['regular_h']) + regular_h
+        row['overtime_h'] = float(row['overtime_h']) + overtime_h
+        row['pay'] = float(row['pay']) + pay
 
     workbook = new_workbook()
-    ws = workbook.active
-    ws.title = 'Зарплатная ведомость'
+    ws_summary = workbook.active
+    ws_summary.title = 'Итоги'
 
-    rows = []
+    summary_rows = []
     total_hours = 0.0
+    total_regular = 0.0
+    total_overtime = 0.0
     total_pay = 0.0
+    total_shifts = 0
     for employee in employees:
-        employee_stats = stats[employee.id]
-        hours = float(employee_stats['hours'])
-        rate = to_number(employee.hourly_rate)
-        pay = round(hours * rate, 2)
+        item = stats[employee.id]
+        hours = round(float(item['hours']), 2)
+        regular_h = round(float(item['regular_h']), 2)
+        overtime_h = round(float(item['overtime_h']), 2)
+        pay = round(float(item['pay']), 2)
         total_hours += hours
+        total_regular += regular_h
+        total_overtime += overtime_h
         total_pay += pay
-        rows.append(
+        total_shifts += int(item['shifts'])
+        summary_rows.append(
             [
-                employee.full_name,
-                employee.position or '',
-                employee_stats['shifts'],
+                item['name'],
+                item['code'],
+                item['shifts'],
                 hours,
-                rate,
+                regular_h,
+                overtime_h,
                 pay,
-                '',
+                item['notes'],
             ]
         )
 
     write_table(
-        ws,
-        ['ФИО', 'Должность', 'Смен', 'Часов', 'Ставка', 'К выплате', 'Подпись'],
-        rows,
-        ['ИТОГО', '', sum(int(stats[e.id]['shifts']) for e in employees), total_hours, '', total_pay, ''],
+        ws_summary,
+        [
+            'Сотрудник',
+            'Код',
+            'Смен',
+            'Часов',
+            'Обычных ч',
+            'Сверхурочных ч',
+            'К выплате',
+            'Примечание',
+        ],
+        summary_rows,
+        ['ИТОГО', '', total_shifts, total_hours, total_regular, total_overtime, total_pay, ''],
+    )
+
+    ws_detail = workbook.create_sheet('По сменам')
+    write_table(
+        ws_detail,
+        [
+            'Дата',
+            'Сотрудник',
+            'Код',
+            'Тип работ',
+            'Часов',
+            'Обычных ч',
+            'Сверхурочных ч',
+            'К выплате',
+            'Источник',
+        ],
+        detail_rows,
+    )
+
+    rate_rows = [
+        [
+            rate.employee.full_name if rate.employee else '',
+            rate.employee.employee_code if rate.employee else '',
+            rate.work_type.name if rate.work_type else 'Базовая',
+            to_number(rate.rate),
+            to_number(rate.overtime_multiplier),
+            to_number(rate.overtime_threshold_hours),
+            fmt_date(rate.valid_from),
+            fmt_date(rate.valid_to) if rate.valid_to else '',
+            rate.notes or '',
+        ]
+        for rate in active_rates
+    ]
+    ws_rates = workbook.create_sheet('Ставки')
+    write_table(
+        ws_rates,
+        [
+            'Сотрудник',
+            'Код',
+            'Тип работ',
+            'Ставка',
+            'Множитель сверхурочных',
+            'Порог ч',
+            'С',
+            'По',
+            'Примечание',
+        ],
+        rate_rows,
     )
     return workbook
+
+
+async def build_salary_preview(
+    db: AsyncSession, month: str, org_id: UUID | None = None
+) -> dict:
+    from_date, to_date = parse_month(month)
+    workbook_data_shifts = [
+        shift
+        for shift in await fetch_shifts(db, from_date, to_date, org_id=org_id)
+        if shift.status == ShiftStatus.closed
+    ]
+    from app.services.salary import shift_pay_amount, shift_source_label
+
+    employees_query = select(Employee).where(Employee.is_active.is_(True))
+    if org_id is not None:
+        employees_query = employees_query.where(Employee.org_id == org_id)
+    employees_result = await db.execute(employees_query.order_by(Employee.full_name))
+    employees = employees_result.scalars().all()
+
+    rows = []
+    for employee in employees:
+        emp_shifts = [s for s in workbook_data_shifts if s.employee_id == employee.id]
+        hours = round(sum(shift_hours(s) for s in emp_shifts), 2)
+        regular_h = 0.0
+        overtime_h = 0.0
+        pay = 0.0
+        for shift in emp_shifts:
+            snap = shift.rate_snapshot if isinstance(shift.rate_snapshot, dict) else {}
+            h = shift_hours(shift)
+            regular_h += float(snap.get('regular_h', min(h, 8.0)))
+            overtime_h += float(snap.get('overtime_h', max(0.0, h - 8.0)))
+            pay += shift_pay_amount(shift, h)
+        rows.append(
+            {
+                'employeeId': str(employee.id),
+                'employeeName': employee.full_name,
+                'employeeCode': employee.employee_code,
+                'shiftsCount': len(emp_shifts),
+                'hours': hours,
+                'regularHours': round(regular_h, 2),
+                'overtimeHours': round(overtime_h, 2),
+                'amount': round(pay, 2),
+            }
+        )
+
+    detail = [
+        {
+            'date': shift.date.isoformat(),
+            'employeeId': str(shift.employee_id),
+            'employeeName': shift.employee.full_name,
+            'workType': shift.work_type.name if shift.work_type else '',
+            'hours': shift_hours(shift),
+            'amount': shift_pay_amount(shift),
+            'source': shift_source_label(shift),
+        }
+        for shift in workbook_data_shifts
+    ]
+
+    return {
+        'month': month,
+        'from': from_date.isoformat(),
+        'to': to_date.isoformat(),
+        'summary': rows,
+        'shifts': detail,
+        'totalAmount': round(sum(item['amount'] for item in rows), 2),
+    }
+
+
+async def build_employee_earnings(
+    db: AsyncSession, employee_id: UUID, month: str, org_id: UUID | None = None
+) -> dict:
+    from_date, to_date = parse_month(month)
+    shifts = [
+        shift
+        for shift in await fetch_shifts(db, from_date, to_date, employee_id, org_id=org_id)
+        if shift.status == ShiftStatus.closed
+    ]
+    from app.services.salary import shift_pay_amount, shift_source_label
+
+    employee_query = select(Employee).where(Employee.id == employee_id)
+    if org_id is not None:
+        employee_query = employee_query.where(Employee.org_id == org_id)
+    employee = (await db.execute(employee_query)).scalar_one_or_none()
+    items = []
+    total = 0.0
+    hours_total = 0.0
+    for shift in shifts:
+        hours = shift_hours(shift)
+        amount = shift_pay_amount(shift, hours)
+        snap = shift.rate_snapshot if isinstance(shift.rate_snapshot, dict) else {}
+        total += amount
+        hours_total += hours
+        items.append(
+            {
+                'date': shift.date.isoformat(),
+                'workType': shift.work_type.name if shift.work_type else '',
+                'hours': hours,
+                'regularHours': float(snap.get('regular_h', min(hours, 8.0))),
+                'overtimeHours': float(snap.get('overtime_h', max(0.0, hours - 8.0))),
+                'amount': amount,
+                'source': shift_source_label(shift),
+            }
+        )
+
+    return {
+        'month': month,
+        'employeeId': str(employee_id),
+        'employeeName': employee.full_name if employee else '',
+        'shiftsCount': len(items),
+        'hours': round(hours_total, 2),
+        'totalAmount': round(total, 2),
+        'shifts': items,
+    }
 
 
 async def build_inventory_workbook(db: AsyncSession, from_date: date, to_date: date) -> Workbook:
@@ -402,9 +648,11 @@ async def build_expenses_workbook(db: AsyncSession, from_date: date, to_date: da
     return workbook
 
 
-async def build_summary_workbook(db: AsyncSession, month: str) -> Workbook:
+async def build_summary_workbook(
+    db: AsyncSession, month: str, org_id: UUID | None = None
+) -> Workbook:
     from_date, to_date = parse_month(month)
-    shifts = await fetch_shifts(db, from_date, to_date)
+    shifts = await fetch_shifts(db, from_date, to_date, org_id=org_id)
 
     shipments_result = await db.execute(
         select(Shipment).where(Shipment.date >= from_date, Shipment.date <= to_date)
@@ -514,8 +762,11 @@ async def build_summary_workbook(db: AsyncSession, month: str) -> Workbook:
 async def fetch_equipment_list(
     db: AsyncSession,
     equipment_id: UUID | None = None,
+    org_id: UUID | None = None,
 ) -> list[Equipment]:
     query = select(Equipment).where(Equipment.is_active.is_(True)).order_by(Equipment.name)
+    if org_id is not None:
+        query = query.where(Equipment.org_id == org_id)
     if equipment_id is not None:
         query = query.where(Equipment.id == equipment_id)
     result = await db.execute(query)
@@ -527,8 +778,9 @@ async def build_equipment_workbook(
     from_date: date,
     to_date: date,
     equipment_id: UUID | None = None,
+    org_id: UUID | None = None,
 ) -> Workbook:
-    equipment_list = await fetch_equipment_list(db, equipment_id)
+    equipment_list = await fetch_equipment_list(db, equipment_id, org_id=org_id)
     equipment_ids = [item.id for item in equipment_list]
 
     meter_logs: list[EquipmentMeterLog] = []
@@ -775,6 +1027,7 @@ async def build_equipment_workbook(
 async def fetch_field_locations(
     db: AsyncSession,
     field_id: UUID | None = None,
+    org_id: UUID | None = None,
 ) -> list[Location]:
     query = (
         select(Location)
@@ -784,6 +1037,8 @@ async def fetch_field_locations(
         )
         .order_by(Location.name)
     )
+    if org_id is not None:
+        query = query.where(Location.org_id == org_id)
     if field_id is not None:
         query = query.where(Location.id == field_id)
     result = await db.execute(query)
@@ -795,6 +1050,7 @@ async def fetch_field_shifts(
     from_date: date,
     to_date: date,
     field_id: UUID | None = None,
+    org_id: UUID | None = None,
 ) -> list[Shift]:
     query = (
         select(Shift)
@@ -812,6 +1068,8 @@ async def fetch_field_shifts(
         )
         .order_by(Shift.date, Shift.start_time)
     )
+    if org_id is not None:
+        query = query.where(Shift.org_id == org_id)
     if field_id is not None:
         query = query.where(Shift.field_id == field_id)
     result = await db.execute(query)
@@ -831,10 +1089,11 @@ async def build_fields_workbook(
     from_date: date,
     to_date: date,
     field_id: UUID | None = None,
+    org_id: UUID | None = None,
 ) -> Workbook:
-    fields = await fetch_field_locations(db, field_id)
+    fields = await fetch_field_locations(db, field_id, org_id=org_id)
     field_map = {item.id: item for item in fields}
-    shifts = await fetch_field_shifts(db, from_date, to_date, field_id)
+    shifts = await fetch_field_shifts(db, from_date, to_date, field_id, org_id=org_id)
 
     shifts_by_field: dict[UUID, list[Shift]] = defaultdict(list)
     for shift in shifts:
@@ -958,10 +1217,12 @@ def year_range(year: int) -> tuple[date, date]:
     return date(year, 1, 1), date(year, 12, 31)
 
 
-async def build_season_workbook(db: AsyncSession, year: int) -> Workbook:
+async def build_season_workbook(
+    db: AsyncSession, year: int, org_id: UUID | None = None
+) -> Workbook:
     from_date, to_date = year_range(year)
-    fields = await fetch_field_locations(db)
-    shifts = await fetch_field_shifts(db, from_date, to_date)
+    fields = await fetch_field_locations(db, org_id=org_id)
+    shifts = await fetch_field_shifts(db, from_date, to_date, org_id=org_id)
 
     hours_by_field_month: dict[UUID, dict[int, float]] = defaultdict(lambda: defaultdict(float))
     for shift in shifts:
@@ -994,7 +1255,7 @@ async def build_season_workbook(db: AsyncSession, year: int) -> Workbook:
     ws_matrix.title = 'Работы по месяцам'
     write_table(ws_matrix, matrix_headers, matrix_rows)
 
-    equipment_data = await build_equipment_workbook(db, from_date, to_date, None)
+    equipment_data = await build_equipment_workbook(db, from_date, to_date, None, org_id=org_id)
     ws_equipment_src = equipment_data['Сводка']
     equipment_rows = []
     for row in ws_equipment_src.iter_rows(
@@ -1063,29 +1324,36 @@ async def build_season_workbook(db: AsyncSession, year: int) -> Workbook:
         ['ИТОГО', round(total_expenses, 2), round(total_revenue, 2), round(total_net, 2)],
     )
 
-    year_shifts = await fetch_shifts(db, from_date, to_date)
-    employees_result = await db.execute(
-        select(Employee).where(Employee.is_active.is_(True)).order_by(Employee.full_name)
-    )
+    year_shifts = await fetch_shifts(db, from_date, to_date, org_id=org_id)
+    employees_query = select(Employee).where(Employee.is_active.is_(True))
+    if org_id is not None:
+        employees_query = employees_query.where(Employee.org_id == org_id)
+    employees_result = await db.execute(employees_query.order_by(Employee.full_name))
     employees = list(employees_result.scalars().all())
+
+    from app.services.salary import shift_pay_amount
 
     employee_stats: dict[UUID, dict[str, object]] = {
         employee.id: {
             'shifts': 0,
             'hours': 0.0,
+            'pay': 0.0,
             'name': employee.full_name,
-            'rate': employee.hourly_rate,
         }
         for employee in employees
     }
     for shift in year_shifts:
         if shift.employee_id not in employee_stats:
             continue
+        hours = shift_hours(shift)
         employee_stats[shift.employee_id]['shifts'] = (
             int(employee_stats[shift.employee_id]['shifts']) + 1
         )
         employee_stats[shift.employee_id]['hours'] = (
-            float(employee_stats[shift.employee_id]['hours']) + shift_hours(shift)
+            float(employee_stats[shift.employee_id]['hours']) + hours
+        )
+        employee_stats[shift.employee_id]['pay'] = (
+            float(employee_stats[shift.employee_id]['pay']) + shift_pay_amount(shift, hours)
         )
 
     employee_rows = []
@@ -1094,7 +1362,7 @@ async def build_season_workbook(db: AsyncSession, year: int) -> Workbook:
     for employee in employees:
         stats = employee_stats[employee.id]
         hours = round(float(stats['hours']), 2)
-        pay = round(hours * to_number(stats['rate']), 2)
+        pay = round(float(stats['pay']), 2)
         total_hours += hours
         total_pay += pay
         employee_rows.append([stats['name'], stats['shifts'], hours, pay])

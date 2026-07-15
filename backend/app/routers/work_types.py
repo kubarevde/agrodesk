@@ -1,3 +1,5 @@
-from fastapi import APIRouter
+"""Locations / work-types / equipment CRUD lives in references.py (mounted in main.py)."""
 
-router = APIRouter()
+from app.routers.references import work_types_router as router
+
+__all__ = ['router']

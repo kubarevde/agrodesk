@@ -98,7 +98,7 @@ function toShiftTimeValue(time: string): string {
   return time.length === 5 ? `${time}:00` : time
 }
 
-function toNumber(value: unknown): number {
+export function toNumber(value: unknown): number {
   if (value == null || value === '') return 0
   return Number(value)
 }
@@ -204,7 +204,7 @@ export function employeeFromApi(raw: ApiRecord): Employee {
     employeeCode: String(raw.employee_code),
     employeeName: String(raw.full_name),
     position: String(raw.position ?? ''),
-    telegramId: '',
+    telegramId: raw.telegram_id != null && raw.telegram_id !== '' ? String(raw.telegram_id) : '',
     hourlyRate: toNumber(raw.hourly_rate),
     role: raw.role as Employee['role'],
     isActive: Boolean(raw.is_active),
@@ -542,6 +542,8 @@ export function dashboardStatsFromApi(raw: ApiRecord): DashboardStats {
     monthShipmentWeight: toNumber(raw.month_shipments_kg),
     monthShipmentsSum: toNumber(raw.month_shipments_sum),
     monthExpensesSum: toNumber(raw.month_expenses_sum),
+    monthSalaryTotal: toNumber(raw.month_salary_total),
+    noRateShiftsCount: toNumber(raw.no_rate_shifts_count),
     criticalInventoryCount: toNumber(raw.critical_inventory_count),
     criticalInventory,
     weeklyHours,

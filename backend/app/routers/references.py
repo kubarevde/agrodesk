@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_manager
+from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
 from app.models.equipment_log import EquipmentMeterLog
 from app.models.reference import Equipment, Location, WorkType
@@ -101,11 +102,13 @@ def build_reference_router(
 
     @router.get('', response_model=list[response_model])
     async def list_items(
+        request: Request,
         is_active: bool | None = Query(None),
         db: AsyncSession = Depends(get_db),
         _: Employee = Depends(get_current_employee),
     ) -> list[Any]:
-        query = select(model)
+        org_id = get_org_id(request)
+        query = select(model).where(model.org_id == org_id)
         if is_active is not None:
             query = query.where(model.is_active == is_active)
         query = query.order_by(model.name)
@@ -114,19 +117,21 @@ def build_reference_router(
 
     @router.get('/{item_id}', response_model=response_model)
     async def get_item(
+        request: Request,
         item_id: UUID,
         db: AsyncSession = Depends(get_db),
         _: Employee = Depends(get_current_employee),
     ) -> Any:
-        return await _get_item_or_404(db, model, item_id)
+        return await _get_item_or_404(db, model, item_id, get_org_id(request))
 
     @router.post('', response_model=response_model, status_code=status.HTTP_201_CREATED)
     async def create_item(
+        request: Request,
         payload: create_model,  # type: ignore[valid-type]
         db: AsyncSession = Depends(get_db),
         _: Employee = Depends(require_manager),
     ) -> Any:
-        item = model(**payload.model_dump())
+        item = model(**payload.model_dump(), org_id=get_org_id(request))
         db.add(item)
         try:
             await db.commit()
@@ -141,12 +146,13 @@ def build_reference_router(
 
     @router.patch('/{item_id}', response_model=response_model)
     async def update_item(
+        request: Request,
         item_id: UUID,
         payload: update_model,  # type: ignore[valid-type]
         db: AsyncSession = Depends(get_db),
         _: Employee = Depends(require_manager),
     ) -> Any:
-        item = await _get_item_or_404(db, model, item_id)
+        item = await _get_item_or_404(db, model, item_id, get_org_id(request))
         for field, value in payload.model_dump(exclude_unset=True).items():
             setattr(item, field, value)
         db.add(item)
@@ -163,11 +169,12 @@ def build_reference_router(
 
     @router.delete('/{item_id}', status_code=status.HTTP_204_NO_CONTENT)
     async def delete_item(
+        request: Request,
         item_id: UUID,
         db: AsyncSession = Depends(get_db),
         _: Employee = Depends(require_manager),
     ) -> None:
-        item = await _get_item_or_404(db, model, item_id)
+        item = await _get_item_or_404(db, model, item_id, get_org_id(request))
         item.is_active = False
         db.add(item)
         await db.commit()
@@ -175,8 +182,12 @@ def build_reference_router(
     return router
 
 
-async def _get_item_or_404(db: AsyncSession, model: type[Any], item_id: UUID) -> Any:
-    result = await db.execute(select(model).where(model.id == item_id))
+async def _get_item_or_404(
+    db: AsyncSession, model: type[Any], item_id: UUID, org_id: UUID
+) -> Any:
+    result = await db.execute(
+        select(model).where(model.id == item_id, model.org_id == org_id)
+    )
     item = result.scalar_one_or_none()
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Не найдено')
@@ -188,11 +199,13 @@ def build_equipment_router() -> APIRouter:
 
     @router.get('', response_model=list[EquipmentResponse])
     async def list_equipment(
+        request: Request,
         is_active: bool | None = Query(None),
         db: AsyncSession = Depends(get_db),
         _: Employee = Depends(get_current_employee),
     ) -> list[EquipmentResponse]:
-        query = select(Equipment)
+        org_id = get_org_id(request)
+        query = select(Equipment).where(Equipment.org_id == org_id)
         if is_active is not None:
             query = query.where(Equipment.is_active == is_active)
         query = query.order_by(Equipment.name)
@@ -201,20 +214,23 @@ def build_equipment_router() -> APIRouter:
 
     @router.get('/{item_id}', response_model=EquipmentResponse)
     async def get_equipment(
+        request: Request,
         item_id: UUID,
         db: AsyncSession = Depends(get_db),
         _: Employee = Depends(get_current_employee),
     ) -> EquipmentResponse:
-        item = await _get_item_or_404(db, Equipment, item_id)
+        item = await _get_item_or_404(db, Equipment, item_id, get_org_id(request))
         return equipment_to_response(item)
 
     @router.post('', response_model=EquipmentResponse, status_code=status.HTTP_201_CREATED)
     async def create_equipment(
+        request: Request,
         payload: EquipmentCreate,
         db: AsyncSession = Depends(get_db),
         _: Employee = Depends(require_manager),
     ) -> EquipmentResponse:
         data = payload.model_dump()
+        data['org_id'] = get_org_id(request)
         data['next_to_at'] = resolve_next_to_at(
             current_meter=data.get('current_meter'),
             to_interval=data.get('to_interval'),
@@ -235,12 +251,13 @@ def build_equipment_router() -> APIRouter:
 
     @router.patch('/{item_id}', response_model=EquipmentResponse)
     async def update_equipment(
+        request: Request,
         item_id: UUID,
         payload: EquipmentUpdate,
         db: AsyncSession = Depends(get_db),
         current: Employee = Depends(require_manager),
     ) -> EquipmentResponse:
-        item = await _get_item_or_404(db, Equipment, item_id)
+        item = await _get_item_or_404(db, Equipment, item_id, get_org_id(request))
         updates = payload.model_dump(exclude_unset=True)
         previous_meter = Decimal(str(item.current_meter or 0))
 
@@ -283,11 +300,12 @@ def build_equipment_router() -> APIRouter:
 
     @router.delete('/{item_id}', status_code=status.HTTP_204_NO_CONTENT)
     async def delete_equipment(
+        request: Request,
         item_id: UUID,
         db: AsyncSession = Depends(get_db),
         _: Employee = Depends(require_manager),
     ) -> None:
-        item = await _get_item_or_404(db, Equipment, item_id)
+        item = await _get_item_or_404(db, Equipment, item_id, get_org_id(request))
         item.is_active = False
         db.add(item)
         await db.commit()

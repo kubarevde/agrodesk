@@ -53,6 +53,8 @@ class DashboardStatsResponse(BaseModel):
     month_shipments_kg: float
     month_shipments_sum: float
     month_expenses_sum: float
+    month_salary_total: float
+    no_rate_shifts_count: int
     critical_inventory_count: int
     critical_inventory: list[DashboardCriticalItem]
     weekly_hours: list[DashboardWeeklyHours]

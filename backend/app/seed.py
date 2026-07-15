@@ -8,6 +8,7 @@ from app.database import AsyncSessionLocal
 from app.models.employee import Employee, EmployeeRole
 from app.models.implement import Implement
 from app.models.inventory import InventoryCategory, InventoryItem
+from app.models.organization import Organization
 from app.models.reference import Equipment, Location, WorkType
 
 DEFAULT_PASSWORD_HASH = bcrypt.hashpw(b'1234', bcrypt.gensalt()).decode('utf-8')
@@ -87,13 +88,29 @@ async def is_table_empty(session, model) -> bool:
     return (result or 0) == 0
 
 
-async def seed_locations(session) -> None:
+async def get_or_create_main_org(session) -> Organization:
+    result = await session.execute(select(Organization).where(Organization.slug == 'main'))
+    org = result.scalar_one_or_none()
+    if org is not None:
+        return org
+    org = Organization(name='Основная организация', slug='main')
+    session.add(org)
+    await session.commit()
+    await session.refresh(org)
+    print('organizations: created main')
+    return org
+
+
+async def seed_locations(session, org_id) -> None:
     if not await is_table_empty(session, Location):
         await update_field_seed(session)
         return
 
     session.add_all(
-        [Location(name=name, description=description, is_active=True) for name, description in LOCATIONS]
+        [
+            Location(org_id=org_id, name=name, description=description, is_active=True)
+            for name, description in LOCATIONS
+        ]
     )
     await session.commit()
     await update_field_seed(session)
@@ -119,23 +136,27 @@ async def update_field_seed(session) -> None:
     print(f'fields: updated seed data for {updated} rows')
 
 
-async def seed_work_types(session) -> None:
+async def seed_work_types(session, org_id) -> None:
     if not await is_table_empty(session, WorkType):
         print('work_types: skip (already seeded)')
         return
 
     session.add_all(
-        [WorkType(name=name, category=category, is_active=True) for name, category in WORK_TYPES]
+        [
+            WorkType(org_id=org_id, name=name, category=category, is_active=True)
+            for name, category in WORK_TYPES
+        ]
     )
     await session.commit()
     print(f'work_types: seeded {len(WORK_TYPES)} rows')
 
 
-async def seed_equipment(session) -> None:
+async def seed_equipment(session, org_id) -> None:
     if await is_table_empty(session, Equipment):
         session.add_all(
             [
                 Equipment(
+                    org_id=org_id,
                     name=name,
                     type=equipment_type,
                     meter_type=meter_type,
@@ -173,7 +194,7 @@ async def seed_equipment(session) -> None:
     print(f'equipment: updated meters for {updated} rows')
 
 
-async def seed_employees(session) -> None:
+async def seed_employees(session, org_id) -> None:
     if not await is_table_empty(session, Employee):
         print('employees: skip (already seeded)')
         return
@@ -181,6 +202,7 @@ async def seed_employees(session) -> None:
     session.add_all(
         [
             Employee(
+                org_id=org_id,
                 employee_code=code,
                 full_name=full_name,
                 position=position,
@@ -265,10 +287,11 @@ async def seed_implements(session) -> None:
 
 async def main() -> None:
     async with AsyncSessionLocal() as session:
-        await seed_locations(session)
-        await seed_work_types(session)
-        await seed_equipment(session)
-        await seed_employees(session)
+        org = await get_or_create_main_org(session)
+        await seed_locations(session, org.id)
+        await seed_work_types(session, org.id)
+        await seed_equipment(session, org.id)
+        await seed_employees(session, org.id)
         await seed_inventory_items(session)
         await seed_implements(session)
 

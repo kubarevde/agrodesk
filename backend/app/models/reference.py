@@ -20,6 +20,7 @@ class Location(Base):
     __tablename__ = 'locations'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id'), nullable=False)
     name = Column(String(200), unique=True, nullable=False)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
@@ -48,12 +49,14 @@ class WorkType(Base):
     __tablename__ = 'work_types'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id'), nullable=False)
     name = Column(String(200), unique=True, nullable=False)
     category = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
 
     shifts = relationship('Shift', back_populates='work_type')
     agro_plans = relationship('AgroPlan', back_populates='work_type')
+    employee_rates = relationship('EmployeeRate', back_populates='work_type')
 
 
 class Equipment(Base):
@@ -66,6 +69,7 @@ class Equipment(Base):
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id'), nullable=False)
     name = Column(String(200), unique=True, nullable=False)
     type = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
