@@ -8,7 +8,31 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
-    base: mode === 'production' ? (env.VITE_BASE_PATH || '/agrodesk-prod/') : '/',
+    // Prod Docker/nginx: '/' | Yandex subfolder deploy: set VITE_BASE_PATH=/agrodesk-prod/
+    base: mode === 'production' ? (env.VITE_BASE_PATH || '/') : '/',
+    server: {
+      host: '0.0.0.0',
+      port: 5173,
+      strictPort: true,
+      proxy: {
+        '/api': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+        },
+        '/uploads': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+        },
+        '/superadmin/api': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+        },
+        '/health': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+        },
+      },
+    },
     plugins: [
     tanstackRouter({
       routesDirectory: './src/app/routes',

@@ -6,12 +6,19 @@ from sqlalchemy import func, select
 
 from app.database import AsyncSessionLocal
 from app.models.employee import Employee, EmployeeRole
+from app.models.employee_rate import EmployeeRate
 from app.models.implement import Implement
 from app.models.inventory import InventoryCategory, InventoryItem
 from app.models.organization import Organization
 from app.models.reference import Equipment, Location, WorkType
 
 DEFAULT_PASSWORD_HASH = bcrypt.hashpw(b'1234', bcrypt.gensalt()).decode('utf-8')
+
+# Demo credentials — see docs/seed-users.md
+DEMO_ORG_NAME = 'Demo AgroDesk'
+DEMO_ORG_SLUG = 'demo'
+DEMO_OWNER_EMAIL = 'admin@demo.agrodesk'
+DEMO_BOT_TELEGRAM_ID = 111111111
 
 LOCATIONS = [
     ('Поле №1', 'Пшеница'),
@@ -54,13 +61,21 @@ EQUIPMENT = [
     ('Сеялка СЗ-3.6', 'Спецтехника', 'shift_hours', Decimal('100'), Decimal('32'), Decimal('51.527400'), Decimal('36.232100')),
 ]
 
+# code, full_name, position, role, hourly_rate, telegram_id
 EMPLOYEES = [
-    ('EMP000', 'Администратор', None, EmployeeRole.admin, Decimal('0')),
-    ('EMP001', 'Иванов Сергей Николаевич', 'тракторист', EmployeeRole.employee, Decimal('250')),
-    ('EMP002', 'Петров Александр Иванович', 'комбайнёр', EmployeeRole.employee, Decimal('300')),
-    ('EMP003', 'Сидорова Мария Петровна', 'агроном', EmployeeRole.manager, Decimal('350')),
-    ('EMP004', 'Козлов Дмитрий Сергеевич', 'водитель', EmployeeRole.employee, Decimal('200')),
-    ('EMP005', 'Новиков Алексей Владимирович', 'разнорабочий', EmployeeRole.employee, Decimal('180')),
+    ('EMP000', 'Администратор', None, EmployeeRole.admin, Decimal('0'), None),
+    (
+        'EMP001',
+        'Иванов Сергей Николаевич',
+        'тракторист',
+        EmployeeRole.employee,
+        Decimal('250'),
+        DEMO_BOT_TELEGRAM_ID,
+    ),
+    ('EMP002', 'Петров Александр Иванович', 'комбайнёр', EmployeeRole.employee, Decimal('300'), None),
+    ('EMP003', 'Сидорова Мария Петровна', 'агроном', EmployeeRole.manager, Decimal('350'), None),
+    ('EMP004', 'Козлов Дмитрий Сергеевич', 'водитель', EmployeeRole.employee, Decimal('200'), None),
+    ('EMP005', 'Новиков Алексей Владимирович', 'разнорабочий', EmployeeRole.employee, Decimal('180'), None),
 ]
 
 INVENTORY_ITEMS = [
@@ -88,22 +103,38 @@ async def is_table_empty(session, model) -> bool:
     return (result or 0) == 0
 
 
-async def get_or_create_main_org(session) -> Organization:
-    result = await session.execute(select(Organization).where(Organization.slug == 'main'))
-    org = result.scalar_one_or_none()
-    if org is not None:
-        return org
-    org = Organization(name='Основная организация', slug='main')
+async def get_or_create_demo_org(session) -> Organization:
+    for slug in (DEMO_ORG_SLUG, 'main'):
+        result = await session.execute(select(Organization).where(Organization.slug == slug))
+        org = result.scalar_one_or_none()
+        if org is not None:
+            if org.owner_email != DEMO_OWNER_EMAIL:
+                org.owner_email = DEMO_OWNER_EMAIL
+                if org.slug == DEMO_ORG_SLUG and org.name != DEMO_ORG_NAME:
+                    org.name = DEMO_ORG_NAME
+                session.add(org)
+                await session.commit()
+                await session.refresh(org)
+            return org
+
+    org = Organization(
+        name=DEMO_ORG_NAME,
+        slug=DEMO_ORG_SLUG,
+        owner_email=DEMO_OWNER_EMAIL,
+        plan='trial',
+        is_active=True,
+        max_employees=50,
+    )
     session.add(org)
     await session.commit()
     await session.refresh(org)
-    print('organizations: created main')
+    print(f'organizations: created {DEMO_ORG_SLUG}')
     return org
 
 
 async def seed_locations(session, org_id) -> None:
     if not await is_table_empty(session, Location):
-        await update_field_seed(session)
+        await update_field_seed(session, org_id)
         return
 
     session.add_all(
@@ -113,14 +144,17 @@ async def seed_locations(session, org_id) -> None:
         ]
     )
     await session.commit()
-    await update_field_seed(session)
+    await update_field_seed(session, org_id)
     print(f'locations: seeded {len(LOCATIONS)} rows')
 
 
-async def update_field_seed(session) -> None:
+async def update_field_seed(session, org_id=None) -> None:
     updated = 0
     for name, crop_type, area_ha, soil_type, latitude, longitude in FIELD_SEED:
-        result = await session.execute(select(Location).where(Location.name == name))
+        query = select(Location).where(Location.name == name)
+        if org_id is not None:
+            query = query.where(Location.org_id == org_id)
+        result = await session.execute(query)
         item = result.scalar_one_or_none()
         if item is None:
             continue
@@ -195,27 +229,71 @@ async def seed_equipment(session, org_id) -> None:
 
 
 async def seed_employees(session, org_id) -> None:
-    if not await is_table_empty(session, Employee):
-        print('employees: skip (already seeded)')
+    if await is_table_empty(session, Employee):
+        session.add_all(
+            [
+                Employee(
+                    org_id=org_id,
+                    employee_code=code,
+                    full_name=full_name,
+                    position=position,
+                    role=role,
+                    hourly_rate=hourly_rate,
+                    telegram_id=telegram_id,
+                    password_hash=DEFAULT_PASSWORD_HASH,
+                    is_active=True,
+                )
+                for code, full_name, position, role, hourly_rate, telegram_id in EMPLOYEES
+            ]
+        )
+        await session.commit()
+        print(f'employees: seeded {len(EMPLOYEES)} rows')
+    else:
+        print('employees: skip create (already seeded)')
+
+    await ensure_demo_employee_links(session, org_id)
+
+
+async def ensure_demo_employee_links(session, org_id) -> None:
+    """Keep demo bot telegram_id and admin login alias stable across re-seeds."""
+    result = await session.execute(
+        select(Employee).where(
+            Employee.org_id == org_id,
+            Employee.employee_code == 'EMP001',
+        )
+    )
+    employee = result.scalar_one_or_none()
+    if employee is not None and employee.telegram_id != DEMO_BOT_TELEGRAM_ID:
+        employee.telegram_id = DEMO_BOT_TELEGRAM_ID
+        session.add(employee)
+        await session.commit()
+        print(f'employees: EMP001 telegram_id → {DEMO_BOT_TELEGRAM_ID}')
+
+    if employee is None:
         return
 
-    session.add_all(
-        [
-            Employee(
-                org_id=org_id,
-                employee_code=code,
-                full_name=full_name,
-                position=position,
-                role=role,
-                hourly_rate=hourly_rate,
-                password_hash=DEFAULT_PASSWORD_HASH,
-                is_active=True,
-            )
-            for code, full_name, position, role, hourly_rate in EMPLOYEES
-        ]
+    rate_exists = await session.scalar(
+        select(func.count())
+        .select_from(EmployeeRate)
+        .where(
+            EmployeeRate.org_id == org_id,
+            EmployeeRate.employee_id == employee.id,
+            EmployeeRate.work_type_id.is_(None),
+        )
     )
-    await session.commit()
-    print(f'employees: seeded {len(EMPLOYEES)} rows')
+    if int(rate_exists or 0) == 0:
+        session.add(
+            EmployeeRate(
+                org_id=org_id,
+                employee_id=employee.id,
+                work_type_id=None,
+                rate=Decimal('250'),
+                overtime_threshold_hours=Decimal('8'),
+                overtime_multiplier=Decimal('1.5'),
+            )
+        )
+        await session.commit()
+        print('employee_rates: seeded base rate for EMP001')
 
 
 async def seed_inventory_items(session) -> None:
@@ -285,9 +363,10 @@ async def seed_implements(session) -> None:
         print('implements: attachments already set or missing rows')
 
 
-async def main() -> None:
+async def ensure_demo_data() -> None:
+    """Idempotent demo bootstrap used by CLI seed and API startup."""
     async with AsyncSessionLocal() as session:
-        org = await get_or_create_main_org(session)
+        org = await get_or_create_demo_org(session)
         await seed_locations(session, org.id)
         await seed_work_types(session, org.id)
         await seed_equipment(session, org.id)
@@ -296,6 +375,10 @@ async def main() -> None:
         await seed_implements(session)
 
     print('Seed completed.')
+
+
+async def main() -> None:
+    await ensure_demo_data()
 
 
 if __name__ == '__main__':

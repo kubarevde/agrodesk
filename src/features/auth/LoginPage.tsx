@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AgroLogo } from '@/components/layout/AgroLogo'
+import { SectionHelp } from '@/components/shared/SectionHelp'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { LoginForm } from '@/features/auth/LoginForm'
 import { OrgSelector } from '@/features/auth/OrgSelector'
@@ -8,6 +9,7 @@ import {
   setSelectedOrg,
   type SelectedOrg,
 } from '@/features/auth/selectedOrg'
+import { loginHelp } from '@/features/help/content'
 
 export function LoginPage() {
   const saved = getSelectedOrg()
@@ -54,6 +56,9 @@ export function LoginPage() {
               Забыли пароль? Обратитесь к администратору
             </p>
           ) : null}
+          <div className="mt-6">
+            <SectionHelp title="Справка по входу" items={loginHelp} />
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -1,9 +1,11 @@
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { RefreshCw } from 'lucide-react'
+import { SectionHelp } from '@/components/shared/SectionHelp'
 import { SystemStatus } from '@/components/shared/SystemStatus'
 import { Button } from '@/components/ui/button'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { dashboardHelp } from '@/features/help/content'
 import { FieldsMapWidget } from './FieldsMapWidget'
 import { ActiveShiftsSection } from './components/ActiveShiftsSection'
 import { AgroPlanTodaySection } from './components/AgroPlanTodaySection'
@@ -43,6 +45,8 @@ export function DashboardPage() {
       </div>
 
       {isLoading || !stats ? <KpiCardsSkeleton /> : <KpiCards stats={stats} />}
+
+      <SectionHelp title="Справка по дашборду" items={dashboardHelp} />
 
       <EquipmentWarningsSection
         items={stats?.equipmentWarnings ?? []}

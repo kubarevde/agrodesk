@@ -1,8 +1,8 @@
 import { LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useCurrentUser, useLogout } from '@/features/auth/hooks'
+import { MyEarningsSection } from '@/features/auth/MyEarningsSection'
 import { ChangePasswordForm } from './ChangePasswordForm'
-import { MyStatsSection } from './MyStatsSection'
 import { ProfileInfoSection } from './ProfileInfoSection'
 
 export function ProfilePage() {
@@ -24,7 +24,7 @@ export function ProfilePage() {
       <h1 className="text-2xl font-semibold text-foreground">Профиль</h1>
       <ProfileInfoSection user={user} />
       <ChangePasswordForm />
-      {user.role === 'employee' ? <MyStatsSection user={user} /> : null}
+      {user.role === 'employee' ? <MyEarningsSection /> : null}
       <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={logout}>
         <LogOut className="size-4" />
         Выйти

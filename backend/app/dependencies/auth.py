@@ -33,6 +33,8 @@ async def get_current_employee(
         if employee_id is None:
             raise credentials_exception
         employee_uuid = UUID(str(employee_id))
+        token_org_raw = payload.get('org_id')
+        token_org_id = UUID(str(token_org_raw)) if token_org_raw is not None else None
     except (JWTError, ValueError):
         raise credentials_exception from None
 
@@ -40,6 +42,9 @@ async def get_current_employee(
     employee = result.scalar_one_or_none()
 
     if employee is None or not employee.is_active:
+        raise credentials_exception
+
+    if token_org_id is not None and employee.org_id != token_org_id:
         raise credentials_exception
 
     return employee

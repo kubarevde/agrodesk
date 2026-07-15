@@ -154,7 +154,7 @@ export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModal
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="hourlyRate">Ставка ₽/ч</Label>
+            <Label htmlFor="hourlyRate">Базовая ставка (fallback), ₽/ч</Label>
             <Input
               id="hourlyRate"
               type="number"
@@ -165,7 +165,11 @@ export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModal
             />
             {errors.hourlyRate ? (
               <p className="text-xs text-destructive">{errors.hourlyRate.message}</p>
-            ) : null}
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Запасной тариф. Основные ставки — в карточке сотрудника → «Ставки оплаты».
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

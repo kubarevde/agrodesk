@@ -2,13 +2,14 @@ import calendar
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_manager
+from app.middleware.org_context import get_org_id
 from app.models.agro_plan import AgroPlan
 from app.models.employee import Employee
 from app.models.implement import Implement
@@ -67,9 +68,12 @@ def plan_to_response(plan: AgroPlan) -> AgroPlanResponse:
     )
 
 
-async def get_plan_or_404(db: AsyncSession, plan_id: UUID) -> AgroPlan:
+async def get_plan_or_404(db: AsyncSession, plan_id: UUID, org_id: UUID) -> AgroPlan:
     result = await db.execute(
-        select(AgroPlan).options(*plan_load_options()).where(AgroPlan.id == plan_id)
+        select(AgroPlan)
+        .join(Location, AgroPlan.location_id == Location.id)
+        .options(*plan_load_options())
+        .where(AgroPlan.id == plan_id, Location.org_id == org_id)
     )
     plan = result.scalar_one_or_none()
     if plan is None:
@@ -79,6 +83,7 @@ async def get_plan_or_404(db: AsyncSession, plan_id: UUID) -> AgroPlan:
 
 async def validate_plan_refs(
     db: AsyncSession,
+    org_id: UUID,
     *,
     field_id: UUID | None = None,
     work_type_id: UUID | None = None,
@@ -87,14 +92,14 @@ async def validate_plan_refs(
     employee_id: UUID | None = None,
 ) -> None:
     if field_id is not None:
-        await get_field_or_404(db, field_id)
+        await get_field_or_404(db, field_id, org_id)
     if work_type_id is not None:
         work_type = await db.get(WorkType, work_type_id)
-        if work_type is None:
+        if work_type is None or work_type.org_id != org_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Тип работы не найден')
     if equipment_id is not None:
         equipment = await db.get(Equipment, equipment_id)
-        if equipment is None:
+        if equipment is None or equipment.org_id != org_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Техника не найдена')
     if implement_id is not None:
         implement = await db.get(Implement, implement_id)
@@ -105,22 +110,26 @@ async def validate_plan_refs(
             )
     if employee_id is not None:
         employee = await db.get(Employee, employee_id)
-        if employee is None:
+        if employee is None or employee.org_id != org_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Сотрудник не найден')
 
 
 @router.get('/today', response_model=list[AgroPlanResponse])
 async def list_agro_plans_today(
+    request: Request,
     employee_id: UUID | None = Query(None),
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(get_current_employee),
 ) -> list[AgroPlanResponse]:
+    org_id = get_org_id(request)
     today = date.today()
     target_employee_id = employee_id or current.id
     query = (
         select(AgroPlan)
+        .join(Location, AgroPlan.location_id == Location.id)
         .options(*plan_load_options())
         .where(
+            Location.org_id == org_id,
             AgroPlan.employee_id == target_employee_id,
             AgroPlan.status.in_(['planned', 'in_progress']),
             AgroPlan.planned_date <= today,
@@ -137,6 +146,7 @@ async def list_agro_plans_today(
 
 @router.get('', response_model=list[AgroPlanResponse])
 async def list_agro_plans(
+    request: Request,
     month: str | None = Query(None),
     field_id: UUID | None = Query(None),
     employee_id: UUID | None = Query(None),
@@ -144,7 +154,13 @@ async def list_agro_plans(
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> list[AgroPlanResponse]:
-    query = select(AgroPlan).options(*plan_load_options())
+    org_id = get_org_id(request)
+    query = (
+        select(AgroPlan)
+        .join(Location, AgroPlan.location_id == Location.id)
+        .options(*plan_load_options())
+        .where(Location.org_id == org_id)
+    )
 
     if month is not None:
         start, end = parse_month(month)
@@ -182,12 +198,15 @@ async def list_agro_plans(
 
 @router.post('', response_model=AgroPlanResponse, status_code=status.HTTP_201_CREATED)
 async def create_agro_plan(
+    request: Request,
     payload: AgroPlanCreate,
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(require_manager),
 ) -> AgroPlanResponse:
+    org_id = get_org_id(request)
     await validate_plan_refs(
         db,
+        org_id,
         field_id=payload.field_id,
         work_type_id=payload.work_type_id,
         equipment_id=payload.equipment_id,
@@ -209,21 +228,24 @@ async def create_agro_plan(
     )
     db.add(plan)
     await db.commit()
-    return plan_to_response(await get_plan_or_404(db, plan.id))
+    return plan_to_response(await get_plan_or_404(db, plan.id, org_id))
 
 
 @router.patch('/{plan_id}', response_model=AgroPlanResponse)
 async def update_agro_plan(
+    request: Request,
     plan_id: UUID,
     payload: AgroPlanUpdate,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> AgroPlanResponse:
-    plan = await get_plan_or_404(db, plan_id)
+    org_id = get_org_id(request)
+    plan = await get_plan_or_404(db, plan_id, org_id)
     update_data = payload.model_dump(exclude_unset=True)
 
     await validate_plan_refs(
         db,
+        org_id,
         field_id=update_data.get('field_id'),
         work_type_id=update_data.get('work_type_id'),
         equipment_id=update_data.get('equipment_id'),
@@ -239,15 +261,17 @@ async def update_agro_plan(
 
     db.add(plan)
     await db.commit()
-    return plan_to_response(await get_plan_or_404(db, plan.id))
+    return plan_to_response(await get_plan_or_404(db, plan.id, org_id))
 
 
 @router.delete('/{plan_id}', status_code=status.HTTP_204_NO_CONTENT)
 async def delete_agro_plan(
+    request: Request,
     plan_id: UUID,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> None:
-    plan = await get_plan_or_404(db, plan_id)
+    org_id = get_org_id(request)
+    plan = await get_plan_or_404(db, plan_id, org_id)
     await db.delete(plan)
     await db.commit()

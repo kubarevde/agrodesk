@@ -11,7 +11,6 @@ import {
 
 interface MonthShiftsListProps {
   shifts: Shift[]
-  hourlyRate: number
   onDetails: (shift: Shift) => void
 }
 
@@ -22,12 +21,12 @@ function shiftHours(shift: Shift): number {
   return 0
 }
 
-export function MonthShiftsList({ shifts, hourlyRate, onDetails }: MonthShiftsListProps) {
+/** Lists month shifts. Money totals live in MyEarningsSection (API salary). */
+export function MonthShiftsList({ shifts, onDetails }: MonthShiftsListProps) {
   const sorted = [...shifts].sort(
     (a, b) => parseApiDate(b.date).getTime() - parseApiDate(a.date).getTime(),
   )
   const totalHours = calcTotalHours(shifts.filter((shift) => shift.status === 'closed'))
-  const earnings = Math.round(totalHours * hourlyRate)
   const monthLabel = format(new Date(), 'LLLL yyyy', { locale: ru })
 
   return (
@@ -80,8 +79,8 @@ export function MonthShiftsList({ shifts, hourlyRate, onDetails }: MonthShiftsLi
       )}
 
       <p className="rounded-xl bg-muted/40 px-4 py-3 text-sm text-foreground">
-        Итого за {monthLabel}: {sorted.length} смен / {totalHours} часов / ~
-        {earnings.toLocaleString('ru-RU')} ₽
+        Итого за {monthLabel}: {sorted.length} смен / {totalHours} часов. Суммы — в блоке
+        «Мои начисления» ниже.
       </p>
     </section>
   )

@@ -1,9 +1,11 @@
 import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { SectionHelp } from '@/components/shared/SectionHelp'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { superadminHelp } from '@/features/help/content'
 import { OrgModal } from '@/features/superadmin/components/OrgModal'
 import { OrganizationsTable } from '@/features/superadmin/components/OrganizationsTable'
 import { TempPasswordDialog } from '@/features/superadmin/components/TempPasswordDialog'
@@ -69,6 +71,8 @@ export function SuperAdminDashboardPage() {
           Добавить организацию
         </Button>
       </div>
+
+      <SectionHelp title="Справка: суперадмин" items={superadminHelp} />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {loading || !stats ? (

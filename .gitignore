@@ -16,6 +16,12 @@ bot/.env
 .env
 .env.*
 !.env.example
+!.env.development
+
+# Legacy Sheets-only bot copies (do not use)
+bot-main/
+bot-main */
+legacy/
 
 # Python
 **/__pycache__/

@@ -31,10 +31,11 @@ from app.routers import (
     superadmin,
     uploads,
 )
+from app.seed import ensure_demo_data
 from app.services.auth import hash_password
 from app.services.telegram_notify import TelegramNotifier
 
-app = FastAPI(title='АгроДеск API', version='2.0.0', docs_url='/docs')
+app = FastAPI(title='АгроДеск API', version='5.0.0', docs_url='/docs')
 app.state.notifier = TelegramNotifier(settings.telegram_bot_token)
 
 app.add_middleware(
@@ -47,8 +48,7 @@ app.add_middleware(
 app.add_middleware(OrgContextMiddleware)
 
 
-@app.on_event('startup')
-async def seed_superadmin() -> None:
+async def _seed_superadmin() -> None:
     if not settings.superadmin_email or not settings.superadmin_password:
         return
 
@@ -67,9 +67,21 @@ async def seed_superadmin() -> None:
         await db.commit()
 
 
+@app.on_event('startup')
+async def bootstrap_on_startup() -> None:
+    await _seed_superadmin()
+    if settings.RUN_SEED_ON_START:
+        await ensure_demo_data()
+
+
 @app.get('/health')
 async def health() -> dict[str, str]:
-    return {'status': 'ok', 'version': '2.0.0'}
+    return {'status': 'ok', 'version': '5.0.0'}
+
+
+@app.get('/api/health')
+async def api_health() -> dict[str, str]:
+    return {'status': 'ok', 'version': '5.0.0'}
 
 
 app.include_router(superadmin.router, prefix='/superadmin/api', tags=['superadmin'])

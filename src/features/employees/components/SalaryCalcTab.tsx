@@ -1,8 +1,10 @@
 import { Download, Calculator } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
+import { SectionHelp } from '@/components/shared/SectionHelp'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { salaryHelp } from '@/features/help/content'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -54,6 +56,7 @@ export function SalaryCalcTab() {
 
   return (
     <div className="space-y-4">
+      <SectionHelp title="Справка: расчёт ЗП" items={salaryHelp} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-2">
           <Label htmlFor="salary-month">Месяц</Label>

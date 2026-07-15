@@ -11,7 +11,7 @@ from app.database import AsyncSessionLocal
 from app.models.organization import Organization
 from app.services.auth import ALGORITHM
 
-_SKIP_EXACT = {'/', '/health'}
+_SKIP_EXACT = {'/', '/health', '/api/health'}
 _SKIP_PREFIXES = ('/superadmin', '/api/auth')
 
 

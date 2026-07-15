@@ -3,6 +3,7 @@ import { Plus, Users } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { SectionHelp } from '@/components/shared/SectionHelp'
 import { SkeletonTable } from '@/components/shared/SkeletonTable'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -10,6 +11,7 @@ import type { Employee } from '@/types'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { useEmployees, useUpdateEmployee } from '@/features/employees/hooks'
 import { useAllEmployeeRates } from '@/features/employees/salaryHooks'
+import { employeesHelp } from '@/features/help/content'
 import { EmployeeDetailSheet } from './EmployeeDetailSheet'
 import { EmployeeFormModal } from './EmployeeFormModal'
 import { EmployeeToggleDialog } from './EmployeeToggleDialog'
@@ -118,7 +120,8 @@ export function EmployeesPage() {
             <TabsTrigger value="list">Сотрудники</TabsTrigger>
             <TabsTrigger value="salary">Расчёт ЗП</TabsTrigger>
           </TabsList>
-          <TabsContent value="list" className="mt-4">
+          <TabsContent value="list" className="mt-4 space-y-4">
+            <SectionHelp title="Справка: сотрудники и ставки" items={employeesHelp} />
             {listContent}
           </TabsContent>
           <TabsContent value="salary" className="mt-4">
@@ -126,7 +129,10 @@ export function EmployeesPage() {
           </TabsContent>
         </Tabs>
       ) : (
-        listContent
+        <div className="space-y-4">
+          <SectionHelp title="Справка: сотрудники и ставки" items={employeesHelp} />
+          {listContent}
+        </div>
       )}
 
       <EmployeeDetailSheet
