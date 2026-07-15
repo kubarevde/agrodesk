@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: agrodesk
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - agrodesk_pg:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d agrodesk']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/agrodesk
+      SECRET_KEY: change-me-in-production
+      BOT_INTERNAL_SECRET: agrodesk-bot-secret-change-me
+      TELEGRAM_BOT_TOKEN: ''
+      ALLOWED_ORIGINS: http://localhost,http://localhost:5173
+      API_URL: http://localhost:8000
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-admin@agrodesk.local}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-ChangeMe123!}
+    ports:
+      - '8000:8000'
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - agrodesk_uploads:/app/uploads
+
+  web:
+    build:
+      context: .
+      args:
+        VITE_API_URL: ''
+    ports:
+      - '80:80'
+    depends_on:
+      - api
+
+volumes:
+  agrodesk_pg:
+  agrodesk_uploads:

@@ -1,13 +1,14 @@
 from datetime import date, datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_admin, require_manager
+from app.middleware.org_context import get_org_id
 from app.models.agro_plan import AgroPlan
 from app.models.employee import Employee, EmployeeRole
 from app.models.implement import Implement
@@ -22,6 +23,7 @@ from app.schemas.shift import (
 )
 from app.services.dashboard import clear_dashboard_cache
 from app.services.equipment_meters import add_equipment_meter_log, calc_meter_label
+from app.services.salary import apply_salary_to_shift
 from app.services.shifts import (
     calc_duration_from_datetimes,
     calc_duration_minutes,
@@ -57,6 +59,8 @@ def shift_to_response(shift: Shift) -> ShiftResponse:
         status=shift.status.value,
         duration_raw=shift.duration_raw,
         duration_rounded=shift.duration_rounded,
+        calculated_amount=shift.calculated_amount,
+        rate_snapshot=shift.rate_snapshot if isinstance(shift.rate_snapshot, dict) else None,
         latitude=shift.latitude,
         longitude=shift.longitude,
     )
@@ -73,9 +77,11 @@ def shift_load_options():
     )
 
 
-async def get_shift_or_404(db: AsyncSession, shift_id: UUID) -> Shift:
+async def get_shift_or_404(db: AsyncSession, shift_id: UUID, org_id: UUID) -> Shift:
     result = await db.execute(
-        select(Shift).options(*shift_load_options()).where(Shift.id == shift_id)
+        select(Shift)
+        .options(*shift_load_options())
+        .where(Shift.id == shift_id, Shift.org_id == org_id)
     )
     shift = result.scalar_one_or_none()
     if shift is None:
@@ -90,6 +96,7 @@ def ensure_shift_access(shift: Shift, current: Employee) -> None:
 
 async def validate_reference_ids(
     db: AsyncSession,
+    org_id: UUID,
     *,
     location_id: UUID,
     work_type_id: UUID,
@@ -98,21 +105,21 @@ async def validate_reference_ids(
     implement_id: UUID | None = None,
 ) -> None:
     location = await db.get(Location, location_id)
-    if location is None or not location.is_active:
+    if location is None or not location.is_active or location.org_id != org_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Локация не найдена')
 
     work_type = await db.get(WorkType, work_type_id)
-    if work_type is None or not work_type.is_active:
+    if work_type is None or not work_type.is_active or work_type.org_id != org_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Тип работ не найден')
 
     if equipment_id is not None:
         equipment = await db.get(Equipment, equipment_id)
-        if equipment is None or not equipment.is_active:
+        if equipment is None or not equipment.is_active or equipment.org_id != org_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Техника не найдена')
 
     if field_id is not None:
         field = await db.get(Location, field_id)
-        if field is None or not field.is_active:
+        if field is None or not field.is_active or field.org_id != org_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Поле не найдено')
 
     if implement_id is not None:
@@ -124,16 +131,17 @@ async def validate_reference_ids(
             )
 
 
-async def get_employee_or_400(db: AsyncSession, employee_id: UUID) -> Employee:
+async def get_employee_or_400(db: AsyncSession, employee_id: UUID, org_id: UUID) -> Employee:
     employee = await db.get(Employee, employee_id)
-    if employee is None or not employee.is_active:
+    if employee is None or not employee.is_active or employee.org_id != org_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Сотрудник не найден')
     return employee
 
 
-async def ensure_no_open_shift(db: AsyncSession, employee_id: UUID) -> None:
+async def ensure_no_open_shift(db: AsyncSession, employee_id: UUID, org_id: UUID) -> None:
     result = await db.execute(
         select(Shift.id).where(
+            Shift.org_id == org_id,
             Shift.employee_id == employee_id,
             Shift.status == ShiftStatus.open,
         )
@@ -166,6 +174,7 @@ def recalculate_duration(shift: Shift) -> None:
 
 @router.get('', response_model=list[ShiftResponse])
 async def list_shifts(
+    request: Request,
     from_date: date | None = Query(None),
     to_date: date | None = Query(None),
     employee_id: UUID | None = Query(None),
@@ -173,7 +182,8 @@ async def list_shifts(
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(get_current_employee),
 ) -> list[ShiftResponse]:
-    query = select(Shift).options(*shift_load_options())
+    org_id = get_org_id(request)
+    query = select(Shift).options(*shift_load_options()).where(Shift.org_id == org_id)
 
     if current.role == EmployeeRole.employee:
         query = query.where(Shift.employee_id == current.id)
@@ -194,35 +204,40 @@ async def list_shifts(
 
 @router.get('/{shift_id}', response_model=ShiftResponse)
 async def get_shift(
+    request: Request,
     shift_id: UUID,
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(get_current_employee),
 ) -> ShiftResponse:
-    shift = await get_shift_or_404(db, shift_id)
+    shift = await get_shift_or_404(db, shift_id, get_org_id(request))
     ensure_shift_access(shift, current)
     return shift_to_response(shift)
 
 
 @router.post('', response_model=ShiftResponse, status_code=status.HTTP_201_CREATED)
 async def open_shift(
+    request: Request,
     payload: ShiftCreate,
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(get_current_employee),
 ) -> ShiftResponse:
+    org_id = get_org_id(request)
     target_employee_id = resolve_target_employee_id(payload, current)
-    await get_employee_or_400(db, target_employee_id)
+    await get_employee_or_400(db, target_employee_id, org_id)
     await validate_reference_ids(
         db,
+        org_id,
         location_id=payload.location_id,
         work_type_id=payload.work_type_id,
         equipment_id=payload.equipment_id,
         field_id=payload.field_id,
         implement_id=payload.implement_id,
     )
-    await ensure_no_open_shift(db, target_employee_id)
+    await ensure_no_open_shift(db, target_employee_id, org_id)
 
     now = datetime.now()
     shift = Shift(
+        org_id=org_id,
         date=now.date(),
         employee_id=target_employee_id,
         start_time=now.time().replace(microsecond=0),
@@ -239,19 +254,22 @@ async def open_shift(
     await db.commit()
     clear_dashboard_cache()
 
-    shift = await get_shift_or_404(db, shift.id)
+    shift = await get_shift_or_404(db, shift.id, org_id)
     return shift_to_response(shift)
 
 
 @router.post('/manual', response_model=ShiftResponse, status_code=status.HTTP_201_CREATED)
 async def add_manual_shift(
+    request: Request,
     payload: ShiftManualAdd,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> ShiftResponse:
-    await get_employee_or_400(db, payload.employee_id)
+    org_id = get_org_id(request)
+    await get_employee_or_400(db, payload.employee_id, org_id)
     await validate_reference_ids(
         db,
+        org_id,
         location_id=payload.location_id,
         work_type_id=payload.work_type_id,
         equipment_id=payload.equipment_id,
@@ -267,6 +285,7 @@ async def add_manual_shift(
         )
 
     shift = Shift(
+        org_id=org_id,
         date=payload.date,
         employee_id=payload.employee_id,
         start_time=payload.start_time,
@@ -283,21 +302,25 @@ async def add_manual_shift(
         duration_rounded=calc_duration_rounded(duration_raw),
     )
     db.add(shift)
+    await db.flush()
+    await apply_salary_to_shift(db, shift)
     await db.commit()
     clear_dashboard_cache()
 
-    shift = await get_shift_or_404(db, shift.id)
+    shift = await get_shift_or_404(db, shift.id, org_id)
     return shift_to_response(shift)
 
 
 @router.post('/{shift_id}/close', response_model=ShiftResponse)
 async def close_shift(
+    request: Request,
     shift_id: UUID,
     payload: ShiftClose,
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(get_current_employee),
 ) -> ShiftResponse:
-    shift = await get_shift_or_404(db, shift_id)
+    org_id = get_org_id(request)
+    shift = await get_shift_or_404(db, shift_id, org_id)
 
     if shift.status != ShiftStatus.open:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Смена уже закрыта')
@@ -318,6 +341,7 @@ async def close_shift(
     duration_raw = calc_duration_from_datetimes(start_dt, now)
     shift.duration_raw = duration_raw
     shift.duration_rounded = calc_duration_rounded(duration_raw)
+    await apply_salary_to_shift(db, shift)
 
     db.add(shift)
 
@@ -325,6 +349,7 @@ async def close_shift(
         equipment = await db.get(Equipment, shift.equipment_id)
         if (
             equipment is not None
+            and equipment.org_id == org_id
             and equipment.meter_type == 'shift_hours'
             and float(shift.duration_rounded) > 0
         ):
@@ -354,22 +379,24 @@ async def close_shift(
     await db.commit()
     clear_dashboard_cache()
 
-    shift = await get_shift_or_404(db, shift.id)
+    shift = await get_shift_or_404(db, shift.id, org_id)
     return shift_to_response(shift)
 
 
 @router.patch('/{shift_id}', response_model=ShiftResponse)
 async def update_shift(
+    request: Request,
     shift_id: UUID,
     payload: ShiftUpdate,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> ShiftResponse:
-    shift = await get_shift_or_404(db, shift_id)
+    org_id = get_org_id(request)
+    shift = await get_shift_or_404(db, shift_id, org_id)
     update_data = payload.model_dump(exclude_unset=True)
 
     if 'employee_id' in update_data:
-        await get_employee_or_400(db, update_data['employee_id'])
+        await get_employee_or_400(db, update_data['employee_id'], org_id)
 
     reference_ids = {
         'location_id': update_data.get('location_id', shift.location_id),
@@ -382,7 +409,7 @@ async def update_shift(
         key in update_data
         for key in ('location_id', 'work_type_id', 'equipment_id', 'field_id', 'implement_id')
     ):
-        await validate_reference_ids(db, **reference_ids)
+        await validate_reference_ids(db, org_id, **reference_ids)
 
     for field, value in update_data.items():
         setattr(shift, field, value)
@@ -401,17 +428,18 @@ async def update_shift(
     await db.commit()
     clear_dashboard_cache()
 
-    shift = await get_shift_or_404(db, shift.id)
+    shift = await get_shift_or_404(db, shift.id, org_id)
     return shift_to_response(shift)
 
 
 @router.delete('/{shift_id}', status_code=status.HTTP_204_NO_CONTENT)
 async def delete_shift(
+    request: Request,
     shift_id: UUID,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_admin),
 ) -> None:
-    shift = await get_shift_or_404(db, shift_id)
+    shift = await get_shift_or_404(db, shift_id, get_org_id(request))
     await db.delete(shift)
     await db.commit()
     clear_dashboard_cache()

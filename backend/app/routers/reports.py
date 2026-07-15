@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies.auth import require_manager
+from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
 from app.schemas.reports import (
     DateRangeRequest,
@@ -17,6 +18,7 @@ from app.services.reports import (
     build_expenses_workbook,
     build_fields_workbook,
     build_inventory_workbook,
+    build_salary_preview,
     build_salary_workbook,
     build_season_workbook,
     build_shipments_workbook,
@@ -30,6 +32,7 @@ router = APIRouter()
 
 @router.post('/timesheet')
 async def report_timesheet(
+    request: Request,
     payload: TimesheetReportRequest,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
@@ -39,17 +42,29 @@ async def report_timesheet(
         payload.from_date,
         payload.to_date,
         payload.employee_id,
+        org_id=get_org_id(request),
     )
     return workbook_response(workbook, 'timesheet.xlsx')
 
 
+@router.get('/salary-preview')
+async def report_salary_preview(
+    request: Request,
+    month: str = Query(..., pattern=r'^\d{4}-\d{2}$'),
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(require_manager),
+):
+    return await build_salary_preview(db, month, org_id=get_org_id(request))
+
+
 @router.post('/salary')
 async def report_salary(
+    request: Request,
     payload: MonthReportRequest,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ):
-    workbook = await build_salary_workbook(db, payload.month)
+    workbook = await build_salary_workbook(db, payload.month, org_id=get_org_id(request))
     return workbook_response(workbook, f'salary_{payload.month}.xlsx')
 
 
@@ -85,16 +100,18 @@ async def report_expenses(
 
 @router.post('/summary')
 async def report_summary(
+    request: Request,
     payload: MonthReportRequest,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ):
-    workbook = await build_summary_workbook(db, payload.month)
+    workbook = await build_summary_workbook(db, payload.month, org_id=get_org_id(request))
     return workbook_response(workbook, f'summary_{payload.month}.xlsx')
 
 
 @router.post('/equipment')
 async def report_equipment(
+    request: Request,
     payload: EquipmentReportRequest,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
@@ -104,6 +121,7 @@ async def report_equipment(
         payload.from_date,
         payload.to_date,
         payload.equipment_id,
+        org_id=get_org_id(request),
     )
     return workbook_response(
         workbook,
@@ -113,6 +131,7 @@ async def report_equipment(
 
 @router.post('/fields')
 async def report_fields(
+    request: Request,
     payload: FieldsReportRequest,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
@@ -122,6 +141,7 @@ async def report_fields(
         payload.from_date,
         payload.to_date,
         payload.field_id,
+        org_id=get_org_id(request),
     )
     return workbook_response(
         workbook,
@@ -131,9 +151,10 @@ async def report_fields(
 
 @router.post('/season')
 async def report_season(
+    request: Request,
     payload: SeasonReportRequest,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ):
-    workbook = await build_season_workbook(db, payload.year)
+    workbook = await build_season_workbook(db, payload.year, org_id=get_org_id(request))
     return workbook_response(workbook, f'season_{payload.year}.xlsx')

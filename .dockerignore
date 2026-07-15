@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.cursor
+**/__pycache__
+**/*.pyc
+backend/.env
+.env
+.env.*
+!.env.example
+backend/uploads
+test-results
+e2e
+bot-main

@@ -21,11 +21,20 @@ interface EmployeesTableProps {
   employees: Employee[]
   actions: EmployeeRowActions | null
   onRowClick: (employee: Employee) => void
+  employeeIdsWithRates?: Set<string>
 }
 
-export function EmployeesTable({ employees, actions, onRowClick }: EmployeesTableProps) {
+export function EmployeesTable({
+  employees,
+  actions,
+  onRowClick,
+  employeeIdsWithRates = new Set(),
+}: EmployeesTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
-  const columns = useMemo(() => createEmployeeColumns(actions), [actions])
+  const columns = useMemo(
+    () => createEmployeeColumns(actions, employeeIdsWithRates),
+    [actions, employeeIdsWithRates],
+  )
 
   const table = useReactTable({
     data: employees,

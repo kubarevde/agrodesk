@@ -3,12 +3,17 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import func, select
 
 from app.config import settings
+from app.database import AsyncSessionLocal
+from app.middleware.org_context import OrgContextMiddleware
+from app.models.organization import SuperAdminUser
 from app.routers import (
     agro_plan,
     auth,
     dashboard,
+    employee_rates,
     employees,
     equipment_logs,
     expenses,
@@ -23,10 +28,14 @@ from app.routers import (
     sharing,
     shipments,
     shifts,
+    superadmin,
     uploads,
 )
+from app.services.auth import hash_password
+from app.services.telegram_notify import TelegramNotifier
 
 app = FastAPI(title='АгроДеск API', version='2.0.0', docs_url='/docs')
+app.state.notifier = TelegramNotifier(settings.telegram_bot_token)
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,6 +44,27 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
+app.add_middleware(OrgContextMiddleware)
+
+
+@app.on_event('startup')
+async def seed_superadmin() -> None:
+    if not settings.superadmin_email or not settings.superadmin_password:
+        return
+
+    async with AsyncSessionLocal() as db:
+        existing = await db.scalar(select(func.count()).select_from(SuperAdminUser))
+        if int(existing or 0) > 0:
+            return
+
+        db.add(
+            SuperAdminUser(
+                email=settings.superadmin_email.lower(),
+                hashed_password=hash_password(settings.superadmin_password),
+                is_active=True,
+            )
+        )
+        await db.commit()
 
 
 @app.get('/health')
@@ -42,9 +72,11 @@ async def health() -> dict[str, str]:
     return {'status': 'ok', 'version': '2.0.0'}
 
 
+app.include_router(superadmin.router, prefix='/superadmin/api', tags=['superadmin'])
 app.include_router(auth.router, prefix='/api/auth', tags=['auth'])
 app.include_router(agro_plan.router, prefix='/api/agro-plan', tags=['agro-plan'])
 app.include_router(employees.router, prefix='/api/employees', tags=['employees'])
+app.include_router(employee_rates.router, prefix='/api/employee-rates', tags=['employee-rates'])
 app.include_router(shifts.router, prefix='/api/shifts', tags=['shifts'])
 app.include_router(references.locations_router, prefix='/api/locations', tags=['locations'])
 app.include_router(fields.router, prefix='/api/fields', tags=['fields'])

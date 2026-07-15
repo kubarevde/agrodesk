@@ -71,18 +71,36 @@ async def fetch_shift_stats(
     week_start: date,
     week_end: date,
     now: datetime,
-) -> tuple[int, list[DashboardActiveShift], float, int, float, list[DashboardWeeklyHours]]:
+    org_id: UUID,
+) -> tuple[
+    int,
+    list[DashboardActiveShift],
+    float,
+    int,
+    float,
+    list[DashboardWeeklyHours],
+    float,
+    int,
+]:
+    from app.services.salary import shift_pay_amount
+
     async with AsyncSessionLocal() as db:
         month_result = await db.execute(
             select(Shift)
             .options(selectinload(Shift.employee), selectinload(Shift.location))
-            .where(Shift.date >= month_start, Shift.date <= month_end)
+            .where(
+                Shift.org_id == org_id,
+                Shift.date >= month_start,
+                Shift.date <= month_end,
+            )
         )
         month_shifts = month_result.scalars().all()
 
     active_shifts: list[DashboardActiveShift] = []
     today_shifts: list[Shift] = []
     weekly_map: dict[date, list[Shift]] = {}
+    month_salary_total = 0.0
+    no_rate_shifts_count = 0
 
     for shift in month_shifts:
         if shift.status == ShiftStatus.open:
@@ -102,6 +120,16 @@ async def fetch_shift_stats(
 
         if week_start <= shift.date <= week_end:
             weekly_map.setdefault(shift.date, []).append(shift)
+
+        if shift.status == ShiftStatus.closed:
+            hours = shift_hours(shift, now)
+            month_salary_total += shift_pay_amount(shift, hours)
+            snap = shift.rate_snapshot if isinstance(shift.rate_snapshot, dict) else {}
+            source = snap.get('source')
+            if source == 'fallback_hourly_rate' or (
+                shift.calculated_amount is None and not source
+            ):
+                no_rate_shifts_count += 1
 
     active_shifts.sort(key=lambda item: item.start_time)
     today_hours = round(sum(shift_hours(shift, now) for shift in today_shifts), 2)
@@ -127,6 +155,8 @@ async def fetch_shift_stats(
         len(month_shifts),
         month_hours,
         weekly_hours,
+        round(month_salary_total, 2),
+        no_rate_shifts_count,
     )
 
 
@@ -184,11 +214,15 @@ async def fetch_critical_inventory() -> tuple[int, list[DashboardCriticalItem]]:
     return len(critical), critical
 
 
-async def fetch_equipment_warnings() -> tuple[int, list[DashboardEquipmentWarning]]:
+async def fetch_equipment_warnings(org_id: UUID) -> tuple[int, list[DashboardEquipmentWarning]]:
     async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(Equipment)
-            .where(Equipment.is_active.is_(True), Equipment.next_to_at.is_not(None))
+            .where(
+                Equipment.org_id == org_id,
+                Equipment.is_active.is_(True),
+                Equipment.next_to_at.is_not(None),
+            )
             .order_by(Equipment.name)
         )
         items = result.scalars().all()
@@ -250,7 +284,7 @@ async def fetch_sharing_new_requests(owner_id: UUID) -> int:
     return int(count or 0)
 
 
-async def compute_stats(owner_id: UUID) -> DashboardStatsResponse:
+async def compute_stats(owner_id: UUID, org_id: UUID) -> DashboardStatsResponse:
     today = date.today()
     now = datetime.now()
     month_start, month_end = month_range(today)
@@ -265,11 +299,11 @@ async def compute_stats(owner_id: UUID) -> DashboardStatsResponse:
         agro_plan_today,
         sharing_new_requests,
     ) = await asyncio.gather(
-        fetch_shift_stats(today, month_start, month_end, week_start, week_end, now),
+        fetch_shift_stats(today, month_start, month_end, week_start, week_end, now, org_id),
         fetch_shipment_stats(month_start, month_end),
         fetch_expense_stats(month_start, month_end),
         fetch_critical_inventory(),
-        fetch_equipment_warnings(),
+        fetch_equipment_warnings(org_id),
         fetch_agro_plan_today(today),
         fetch_sharing_new_requests(owner_id),
     )
@@ -281,6 +315,8 @@ async def compute_stats(owner_id: UUID) -> DashboardStatsResponse:
         month_shifts_count,
         month_hours,
         weekly_hours,
+        month_salary_total,
+        no_rate_shifts_count,
     ) = shift_stats
     month_shipments_kg, month_shipments_sum = shipment_stats
     critical_inventory_count, critical_inventory = critical_result
@@ -295,6 +331,8 @@ async def compute_stats(owner_id: UUID) -> DashboardStatsResponse:
         month_shipments_kg=month_shipments_kg,
         month_shipments_sum=month_shipments_sum,
         month_expenses_sum=month_expenses_sum,
+        month_salary_total=month_salary_total,
+        no_rate_shifts_count=no_rate_shifts_count,
         critical_inventory_count=critical_inventory_count,
         critical_inventory=critical_inventory,
         weekly_hours=weekly_hours,
@@ -305,9 +343,9 @@ async def compute_stats(owner_id: UUID) -> DashboardStatsResponse:
     )
 
 
-async def get_dashboard_stats(owner_id: UUID) -> DashboardStatsResponse:
+async def get_dashboard_stats(owner_id: UUID, org_id: UUID) -> DashboardStatsResponse:
     now = time.time()
-    cache_key = str(owner_id)
+    cache_key = f'{org_id}:{owner_id}'
     cached_map = _cache.get('by_user')
     if not isinstance(cached_map, dict):
         cached_map = {}
@@ -320,7 +358,7 @@ async def get_dashboard_stats(owner_id: UUID) -> DashboardStatsResponse:
         if data is not None and now < expires_at:
             return data  # type: ignore[return-value]
 
-    data = await compute_stats(owner_id)
+    data = await compute_stats(owner_id, org_id)
     cached_map[cache_key] = {'data': data, 'expires_at': now + 30}
     _cache['by_user'] = cached_map
     return data

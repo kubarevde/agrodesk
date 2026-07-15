@@ -9,6 +9,7 @@ import { getDefaultMonthRange } from '@/features/worktime/utils'
 import { CurrentShiftCard } from './CurrentShiftCard'
 import { EmployeeAgroTodaySection } from './EmployeeAgroTodaySection'
 import { MonthShiftsList } from './MonthShiftsList'
+import { MyEarningsSection } from './MyEarningsSection'
 
 interface EmployeeMyShiftViewProps {
   user: CurrentUser
@@ -62,6 +63,8 @@ export function EmployeeMyShiftView({ user }: EmployeeMyShiftViewProps) {
           onDetails={setDetailShift}
         />
       )}
+
+      <MyEarningsSection />
 
       <OpenShiftModal open={openShiftOpen} onClose={() => setOpenShiftOpen(false)} />
       {closeShiftTarget ? (

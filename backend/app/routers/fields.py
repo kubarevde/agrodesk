@@ -1,7 +1,7 @@
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_admin, require_manager
+from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
 from app.models.reference import Location
 from app.schemas.field import FieldCreate, FieldResponse, FieldUpdate
@@ -60,9 +61,11 @@ def field_load_options():
     return (selectinload(Location.sharing_listings),)
 
 
-async def get_field_or_404(db: AsyncSession, field_id: UUID) -> Location:
+async def get_field_or_404(db: AsyncSession, field_id: UUID, org_id: UUID) -> Location:
     result = await db.execute(
-        select(Location).options(*field_load_options()).where(Location.id == field_id)
+        select(Location)
+        .options(*field_load_options())
+        .where(Location.id == field_id, Location.org_id == org_id)
     )
     location = result.scalar_one_or_none()
     if location is None:
@@ -78,13 +81,16 @@ def is_field_location(location: Location) -> bool:
 
 @router.get('', response_model=list[FieldResponse])
 async def list_fields(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> list[FieldResponse]:
+    org_id = get_org_id(request)
     result = await db.execute(
         select(Location)
         .options(*field_load_options())
         .where(
+            Location.org_id == org_id,
             Location.is_active.is_(True),
             or_(Location.crop_type.is_not(None), Location.name.like('Поле%')),
         )
@@ -95,11 +101,12 @@ async def list_fields(
 
 @router.get('/{field_id}', response_model=FieldResponse)
 async def get_field(
+    request: Request,
     field_id: UUID,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> FieldResponse:
-    location = await get_field_or_404(db, field_id)
+    location = await get_field_or_404(db, field_id, get_org_id(request))
     if not is_field_location(location):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Поле не найдено')
     return location_to_field(location)
@@ -107,11 +114,14 @@ async def get_field(
 
 @router.post('', response_model=FieldResponse, status_code=status.HTTP_201_CREATED)
 async def create_field(
+    request: Request,
     payload: FieldCreate,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> FieldResponse:
+    org_id = get_org_id(request)
     location = Location(
+        org_id=org_id,
         name=payload.name,
         crop_type=payload.crop_type,
         area_ha=Decimal(str(payload.area_ha)) if payload.area_ha is not None else None,
@@ -132,18 +142,20 @@ async def create_field(
             detail='Поле с таким названием уже существует',
         ) from None
 
-    location = await get_field_or_404(db, location.id)
+    location = await get_field_or_404(db, location.id, org_id)
     return location_to_field(location)
 
 
 @router.patch('/{field_id}', response_model=FieldResponse)
 async def update_field(
+    request: Request,
     field_id: UUID,
     payload: FieldUpdate,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> FieldResponse:
-    location = await get_field_or_404(db, field_id)
+    org_id = get_org_id(request)
+    location = await get_field_or_404(db, field_id, org_id)
     updates = payload.model_dump(exclude_unset=True)
 
     for field, value in updates.items():
@@ -162,17 +174,18 @@ async def update_field(
             detail='Поле с таким названием уже существует',
         ) from None
 
-    location = await get_field_or_404(db, field_id)
+    location = await get_field_or_404(db, field_id, org_id)
     return location_to_field(location)
 
 
 @router.delete('/{field_id}', status_code=status.HTTP_204_NO_CONTENT)
 async def delete_field(
+    request: Request,
     field_id: UUID,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_admin),
 ) -> None:
-    location = await get_field_or_404(db, field_id)
+    location = await get_field_or_404(db, field_id, get_org_id(request))
     location.is_active = False
     db.add(location)
     await db.commit()

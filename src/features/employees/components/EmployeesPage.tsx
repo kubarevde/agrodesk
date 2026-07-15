@@ -1,35 +1,43 @@
+import { getRouteApi } from '@tanstack/react-router'
 import { Plus, Users } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { SkeletonTable } from '@/components/shared/SkeletonTable'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Employee } from '@/types'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { useEmployees, useUpdateEmployee } from '@/features/employees/hooks'
+import { useAllEmployeeRates } from '@/features/employees/salaryHooks'
 import { EmployeeDetailSheet } from './EmployeeDetailSheet'
 import { EmployeeFormModal } from './EmployeeFormModal'
+import { EmployeeToggleDialog } from './EmployeeToggleDialog'
 import { EmployeesTable } from './EmployeesTable'
+import { SalaryCalcTab } from './SalaryCalcTab'
 import type { EmployeeRowActions } from './employeesColumns'
 
+const employeesRoute = getRouteApi('/_layout/employees/')
+
 export function EmployeesPage() {
+  const { tab } = employeesRoute.useSearch()
+  const navigate = employeesRoute.useNavigate()
   const { data: user } = useCurrentUser()
   const isAdmin = user?.role === 'admin'
+  const canManage = user?.role === 'manager' || user?.role === 'admin'
   const { data: employees = [], isLoading, isError } = useEmployees()
+  const { data: allRates = [] } = useAllEmployeeRates(canManage)
   const updateEmployee = useUpdateEmployee()
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
   const [toggleTarget, setToggleTarget] = useState<Employee | null>(null)
+
+  const employeeIdsWithRates = useMemo(
+    () => new Set(allRates.map((rate) => rate.employeeId)),
+    [allRates],
+  )
 
   const openDetails = useCallback((employee: Employee) => {
     setSelectedEmployee(employee)
@@ -57,23 +65,37 @@ export function EmployeesPage() {
 
   const actions = useMemo<EmployeeRowActions | null>(() => {
     if (!isAdmin) return null
-    return {
-      onEdit: openEdit,
-      onToggleActive: setToggleTarget,
-    }
+    return { onEdit: openEdit, onToggleActive: setToggleTarget }
   }, [isAdmin, openEdit])
 
   useEffect(() => {
-    if (isError) {
-      toast.error('Ошибка: Не удалось загрузить сотрудников')
-    }
+    if (isError) toast.error('Ошибка: Не удалось загрузить сотрудников')
   }, [isError])
+
+  const listContent =
+    isLoading ? (
+      <SkeletonTable />
+    ) : employees.length === 0 ? (
+      <EmptyState
+        icon={Users}
+        title="Сотрудников пока нет"
+        description="Добавьте первого сотрудника, чтобы начать учёт рабочего времени"
+        action={isAdmin ? { label: 'Добавить', onClick: openCreate } : undefined}
+      />
+    ) : (
+      <EmployeesTable
+        employees={employees}
+        actions={actions}
+        onRowClick={openDetails}
+        employeeIdsWithRates={employeeIdsWithRates}
+      />
+    )
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold text-foreground">Сотрудники</h1>
-        {isAdmin ? (
+        {isAdmin && tab === 'list' ? (
           <Button
             type="button"
             className="bg-primary hover:bg-primary-hover text-primary-foreground"
@@ -85,17 +107,26 @@ export function EmployeesPage() {
         ) : null}
       </div>
 
-      {isLoading ? (
-        <SkeletonTable />
-      ) : employees.length === 0 ? (
-        <EmptyState
-          icon={Users}
-          title="Сотрудников пока нет"
-          description="Добавьте первого сотрудника, чтобы начать учёт рабочего времени"
-          action={isAdmin ? { label: 'Добавить', onClick: openCreate } : undefined}
-        />
+      {canManage ? (
+        <Tabs
+          value={tab}
+          onValueChange={(value) =>
+            void navigate({ search: { tab: value === 'salary' ? 'salary' : 'list' } })
+          }
+        >
+          <TabsList>
+            <TabsTrigger value="list">Сотрудники</TabsTrigger>
+            <TabsTrigger value="salary">Расчёт ЗП</TabsTrigger>
+          </TabsList>
+          <TabsContent value="list" className="mt-4">
+            {listContent}
+          </TabsContent>
+          <TabsContent value="salary" className="mt-4">
+            <SalaryCalcTab />
+          </TabsContent>
+        </Tabs>
       ) : (
-        <EmployeesTable employees={employees} actions={actions} onRowClick={openDetails} />
+        listContent
       )}
 
       <EmployeeDetailSheet
@@ -116,38 +147,12 @@ export function EmployeesPage() {
         />
       ) : null}
 
-      <Dialog open={Boolean(toggleTarget)} onOpenChange={(open) => !open && setToggleTarget(null)}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {toggleTarget?.isActive ? 'Деактивировать сотрудника?' : 'Активировать сотрудника?'}
-            </DialogTitle>
-            <DialogDescription>
-              {toggleTarget
-                ? `${toggleTarget.employeeName} (${toggleTarget.employeeCode})`
-                : ''}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" onClick={() => setToggleTarget(null)}>
-              Отмена
-            </Button>
-            <Button
-              type="button"
-              variant={toggleTarget?.isActive ? 'destructive' : 'default'}
-              className={
-                toggleTarget?.isActive
-                  ? undefined
-                  : 'bg-primary hover:bg-primary-hover text-primary-foreground'
-              }
-              disabled={updateEmployee.isPending}
-              onClick={() => void confirmToggleActive()}
-            >
-              {toggleTarget?.isActive ? 'Деактивировать' : 'Активировать'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EmployeeToggleDialog
+        employee={toggleTarget}
+        pending={updateEmployee.isPending}
+        onClose={() => setToggleTarget(null)}
+        onConfirm={() => void confirmToggleActive()}
+      />
     </div>
   )
 }

@@ -11,7 +11,11 @@
 import { Route as rootRouteImport } from './app/routes/__root'
 import { Route as LoginRouteImport } from './app/routes/login'
 import { Route as LayoutRouteImport } from './app/routes/_layout'
-import { Route as LayoutIndexRouteImport } from './app/routes/_layout/index'
+import { Route as SuperadminRouteRouteImport } from './app/routes/superadmin/route'
+import { Route as IndexRouteImport } from './app/routes/index'
+import { Route as LandingIndexRouteImport } from './app/routes/landing/index'
+import { Route as SuperadminLoginRouteImport } from './app/routes/superadmin/login'
+import { Route as SuperadminAuthenticatedRouteImport } from './app/routes/superadmin/_authenticated'
 import { Route as LayoutDashboardRouteImport } from './app/routes/_layout/dashboard'
 import { Route as LayoutWorktimeIndexRouteImport } from './app/routes/_layout/worktime/index'
 import { Route as LayoutShipmentsIndexRouteImport } from './app/routes/_layout/shipments/index'
@@ -28,6 +32,7 @@ import { Route as LayoutExpensesIndexRouteImport } from './app/routes/_layout/ex
 import { Route as LayoutEquipmentIndexRouteImport } from './app/routes/_layout/equipment/index'
 import { Route as LayoutEmployeesIndexRouteImport } from './app/routes/_layout/employees/index'
 import { Route as LayoutAgroCalendarIndexRouteImport } from './app/routes/_layout/agro-calendar/index'
+import { Route as SuperadminAuthenticatedDashboardRouteImport } from './app/routes/superadmin/_authenticated/dashboard'
 import { Route as LayoutImplementsImplementIdRouteImport } from './app/routes/_layout/implements/$implementId'
 import { Route as LayoutEquipmentEquipmentIdRouteImport } from './app/routes/_layout/equipment/$equipmentId'
 
@@ -40,10 +45,29 @@ const LayoutRoute = LayoutRouteImport.update({
   id: '/_layout',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LayoutIndexRoute = LayoutIndexRouteImport.update({
+const SuperadminRouteRoute = SuperadminRouteRouteImport.update({
+  id: '/superadmin',
+  path: '/superadmin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => LayoutRoute,
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LandingIndexRoute = LandingIndexRouteImport.update({
+  id: '/landing/',
+  path: '/landing/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SuperadminLoginRoute = SuperadminLoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => SuperadminRouteRoute,
+} as any)
+const SuperadminAuthenticatedRoute = SuperadminAuthenticatedRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => SuperadminRouteRoute,
 } as any)
 const LayoutDashboardRoute = LayoutDashboardRouteImport.update({
   id: '/dashboard',
@@ -126,6 +150,12 @@ const LayoutAgroCalendarIndexRoute = LayoutAgroCalendarIndexRouteImport.update({
   path: '/agro-calendar/',
   getParentRoute: () => LayoutRoute,
 } as any)
+const SuperadminAuthenticatedDashboardRoute =
+  SuperadminAuthenticatedDashboardRouteImport.update({
+    id: '/dashboard',
+    path: '/dashboard',
+    getParentRoute: () => SuperadminAuthenticatedRoute,
+  } as any)
 const LayoutImplementsImplementIdRoute =
   LayoutImplementsImplementIdRouteImport.update({
     id: '/implements/$implementId',
@@ -140,11 +170,15 @@ const LayoutEquipmentEquipmentIdRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof LayoutIndexRoute
+  '/': typeof IndexRoute
+  '/superadmin': typeof SuperadminRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/dashboard': typeof LayoutDashboardRoute
+  '/superadmin/login': typeof SuperadminLoginRoute
+  '/landing/': typeof LandingIndexRoute
   '/equipment/$equipmentId': typeof LayoutEquipmentEquipmentIdRoute
   '/implements/$implementId': typeof LayoutImplementsImplementIdRoute
+  '/superadmin/dashboard': typeof SuperadminAuthenticatedDashboardRoute
   '/agro-calendar/': typeof LayoutAgroCalendarIndexRoute
   '/employees/': typeof LayoutEmployeesIndexRoute
   '/equipment/': typeof LayoutEquipmentIndexRoute
@@ -162,11 +196,15 @@ export interface FileRoutesByFullPath {
   '/worktime/': typeof LayoutWorktimeIndexRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof IndexRoute
+  '/superadmin': typeof SuperadminRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/dashboard': typeof LayoutDashboardRoute
-  '/': typeof LayoutIndexRoute
+  '/superadmin/login': typeof SuperadminLoginRoute
+  '/landing': typeof LandingIndexRoute
   '/equipment/$equipmentId': typeof LayoutEquipmentEquipmentIdRoute
   '/implements/$implementId': typeof LayoutImplementsImplementIdRoute
+  '/superadmin/dashboard': typeof SuperadminAuthenticatedDashboardRoute
   '/agro-calendar': typeof LayoutAgroCalendarIndexRoute
   '/employees': typeof LayoutEmployeesIndexRoute
   '/equipment': typeof LayoutEquipmentIndexRoute
@@ -185,12 +223,17 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
+  '/superadmin': typeof SuperadminRouteRouteWithChildren
   '/_layout': typeof LayoutRouteWithChildren
   '/login': typeof LoginRoute
   '/_layout/dashboard': typeof LayoutDashboardRoute
-  '/_layout/': typeof LayoutIndexRoute
+  '/superadmin/_authenticated': typeof SuperadminAuthenticatedRouteWithChildren
+  '/superadmin/login': typeof SuperadminLoginRoute
+  '/landing/': typeof LandingIndexRoute
   '/_layout/equipment/$equipmentId': typeof LayoutEquipmentEquipmentIdRoute
   '/_layout/implements/$implementId': typeof LayoutImplementsImplementIdRoute
+  '/superadmin/_authenticated/dashboard': typeof SuperadminAuthenticatedDashboardRoute
   '/_layout/agro-calendar/': typeof LayoutAgroCalendarIndexRoute
   '/_layout/employees/': typeof LayoutEmployeesIndexRoute
   '/_layout/equipment/': typeof LayoutEquipmentIndexRoute
@@ -211,10 +254,14 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/superadmin'
     | '/login'
     | '/dashboard'
+    | '/superadmin/login'
+    | '/landing/'
     | '/equipment/$equipmentId'
     | '/implements/$implementId'
+    | '/superadmin/dashboard'
     | '/agro-calendar/'
     | '/employees/'
     | '/equipment/'
@@ -232,11 +279,15 @@ export interface FileRouteTypes {
     | '/worktime/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/'
+    | '/superadmin'
     | '/login'
     | '/dashboard'
-    | '/'
+    | '/superadmin/login'
+    | '/landing'
     | '/equipment/$equipmentId'
     | '/implements/$implementId'
+    | '/superadmin/dashboard'
     | '/agro-calendar'
     | '/employees'
     | '/equipment'
@@ -254,12 +305,17 @@ export interface FileRouteTypes {
     | '/worktime'
   id:
     | '__root__'
+    | '/'
+    | '/superadmin'
     | '/_layout'
     | '/login'
     | '/_layout/dashboard'
-    | '/_layout/'
+    | '/superadmin/_authenticated'
+    | '/superadmin/login'
+    | '/landing/'
     | '/_layout/equipment/$equipmentId'
     | '/_layout/implements/$implementId'
+    | '/superadmin/_authenticated/dashboard'
     | '/_layout/agro-calendar/'
     | '/_layout/employees/'
     | '/_layout/equipment/'
@@ -278,8 +334,11 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
+  SuperadminRouteRoute: typeof SuperadminRouteRouteWithChildren
   LayoutRoute: typeof LayoutRouteWithChildren
   LoginRoute: typeof LoginRoute
+  LandingIndexRoute: typeof LandingIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -298,12 +357,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_layout/': {
-      id: '/_layout/'
+    '/superadmin': {
+      id: '/superadmin'
+      path: '/superadmin'
+      fullPath: '/superadmin'
+      preLoaderRoute: typeof SuperadminRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof LayoutIndexRouteImport
-      parentRoute: typeof LayoutRoute
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/landing/': {
+      id: '/landing/'
+      path: '/landing'
+      fullPath: '/landing/'
+      preLoaderRoute: typeof LandingIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/superadmin/login': {
+      id: '/superadmin/login'
+      path: '/login'
+      fullPath: '/superadmin/login'
+      preLoaderRoute: typeof SuperadminLoginRouteImport
+      parentRoute: typeof SuperadminRouteRoute
+    }
+    '/superadmin/_authenticated': {
+      id: '/superadmin/_authenticated'
+      path: ''
+      fullPath: '/superadmin'
+      preLoaderRoute: typeof SuperadminAuthenticatedRouteImport
+      parentRoute: typeof SuperadminRouteRoute
     }
     '/_layout/dashboard': {
       id: '/_layout/dashboard'
@@ -417,6 +504,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutAgroCalendarIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/superadmin/_authenticated/dashboard': {
+      id: '/superadmin/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/superadmin/dashboard'
+      preLoaderRoute: typeof SuperadminAuthenticatedDashboardRouteImport
+      parentRoute: typeof SuperadminAuthenticatedRoute
+    }
     '/_layout/implements/$implementId': {
       id: '/_layout/implements/$implementId'
       path: '/implements/$implementId'
@@ -434,9 +528,37 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface SuperadminAuthenticatedRouteChildren {
+  SuperadminAuthenticatedDashboardRoute: typeof SuperadminAuthenticatedDashboardRoute
+}
+
+const SuperadminAuthenticatedRouteChildren: SuperadminAuthenticatedRouteChildren =
+  {
+    SuperadminAuthenticatedDashboardRoute:
+      SuperadminAuthenticatedDashboardRoute,
+  }
+
+const SuperadminAuthenticatedRouteWithChildren =
+  SuperadminAuthenticatedRoute._addFileChildren(
+    SuperadminAuthenticatedRouteChildren,
+  )
+
+interface SuperadminRouteRouteChildren {
+  SuperadminAuthenticatedRoute: typeof SuperadminAuthenticatedRouteWithChildren
+  SuperadminLoginRoute: typeof SuperadminLoginRoute
+}
+
+const SuperadminRouteRouteChildren: SuperadminRouteRouteChildren = {
+  SuperadminAuthenticatedRoute: SuperadminAuthenticatedRouteWithChildren,
+  SuperadminLoginRoute: SuperadminLoginRoute,
+}
+
+const SuperadminRouteRouteWithChildren = SuperadminRouteRoute._addFileChildren(
+  SuperadminRouteRouteChildren,
+)
+
 interface LayoutRouteChildren {
   LayoutDashboardRoute: typeof LayoutDashboardRoute
-  LayoutIndexRoute: typeof LayoutIndexRoute
   LayoutEquipmentEquipmentIdRoute: typeof LayoutEquipmentEquipmentIdRoute
   LayoutImplementsImplementIdRoute: typeof LayoutImplementsImplementIdRoute
   LayoutAgroCalendarIndexRoute: typeof LayoutAgroCalendarIndexRoute
@@ -458,7 +580,6 @@ interface LayoutRouteChildren {
 
 const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutDashboardRoute: LayoutDashboardRoute,
-  LayoutIndexRoute: LayoutIndexRoute,
   LayoutEquipmentEquipmentIdRoute: LayoutEquipmentEquipmentIdRoute,
   LayoutImplementsImplementIdRoute: LayoutImplementsImplementIdRoute,
   LayoutAgroCalendarIndexRoute: LayoutAgroCalendarIndexRoute,
@@ -482,8 +603,11 @@ const LayoutRouteWithChildren =
   LayoutRoute._addFileChildren(LayoutRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
+  SuperadminRouteRoute: SuperadminRouteRouteWithChildren,
   LayoutRoute: LayoutRouteWithChildren,
   LoginRoute: LoginRoute,
+  LandingIndexRoute: LandingIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

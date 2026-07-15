@@ -22,6 +22,7 @@ export interface EmployeeRowActions {
 
 export function createEmployeeColumns(
   actions: EmployeeRowActions | null,
+  employeeIdsWithRates: Set<string>,
 ): ColumnDef<Employee>[] {
   const columns: ColumnDef<Employee>[] = [
     {
@@ -40,9 +41,34 @@ export function createEmployeeColumns(
       cell: ({ row }) => row.original.position || '—',
     },
     {
-      accessorKey: 'hourlyRate',
-      header: 'Ставка ₽/ч',
-      cell: ({ row }) => `${row.original.hourlyRate.toLocaleString('ru-RU')} ₽/ч`,
+      id: 'rateBadge',
+      header: 'Ставка',
+      cell: ({ row }) =>
+        employeeIdsWithRates.has(row.original.id) ? (
+          <Badge variant="outline" className="border-success/40 bg-success/10 text-success">
+            Ставки ✓
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="text-muted-foreground">
+            {row.original.hourlyRate.toLocaleString('ru-RU')}₽
+          </Badge>
+        ),
+    },
+    {
+      id: 'telegram',
+      header: 'TG',
+      cell: ({ row }) => (
+        <Badge
+          variant="outline"
+          className={
+            row.original.telegramId.trim()
+              ? 'border-success/40 bg-success/10 text-success'
+              : 'text-muted-foreground'
+          }
+        >
+          {row.original.telegramId.trim() ? 'TG ✓' : 'TG —'}
+        </Badge>
+      ),
     },
     {
       accessorKey: 'role',

@@ -2,6 +2,7 @@ from app.routers import (
     agro_plan,
     auth,
     dashboard,
+    employee_rates,
     employees,
     equipment_logs,
     expenses,
@@ -16,12 +17,14 @@ from app.routers import (
     sharing,
     shipments,
     shifts,
+    superadmin,
 )
 
 __all__ = [
     'agro_plan',
     'auth',
     'dashboard',
+    'employee_rates',
     'employees',
     'equipment_logs',
     'expenses',
@@ -36,4 +39,5 @@ __all__ = [
     'sharing',
     'shipments',
     'shifts',
+    'superadmin',
 ]

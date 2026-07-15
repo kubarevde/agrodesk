@@ -1,4 +1,8 @@
-import { AlertTriangle, Clock, Truck, Users, Wrench, type LucideIcon } from 'lucide-react'
+import { format } from 'date-fns'
+import { ru } from 'date-fns/locale'
+import { AlertTriangle, Clock, Truck, Users, Wallet, Wrench, type LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { Link } from '@tanstack/react-router'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -21,6 +25,7 @@ interface KpiCardProps {
   valueClassName?: string
   cardClassName?: string
   tooltip?: string
+  footer?: ReactNode
 }
 
 function KpiCard({
@@ -30,6 +35,7 @@ function KpiCard({
   valueClassName,
   cardClassName,
   tooltip,
+  footer,
 }: KpiCardProps) {
   const content = (
     <Card className={cardClassName}>
@@ -39,6 +45,7 @@ function KpiCard({
       </CardHeader>
       <CardContent>
         <p className={cn('text-2xl font-semibold text-foreground', valueClassName)}>{value}</p>
+        {footer}
       </CardContent>
     </Card>
   )
@@ -58,9 +65,11 @@ export function KpiCards({ stats }: KpiCardsProps) {
   const activeNames = stats.activeShifts.map((shift) => shift.employeeName).join(', ')
   const critical = stats.criticalInventoryCount > 0
   const needsTo = stats.equipmentWarningCount > 0
+  const monthLabel = format(new Date(), 'LLLL', { locale: ru })
+  const noRate = stats.noRateShiftsCount > 0
 
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
       <KpiCard
         title="Сейчас на смене"
         value={`${stats.activeShiftsCount} чел.`}
@@ -95,14 +104,36 @@ export function KpiCards({ stats }: KpiCardsProps) {
         }
         valueClassName={needsTo ? 'text-destructive' : 'text-success'}
       />
+      <KpiCard
+        title={`Фонд ЗП ${monthLabel}`}
+        value={`${stats.monthSalaryTotal.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ₽`}
+        icon={Wallet}
+        cardClassName={noRate ? 'border-muted-foreground/30' : undefined}
+        footer={
+          <div className="mt-2 flex flex-col gap-1">
+            {noRate ? (
+              <span className="text-xs text-muted-foreground">
+                {stats.noRateShiftsCount} без ставки
+              </span>
+            ) : null}
+            <Link
+              to="/employees"
+              search={{ tab: 'salary' }}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Подробнее
+            </Link>
+          </div>
+        }
+      />
     </div>
   )
 }
 
 export function KpiCardsSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-      {Array.from({ length: 5 }).map((_, index) => (
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+      {Array.from({ length: 6 }).map((_, index) => (
         <Card key={index}>
           <CardHeader>
             <Skeleton className="h-4 w-24" />

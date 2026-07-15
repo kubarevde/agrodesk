@@ -7,10 +7,12 @@ import {
   getHomeRoute,
   TOKEN_KEY,
 } from '@/features/auth/utils'
+import type { SelectedOrg } from '@/features/auth/selectedOrg'
 
 interface LoginCredentials {
-  employeeCode: string
+  email: string
   password: string
+  orgId: string
 }
 
 interface LoginResponse {
@@ -29,6 +31,23 @@ export function useCurrentUser() {
   })
 }
 
+export function usePublicOrgs() {
+  return useQuery({
+    queryKey: ['auth', 'orgs'],
+    queryFn: async (): Promise<SelectedOrg[]> => {
+      const { data } = await api.get<Array<{ id: string; name: string; slug: string }>>(
+        '/api/auth/orgs',
+      )
+      return data.map((item) => ({
+        id: item.id,
+        name: item.name,
+        slug: item.slug,
+      }))
+    },
+    staleTime: 60_000,
+  })
+}
+
 export function useLogin() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -36,8 +55,9 @@ export function useLogin() {
   return useMutation({
     mutationFn: async (credentials: LoginCredentials) => {
       const { data } = await api.post<LoginResponse>('/api/auth/login', {
-        employee_code: credentials.employeeCode,
+        email: credentials.email,
         password: credentials.password,
+        org_id: credentials.orgId,
       })
       return data
     },
