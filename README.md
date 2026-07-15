@@ -4,14 +4,14 @@ PWA + FastAPI + Telegram-бот для учёта работ в КФХ: муль
 
 ## Куда заходить
 
-### Dev (рекомендуется)
+### Dev
 
 | Сервис | URL |
 |--------|-----|
-| **Frontend (Vite)** | http://localhost:5173 |
-| **Backend (FastAPI)** | http://localhost:8000 |
+| Frontend (Vite) | http://localhost:5173 |
+| Backend (FastAPI) | http://localhost:8000 |
 | API docs | http://localhost:8000/docs |
-| Health | http://localhost:8000/health и http://localhost:8000/api/health |
+| Health | http://localhost:8000/health · `/api/health` |
 | Вход | http://localhost:5173/login |
 | Суперадмин | http://localhost:5173/superadmin/login |
 
@@ -19,113 +19,127 @@ PWA + FastAPI + Telegram-бот для учёта работ в КФХ: муль
 
 | Сервис | URL |
 |--------|-----|
-| Frontend (лендинг + SPA) | http://localhost/ |
+| Frontend | http://localhost/ |
 | API | http://localhost/api/ |
-| Health через nginx | http://localhost/api/health |
 | Суперадмин | http://localhost/superadmin/login |
 
-Логины и пароли демо: [docs/seed-users.md](docs/seed-users.md).
+Демо-логины: [docs/seed-users.md](docs/seed-users.md).
 
 ---
 
-## Быстрый старт (Dev)
-
-Требования: Node.js 20+, Python 3.12+, PostgreSQL 16 (или Docker только для БД).
-
-### 1. Backend + БД
+## Первый запуск (Dev)
 
 ```bash
-# Вариант A: Postgres в Docker
+# БД + API (Docker) или локальный Postgres
 docker compose up -d db api
-
-# Вариант B: локальный Postgres
+# либо:
 cd backend
-cp .env.example .env   # DATABASE_URL, SECRET_KEY, SUPERADMIN_*
+cp .env.example .env
 pip install -r requirements.txt
 alembic upgrade head
 python -m app.seed
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
-Backend: **http://localhost:8000**
-
-### 2. Frontend
-
-```bash
+# Frontend
+cd ..
 npm install
-# .env.development уже содержит VITE_API_URL=http://localhost:8000
 npm run dev
 ```
 
-Frontend: **http://localhost:5173**
+При старте API:
+1. Создаётся суперадмин из `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` (если таблица пуста).
+2. При `RUN_SEED_ON_START=true` — demo org, сотрудники, справочники.
 
-Vite проксирует `/api` → `:8000`, если нужно ходить relative (обычно достаточно `VITE_API_URL`).
+Ручной seed суперадмина: `POST /superadmin/api/seed-superadmin`.
 
-### 3. Telegram-бот (опционально)
-
-Канонический бот — папка `bot/` (не `bot-main/`).
-
-```bash
-cd bot
-cp .env.example .env   # если есть; иначе создайте BOT_TOKEN, API_BASE_URL, BOT_INTERNAL_SECRET
-# SHEETS_MIRROR_ENABLED=false  → только PostgreSQL
-python bot.py
-```
-
----
-
-## Prod через Docker + nginx
+Backfill зарплаты для старых смен:
 
 ```bash
-docker compose --profile prod up --build
+cd backend
+PYTHONPATH=. python scripts/backfill_shift_salary.py
 ```
-
-- Frontend: http://localhost/
-- API через nginx: http://localhost/api/
-- Прямой API: http://localhost:8000
-
-Альтернатива: `uvicorn` на хосте + конфиг `nginx/agrodesk.conf` (proxy на `127.0.0.1:8000`).
-
-Опционально Vite в Docker: `docker compose --profile frontend up` → http://localhost:5173
 
 ---
 
-## Демо-вход
+## Переменные окружения
 
-| Роль | Организация | Логин | Пароль |
-|------|-------------|-------|--------|
-| Суперадмин | — | `admin@agrodesk.local` | `ChangeMe123!` |
-| Админ орг | Demo AgroDesk | `EMP000` или `admin@demo.agrodesk` | `1234` |
-| Сотрудник | Demo AgroDesk | `EMP001` | `1234` |
-| Telegram ID сотрудника | — | `111111111` | — |
+### Backend (`backend/.env`)
 
-Подробнее: [docs/seed-users.md](docs/seed-users.md).
+| Переменная | Описание |
+|------------|----------|
+| `DATABASE_URL` | `postgresql+asyncpg://...` |
+| `SECRET_KEY` | JWT signing |
+| `JWT_EXPIRE_MINUTES` | TTL access-токена (по умолчанию 10080 = 7 дней) |
+| `LOG_LEVEL` | `INFO` / `DEBUG` / … |
+| `BOT_INTERNAL_SECRET` | Секрет бота → `/api/auth/bot-token` |
+| `TELEGRAM_BOT_TOKEN` | Уведомления (опционально) |
+| `ALLOWED_ORIGINS` | CORS CSV |
+| `API_URL` | Публичный URL API |
+| `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` | Bootstrap суперадмина |
+| `RUN_SEED_ON_START` | `true` — demo seed на старте |
+| `UPLOADS_DIR` | Каталог загрузок |
+
+`ORG_ID` — опционально для smoke-скриптов (`scripts/smoke_*.py`); иначе берётся первая орг из `/api/auth/orgs`.
+
+### Frontend (`.env.development`)
+
+| Переменная | Описание |
+|------------|----------|
+| `VITE_API_URL` | `http://localhost:8000` |
+| `VITE_USE_MOCKS` | `false` |
+| `VITE_APP_NAME` | АгроДеск |
+
+### Bot (`bot/.env`)
+
+| Переменная | Описание |
+|------------|----------|
+| `BOT_TOKEN` | Telegram |
+| `API_BASE_URL` | `http://localhost:8000` |
+| `BOT_INTERNAL_SECRET` | Как у API |
+| `SHEETS_MIRROR_ENABLED` | `false` по умолчанию |
 
 ---
 
-## Архитектура кратко
+## Деплой (production)
 
-- **Один источник правды по сменам** — PostgreSQL через API.
-- **Google Sheets** — только зеркало (`DualWriter`), включается `SHEETS_MIRROR_ENABLED=true`.
-- **Ставки** — `employee_rates` + `employees.hourly_rate` как fallback; расчёт в `salary.py`.
-- **Мультитенантность** — `org_id` в JWT, `OrgContextMiddleware` на `/api/*`.
+Подробный мануал: **[docs/DEPLOY.md](docs/DEPLOY.md)**  
+Прод: http://213.183.104.142:3010
 
-Структура:
+```bash
+cp .env.production.example .env.production   # заполните секреты
+chmod +x deploy.sh scripts/*.sh
+./deploy.sh
 
-```
-backend/     FastAPI + Alembic
-bot/         Telegram dual-write (канон)
-src/         React SPA (TanStack Router)
-nginx/       agrodesk.conf (host) / agrodesk.docker.conf (compose)
-docs/        seed-users.md
+# Бэкап / восстановление БД
+./scripts/backup_db.sh
+./scripts/restore_db.sh
 ```
 
-Устаревшие копии бота (`bot-main/`) не используются — см. `bot/README.md`.
+Compose: PostgreSQL + API (+ alembic) + Telegram-бот + Nginx (порт **3010**).  
+Volumes: `postgres_data`, `uploads_data` — данные живут между пересборками.
 
 ---
 
-## E2E чеклист
+## Проверки
 
-См. [docs/e2e-checklist.md](docs/e2e-checklist.md).
+```bash
+cd backend
+PYTHONPATH=. python scripts/audit_api.py
+PYTHONPATH=. python scripts/smoke_salary.py
+PYTHONPATH=. python scripts/smoke_bot_auth.py
+pytest tests/ -q   # API должен быть запущен
+```
 
-Сборка фронта: `npm run build`.
+Frontend: `npm run build`.
+
+E2E checklist: [docs/e2e-checklist.md](docs/e2e-checklist.md).
+
+---
+
+## Архитектура
+
+- Источник правды по сменам — PostgreSQL.
+- Sheets — только зеркало (`DualWriter`), `SHEETS_MIRROR_ENABLED=false` → только БД.
+- Ставки — `employee_rates` + `hourly_rate` fallback; расчёт в `salary.py`.
+- Мультитенантность — `org_id` в JWT и на основных сущностях (inventory/expenses/shipments/implements/sharing_listings и справочники).
+- Access JWT TTL — `JWT_EXPIRE_MINUTES` (refresh-токен пока не реализован).

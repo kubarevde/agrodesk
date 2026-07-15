@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -9,9 +9,11 @@ from app.database import Base
 
 class Implement(Base):
     __tablename__ = 'implements'
+    __table_args__ = (UniqueConstraint('org_id', 'name', name='uq_implements_org_name'),)
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String(200), unique=True, nullable=False)
+    org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id'), nullable=False)
+    name = Column(String(200), nullable=False)
     category = Column(String(50), nullable=False)
     serial_number = Column(String(100), nullable=True)
     year_of_manufacture = Column(Integer, nullable=True)

@@ -2,19 +2,11 @@ import { DollarSign, TrendingDown, TrendingUp, type LucideIcon } from 'lucide-re
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { DashboardStats } from '@/types'
+import { formatMoney } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 interface FinanceCardsProps {
   stats: DashboardStats
-}
-
-function formatMoney(value: number): string {
-  const sign = value > 0 ? '+' : value < 0 ? '−' : ''
-  return `${sign}${Math.abs(Math.round(value)).toLocaleString('ru-RU')} ₽`
-}
-
-function formatMoneyPlain(value: number): string {
-  return `${Math.round(value).toLocaleString('ru-RU')} ₽`
 }
 
 interface FinanceCardProps {
@@ -47,17 +39,17 @@ export function FinanceCards({ stats }: FinanceCardsProps) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <FinanceCard
           title="Выручка"
-          value={formatMoneyPlain(stats.monthShipmentsSum)}
+          value={formatMoney(stats.monthShipmentsSum)}
           icon={TrendingUp}
         />
         <FinanceCard
           title="Затраты"
-          value={formatMoneyPlain(stats.monthExpensesSum)}
+          value={formatMoney(stats.monthExpensesSum)}
           icon={TrendingDown}
         />
         <FinanceCard
           title="Прибыль"
-          value={formatMoney(profit)}
+          value={formatMoney(profit, { signed: true })}
           icon={DollarSign}
           valueClassName={profit < 0 ? 'text-destructive' : 'text-success'}
         />

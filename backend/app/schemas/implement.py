@@ -35,6 +35,7 @@ class ImplementResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    org_id: UUID | None = None
     name: str
     category: str
     serial_number: str | None = None

@@ -50,18 +50,12 @@ export default defineConfig(({ mode }) => {
             handler: 'CacheFirst',
             options: { cacheName: 'google-fonts-cache' },
           },
+          // Do NOT cache authenticated data APIs (/api/shifts etc.) —
+          // NetworkFirst previously served stale/error responses and broke org isolation.
           {
-            urlPattern: /\/api\/locations|\/api\/work-types|\/api\/equipment/,
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'api-references-cache' },
-          },
-          {
-            urlPattern: /\/api\/shifts/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-shifts-cache',
-              networkTimeoutSeconds: 5,
-            },
+            urlPattern: /\/api\/(locations|work-types|equipment)(\?|$)/,
+            handler: 'NetworkOnly',
+            options: { cacheName: 'api-references-bypass' },
           },
         ],
       },

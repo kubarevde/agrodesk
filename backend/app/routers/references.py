@@ -27,32 +27,12 @@ from app.schemas.reference import (
     WorkTypeUpdate,
 )
 
+from app.services.equipment_meters import calc_meter_label, calc_to_status
+
 ModelT = Any
 CreateT = type[BaseModel]
 UpdateT = type[BaseModel]
 ResponseT = type[BaseModel]
-
-METER_LABELS = {
-    'motohours': 'мч',
-    'km': 'км',
-    'shift_hours': 'ч',
-}
-
-
-def calc_to_status(current_meter: float | None, next_to_at: float | None) -> str:
-    if next_to_at is None:
-        return 'no_data'
-    current = float(current_meter or 0)
-    threshold = float(next_to_at)
-    if current >= threshold:
-        return 'overdue'
-    if current >= threshold * 0.9:
-        return 'warning'
-    return 'ok'
-
-
-def calc_meter_label(meter_type: str | None) -> str:
-    return METER_LABELS.get(meter_type or 'motohours', 'мч')
 
 
 def equipment_to_response(item: Equipment) -> EquipmentResponse:

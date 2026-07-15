@@ -30,6 +30,7 @@ class EmployeeResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    org_id: UUID | None = None
     employee_code: str
     full_name: str
     position: str | None = None

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-import os
 import uuid
 from pathlib import Path
 
@@ -9,10 +8,11 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from PIL import Image
 from pydantic import BaseModel
 
+from app.config import settings
 from app.dependencies.auth import get_current_employee
 from app.models.employee import Employee
 
-UPLOADS_DIR = Path(os.getenv('UPLOADS_DIR', './uploads'))
+UPLOADS_DIR = Path(settings.UPLOADS_DIR)
 ALLOWED_FOLDERS = frozenset({'equipment', 'implements', 'sharing', 'profile'})
 ALLOWED_TYPES = frozenset({'image/jpeg', 'image/png', 'image/webp'})
 MAX_SIZE = 5 * 1024 * 1024

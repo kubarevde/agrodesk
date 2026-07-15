@@ -513,20 +513,26 @@ async def build_employee_earnings(
     }
 
 
-async def build_inventory_workbook(db: AsyncSession, from_date: date, to_date: date) -> Workbook:
-    operations_result = await db.execute(
+async def build_inventory_workbook(
+    db: AsyncSession, from_date: date, to_date: date, org_id: UUID | None = None
+) -> Workbook:
+    operations_query = (
         select(InventoryOperation)
+        .join(InventoryItem, InventoryOperation.item_id == InventoryItem.id)
         .options(selectinload(InventoryOperation.item))
         .where(InventoryOperation.date >= from_date, InventoryOperation.date <= to_date)
-        .order_by(InventoryOperation.date.desc(), InventoryOperation.created_at.desc())
+    )
+    items_query = select(InventoryItem).where(InventoryItem.is_active.is_(True))
+    if org_id is not None:
+        operations_query = operations_query.where(InventoryItem.org_id == org_id)
+        items_query = items_query.where(InventoryItem.org_id == org_id)
+
+    operations_result = await db.execute(
+        operations_query.order_by(InventoryOperation.date.desc(), InventoryOperation.created_at.desc())
     )
     operations = operations_result.scalars().all()
 
-    items_result = await db.execute(
-        select(InventoryItem)
-        .where(InventoryItem.is_active.is_(True))
-        .order_by(InventoryItem.name)
-    )
+    items_result = await db.execute(items_query.order_by(InventoryItem.name))
     items = items_result.scalars().all()
 
     workbook = new_workbook()
@@ -571,12 +577,13 @@ async def build_inventory_workbook(db: AsyncSession, from_date: date, to_date: d
     return workbook
 
 
-async def build_shipments_workbook(db: AsyncSession, from_date: date, to_date: date) -> Workbook:
-    result = await db.execute(
-        select(Shipment)
-        .where(Shipment.date >= from_date, Shipment.date <= to_date)
-        .order_by(Shipment.date)
-    )
+async def build_shipments_workbook(
+    db: AsyncSession, from_date: date, to_date: date, org_id: UUID | None = None
+) -> Workbook:
+    query = select(Shipment).where(Shipment.date >= from_date, Shipment.date <= to_date)
+    if org_id is not None:
+        query = query.where(Shipment.org_id == org_id)
+    result = await db.execute(query.order_by(Shipment.date))
     shipments = result.scalars().all()
 
     workbook = new_workbook()
@@ -612,12 +619,13 @@ async def build_shipments_workbook(db: AsyncSession, from_date: date, to_date: d
     return workbook
 
 
-async def build_expenses_workbook(db: AsyncSession, from_date: date, to_date: date) -> Workbook:
-    result = await db.execute(
-        select(Expense)
-        .where(Expense.date >= from_date, Expense.date <= to_date)
-        .order_by(Expense.date)
-    )
+async def build_expenses_workbook(
+    db: AsyncSession, from_date: date, to_date: date, org_id: UUID | None = None
+) -> Workbook:
+    query = select(Expense).where(Expense.date >= from_date, Expense.date <= to_date)
+    if org_id is not None:
+        query = query.where(Expense.org_id == org_id)
+    result = await db.execute(query.order_by(Expense.date))
     expenses = result.scalars().all()
 
     workbook = new_workbook()
@@ -1280,14 +1288,16 @@ async def build_season_workbook(
         equipment_rows,
     )
 
-    expenses_result = await db.execute(
-        select(Expense).where(Expense.date >= from_date, Expense.date <= to_date)
-    )
+    expenses_query = select(Expense).where(Expense.date >= from_date, Expense.date <= to_date)
+    if org_id is not None:
+        expenses_query = expenses_query.where(Expense.org_id == org_id)
+    expenses_result = await db.execute(expenses_query)
     expenses = list(expenses_result.scalars().all())
 
-    shipments_result = await db.execute(
-        select(Shipment).where(Shipment.date >= from_date, Shipment.date <= to_date)
-    )
+    shipments_query = select(Shipment).where(Shipment.date >= from_date, Shipment.date <= to_date)
+    if org_id is not None:
+        shipments_query = shipments_query.where(Shipment.org_id == org_id)
+    shipments_result = await db.execute(shipments_query)
     shipments = list(shipments_result.scalars().all())
 
     finance_rows = []

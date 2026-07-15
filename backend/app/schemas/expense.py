@@ -43,6 +43,7 @@ class ExpenseUpdate(BaseModel):
 
 class ExpenseResponse(BaseModel):
     id: UUID
+    org_id: UUID | None = None
     date: date_type
     category: str
     amount: Decimal

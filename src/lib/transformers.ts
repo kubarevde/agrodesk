@@ -1,4 +1,5 @@
-import { format, parse } from 'date-fns'
+import { format, isValid, parse } from 'date-fns'
+import { isoDateToDisplay } from '@/lib/dates'
 import { humanLabel } from '@/lib/display'
 import type {
   DashboardActiveShift,
@@ -84,13 +85,16 @@ function normalizeTime(value: unknown): string {
   return str.slice(0, 8)
 }
 
-export function isoDateToDisplay(iso: string): string {
-  const [year, month, day] = iso.split('-').map(Number)
-  return format(new Date(year, month - 1, day), 'dd.MM.yyyy')
-}
+export { isoDateToDisplay }
 
 export function displayDateToIso(display: string): string {
-  const parsed = parse(display, 'dd.MM.yyyy', new Date())
+  const trimmed = display.trim()
+  // Already ISO — pass through (some callers mix formats).
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
+  const parsed = parse(trimmed, 'dd.MM.yyyy', new Date())
+  if (!isValid(parsed)) {
+    throw new Error(`Некорректная дата: ${display}`)
+  }
   return format(parsed, 'yyyy-MM-dd')
 }
 

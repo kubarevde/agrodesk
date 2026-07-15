@@ -23,8 +23,9 @@ type ApiStats = {
   total_shifts_today: number
 }
 
+const rawBase = (import.meta.env.VITE_API_URL as string | undefined)?.trim()
 const superadminApi = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: rawBase && rawBase.length > 0 ? rawBase.replace(/\/$/, '') : '',
 })
 
 superadminApi.interceptors.request.use((config) => {

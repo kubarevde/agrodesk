@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import case, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_manager
+from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
 from app.models.inventory import (
     InventoryCategory,
@@ -31,6 +32,7 @@ router = APIRouter()
 def item_to_response(item: InventoryItem) -> InventoryItemResponse:
     return InventoryItemResponse(
         id=item.id,
+        org_id=item.org_id,
         name=item.name,
         category=item.category.value,
         unit=item.unit,
@@ -58,8 +60,11 @@ def operation_to_response(operation: InventoryOperation) -> InventoryOperationRe
     )
 
 
-async def get_item_or_404(db: AsyncSession, item_id: UUID) -> InventoryItem:
-    item = await db.get(InventoryItem, item_id)
+async def get_item_or_404(db: AsyncSession, item_id: UUID, org_id: UUID) -> InventoryItem:
+    result = await db.execute(
+        select(InventoryItem).where(InventoryItem.id == item_id, InventoryItem.org_id == org_id)
+    )
+    item = result.scalar_one_or_none()
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Позиция не найдена')
     return item
@@ -67,12 +72,14 @@ async def get_item_or_404(db: AsyncSession, item_id: UUID) -> InventoryItem:
 
 @router.get('', response_model=list[InventoryItemResponse])
 async def list_inventory(
+    request: Request,
     category: InventoryCategory | None = Query(None),
     is_active: bool | None = Query(None),
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> list[InventoryItemResponse]:
-    query = select(InventoryItem)
+    org_id = get_org_id(request)
+    query = select(InventoryItem).where(InventoryItem.org_id == org_id)
     if category is not None:
         query = query.where(InventoryItem.category == category)
     if is_active is not None:
@@ -88,6 +95,7 @@ async def list_inventory(
 
 @router.get('/operations', response_model=list[InventoryOperationResponse])
 async def list_operations(
+    request: Request,
     item_id: UUID | None = Query(None),
     from_date: date | None = Query(None),
     to_date: date | None = Query(None),
@@ -95,9 +103,12 @@ async def list_operations(
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> list[InventoryOperationResponse]:
+    org_id = get_org_id(request)
     query = (
         select(InventoryOperation)
+        .join(InventoryItem, InventoryOperation.item_id == InventoryItem.id)
         .options(selectinload(InventoryOperation.item))
+        .where(InventoryItem.org_id == org_id)
         .order_by(InventoryOperation.date.desc(), InventoryOperation.created_at.desc())
     )
 
@@ -116,11 +127,12 @@ async def list_operations(
 
 @router.post('/operations', response_model=InventoryOperationResponse, status_code=status.HTTP_201_CREATED)
 async def create_operation(
+    request: Request,
     payload: InventoryOperationCreate,
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(require_manager),
 ) -> InventoryOperationResponse:
-    item = await get_item_or_404(db, payload.item_id)
+    item = await get_item_or_404(db, payload.item_id, get_org_id(request))
     if not item.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Позиция неактивна')
 
@@ -162,21 +174,24 @@ async def create_operation(
 
 @router.get('/{item_id}', response_model=InventoryItemResponse)
 async def get_inventory_item(
+    request: Request,
     item_id: UUID,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> InventoryItemResponse:
-    item = await get_item_or_404(db, item_id)
+    item = await get_item_or_404(db, item_id, get_org_id(request))
     return item_to_response(item)
 
 
 @router.post('', response_model=InventoryItemResponse, status_code=status.HTTP_201_CREATED)
 async def create_inventory_item(
+    request: Request,
     payload: InventoryItemCreate,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> InventoryItemResponse:
     item = InventoryItem(
+        org_id=get_org_id(request),
         name=payload.name,
         category=payload.category,
         unit=payload.unit,
@@ -200,12 +215,13 @@ async def create_inventory_item(
 
 @router.patch('/{item_id}', response_model=InventoryItemResponse)
 async def update_inventory_item(
+    request: Request,
     item_id: UUID,
     payload: InventoryItemUpdate,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> InventoryItemResponse:
-    item = await get_item_or_404(db, item_id)
+    item = await get_item_or_404(db, item_id, get_org_id(request))
 
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, field, value)
@@ -225,11 +241,12 @@ async def update_inventory_item(
 
 @router.delete('/{item_id}', status_code=status.HTTP_204_NO_CONTENT)
 async def delete_inventory_item(
+    request: Request,
     item_id: UUID,
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(require_manager),
 ) -> None:
-    item = await get_item_or_404(db, item_id)
+    item = await get_item_or_404(db, item_id, get_org_id(request))
     item.is_active = False
     db.add(item)
     await db.commit()

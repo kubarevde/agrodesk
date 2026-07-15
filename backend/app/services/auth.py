@@ -6,13 +6,12 @@ from jose import jwt
 from app.config import settings
 
 ALGORITHM = 'HS256'
-ACCESS_TOKEN_EXPIRE_DAYS = 7
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
+        expires_delta or timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
     )
     to_encode['exp'] = expire
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)

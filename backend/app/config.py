@@ -16,7 +16,10 @@ class Settings(BaseSettings):
     API_URL: str = 'http://localhost:8000'
     SUPERADMIN_EMAIL: str | None = None
     SUPERADMIN_PASSWORD: str | None = None
+    JWT_EXPIRE_MINUTES: int = 10080  # 7 days
+    LOG_LEVEL: str = 'INFO'
     RUN_SEED_ON_START: bool = True
+    UPLOADS_DIR: str = './uploads'
 
     @property
     def bot_internal_secret(self) -> str:

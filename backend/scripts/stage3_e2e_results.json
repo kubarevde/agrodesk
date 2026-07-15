@@ -1,0 +1,227 @@
+[
+  {
+    "section": "AUTH: login all users",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ПОЛЯ: Поле №5 в списке",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ПОЛЯ: 5 полей",
+    "passed": true,
+    "detail": "count=5"
+  },
+  {
+    "section": "ПОЛЯ: координаты для карты",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ПОЛЯ: в справочнике локаций (для смен)",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ТЕХНИКА: 8 seed единиц",
+    "passed": true,
+    "detail": "seed=8 total=9"
+  },
+  {
+    "section": "ТЕХНИКА: 8 активных",
+    "passed": true,
+    "detail": "active=8"
+  },
+  {
+    "section": "ПОЛЯ: Поле №5 = 70 га",
+    "passed": true,
+    "detail": "70.0"
+  },
+  {
+    "section": "ТЕХНИКА: badge ТО (to_status)",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ТЕХНИКА: МТЗ-82 и Культиватор",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ТЕХНИКА: +100 мч МТЗ-82",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ТЕХНИКА: счётчик обновился",
+    "passed": true,
+    "detail": "1690.0->1790.0"
+  },
+  {
+    "section": "ТЕХНИКА: to_status для прогресс-бара",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ТЕХНИКА: записать ТО",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ТЕХНИКА: затрата после ТО",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ПРИСПОСОБЛЕНИЯ: 4 шт",
+    "passed": true,
+    "detail": "count=4"
+  },
+  {
+    "section": "ПРИСПОСОБЛЕНИЯ: Сеялка",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ПРИСПОСОБЛЕНИЯ: прикрепить к МТЗ-82",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ПРИСПОСОБЛЕНИЯ: на странице МТЗ-82",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ПРИСПОСОБЛЕНИЯ: ТО затрата",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "СМЕНЫ: открыть поле+техника+приспособление",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "СМЕНЫ: field в ответе",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "СМЕНЫ: equipment в ответе",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "СМЕНЫ: implement в ответе",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "СМЕНЫ: закрыть",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ТЕХНИКА: автозапись shift_hours",
+    "passed": true,
+    "detail": "duration=0.5"
+  },
+  {
+    "section": "АГРОКАЛЕНДАРЬ: создать планы",
+    "passed": true,
+    "detail": "created=3"
+  },
+  {
+    "section": "АГРОКАЛЕНДАРЬ: планы в месяце",
+    "passed": true,
+    "detail": "count=7"
+  },
+  {
+    "section": "АГРОКАЛЕНДАРЬ: план Выполнено",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ШЕРИНГ: EMP001 3 объявления",
+    "passed": true,
+    "detail": "created=3"
+  },
+  {
+    "section": "ШЕРИНГ: объявление на /sharing",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ШЕРИНГ: EMP002 заявка",
+    "passed": true,
+    "detail": "{\"listing_id\":\"39262120-fb21-46b3-aa23-99000d5805d3\",\"message\":\"E2E заявка EMP00"
+  },
+  {
+    "section": "УВЕДОМЛЕНИЯ: badge count",
+    "passed": true,
+    "detail": "{'unread': 1}"
+  },
+  {
+    "section": "ШЕРИНГ: badge 1 заявка",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ШЕРИНГ: EMP001 принять",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ШЕРИНГ: EMP002 Принята",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ШЕРИНГ: контакты EMP001",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "УВЕДОМЛЕНИЯ: mark as read",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "КАРТА: 5 полей с координатами",
+    "passed": true,
+    "detail": "5"
+  },
+  {
+    "section": "КАРТА: техника с координатами",
+    "passed": true,
+    "detail": "8"
+  },
+  {
+    "section": "КАРТА: шеринг с координатами",
+    "passed": true,
+    "detail": "5"
+  },
+  {
+    "section": "ДАШБОРД: stats API",
+    "passed": true,
+    "detail": ""
+  },
+  {
+    "section": "ОТЧЁТЫ: equipment (5 листов)",
+    "passed": true,
+    "detail": "status=200 sheets=5"
+  },
+  {
+    "section": "ОТЧЁТЫ: fields (3 листов)",
+    "passed": true,
+    "detail": "status=200 sheets=3"
+  },
+  {
+    "section": "ОТЧЁТЫ: season (4 листов)",
+    "passed": true,
+    "detail": "status=200 sheets=4"
+  }
+]

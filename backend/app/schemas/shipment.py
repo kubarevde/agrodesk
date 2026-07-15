@@ -25,6 +25,7 @@ class ShipmentUpdate(BaseModel):
 
 class ShipmentResponse(BaseModel):
     id: UUID
+    org_id: UUID | None = None
     date: date_type
     crop_type: str
     quantity_kg: Decimal

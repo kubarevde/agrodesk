@@ -1,4 +1,5 @@
 import asyncio
+from datetime import date, time
 from decimal import Decimal
 
 import bcrypt
@@ -11,6 +12,7 @@ from app.models.implement import Implement
 from app.models.inventory import InventoryCategory, InventoryItem
 from app.models.organization import Organization
 from app.models.reference import Equipment, Location, WorkType
+from app.models.shift import Shift, ShiftStatus
 
 DEFAULT_PASSWORD_HASH = bcrypt.hashpw(b'1234', bcrypt.gensalt()).decode('utf-8')
 
@@ -19,6 +21,11 @@ DEMO_ORG_NAME = 'Demo AgroDesk'
 DEMO_ORG_SLUG = 'demo'
 DEMO_OWNER_EMAIL = 'admin@demo.agrodesk'
 DEMO_BOT_TELEGRAM_ID = 111111111
+
+TEST_ORG_NAME = 'Тестовое хозяйство'
+TEST_ORG_SLUG = 'test-farm'
+TEST_OWNER_EMAIL = 'admin@test-farm.agrodesk'
+TEST_ADMIN_CODE = 'EMP-TEST'
 
 LOCATIONS = [
     ('Поле №1', 'Пшеница'),
@@ -108,10 +115,17 @@ async def get_or_create_demo_org(session) -> Organization:
         result = await session.execute(select(Organization).where(Organization.slug == slug))
         org = result.scalar_one_or_none()
         if org is not None:
+            changed = False
             if org.owner_email != DEMO_OWNER_EMAIL:
                 org.owner_email = DEMO_OWNER_EMAIL
-                if org.slug == DEMO_ORG_SLUG and org.name != DEMO_ORG_NAME:
-                    org.name = DEMO_ORG_NAME
+                changed = True
+            # Existing DBs from migration use slug=main — show friendly demo name
+            if org.name in ('Основная организация', '') or (
+                org.slug in (DEMO_ORG_SLUG, 'main') and org.name != DEMO_ORG_NAME
+            ):
+                org.name = DEMO_ORG_NAME
+                changed = True
+            if changed:
                 session.add(org)
                 await session.commit()
                 await session.refresh(org)
@@ -269,34 +283,184 @@ async def ensure_demo_employee_links(session, org_id) -> None:
         await session.commit()
         print(f'employees: EMP001 telegram_id → {DEMO_BOT_TELEGRAM_ID}')
 
-    if employee is None:
-        return
+    if employee is not None:
+        rate_exists = await session.scalar(
+            select(func.count())
+            .select_from(EmployeeRate)
+            .where(
+                EmployeeRate.org_id == org_id,
+                EmployeeRate.employee_id == employee.id,
+                EmployeeRate.work_type_id.is_(None),
+            )
+        )
+        if int(rate_exists or 0) == 0:
+            session.add(
+                EmployeeRate(
+                    org_id=org_id,
+                    employee_id=employee.id,
+                    work_type_id=None,
+                    rate=Decimal('250'),
+                    overtime_threshold_hours=Decimal('8'),
+                    overtime_multiplier=Decimal('1.5'),
+                )
+            )
+            await session.commit()
+            print('employee_rates: seeded base rate for EMP001')
 
-    rate_exists = await session.scalar(
-        select(func.count())
-        .select_from(EmployeeRate)
-        .where(
-            EmployeeRate.org_id == org_id,
-            EmployeeRate.employee_id == employee.id,
-            EmployeeRate.work_type_id.is_(None),
+    emp002_result = await session.execute(
+        select(Employee).where(
+            Employee.org_id == org_id,
+            Employee.employee_code == 'EMP002',
         )
     )
-    if int(rate_exists or 0) == 0:
+    emp002 = emp002_result.scalar_one_or_none()
+    if emp002 is not None:
+        rate_exists = await session.scalar(
+            select(func.count())
+            .select_from(EmployeeRate)
+            .where(
+                EmployeeRate.org_id == org_id,
+                EmployeeRate.employee_id == emp002.id,
+                EmployeeRate.work_type_id.is_(None),
+            )
+        )
+        if int(rate_exists or 0) == 0:
+            session.add(
+                EmployeeRate(
+                    org_id=org_id,
+                    employee_id=emp002.id,
+                    work_type_id=None,
+                    rate=Decimal('300'),
+                    overtime_threshold_hours=Decimal('8'),
+                    overtime_multiplier=Decimal('1.5'),
+                )
+            )
+            await session.commit()
+            print('employee_rates: seeded base rate for EMP002')
+
+
+async def ensure_test_farm_org(session) -> None:
+    """Second org for multi-tenant UI demos."""
+    result = await session.execute(
+        select(Organization).where(Organization.slug == TEST_ORG_SLUG)
+    )
+    org = result.scalar_one_or_none()
+    if org is None:
+        org = Organization(
+            name=TEST_ORG_NAME,
+            slug=TEST_ORG_SLUG,
+            owner_email=TEST_OWNER_EMAIL,
+            plan='trial',
+            is_active=True,
+            max_employees=20,
+        )
+        session.add(org)
+        await session.commit()
+        await session.refresh(org)
+        print(f'organizations: created {TEST_ORG_SLUG}')
+
+    admin_result = await session.execute(
+        select(Employee).where(
+            Employee.org_id == org.id,
+            Employee.employee_code == TEST_ADMIN_CODE,
+        )
+    )
+    admin = admin_result.scalar_one_or_none()
+    if admin is None:
         session.add(
-            EmployeeRate(
-                org_id=org_id,
-                employee_id=employee.id,
-                work_type_id=None,
-                rate=Decimal('250'),
-                overtime_threshold_hours=Decimal('8'),
-                overtime_multiplier=Decimal('1.5'),
+            Employee(
+                org_id=org.id,
+                employee_code=TEST_ADMIN_CODE,
+                full_name='Администратор тест',
+                position='администратор',
+                role=EmployeeRole.admin,
+                hourly_rate=Decimal('0'),
+                telegram_id=None,
+                password_hash=DEFAULT_PASSWORD_HASH,
+                is_active=True,
             )
         )
         await session.commit()
-        print('employee_rates: seeded base rate for EMP001')
+        print(f'employees: created {TEST_ADMIN_CODE} in {TEST_ORG_SLUG}')
+
+    loc_result = await session.execute(
+        select(Location).where(
+            Location.org_id == org.id,
+            Location.name == 'Поле Т1',
+        )
+    )
+    location = loc_result.scalar_one_or_none()
+    if location is None:
+        session.add(
+            Location(
+                org_id=org.id,
+                name='Поле Т1',
+                description='Тестовое поле',
+                is_active=True,
+            )
+        )
+        await session.commit()
+        print(f'locations: created Поле Т1 in {TEST_ORG_SLUG}')
 
 
-async def seed_inventory_items(session) -> None:
+async def ensure_demo_open_shift(session, org_id) -> None:
+    """Create one OPEN shift in demo org if none exist."""
+    open_count = await session.scalar(
+        select(func.count())
+        .select_from(Shift)
+        .where(Shift.org_id == org_id, Shift.status == ShiftStatus.open)
+    )
+    if int(open_count or 0) > 0:
+        return
+
+    for code in ('EMP004', 'EMP002', 'EMP001'):
+        emp_result = await session.execute(
+            select(Employee).where(
+                Employee.org_id == org_id,
+                Employee.employee_code == code,
+            )
+        )
+        employee = emp_result.scalar_one_or_none()
+        if employee is not None:
+            break
+    else:
+        print('shifts: skip open shift (no employee)')
+        return
+
+    location = (
+        await session.execute(
+            select(Location).where(Location.org_id == org_id, Location.is_active.is_(True)).limit(1)
+        )
+    ).scalar_one_or_none()
+    work_type = (
+        await session.execute(
+            select(WorkType).where(WorkType.org_id == org_id, WorkType.is_active.is_(True)).limit(1)
+        )
+    ).scalar_one_or_none()
+    if location is None or work_type is None:
+        print('shifts: skip open shift (missing location/work_type)')
+        return
+
+    now = date.today()
+    session.add(
+        Shift(
+            org_id=org_id,
+            date=now,
+            employee_id=employee.id,
+            start_time=time(8, 0, 0),
+            end_time=None,
+            work_type_id=work_type.id,
+            location_id=location.id,
+            description='',
+            comment='',
+            status=ShiftStatus.open,
+        )
+    )
+    await session.commit()
+    print(f'shifts: created open shift for {employee.employee_code}')
+
+
+async def seed_inventory_items(session, org_id) -> None:
     if not await is_table_empty(session, InventoryItem):
         print('inventory_items: skip (already seeded)')
         return
@@ -304,6 +468,7 @@ async def seed_inventory_items(session) -> None:
     session.add_all(
         [
             InventoryItem(
+                org_id=org_id,
                 name=name,
                 category=category,
                 unit=unit,
@@ -319,11 +484,12 @@ async def seed_inventory_items(session) -> None:
     print(f'inventory_items: seeded {len(INVENTORY_ITEMS)} rows')
 
 
-async def seed_implements(session) -> None:
+async def seed_implements(session, org_id) -> None:
     if await is_table_empty(session, Implement):
         session.add_all(
             [
                 Implement(
+                    org_id=org_id,
                     name=name,
                     category=category,
                     condition=condition,
@@ -338,9 +504,9 @@ async def seed_implements(session) -> None:
         print(f'implements: seeded {len(IMPLEMENTS)} rows')
 
     # Attach a few implements to equipment for UI demos.
-    equip_result = await session.execute(select(Equipment))
+    equip_result = await session.execute(select(Equipment).where(Equipment.org_id == org_id))
     equip_by_name = {item.name: item for item in equip_result.scalars().all()}
-    impl_result = await session.execute(select(Implement))
+    impl_result = await session.execute(select(Implement).where(Implement.org_id == org_id))
     impl_by_name = {item.name: item for item in impl_result.scalars().all()}
     attachments = [
         ('Сеялка СЗ-3.6', 'МТЗ-82'),
@@ -371,8 +537,10 @@ async def ensure_demo_data() -> None:
         await seed_work_types(session, org.id)
         await seed_equipment(session, org.id)
         await seed_employees(session, org.id)
-        await seed_inventory_items(session)
-        await seed_implements(session)
+        await seed_inventory_items(session, org.id)
+        await seed_implements(session, org.id)
+        await ensure_demo_open_shift(session, org.id)
+        await ensure_test_farm_org(session)
 
     print('Seed completed.')
 

@@ -27,6 +27,8 @@ export function LoginPage() {
   }
 
   const handleChangeOrg = () => {
+    setOrg(null)
+    setSelectedOrg(null)
     setStep(1)
   }
 
