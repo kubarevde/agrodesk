@@ -1,23 +1,7 @@
 import type { InventoryItem } from '@/types'
 
-export type InventoryCategoryFilter =
-  | 'all'
-  | 'fuel'
-  | 'fertilizer'
-  | 'seeds'
-  | 'parts'
-  | 'chemicals'
-
-export const CATEGORY_FILTERS: { id: InventoryCategoryFilter; label: string }[] = [
-  { id: 'all', label: 'Все' },
-  { id: 'fuel', label: 'Топливо' },
-  { id: 'fertilizer', label: 'Удобрения' },
-  { id: 'seeds', label: 'Семена' },
-  { id: 'parts', label: 'Запчасти' },
-  { id: 'chemicals', label: 'СЗР' },
-]
-
-const CATEGORY_LABELS: Record<InventoryItem['category'], string> = {
+/** Temporary offline fallback labels; UI filters use useDictionary('inventory_category'). */
+const CATEGORY_LABELS: Record<string, string> = {
   fuel: 'Топливо',
   fertilizer: 'Удобрения',
   seeds: 'Семена',
@@ -26,8 +10,8 @@ const CATEGORY_LABELS: Record<InventoryItem['category'], string> = {
   other: 'Прочее',
 }
 
-export function getCategoryLabel(category: InventoryItem['category']): string {
-  return CATEGORY_LABELS[category]
+export function getCategoryLabel(category: string): string {
+  return CATEGORY_LABELS[category] ?? category
 }
 
 export function getStockPercent(item: InventoryItem): number {
@@ -44,12 +28,3 @@ export function getProgressBarColor(percent: number): string {
 export function isCriticalStock(item: InventoryItem): boolean {
   return item.currentStock < item.minStock
 }
-
-export const SUPPLIERS = [
-  'Лукойл',
-  'АгроХим Снаб',
-  'Сингента',
-  'Автодизель',
-  'ФосАгро',
-  'ЭлитСемена',
-] as const

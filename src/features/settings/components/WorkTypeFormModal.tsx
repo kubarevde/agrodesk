@@ -50,7 +50,7 @@ export function WorkTypeFormModal({ open, workType, onClose }: WorkTypeFormModal
         ? { name: workType.name, category: workType.category ?? '', isActive: workType.isActive }
         : defaults,
     )
-  }, [open, reset, workType])
+  }, [open, reset, workType?.id])
 
   const pending = isSubmitting || createWorkType.isPending || updateWorkType.isPending
 

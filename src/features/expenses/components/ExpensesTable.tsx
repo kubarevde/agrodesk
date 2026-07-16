@@ -15,10 +15,11 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import type { Expense } from '@/types'
+import { useDictionary } from '@/features/dictionaries/hooks'
 import {
-  CATEGORY_LABELS,
   formatMoney,
   getCategoryBadgeClass,
+  getCategoryLabel,
   PAYMENT_LABELS,
   type PaymentMethod,
 } from '@/features/expenses/utils'
@@ -39,6 +40,7 @@ export function ExpensesTable({
   onDelete,
 }: ExpensesTableProps) {
   const showActions = canEdit || canDelete
+  const { data: categories = [] } = useDictionary('expense_category', { activeOnly: false })
 
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
@@ -61,7 +63,7 @@ export function ExpensesTable({
               <TableCell>{expense.date}</TableCell>
               <TableCell>
                 <Badge variant="outline" className={getCategoryBadgeClass(expense.category)}>
-                  {CATEGORY_LABELS[expense.category]}
+                  {getCategoryLabel(expense.category, categories)}
                 </Badge>
               </TableCell>
               <TableCell className="font-medium">{formatMoney(expense.amount)}</TableCell>

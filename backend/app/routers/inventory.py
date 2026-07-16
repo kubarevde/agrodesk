@@ -13,7 +13,6 @@ from app.dependencies.auth import get_current_employee, require_manager
 from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
 from app.models.inventory import (
-    InventoryCategory,
     InventoryItem,
     InventoryOperation,
     InventoryOperationType,
@@ -31,11 +30,14 @@ router = APIRouter()
 
 
 def item_to_response(item: InventoryItem) -> InventoryItemResponse:
+    category = item.category
+    if hasattr(category, 'value'):
+        category = category.value
     return InventoryItemResponse(
         id=item.id,
         org_id=item.org_id,
         name=item.name,
-        category=item.category.value,
+        category=str(category),
         unit=item.unit,
         current_stock=item.current_stock,
         min_stock=item.min_stock,
@@ -77,7 +79,7 @@ async def get_item_or_404(db: AsyncSession, item_id: UUID, org_id: UUID) -> Inve
 @router.get('', response_model=list[InventoryItemResponse])
 async def list_inventory(
     request: Request,
-    category: InventoryCategory | None = Query(None),
+    category: str | None = Query(None),
     is_active: bool | None = Query(None),
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
@@ -198,7 +200,7 @@ async def _stock_to_equipment(
     payload: EquipmentStockAction,
     current: Employee,
     purpose: str,
-    allowed_categories: set[InventoryCategory] | None,
+    allowed_categories: set[str] | None,
 ) -> InventoryOperationResponse:
     from app.models.reference import Equipment
 
@@ -269,7 +271,7 @@ async def refuel_equipment(
         payload=payload,
         current=current,
         purpose='refuel',
-        allowed_categories={InventoryCategory.fuel},
+        allowed_categories={'fuel'},
     )
 
 
@@ -293,10 +295,10 @@ async def install_on_equipment(
         current=current,
         purpose='install',
         allowed_categories={
-            InventoryCategory.parts,
-            InventoryCategory.chemicals,
-            InventoryCategory.other,
-            InventoryCategory.fertilizer,
+            'parts',
+            'chemicals',
+            'other',
+            'fertilizer',
         },
     )
 

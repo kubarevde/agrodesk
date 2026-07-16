@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { OfflineBanner } from '@/components/shared/OfflineBanner'
 import { useLayoutStore } from '@/stores/layoutStore'
 import { AppHeader } from './AppHeader'
 import { AppSidebar } from './AppSidebar'
@@ -34,6 +35,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         <div className="flex min-w-0 flex-1 flex-col">
           <AppHeader />
+          <OfflineBanner />
           <main className="flex-1 p-4 md:p-6">{children}</main>
         </div>
       </div>

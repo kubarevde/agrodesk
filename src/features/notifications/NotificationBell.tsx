@@ -17,9 +17,11 @@ import {
   notificationTypeIcon,
   notificationTypeLabel,
 } from './utils'
+import { useOrgTimezone } from '@/features/settings/useOrgTimezone'
 
 export function NotificationBell() {
   const navigate = useNavigate()
+  const timezone = useOrgTimezone()
   const [open, setOpen] = useState(false)
   const { data: unread = 0 } = useNotificationCount()
   const { data: items = [], isLoading } = useNotifications({ limit: 10 })
@@ -73,7 +75,12 @@ export function NotificationBell() {
             <p className="px-3 py-4 text-sm text-muted-foreground">Нет уведомлений</p>
           ) : (
             items.map((item) => (
-              <NotificationPopoverItem key={item.id} item={item} onClick={() => handleClick(item)} />
+              <NotificationPopoverItem
+                key={item.id}
+                item={item}
+                timezone={timezone}
+                onClick={() => handleClick(item)}
+              />
             ))
           )}
         </div>
@@ -94,9 +101,11 @@ export function NotificationBell() {
 
 function NotificationPopoverItem({
   item,
+  timezone,
   onClick,
 }: {
   item: NotificationItem
+  timezone: string
   onClick: () => void
 }) {
   const Icon = notificationTypeIcon(item.type)
@@ -117,7 +126,7 @@ function NotificationPopoverItem({
           <p className="truncate text-xs text-muted-foreground">{item.body}</p>
         ) : null}
         <p className="mt-0.5 text-xs text-muted-foreground">
-          {notificationTimeAgo(item.createdAt)}
+          {notificationTimeAgo(item.createdAt, timezone)}
         </p>
       </div>
       <span className="shrink-0 text-[10px] text-muted-foreground">

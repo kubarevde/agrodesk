@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { SingleImageUploader } from '@/components/shared/SingleImageUploader'
 import { Button } from '@/components/ui/button'
@@ -21,8 +21,10 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useEquipment } from '@/features/worktime/referenceHooks'
+import { useDictionary } from '@/features/dictionaries/hooks'
+import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
 import { implementFormSchema, type ImplementFormValues } from '../schemas'
-import { CATEGORY_OPTIONS, type ImplementResponse } from '../types'
+import type { ImplementResponse } from '../types'
 
 type ImplementFormDialogProps = {
   open: boolean
@@ -34,7 +36,7 @@ type ImplementFormDialogProps = {
 
 const defaults: ImplementFormValues = {
   name: '',
-  category: 'Посевная',
+  category: '',
   serial_number: '',
   year_of_manufacture: undefined,
   description: '',
@@ -52,10 +54,19 @@ export function ImplementFormDialog({
   isPending,
 }: ImplementFormDialogProps) {
   const { data: equipment = [] } = useEquipment()
+  const { data: categories = [] } = useDictionary('implement_category')
   const form = useForm<ImplementFormValues>({
     resolver: zodResolver(implementFormSchema),
     defaultValues: defaults,
   })
+
+  const categoryItems = useMemo(() => {
+    const rows = categories.map((row) => ({ value: row.name, label: row.name }))
+    if (item?.category && !rows.some((row) => row.value === item.category)) {
+      return [{ value: item.category, label: item.category }, ...rows]
+    }
+    return rows
+  }, [categories, item?.category])
 
   useEffect(() => {
     if (!open) return
@@ -72,9 +83,13 @@ export function ImplementFormDialog({
             current_usage_hours: item.current_usage_hours ?? 0,
             service_interval_hours: item.service_interval_hours ?? undefined,
           }
-        : defaults,
+        : {
+            ...defaults,
+            category: (categories[0]?.name ?? '') as ImplementFormValues['category'],
+          },
     )
-  }, [form, item, open])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id, open])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -105,21 +120,25 @@ export function ImplementFormDialog({
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
-                  items={CATEGORY_OPTIONS.map((category) => ({ value: category, label: category }))}
+                  items={categoryItems}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue />
+                    <SelectValue placeholder="Выберите категорию" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORY_OPTIONS.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
+                  <SelectContent alignItemWithTrigger={false}>
+                    {categoryItems.map((category) => (
+                      <SelectItem key={category.value} value={category.value}>
+                        {category.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )}
             />
+            <p className="text-xs text-muted-foreground">
+              Категории — в Настройки → Категории приспособлений
+            </p>
+            <ManageInSettingsLink tabHint="категории приспособлений" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

@@ -1,15 +1,12 @@
 import { DollarSign, FileText, Layers } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  CATEGORY_LABELS,
-  formatMoney,
-  type ExpenseCategory,
-} from '@/features/expenses/utils'
+import { useDictionary } from '@/features/dictionaries/hooks'
+import { formatMoney, getCategoryLabel } from '@/features/expenses/utils'
 
 interface ExpenseKpiCardsProps {
   totalAmount: number
-  largestCategory: { category: ExpenseCategory; amount: number } | null
+  largestCategory: { category: string; amount: number } | null
   recordsCount: number
   isLoading?: boolean
 }
@@ -20,6 +17,8 @@ export function ExpenseKpiCards({
   recordsCount,
   isLoading,
 }: ExpenseKpiCardsProps) {
+  const { data: categories = [] } = useDictionary('expense_category', { activeOnly: false })
+
   if (isLoading) {
     return (
       <div className="grid gap-4 sm:grid-cols-3">
@@ -38,7 +37,7 @@ export function ExpenseKpiCards({
   }
 
   const largestLabel = largestCategory
-    ? `${CATEGORY_LABELS[largestCategory.category]}: ${formatMoney(largestCategory.amount)}`
+    ? `${getCategoryLabel(largestCategory.category, categories)}: ${formatMoney(largestCategory.amount)}`
     : '—'
 
   const items = [

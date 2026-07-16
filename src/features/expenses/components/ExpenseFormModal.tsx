@@ -24,15 +24,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { Expense } from '@/types'
+import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
+import { buildDictionarySelectOptions } from '@/features/dictionaries/labels'
+import { useDictionary } from '@/features/dictionaries/hooks'
 import { formatApiDate, parseApiDate } from '@/features/worktime/utils'
 import { useCreateExpense, useUpdateExpense } from '@/features/expenses/hooks'
 import { expenseFormSchema, type ExpenseFormValues } from '@/features/expenses/schemas'
-import {
-  CATEGORY_LABELS,
-  EXPENSE_CATEGORIES,
-  PAYMENT_LABELS,
-  PAYMENT_METHODS,
-} from '@/features/expenses/utils'
+import { PAYMENT_LABELS, PAYMENT_METHODS } from '@/features/expenses/utils'
 import { useEquipment } from '@/features/worktime/referenceHooks'
 
 interface ExpenseFormModalProps {
@@ -42,10 +40,10 @@ interface ExpenseFormModalProps {
   onClose: () => void
 }
 
-function getDefaultValues(equipmentId?: string): ExpenseFormValues {
+function getDefaultValues(equipmentId?: string, defaultCategory = ''): ExpenseFormValues {
   return {
     date: formatApiDate(new Date()),
-    category: 'fuel',
+    category: defaultCategory,
     amount: 0,
     description: '',
     supplier: '',
@@ -76,6 +74,15 @@ export function ExpenseFormModal({
   const createExpense = useCreateExpense()
   const updateExpense = useUpdateExpense()
   const { data: equipment = [] } = useEquipment()
+  const { data: categories = [], isLoading: categoriesLoading } =
+    useDictionary('expense_category')
+  const firstCategory = categories[0]?.code ?? ''
+  const categoryItems = buildDictionarySelectOptions(categories, {
+    valueKey: 'code',
+    orphanValue: expense?.category,
+  })
+  const dictionaryEmpty =
+    !categoriesLoading && categories.length === 0 && !expense?.category
 
   const {
     control,
@@ -85,19 +92,24 @@ export function ExpenseFormModal({
     formState: { errors, isSubmitting },
   } = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseFormSchema),
-    defaultValues: getDefaultValues(defaultEquipmentId),
+    defaultValues: getDefaultValues(defaultEquipmentId, firstCategory),
   })
 
   useEffect(() => {
     if (!open) {
-      reset(getDefaultValues(defaultEquipmentId))
+      reset(getDefaultValues(defaultEquipmentId, firstCategory))
       return
     }
-    reset(expense ? toFormValues(expense) : getDefaultValues(defaultEquipmentId))
-  }, [defaultEquipmentId, expense, open, reset])
+    reset(
+      expense
+        ? toFormValues(expense)
+        : getDefaultValues(defaultEquipmentId, firstCategory),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultEquipmentId, expense?.id, open, reset, firstCategory])
 
   const handleClose = () => {
-    reset(getDefaultValues(defaultEquipmentId))
+    reset(getDefaultValues(defaultEquipmentId, firstCategory))
     onClose()
   }
 
@@ -163,18 +175,22 @@ export function ExpenseFormModal({
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
-                  items={EXPENSE_CATEGORIES.map((category) => ({
-                    value: category,
-                    label: CATEGORY_LABELS[category],
-                  }))}
+                  items={categoryItems}
+                  disabled={dictionaryEmpty}
                 >
                   <SelectTrigger className="w-full" aria-invalid={Boolean(errors.category)}>
-                    <SelectValue placeholder="Выберите категорию" />
+                    <SelectValue
+                      placeholder={
+                        dictionaryEmpty
+                          ? 'Сначала добавьте категорию в Настройках'
+                          : 'Выберите категорию'
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {EXPENSE_CATEGORIES.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {CATEGORY_LABELS[category]}
+                    {categoryItems.map((category) => (
+                      <SelectItem key={category.value} value={category.value}>
+                        {category.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -183,7 +199,9 @@ export function ExpenseFormModal({
             />
             {errors.category ? (
               <p className="text-xs text-destructive">{errors.category.message}</p>
-            ) : null}
+            ) : (
+              <ManageInSettingsLink tabHint="категории затрат" />
+            )}
           </div>
 
           <div className="space-y-2">
@@ -286,7 +304,7 @@ export function ExpenseFormModal({
           <DialogFooter className="sm:justify-stretch">
             <Button
               type="submit"
-              disabled={pending}
+              disabled={pending || dictionaryEmpty}
               className="w-full bg-primary hover:bg-primary-hover text-primary-foreground"
             >
               {pending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}

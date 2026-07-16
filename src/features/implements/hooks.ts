@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { apiErrorMessage } from '@/lib/apiError'
 import { db } from '@/lib/db'
 import type {
   AttachFormValues,
@@ -95,7 +96,7 @@ export function useCreateImplement() {
       await queryClient.invalidateQueries({ queryKey: ['implements'] })
       toast.success('Приспособление добавлено')
     },
-    onError: () => toast.error('Не удалось добавить приспособление'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось добавить приспособление')),
   })
 }
 
@@ -113,7 +114,7 @@ export function useUpdateImplement() {
       await queryClient.invalidateQueries({ queryKey: ['implements'] })
       toast.success('Приспособление обновлено')
     },
-    onError: () => toast.error('Не удалось обновить приспособление'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось обновить приспособление')),
   })
 }
 
@@ -194,11 +195,13 @@ export function useAddImplementMaintenance() {
     },
     onSuccess: async (_data, vars) => {
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['implements'] }),
         queryClient.invalidateQueries({ queryKey: ['implements', vars.id, 'maintenance'] }),
         queryClient.invalidateQueries({ queryKey: ['expenses'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       ])
       toast.success('ТО записано')
     },
-    onError: () => toast.error('Не удалось сохранить ТО'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось сохранить ТО')),
   })
 }

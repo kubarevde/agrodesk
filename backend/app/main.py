@@ -17,6 +17,7 @@ from app.routers import (
     agro_plan,
     auth,
     dashboard,
+    dictionaries,
     employee_rates,
     employees,
     equipment_logs,
@@ -37,10 +38,16 @@ from app.routers import (
 )
 from app.seed import ensure_demo_data
 from app.services.auth import hash_password
+from app.services.db_preflight import check_db_revision
 from app.services.telegram_notify import TelegramNotifier
 
 setup_logging()
 logger = logging.getLogger(__name__)
+_db_preflight: dict[str, object] = {
+    'db_revision': None,
+    'code_head': None,
+    'db_up_to_date': False,
+}
 
 
 async def _seed_superadmin() -> None:
@@ -84,7 +91,14 @@ async def _bootstrap() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    global _db_preflight
     logger.info('API starting (graceful shutdown enabled)')
+    _db_preflight = await check_db_revision(engine)
+    if not _db_preflight.get('db_up_to_date'):
+        logger.error(
+            'CRITICAL: schema mismatch — Settings/dictionaries may 404 until '
+            '`alembic upgrade head` and a full API restart'
+        )
     await _bootstrap()
     yield
     logger.info('API shutting down — disposing DB engine')
@@ -110,14 +124,24 @@ app.add_middleware(
 app.add_middleware(OrgContextMiddleware)
 
 
+def _health_payload() -> dict[str, object]:
+    return {
+        'status': 'ok' if _db_preflight.get('db_up_to_date') else 'degraded',
+        'version': '5.0.0',
+        'db_revision': _db_preflight.get('db_revision'),
+        'code_head': _db_preflight.get('code_head'),
+        'db_up_to_date': bool(_db_preflight.get('db_up_to_date')),
+    }
+
+
 @app.get('/health')
-async def health() -> dict[str, str]:
-    return {'status': 'ok', 'version': '5.0.0'}
+async def health() -> dict[str, object]:
+    return _health_payload()
 
 
 @app.get('/api/health')
-async def api_health() -> dict[str, str]:
-    return {'status': 'ok', 'version': '5.0.0'}
+async def api_health() -> dict[str, object]:
+    return _health_payload()
 
 
 app.include_router(superadmin.router, prefix='/superadmin/api', tags=['superadmin'])
@@ -140,6 +164,7 @@ app.include_router(expenses.router, prefix='/api/expenses', tags=['expenses'])
 app.include_router(dashboard.router, prefix='/api/dashboard', tags=['dashboard'])
 app.include_router(reports.router, prefix='/api/reports', tags=['reports'])
 app.include_router(settings_router.router, prefix='/api/settings', tags=['settings'])
+app.include_router(dictionaries.router, prefix='/api/dictionaries', tags=['dictionaries'])
 app.include_router(sharing.router, prefix='/api/sharing', tags=['sharing'])
 app.include_router(notifications.router, prefix='/api/notifications', tags=['notifications'])
 app.include_router(uploads.router, prefix='/api/uploads', tags=['uploads'])

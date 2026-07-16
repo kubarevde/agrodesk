@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { TOKEN_KEY } from '@/features/auth/utils'
+import { clearAuthStorage, getLoginHref, TOKEN_KEY } from '@/features/auth/storage'
 
 /**
  * Dev: empty/undefined VITE_API_URL → same-origin `/api` via Vite proxy (no CORS).
@@ -38,8 +38,8 @@ api.interceptors.response.use(
     console.error('[api]', error.config?.method, requestUrl, status, detail ?? error.message)
 
     if (status === 401 && !requestUrl.includes('/api/auth/login')) {
-      localStorage.removeItem(TOKEN_KEY)
-      window.location.href = '/login'
+      clearAuthStorage()
+      window.location.href = getLoginHref()
     }
     return Promise.reject(error)
   },

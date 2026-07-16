@@ -1,16 +1,22 @@
 import { cn } from '@/lib/utils'
-import type { InventoryCategoryFilter } from '@/features/inventory/utils'
-import { CATEGORY_FILTERS } from '@/features/inventory/utils'
+import { useDictionary } from '@/features/dictionaries/hooks'
 
-interface CategoryFilterProps {
-  value: InventoryCategoryFilter
-  onChange: (value: InventoryCategoryFilter) => void
+type CategoryFilterProps = {
+  value: string
+  onChange: (value: string) => void
 }
 
 export function CategoryFilter({ value, onChange }: CategoryFilterProps) {
+  const { data: categories = [] } = useDictionary('inventory_category')
+
+  const filters = [
+    { id: 'all', label: 'Все' },
+    ...categories.map((item) => ({ id: item.code, label: item.name })),
+  ]
+
   return (
     <div className="flex flex-wrap gap-2">
-      {CATEGORY_FILTERS.map((filter) => (
+      {filters.map((filter) => (
         <button
           key={filter.id}
           type="button"

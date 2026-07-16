@@ -28,6 +28,7 @@ import {
   notificationTypeLabel,
   matchesTypeGroup,
 } from '@/features/notifications/utils'
+import { useOrgTimezone } from '@/features/settings/useOrgTimezone'
 
 type ReadFilter = 'all' | 'unread'
 type TypeFilter = 'all' | 'maintenance' | 'sharing'
@@ -47,6 +48,7 @@ export function NotificationsPage() {
 
   const { data: items = [], isLoading } = useNotifications(apiFilters)
   const markRead = useMarkNotificationRead()
+  const timezone = useOrgTimezone()
 
   const filtered = useMemo(
     () =>
@@ -141,7 +143,7 @@ export function NotificationsPage() {
                   <TableCell className="font-medium">{item.title}</TableCell>
                   <TableCell className="max-w-xs truncate">{item.body || '—'}</TableCell>
                   <TableCell className="whitespace-nowrap">
-                    {notificationTimeAgo(item.createdAt)}
+                    {notificationTimeAgo(item.createdAt, timezone)}
                   </TableCell>
                   <TableCell>
                     <Badge variant={item.isRead ? 'secondary' : 'outline'}>

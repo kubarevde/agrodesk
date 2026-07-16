@@ -2,14 +2,18 @@ import { Plus, Truck } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { OnlineOnlyNotice } from '@/components/shared/OnlineOnlyNotice'
+import { SectionHelp } from '@/components/shared/SectionHelp'
 import { SkeletonTable } from '@/components/shared/SkeletonTable'
 import { Button } from '@/components/ui/button'
 import type { Shipment } from '@/types'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { shipmentsHelp } from '@/features/help/content'
 import {
   useDeleteShipment,
   useShipments,
 } from '@/features/shipments/hooks'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import {
   groupShipmentsByCrop,
   sumShipments,
@@ -23,8 +27,9 @@ import { ShipmentsTable } from './ShipmentsTable'
 
 export function ShipmentsPage() {
   const { data: user } = useCurrentUser()
-  const canManage = user?.role === 'admin' || user?.role === 'manager'
-  const canDelete = user?.role === 'admin'
+  const isOnline = useOnlineStatus()
+  const canManage = (user?.role === 'admin' || user?.role === 'manager') && isOnline
+  const canDelete = user?.role === 'admin' && isOnline
 
   const monthRange = useMemo(() => getDefaultMonthRange(), [])
   const [from, setFrom] = useState(monthRange.from)
@@ -86,6 +91,16 @@ export function ShipmentsPage() {
           </Button>
         ) : null}
       </div>
+
+      <SectionHelp title="Справка: отгрузки" items={shipmentsHelp} />
+
+      {!isOnline ? (
+        <OnlineOnlyNotice
+          hideWhenOnline={false}
+          title="Отгрузки: только онлайн-запись"
+          description="Без сети создать отгрузку нельзя. Смены доступны офлайн в «Рабочем времени»."
+        />
+      ) : null}
 
       <ShipmentKpiCards
         totalKg={monthTotals.totalKg}

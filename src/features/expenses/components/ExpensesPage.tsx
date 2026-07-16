@@ -2,17 +2,20 @@ import { DollarSign, Plus } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { OnlineOnlyNotice } from '@/components/shared/OnlineOnlyNotice'
+import { SectionHelp } from '@/components/shared/SectionHelp'
 import { SkeletonTable } from '@/components/shared/SkeletonTable'
 import { Button } from '@/components/ui/button'
 import type { Expense } from '@/types'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { useDeleteExpense, useExpenses } from '@/features/expenses/hooks'
+import { expensesHelp } from '@/features/help/content'
 import {
   findLargestCategory,
   groupExpensesByCategory,
   sumExpenses,
-  type ExpenseCategory,
 } from '@/features/expenses/utils'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { getDefaultMonthRange } from '@/features/worktime/utils'
 import { ExpenseFormModal } from './ExpenseFormModal'
 import { ExpenseKpiCards } from './ExpenseKpiCards'
@@ -22,13 +25,14 @@ import { ExpensesTable } from './ExpensesTable'
 
 export function ExpensesPage() {
   const { data: user } = useCurrentUser()
-  const canManage = user?.role === 'admin' || user?.role === 'manager'
-  const canDelete = user?.role === 'admin'
+  const isOnline = useOnlineStatus()
+  const canManage = (user?.role === 'admin' || user?.role === 'manager') && isOnline
+  const canDelete = user?.role === 'admin' && isOnline
 
   const monthRange = useMemo(() => getDefaultMonthRange(), [])
   const [from, setFrom] = useState(monthRange.from)
   const [to, setTo] = useState(monthRange.to)
-  const [category, setCategory] = useState<ExpenseCategory | undefined>()
+  const [category, setCategory] = useState<string | undefined>()
   const [equipmentId, setEquipmentId] = useState<string | undefined>()
 
   const filters = useMemo(
@@ -78,6 +82,16 @@ export function ExpensesPage() {
           </Button>
         ) : null}
       </div>
+
+      <SectionHelp title="Справка: затраты" items={expensesHelp} />
+
+      {!isOnline ? (
+        <OnlineOnlyNotice
+          hideWhenOnline={false}
+          title="Затраты: только просмотр / онлайн-запись"
+          description="Создавать и менять затраты без сети нельзя. Смены ведите офлайн в «Рабочем времени»."
+        />
+      ) : null}
 
       <ExpenseKpiCards
         totalAmount={monthTotal}

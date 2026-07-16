@@ -8,7 +8,7 @@ type SectionMovedNoticeProps = {
   icon: LucideIcon
   title: string
   description: string
-  to: '/fields' | '/equipment' | '/implements'
+  to: '/fields' | '/equipment' | '/implements' | '/inventory' | '/worktime'
   actionLabel: string
 }
 

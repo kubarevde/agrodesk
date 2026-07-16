@@ -5,6 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:api": "powershell -ExecutionPolicy Bypass -File ./scripts/dev-backend.ps1",
+    "db:migrate": "cd backend && alembic upgrade head",
+    "db:seed": "cd backend && python -m app.seed",
+    "smoke:api": "cd backend && python scripts/smoke_settings.py",
+    "test:api": "cd backend && pytest tests/ -q",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",

@@ -67,7 +67,8 @@ export function MaintenanceModal({
       description: '',
       next_to_interval: undefined,
     })
-  }, [currentMeter, form, open])
+  }, [currentMeter, open])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on open / meter only
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -153,7 +154,11 @@ export function MaintenanceModal({
               type="number"
               step="0.01"
               {...form.register('cost', {
-                setValueAs: (v) => (v === '' || v == null ? undefined : Number(v)),
+                setValueAs: (v) => {
+                  if (v === '' || v == null) return undefined
+                  const n = Number(v)
+                  return Number.isNaN(n) ? undefined : n
+                },
               })}
             />
           </div>
@@ -165,7 +170,11 @@ export function MaintenanceModal({
               type="number"
               step="any"
               {...form.register('next_to_interval', {
-                setValueAs: (v) => (v === '' || v == null ? undefined : Number(v)),
+                setValueAs: (v) => {
+                  if (v === '' || v == null) return undefined
+                  const n = Number(v)
+                  return Number.isNaN(n) ? undefined : n
+                },
               })}
             />
           </div>

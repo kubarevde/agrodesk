@@ -19,6 +19,10 @@ from app.schemas.maintenance import MaintenanceCreate, MaintenanceResponse, Main
 from app.schemas.reference import EquipmentResponse
 from app.services.dashboard import clear_dashboard_cache
 from app.services.equipment_meters import calc_meter_label
+from app.services.maintenance_expense import (
+    create_maintenance_expense,
+    should_create_maintenance_expense,
+)
 
 router = APIRouter()
 
@@ -93,20 +97,19 @@ async def list_upcoming_maintenance(
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> list[EquipmentResponse]:
+    """Use the same maintenance status rules as equipment list/dashboard (warning/overdue)."""
     org_id = get_org_id(request)
     result = await db.execute(
         select(Equipment).where(
             Equipment.org_id == org_id,
             Equipment.is_active.is_(True),
-            Equipment.next_to_at.is_not(None),
         )
     )
     items: list[EquipmentResponse] = []
     for equipment in result.scalars().all():
-        current = Decimal(str(equipment.current_meter or 0))
-        next_to = Decimal(str(equipment.next_to_at))
-        if current >= next_to * Decimal('0.85'):
-            items.append(equipment_to_response(equipment))
+        response = equipment_to_response(equipment)
+        if response.to_status in ('warning', 'overdue'):
+            items.append(response)
     items.sort(key=lambda item: item.next_to_at or 0)
     return items
 
@@ -151,17 +154,16 @@ async def create_maintenance(
     label = calc_meter_label(equipment.meter_type)
 
     expense_id: UUID | None = None
-    if payload.cost is not None and payload.cost > 0:
-        expense = Expense(
-            date=payload.date,
-            category='parts',
-            amount=Decimal(str(payload.cost)),
+    if should_create_maintenance_expense(payload.cost):
+        expense = await create_maintenance_expense(
+            db,
+            org_id=org_id,
+            expense_date=payload.date,
+            amount=payload.cost,  # validated > 0 above
             description=f'ТО ({payload.type}): {equipment.name}',
-            equipment_id=equipment.id,
             created_by=current.id,
+            equipment_id=equipment.id,
         )
-        db.add(expense)
-        await db.flush()
         expense_id = expense.id
 
     next_to_at: Decimal | None = None

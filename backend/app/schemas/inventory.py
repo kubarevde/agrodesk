@@ -4,12 +4,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.inventory import InventoryCategory, InventoryOperationType
+from app.models.inventory import InventoryOperationType
 
 
 class InventoryItemCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
-    category: InventoryCategory
+    category: str = Field(min_length=1, max_length=50)
     unit: str = Field(min_length=1, max_length=50)
     current_stock: Decimal = Field(default=Decimal('0'), ge=0)
     min_stock: Decimal = Field(default=Decimal('0'), ge=0)
@@ -18,7 +18,7 @@ class InventoryItemCreate(BaseModel):
 
 class InventoryItemUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
-    category: InventoryCategory | None = None
+    category: str | None = Field(default=None, min_length=1, max_length=50)
     unit: str | None = Field(default=None, min_length=1, max_length=50)
     min_stock: Decimal | None = Field(default=None, ge=0)
     total_capacity: Decimal | None = Field(default=None, ge=0)

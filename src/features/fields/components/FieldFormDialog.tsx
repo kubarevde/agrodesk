@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { MapPin } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -21,8 +21,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useDictionary } from '@/features/dictionaries/hooks'
+import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
 import { fieldFormSchema, type FieldFormValues } from '../schemas'
-import { CROP_OPTIONS, SOIL_OPTIONS, type FieldResponse } from '../types'
+import type { FieldResponse } from '../types'
 
 type FieldFormDialogProps = {
   open: boolean
@@ -36,7 +38,6 @@ const defaults: FieldFormValues = {
   name: '',
   crop_type: undefined,
   area_ha: undefined,
-  soil_type: undefined,
   description: '',
   latitude: undefined,
   longitude: undefined,
@@ -49,27 +50,29 @@ export function FieldFormDialog({
   onSubmit,
   isPending,
 }: FieldFormDialogProps) {
+  const { data: crops = [] } = useDictionary('crop')
   const form = useForm<FieldFormValues>({
     resolver: zodResolver(fieldFormSchema),
     defaultValues: defaults,
   })
 
+  // Reset only on open / entity id — never put query arrays or unstable `form` in deps
   useEffect(() => {
     if (!open) return
     form.reset(
       field
         ? {
             name: field.name,
-            crop_type: (field.crop_type as FieldFormValues['crop_type']) ?? undefined,
+            crop_type: field.crop_type ?? undefined,
             area_ha: field.area_ha ?? undefined,
-            soil_type: (field.soil_type as FieldFormValues['soil_type']) ?? undefined,
             description: field.description ?? '',
             latitude: field.latitude ?? undefined,
             longitude: field.longitude ?? undefined,
           }
         : defaults,
     )
-  }, [field, form, open])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [field?.id, open])
 
   const fillGeolocation = () => {
     if (!navigator.geolocation) {
@@ -86,6 +89,14 @@ export function FieldFormDialog({
     )
   }
 
+  const cropItems = useMemo(() => {
+    const rows = crops.map((crop) => ({ value: crop.name, label: crop.name }))
+    if (field?.crop_type && !rows.some((item) => item.value === field.crop_type)) {
+      return [{ value: field.crop_type, label: field.crop_type }, ...rows]
+    }
+    return rows
+  }, [crops, field?.crop_type])
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
@@ -101,7 +112,14 @@ export function FieldFormDialog({
         >
           <div className="space-y-2">
             <Label htmlFor="field-name">Название поля</Label>
-            <Input id="field-name" {...form.register('name')} />
+            <Input
+              id="field-name"
+              placeholder="Например: 1815 компост"
+              {...form.register('name')}
+            />
+            {form.formState.errors.name ? (
+              <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
+            ) : null}
           </div>
 
           <div className="space-y-2">
@@ -112,22 +130,26 @@ export function FieldFormDialog({
               render={({ field: f }) => (
                 <Select
                   value={f.value ?? undefined}
-                  onValueChange={f.onChange}
-                  items={CROP_OPTIONS.map((crop) => ({ value: crop, label: crop }))}
+                  onValueChange={(value) => f.onChange(value ?? undefined)}
+                  items={cropItems}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Выберите культуру" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {CROP_OPTIONS.map((crop) => (
-                      <SelectItem key={crop} value={crop}>
-                        {crop}
+                  <SelectContent alignItemWithTrigger={false}>
+                    {cropItems.map((crop) => (
+                      <SelectItem key={crop.value} value={crop.value}>
+                        {crop.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )}
             />
+            <p className="text-xs text-muted-foreground">
+              Список культур редактируется в Настройки → Культуры
+            </p>
+            <ManageInSettingsLink tabHint="культуры" />
           </div>
 
           <div className="space-y-2">
@@ -137,32 +159,6 @@ export function FieldFormDialog({
               type="number"
               step="0.01"
               {...form.register('area_ha', { valueAsNumber: true })}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Тип почвы</Label>
-            <Controller
-              name="soil_type"
-              control={form.control}
-              render={({ field: f }) => (
-                <Select
-                  value={f.value ?? undefined}
-                  onValueChange={f.onChange}
-                  items={SOIL_OPTIONS.map((soil) => ({ value: soil, label: soil }))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Выберите тип почвы" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SOIL_OPTIONS.map((soil) => (
-                      <SelectItem key={soil} value={soil}>
-                        {soil}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
             />
           </div>
 

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { Shipment, ShipmentFilters } from '@/types'
 import { api } from '@/lib/api'
+import { apiErrorMessage } from '@/lib/apiError'
 import {
   shipmentCreateToApi,
   shipmentFiltersToApi,
@@ -44,7 +45,7 @@ export function useCreateShipment() {
       await invalidateShipmentQueries(queryClient)
       toast.success('Отгрузка добавлена')
     },
-    onError: () => toast.error('Не удалось добавить отгрузку'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось добавить отгрузку')),
   })
 }
 
@@ -63,7 +64,7 @@ export function useUpdateShipment() {
       await invalidateShipmentQueries(queryClient)
       toast.success('Отгрузка обновлена')
     },
-    onError: () => toast.error('Не удалось обновить отгрузку'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось обновить отгрузку')),
   })
 }
 
@@ -78,6 +79,6 @@ export function useDeleteShipment() {
       await invalidateShipmentQueries(queryClient)
       toast.success('Отгрузка удалена')
     },
-    onError: () => toast.error('Не удалось удалить отгрузку'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось удалить отгрузку')),
   })
 }

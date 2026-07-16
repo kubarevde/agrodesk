@@ -6,20 +6,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  CATEGORY_LABELS,
-  EXPENSE_CATEGORIES,
-  type ExpenseCategory,
-} from '@/features/expenses/utils'
+import { useDictionary } from '@/features/dictionaries/hooks'
 import { useEquipment } from '@/features/worktime/referenceHooks'
 
 interface ExpensesFiltersProps {
   from?: string
   to?: string
-  category?: ExpenseCategory
+  category?: string
   equipmentId?: string
   onRangeChange: (range: { from?: string; to?: string }) => void
-  onCategoryChange: (category: ExpenseCategory | undefined) => void
+  onCategoryChange: (category: string | undefined) => void
   onEquipmentChange: (equipmentId: string | undefined) => void
 }
 
@@ -33,6 +29,8 @@ export function ExpensesFilters({
   onEquipmentChange,
 }: ExpensesFiltersProps) {
   const { data: equipment = [] } = useEquipment()
+  const { data: categories = [] } = useDictionary('expense_category')
+  const categoryItems = categories.map((row) => ({ value: row.code, label: row.name }))
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
@@ -40,11 +38,11 @@ export function ExpensesFilters({
       <Select
         value={category ?? 'all'}
         onValueChange={(value) =>
-          onCategoryChange(!value || value === 'all' ? undefined : (value as ExpenseCategory))
+          onCategoryChange(!value || value === 'all' ? undefined : value)
         }
         items={[
           { value: 'all', label: 'Все категории' },
-          ...EXPENSE_CATEGORIES.map((item) => ({ value: item, label: CATEGORY_LABELS[item] })),
+          ...categoryItems,
         ]}
       >
         <SelectTrigger className="w-full sm:w-52">
@@ -52,9 +50,9 @@ export function ExpensesFilters({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">Все категории</SelectItem>
-          {EXPENSE_CATEGORIES.map((item) => (
-            <SelectItem key={item} value={item}>
-              {CATEGORY_LABELS[item]}
+          {categoryItems.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
             </SelectItem>
           ))}
         </SelectContent>

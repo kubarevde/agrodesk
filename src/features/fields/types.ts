@@ -12,24 +12,7 @@ export type FieldResponse = {
   is_active: boolean
 }
 
-export const CROP_OPTIONS = [
-  'Пшеница',
-  'Подсолнечник',
-  'Кукуруза',
-  'Ячмень',
-  'Рапс',
-  'Озимые',
-  'Пар',
-  'Другое',
-] as const
-
-export const SOIL_OPTIONS = [
-  'Чернозём',
-  'Супесчаная',
-  'Суглинистая',
-  'Другое',
-] as const
-
+/** Map pin colors by crop display name (dictionary). Unknown crops → primary. */
 export const CROP_COLORS: Record<string, string> = {
   Пшеница: '#F5C842',
   Подсолнечник: '#F5A623',

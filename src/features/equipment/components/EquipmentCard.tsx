@@ -44,13 +44,15 @@ export function EquipmentCard({
   return (
     <Card className="flex flex-col overflow-hidden">
       {item.image_url ? (
-        <img
-          src={mediaUrl(item.image_url)}
-          alt={item.name}
-          className="h-36 w-full object-cover"
-        />
+        <div className="flex h-40 w-full items-center justify-center bg-muted">
+          <img
+            src={mediaUrl(item.image_url)}
+            alt={item.name}
+            className="max-h-40 w-full object-contain"
+          />
+        </div>
       ) : (
-        <div className="flex h-36 w-full items-center justify-center bg-muted text-muted-foreground">
+        <div className="flex h-40 w-full items-center justify-center bg-muted text-muted-foreground">
           <Tractor className="size-10 opacity-50" />
         </div>
       )}

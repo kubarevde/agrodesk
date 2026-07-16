@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { EquipmentExtended } from '@/types'
 import { api } from '@/lib/api'
+import { apiErrorMessage } from '@/lib/apiError'
 import { db } from '@/lib/db'
 import { mapImplementFromApi } from '@/features/implements/types'
 import type {
@@ -196,10 +197,11 @@ export function useAddMaintenance(id: string | undefined) {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['equipment'] }),
         queryClient.invalidateQueries({ queryKey: ['expenses'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       ])
       toast.success('ТО записано')
     },
-    onError: () => toast.error('Не удалось сохранить ТО'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось сохранить ТО')),
   })
 }
 

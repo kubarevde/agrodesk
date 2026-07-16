@@ -2,15 +2,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { Field } from '@/types'
 import { api } from '@/lib/api'
+import { apiErrorMessage } from '@/lib/apiError'
 import { db } from '@/lib/db'
 import type { FieldFormValues } from './schemas'
 
 function toPayload(values: FieldFormValues) {
   return {
-    name: values.name,
+    name: values.name.trim(),
     crop_type: values.crop_type || null,
     area_ha: values.area_ha ?? null,
-    soil_type: values.soil_type || null,
     description: values.description || null,
     latitude: values.latitude ?? null,
     longitude: values.longitude ?? null,
@@ -64,7 +64,7 @@ export function useCreateField() {
       await queryClient.invalidateQueries({ queryKey: ['fields'] })
       toast.success('Поле добавлено')
     },
-    onError: () => toast.error('Не удалось добавить поле'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось добавить поле')),
   })
 }
 
@@ -80,7 +80,7 @@ export function useUpdateField() {
       await queryClient.invalidateQueries({ queryKey: ['fields'] })
       toast.success('Поле обновлено')
     },
-    onError: () => toast.error('Не удалось обновить поле'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось обновить поле')),
   })
 }
 

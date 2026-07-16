@@ -29,28 +29,55 @@ PWA + FastAPI + Telegram-бот для учёта работ в КФХ: муль
 
 ## Первый запуск (Dev)
 
+**Обязательный порядок** (иначе Settings/dictionaries снова дадут 404):
+
 ```bash
-# БД + API (Docker) или локальный Postgres
-docker compose up -d db api
-# либо:
+# Вариант A — скрипт (рекомендуется)
+# Windows PowerShell:
+.\scripts\dev-backend.ps1
+# Linux/macOS:
+chmod +x scripts/dev-backend.sh && ./scripts/dev-backend.sh
+
+# Вариант B — вручную
 cd backend
-cp .env.example .env
+cp .env.example .env   # если ещё нет
 pip install -r requirements.txt
 alembic upgrade head
-python -m app.seed
+python -m app.seed      # идемпотентно: не плодит дубли
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
-# Frontend
+# Frontend (второй терминал)
 cd ..
 npm install
 npm run dev
 ```
 
+Проверка после старта:
+
+```bash
+curl http://127.0.0.1:8000/api/health
+# ожидайте "db_up_to_date": true
+
+cd backend && python scripts/smoke_settings.py
+```
+
 При старте API:
-1. Создаётся суперадмин из `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` (если таблица пуста).
-2. При `RUN_SEED_ON_START=true` — demo org, сотрудники, справочники.
+1. **Preflight**: сравнение `alembic_version` с head — в логах ERROR и `/api/health` → `degraded`, если миграции не применены.
+2. Создаётся суперадмин из `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` (если таблица пуста).
+3. При `RUN_SEED_ON_START=true` — demo org, сотрудники, справочники (`org_dictionaries`).
+
+> Если правили код API, а в OpenAPI нет `/api/dictionaries` — **полностью перезапустите** uvicorn (не полагайтесь только на hot-reload после долгой сессии).
 
 Ручной seed суперадмина: `POST /superadmin/api/seed-superadmin`.
+
+npm-скрипты (корень репозитория):
+
+| Script | Действие |
+|--------|----------|
+| `npm run db:migrate` | `alembic upgrade head` |
+| `npm run db:seed` | `python -m app.seed` |
+| `npm run smoke:api` | `python scripts/smoke_settings.py` |
+| `npm run test:api` | pytest backend |
 
 Backfill зарплаты для старых смен:
 

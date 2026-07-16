@@ -2,7 +2,7 @@ import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CalendarIcon, Loader2, Plus } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
@@ -25,13 +25,16 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import type { Shipment } from '@/types'
+import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
+import { buildDictionarySelectOptions } from '@/features/dictionaries/labels'
+import { useDictionary } from '@/features/dictionaries/hooks'
 import { formatApiDate, parseApiDate } from '@/features/worktime/utils'
 import {
   useCreateShipment,
   useUpdateShipment,
 } from '@/features/shipments/hooks'
 import { shipmentSchema, type ShipmentFormValues } from '@/features/shipments/schemas'
-import { calcShipmentSum, CROP_TYPES, formatMoney } from '@/features/shipments/utils'
+import { calcShipmentSum, formatMoney } from '@/features/shipments/utils'
 
 interface ShipmentFormModalProps {
   open: boolean
@@ -39,10 +42,10 @@ interface ShipmentFormModalProps {
   onClose: () => void
 }
 
-function getDefaultValues(): ShipmentFormValues {
+function getDefaultValues(defaultCrop = ''): ShipmentFormValues {
   return {
     date: formatApiDate(new Date()),
-    cropType: 'Пшеница',
+    cropType: defaultCrop,
     quantityKg: 0,
     destination: '',
     pricePerKg: 0,
@@ -53,7 +56,7 @@ function getDefaultValues(): ShipmentFormValues {
 function toFormValues(shipment: Shipment): ShipmentFormValues {
   return {
     date: shipment.date,
-    cropType: shipment.cropType as ShipmentFormValues['cropType'],
+    cropType: shipment.cropType,
     quantityKg: shipment.quantityKg,
     destination: shipment.destination ?? '',
     pricePerKg: shipment.pricePerKg ?? 0,
@@ -65,6 +68,17 @@ export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModal
   const isEdit = Boolean(shipment)
   const createShipment = useCreateShipment()
   const updateShipment = useUpdateShipment()
+  const { data: crops = [], isLoading: cropsLoading } = useDictionary('crop')
+  const firstCrop = crops[0]?.name ?? ''
+  const cropItems = useMemo(
+    () =>
+      buildDictionarySelectOptions(crops, {
+        valueKey: 'name',
+        orphanValue: shipment?.cropType,
+      }),
+    [crops, shipment?.cropType],
+  )
+  const dictionaryEmpty = !cropsLoading && crops.length === 0 && !shipment?.cropType
 
   const {
     control,
@@ -74,7 +88,7 @@ export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModal
     formState: { errors, isSubmitting },
   } = useForm<ShipmentFormValues>({
     resolver: zodResolver(shipmentSchema),
-    defaultValues: getDefaultValues(),
+    defaultValues: getDefaultValues(firstCrop),
   })
 
   const quantityKg = useWatch({ control, name: 'quantityKg' }) ?? 0
@@ -83,14 +97,15 @@ export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModal
 
   useEffect(() => {
     if (!open) {
-      reset(getDefaultValues())
+      reset(getDefaultValues(firstCrop))
       return
     }
-    reset(shipment ? toFormValues(shipment) : getDefaultValues())
-  }, [open, reset, shipment])
+    reset(shipment ? toFormValues(shipment) : getDefaultValues(firstCrop))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, reset, shipment?.id, firstCrop])
 
   const handleClose = () => {
-    reset(getDefaultValues())
+    reset(getDefaultValues(firstCrop))
     onClose()
   }
 
@@ -154,15 +169,22 @@ export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModal
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
-                  items={CROP_TYPES.map((crop) => ({ value: crop, label: crop }))}
+                  items={cropItems}
+                  disabled={dictionaryEmpty}
                 >
                   <SelectTrigger className="w-full" aria-invalid={Boolean(errors.cropType)}>
-                    <SelectValue placeholder="Выберите культуру" />
+                    <SelectValue
+                      placeholder={
+                        dictionaryEmpty
+                          ? 'Сначала добавьте культуру в Настройках'
+                          : 'Выберите культуру'
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {CROP_TYPES.map((crop) => (
-                      <SelectItem key={crop} value={crop}>
-                        {crop}
+                    {cropItems.map((crop) => (
+                      <SelectItem key={crop.value} value={crop.value}>
+                        {crop.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -171,7 +193,9 @@ export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModal
             />
             {errors.cropType ? (
               <p className="text-xs text-destructive">{errors.cropType.message}</p>
-            ) : null}
+            ) : (
+              <ManageInSettingsLink tabHint="культуры" />
+            )}
           </div>
 
           <div className="space-y-2">
@@ -190,10 +214,9 @@ export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModal
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="destination">Направление/Покупатель</Label>
+            <Label htmlFor="destination">Направление</Label>
             <Input
               id="destination"
-              placeholder="Элеватор / ООО «Агро»"
               aria-invalid={Boolean(errors.destination)}
               {...register('destination')}
             />
@@ -215,11 +238,8 @@ export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModal
             {errors.pricePerKg ? (
               <p className="text-xs text-destructive">{errors.pricePerKg.message}</p>
             ) : null}
+            <p className="text-sm text-muted-foreground">Сумма: {formatMoney(liveSum)}</p>
           </div>
-
-          <p className="rounded-lg bg-muted/40 px-3 py-2 text-sm font-medium text-foreground">
-            Сумма: {formatMoney(liveSum)}
-          </p>
 
           <div className="space-y-2">
             <Label htmlFor="notes">Примечание</Label>
@@ -229,7 +249,7 @@ export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModal
           <DialogFooter className="sm:justify-stretch">
             <Button
               type="submit"
-              disabled={pending}
+              disabled={pending || dictionaryEmpty}
               className="w-full bg-primary hover:bg-primary-hover text-primary-foreground"
             >
               {pending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}

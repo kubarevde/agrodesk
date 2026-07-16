@@ -6,15 +6,6 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
-class ExpenseCategory(str, enum.Enum):
-    fuel = 'fuel'
-    fertilizer = 'fertilizer'
-    parts = 'parts'
-    salary = 'salary'
-    rent = 'rent'
-    other = 'other'
-
-
 class PaymentMethod(str, enum.Enum):
     cash = 'cash'
     transfer = 'transfer'
@@ -23,7 +14,8 @@ class PaymentMethod(str, enum.Enum):
 
 class ExpenseCreate(BaseModel):
     date: date_type
-    category: ExpenseCategory
+    # Dictionary code from org_dictionaries (type=expense_category), e.g. fuel
+    category: str = Field(min_length=1, max_length=80)
     amount: Decimal = Field(gt=0)
     description: str = Field(min_length=2)
     supplier: str | None = Field(default=None, max_length=200)
@@ -33,7 +25,7 @@ class ExpenseCreate(BaseModel):
 
 class ExpenseUpdate(BaseModel):
     date: date_type | None = None
-    category: ExpenseCategory | None = None
+    category: str | None = Field(default=None, min_length=1, max_length=80)
     amount: Decimal | None = Field(default=None, gt=0)
     description: str | None = Field(default=None, min_length=2)
     supplier: str | None = Field(default=None, max_length=200)

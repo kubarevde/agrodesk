@@ -23,7 +23,7 @@ from app.schemas.dashboard import (
     DashboardWeeklyHours,
 )
 from app.services.equipment_meters import calc_meter_label
-from app.services.maintenance import calculate_to_status as calc_to_status
+from app.services.maintenance import build_maintenance_summary
 from app.services.shifts import calc_duration_from_datetimes, combine_date_time
 
 DAY_NAMES = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
@@ -210,13 +210,13 @@ async def fetch_critical_inventory(org_id: UUID) -> tuple[int, list[DashboardCri
 
 
 async def fetch_equipment_warnings(org_id: UUID) -> tuple[int, list[DashboardEquipmentWarning]]:
+    """Same maintenance summary as equipment list/detail — no raw next_to_at divergence."""
     async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(Equipment)
             .where(
                 Equipment.org_id == org_id,
                 Equipment.is_active.is_(True),
-                Equipment.next_to_at.is_not(None),
             )
             .order_by(Equipment.name)
         )
@@ -225,17 +225,23 @@ async def fetch_equipment_warnings(org_id: UUID) -> tuple[int, list[DashboardEqu
     warnings: list[DashboardEquipmentWarning] = []
     for item in items:
         current = float(item.current_meter or 0)
-        next_to = float(item.next_to_at) if item.next_to_at is not None else None
-        status = calc_to_status(current, next_to)
+        interval = float(item.to_interval) if item.to_interval is not None else None
+        summary = build_maintenance_summary(
+            current_hours=current,
+            interval_hours=interval,
+            next_service_hours=float(item.next_to_at) if item.next_to_at is not None else None,
+        )
+        status = str(summary['status'])
         if status not in ('warning', 'overdue'):
             continue
+        next_to = summary['next_service_hours']
         warnings.append(
             DashboardEquipmentWarning(
                 id=item.id,
                 name=item.name,
                 to_status=status,
                 current_meter=current,
-                next_to_at=next_to,
+                next_to_at=float(next_to) if next_to is not None else None,
                 meter_label=calc_meter_label(item.meter_type),
             )
         )

@@ -9,6 +9,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
@@ -18,12 +19,14 @@ from app.database import Base
 
 class Location(Base):
     __tablename__ = 'locations'
+    __table_args__ = (UniqueConstraint('org_id', 'name', name='uq_locations_org_name'),)
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id'), nullable=False)
-    name = Column(String(200), unique=True, nullable=False)
+    name = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
+    kind = Column(String(20), nullable=False, default='object', server_default='object')
     area_ha = Column(Numeric(8, 2), nullable=True)
     polygon = Column(JSONB, nullable=True)
     crop_type = Column(String(100), nullable=True)

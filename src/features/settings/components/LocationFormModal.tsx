@@ -56,7 +56,7 @@ export function LocationFormModal({ open, location, onClose }: LocationFormModal
           }
         : defaults,
     )
-  }, [location, open, reset])
+  }, [location?.id, open, reset])
 
   const pending = isSubmitting || createLocation.isPending || updateLocation.isPending
 

@@ -1,33 +1,48 @@
 import type { Expense } from '@/types'
 import { formatMoney as formatMoneyBase } from '@/lib/format'
+import {
+  LEGACY_EXPENSE_CATEGORY_LABELS,
+  resolveDictionaryLabel,
+  type DictionaryLabelRow,
+} from '@/features/dictionaries/labels'
 
-export const EXPENSE_CATEGORIES = [
-  'fuel',
-  'fertilizer',
-  'parts',
-  'salary',
-  'rent',
-  'other',
-] as const
+/** @deprecated use LEGACY_EXPENSE_CATEGORY_LABELS — re-export for older imports */
+export const CATEGORY_LABELS = LEGACY_EXPENSE_CATEGORY_LABELS
 
-export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number]
+const CATEGORY_COLOR_LIST = [
+  '#01696F',
+  '#437A22',
+  '#DA7101',
+  '#7A7974',
+  '#4A90D9',
+  '#A13544',
+  '#8B5CF6',
+  '#0D9488',
+]
 
-export const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
-  fuel: 'Топливо',
-  fertilizer: 'Удобрения',
-  parts: 'Запчасти',
-  salary: 'Зарплата',
-  rent: 'Аренда',
-  other: 'Прочее',
-}
-
-export const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
+export const CATEGORY_COLORS: Record<string, string> = {
   fuel: '#01696F',
   fertilizer: '#437A22',
   parts: '#DA7101',
   salary: '#7A7974',
   rent: '#4A90D9',
   other: '#A13544',
+}
+
+export function getCategoryLabel(
+  category: string,
+  dictionary?: DictionaryLabelRow[],
+): string {
+  return resolveDictionaryLabel(category, dictionary, LEGACY_EXPENSE_CATEGORY_LABELS)
+}
+
+export function getCategoryColor(category: string): string {
+  if (CATEGORY_COLORS[category]) return CATEGORY_COLORS[category]
+  let hash = 0
+  for (let i = 0; i < category.length; i += 1) {
+    hash = (hash + category.charCodeAt(i) * (i + 1)) % CATEGORY_COLOR_LIST.length
+  }
+  return CATEGORY_COLOR_LIST[Math.abs(hash) % CATEGORY_COLOR_LIST.length]
 }
 
 export const PAYMENT_METHODS = ['cash', 'transfer', 'invoice'] as const
@@ -44,7 +59,7 @@ export function formatMoney(value: number): string {
   return formatMoneyBase(value)
 }
 
-export function getCategoryBadgeClass(category: ExpenseCategory): string {
+export function getCategoryBadgeClass(category: string): string {
   switch (category) {
     case 'fuel':
       return 'border-primary/30 bg-primary/10 text-primary'
@@ -57,7 +72,7 @@ export function getCategoryBadgeClass(category: ExpenseCategory): string {
     case 'rent':
       return 'border-blue-200 bg-blue-50 text-blue-700'
     default:
-      return 'border-destructive/30 bg-destructive/10 text-destructive'
+      return 'border-border bg-muted text-foreground'
   }
 }
 
@@ -67,14 +82,14 @@ export function sumExpenses(expenses: Expense[]): number {
 
 export function findLargestCategory(
   expenses: Expense[],
-): { category: ExpenseCategory; amount: number } | null {
-  const map = new Map<ExpenseCategory, number>()
+): { category: string; amount: number } | null {
+  const map = new Map<string, number>()
 
   for (const expense of expenses) {
     map.set(expense.category, (map.get(expense.category) ?? 0) + expense.amount)
   }
 
-  let largest: { category: ExpenseCategory; amount: number } | null = null
+  let largest: { category: string; amount: number } | null = null
   for (const [category, amount] of map.entries()) {
     if (!largest || amount > largest.amount) {
       largest = { category, amount }
@@ -85,9 +100,9 @@ export function findLargestCategory(
 
 export function groupExpensesByCategory(
   expenses: Expense[],
-): Array<{ category: ExpenseCategory; amount: number; percent: number }> {
+): Array<{ category: string; amount: number; percent: number }> {
   const total = sumExpenses(expenses)
-  const map = new Map<ExpenseCategory, number>()
+  const map = new Map<string, number>()
 
   for (const expense of expenses) {
     map.set(expense.category, (map.get(expense.category) ?? 0) + expense.amount)

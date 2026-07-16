@@ -122,7 +122,13 @@ export function ImplementMaintenanceModal({
               id="impl-to-cost"
               type="number"
               step="0.01"
-              {...form.register('cost', { valueAsNumber: true })}
+              {...form.register('cost', {
+                setValueAs: (v) => {
+                  if (v === '' || v == null) return undefined
+                  const n = Number(v)
+                  return Number.isNaN(n) ? undefined : n
+                },
+              })}
             />
           </div>
 

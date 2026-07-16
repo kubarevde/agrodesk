@@ -1,6 +1,6 @@
 import { lazy } from 'react'
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import { fetchCurrentUser, TOKEN_KEY } from '@/features/auth/utils'
+import { createFileRoute, isRedirect, redirect } from '@tanstack/react-router'
+import { resolveCurrentUser, TOKEN_KEY } from '@/features/auth/utils'
 
 const AgroCalendarPage = lazy(() =>
   import('@/features/agro-calendar/components/AgroCalendarPage').then((module) => ({
@@ -13,13 +13,14 @@ export const Route = createFileRoute('/_layout/agro-calendar/')({
     const token = localStorage.getItem(TOKEN_KEY)
     if (!token) throw redirect({ to: '/login' })
 
-    const user = await context.queryClient.fetchQuery({
-      queryKey: ['auth', 'me'],
-      queryFn: fetchCurrentUser,
-    })
-
-    if (user.role === 'employee') {
-      throw redirect({ to: '/my-shift' })
+    try {
+      const user = await resolveCurrentUser(context.queryClient)
+      if (user.role === 'employee') {
+        throw redirect({ to: '/my-shift' })
+      }
+    } catch (error) {
+      if (isRedirect(error)) throw error
+      throw redirect({ to: '/login' })
     }
   },
   component: AgroCalendarPage,

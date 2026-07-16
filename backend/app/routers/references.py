@@ -307,12 +307,137 @@ def build_equipment_router() -> APIRouter:
     return router
 
 
-locations_router = build_reference_router(
-    model=Location,
-    response_model=LocationResponse,
-    create_model=LocationCreate,
-    update_model=LocationUpdate,
-)
+locations_router = APIRouter()
+
+
+@locations_router.get('', response_model=list[LocationResponse])
+async def list_locations(
+    request: Request,
+    is_active: bool | None = Query(None),
+    kind: str | None = Query(
+        'object',
+        description="object = места работы; field = поля; all = всё",
+    ),
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(get_current_employee),
+) -> list[LocationResponse]:
+    """Work objects only by default — fields live under /api/fields."""
+    org_id = get_org_id(request)
+    query = select(Location).where(Location.org_id == org_id)
+    if is_active is not None:
+        query = query.where(Location.is_active == is_active)
+    if kind and kind != 'all':
+        query = query.where(Location.kind == kind)
+    query = query.order_by(Location.name)
+    result = await db.execute(query)
+    return [
+        LocationResponse(
+            id=row.id,
+            name=row.name,
+            description=row.description,
+            is_active=bool(row.is_active),
+        )
+        for row in result.scalars().all()
+    ]
+
+
+@locations_router.get('/{item_id}', response_model=LocationResponse)
+async def get_location(
+    request: Request,
+    item_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(get_current_employee),
+) -> LocationResponse:
+    item = await _get_item_or_404(db, Location, item_id, get_org_id(request))
+    return LocationResponse(
+        id=item.id,
+        name=item.name,
+        description=item.description,
+        is_active=bool(item.is_active),
+    )
+
+
+@locations_router.post('', response_model=LocationResponse, status_code=status.HTTP_201_CREATED)
+async def create_location(
+    request: Request,
+    payload: LocationCreate,
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(require_manager),
+) -> LocationResponse:
+    from app.models.dictionary import normalize_name
+
+    name = normalize_name(payload.name)
+    item = Location(
+        org_id=get_org_id(request),
+        name=name,
+        description=payload.description,
+        kind='object',
+        is_active=True,
+    )
+    db.add(item)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Объект с таким названием уже существует',
+        ) from None
+    await db.refresh(item)
+    return LocationResponse(
+        id=item.id,
+        name=item.name,
+        description=item.description,
+        is_active=bool(item.is_active),
+    )
+
+
+@locations_router.patch('/{item_id}', response_model=LocationResponse)
+async def update_location(
+    request: Request,
+    item_id: UUID,
+    payload: LocationUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(require_manager),
+) -> LocationResponse:
+    from app.models.dictionary import normalize_name
+
+    item = await _get_item_or_404(db, Location, item_id, get_org_id(request))
+    updates = payload.model_dump(exclude_unset=True)
+    if 'name' in updates and updates['name'] is not None:
+        updates['name'] = normalize_name(updates['name'])
+    for key, value in updates.items():
+        setattr(item, key, value)
+    db.add(item)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Объект с таким названием уже существует',
+        ) from None
+    await db.refresh(item)
+    return LocationResponse(
+        id=item.id,
+        name=item.name,
+        description=item.description,
+        is_active=bool(item.is_active),
+    )
+
+
+@locations_router.delete('/{item_id}', status_code=status.HTTP_204_NO_CONTENT)
+async def delete_location(
+    request: Request,
+    item_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(require_manager),
+) -> None:
+    item = await _get_item_or_404(db, Location, item_id, get_org_id(request))
+    item.is_active = False
+    db.add(item)
+    await db.commit()
+
 
 work_types_router = build_reference_router(
     model=WorkType,

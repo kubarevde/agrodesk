@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Plus } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,31 +20,23 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { InventoryItem } from '@/types'
-import { getCategoryLabel } from '@/features/inventory/utils'
+import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
+import { useDictionary } from '@/features/dictionaries/hooks'
 import {
   useCreateInventoryItem,
   useUpdateInventoryItem,
-} from '@/features/settings/hooks'
+} from '@/features/inventory/hooks'
 import {
   inventoryItemSchema,
   type InventoryItemFormValues,
-} from '@/features/settings/schemas'
-import { ActiveToggle } from './StatusControls'
+} from '@/features/inventory/schemas'
+import { ActiveToggle } from '@/features/settings/components/StatusControls'
 
 interface InventoryItemFormModalProps {
   open: boolean
   item?: InventoryItem | null
   onClose: () => void
 }
-
-const CATEGORIES: InventoryItem['category'][] = [
-  'fuel',
-  'fertilizer',
-  'parts',
-  'seeds',
-  'chemicals',
-  'other',
-]
 
 const defaults: InventoryItemFormValues = {
   name: '',
@@ -60,6 +52,9 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
   const isEdit = Boolean(item)
   const createItem = useCreateInventoryItem()
   const updateItem = useUpdateInventoryItem()
+  const { data: categories = [] } = useDictionary('inventory_category')
+  // Stable primitive — avoid putting `categories` array in effect deps (new [] each render → loop)
+  const firstCategoryCode = categories[0]?.code
 
   const {
     control,
@@ -72,6 +67,16 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
     defaultValues: defaults,
   })
 
+  const categoryItems = useMemo(() => {
+    const rows = categories.map((row) => ({ value: row.code, label: row.name }))
+    if (item?.category && !rows.some((row) => row.value === item.category)) {
+      return [{ value: item.category, label: item.category }, ...rows]
+    }
+    return rows
+  }, [categories, item?.category])
+
+  // Reset only when dialog opens / edited item changes — never depend on `categories` array
+  // (default `[]` is a new reference every render and caused Maximum update depth exceeded).
   useEffect(() => {
     if (!open) {
       reset(defaults)
@@ -88,9 +93,13 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
             totalCapacity: item.totalCapacity,
             isActive: item.isActive,
           }
-        : defaults,
+        : {
+            ...defaults,
+            category: firstCategoryCode ?? 'fuel',
+          },
     )
-  }, [item, open, reset])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- firstCategoryCode read at open time only
+  }, [item?.id, open, reset])
 
   const pending = isSubmitting || createItem.isPending || updateItem.isPending
 
@@ -136,24 +145,25 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
-                  items={CATEGORIES.map((category) => ({
-                    value: category,
-                    label: getCategoryLabel(category),
-                  }))}
+                  items={categoryItems}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue />
+                    <SelectValue placeholder="Выберите категорию" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {getCategoryLabel(category)}
+                  <SelectContent alignItemWithTrigger={false}>
+                    {categoryItems.map((category) => (
+                      <SelectItem key={category.value} value={category.value}>
+                        {category.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )}
             />
+            <p className="text-xs text-muted-foreground">
+              Категории задаются в Настройках → Категории ТМЦ
+            </p>
+            <ManageInSettingsLink tabHint="категории ТМЦ" />
           </div>
 
           <div className="space-y-2">

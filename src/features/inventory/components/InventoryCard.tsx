@@ -1,18 +1,24 @@
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { humanLabel } from '@/lib/display'
 import type { InventoryItem } from '@/types'
+import { useDictionary } from '@/features/dictionaries/hooks'
 import { getCategoryLabel, isCriticalStock } from '@/features/inventory/utils'
 import { StockProgressBar } from './StockProgressBar'
 
 interface InventoryCardProps {
   item: InventoryItem
   onClick?: (item: InventoryItem) => void
+  onEdit?: (item: InventoryItem) => void
 }
 
-export function InventoryCard({ item, onClick }: InventoryCardProps) {
+export function InventoryCard({ item, onClick, onEdit }: InventoryCardProps) {
   const critical = isCriticalStock(item)
+  const { data: categories = [] } = useDictionary('inventory_category')
+  const categoryLabel =
+    categories.find((row) => row.code === item.category)?.name ?? getCategoryLabel(item.category)
 
   return (
     <Card
@@ -32,17 +38,37 @@ export function InventoryCard({ item, onClick }: InventoryCardProps) {
       }
     >
       <CardHeader className="space-y-2 pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="text-lg font-semibold text-foreground">{humanLabel(item.name, 'Товар')}</h3>
-          {critical ? (
-            <Badge variant="destructive" className="shrink-0 gap-1">
-              <AlertTriangle className="size-3" />
-              Критично
-            </Badge>
-          ) : null}
+        <div className="flex items-start gap-2">
+          <h3 className="min-w-0 flex-1 text-lg font-semibold break-words text-foreground">
+            {humanLabel(item.name, 'Товар')}
+          </h3>
+          <div className="flex shrink-0 items-center gap-1">
+            {critical ? (
+              <Badge variant="destructive" className="gap-1">
+                <AlertTriangle className="size-3" />
+                Критично
+              </Badge>
+            ) : null}
+            {onEdit ? (
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="outline"
+                className="size-8 shrink-0"
+                aria-label="Редактировать"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  event.preventDefault()
+                  onEdit(item)
+                }}
+              >
+                <Pencil className="size-3.5" />
+              </Button>
+            ) : null}
+          </div>
         </div>
         <Badge variant="outline" className="w-fit bg-muted text-muted-foreground">
-          {getCategoryLabel(item.category)}
+          {categoryLabel}
         </Badge>
       </CardHeader>
       <CardContent className="space-y-3">
