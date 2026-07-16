@@ -89,10 +89,19 @@ async def work_end_comment(
 
     data = await state.get_data()
     end_time_str = format_dt(await now_in_org(api, tg_id))
-    full_desc = str(data.get('description') or '')
+    full_desc = str(data.get('description') or '').strip()
     comment = (message.text or '').strip()
     if comment.lower() not in ('нет', 'no', '-'):
         full_desc = f'{full_desc}. {comment}' if full_desc else comment
+
+    if len(full_desc) < 5:
+        await message.answer(
+            'Описание слишком короткое (минимум 5 символов). '
+            'Начните закрытие смены заново: «🔴 Закончил работу».',
+            reply_markup=menu_for_user(is_admin),
+        )
+        await state.clear()
+        return
 
     employee = await api.get_employee(tg_id)
     result = await dual.close_shift(

@@ -1,9 +1,12 @@
-"""HTTP client for AgroDesk backend API (PostgreSQL path for the bot)."""
+"""HTTP client for AgroDesk backend API. Bot never talks to PostgreSQL directly."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from dataclasses import dataclass
 from datetime import date, datetime, time
+from enum import Enum
 from typing import Any
 
 import httpx
@@ -13,40 +16,181 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
+class AccessError(str, Enum):
+    UNREACHABLE = 'unreachable'
+    BAD_SECRET = 'bad_secret'
+    NOT_LINKED = 'not_linked'
+    FORBIDDEN = 'forbidden'
+    SERVER = 'server'
+    UNKNOWN = 'unknown'
+
+
+@dataclass(frozen=True)
+class AccessResult:
+    employee: dict[str, Any] | None
+    error: AccessError | None = None
+    detail: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.employee is not None and self.error is None
+
+
+USER_MESSAGES: dict[AccessError, str] = {
+    AccessError.UNREACHABLE: (
+        'Не удалось связаться с сервером АгроДеск.\n'
+        'Проверьте интернет или повторите позже.'
+    ),
+    AccessError.BAD_SECRET: (
+        'Ошибка конфигурации бота (секрет не совпадает с API).\n'
+        'Обратитесь к администратору системы.'
+    ),
+    AccessError.NOT_LINKED: (
+        'Вы не привязаны к системе АгроДеск.\n'
+        'Сообщите менеджеру ваш Telegram ID: {tg_id}'
+    ),
+    AccessError.FORBIDDEN: (
+        'Доступ запрещён. Обратитесь к администратору.'
+    ),
+    AccessError.SERVER: (
+        'Сервер АгроДеск временно недоступен. Попробуйте позже.'
+    ),
+    AccessError.UNKNOWN: (
+        'Не удалось авторизоваться. Попробуйте /start позже.'
+    ),
+}
+
+
+def access_message(error: AccessError, tg_id: int) -> str:
+    template = USER_MESSAGES.get(error, USER_MESSAGES[AccessError.UNKNOWN])
+    return template.format(tg_id=tg_id)
+
+
 class ApiClient:
     BASE = settings.api_base_url.rstrip('/')
     _tokens: dict[int, str] = {}
 
-    async def _get_token(self, tg_id: int) -> str | None:
+    def __init__(self) -> None:
+        self.timeout = settings.request_timeout
+        self.retries = settings.request_retries
+
+    async def health_check(self) -> tuple[bool, str]:
+        """GET /api/health — no auth. Returns (ok, detail)."""
+        url = f'{self.BASE}/api/health'
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(url)
+            if response.status_code == 200:
+                return True, f'OK {response.status_code}'
+            return False, f'HTTP {response.status_code}: {response.text[:200]}'
+        except Exception as exc:
+            return False, f'{type(exc).__name__}: {exc}'
+
+    async def resolve_access(self, tg_id: int) -> AccessResult:
+        """Auth + /employees/me with classified errors for user-facing messages."""
+        token, auth_error = await self._get_token_result(tg_id)
+        if auth_error is not None:
+            return AccessResult(employee=None, error=auth_error)
+        if not token:
+            return AccessResult(employee=None, error=AccessError.UNKNOWN)
+
+        response = await self._request(tg_id, 'GET', '/api/employees/me')
+        if response is None:
+            return AccessResult(employee=None, error=AccessError.UNREACHABLE)
+        if response.status_code == 401:
+            self.invalidate_token(tg_id)
+            return AccessResult(employee=None, error=AccessError.NOT_LINKED)
+        if response.status_code == 403:
+            return AccessResult(employee=None, error=AccessError.FORBIDDEN)
+        if response.status_code >= 500:
+            return AccessResult(employee=None, error=AccessError.SERVER, detail=response.text[:200])
+        if response.status_code != 200:
+            return AccessResult(
+                employee=None,
+                error=AccessError.UNKNOWN,
+                detail=f'{response.status_code}: {response.text[:200]}',
+            )
+        try:
+            data = response.json()
+        except Exception:
+            logger.exception('get_employee parse failed')
+            return AccessResult(employee=None, error=AccessError.UNKNOWN)
+        if not isinstance(data, dict):
+            return AccessResult(employee=None, error=AccessError.UNKNOWN)
+        return AccessResult(employee=data)
+
+    async def _get_token_result(self, tg_id: int) -> tuple[str | None, AccessError | None]:
         cached = self._tokens.get(tg_id)
         if cached:
-            return cached
+            return cached, None
 
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.post(
-                    f'{self.BASE}/api/auth/bot-token',
-                    json={
-                        'telegram_id': tg_id,
-                        'secret': settings.bot_internal_secret,
-                    },
-                )
-                if response.status_code != 200:
+        last_error: AccessError | None = AccessError.UNREACHABLE
+        for attempt in range(self.retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    response = await client.post(
+                        f'{self.BASE}/api/auth/bot-token',
+                        json={
+                            'telegram_id': tg_id,
+                            'secret': settings.bot_internal_secret,
+                        },
+                    )
+                if response.status_code == 200:
+                    token = response.json().get('access_token')
+                    if not token:
+                        return None, AccessError.UNKNOWN
+                    self._tokens[tg_id] = str(token)
+                    return self._tokens[tg_id], None
+                if response.status_code == 403:
+                    logger.error(
+                        'bot-token forbidden for tg_id=%s — check BOT_INTERNAL_SECRET',
+                        tg_id,
+                    )
+                    return None, AccessError.BAD_SECRET
+                if response.status_code == 404:
+                    return None, AccessError.NOT_LINKED
+                if response.status_code == 429:
+                    last_error = AccessError.SERVER
+                    logger.warning('bot-token rate limited tg_id=%s', tg_id)
+                    return None, last_error
+                if response.status_code >= 500:
+                    last_error = AccessError.SERVER
                     logger.warning(
-                        'bot-token failed for tg_id=%s status=%s body=%s',
+                        'bot-token server error tg_id=%s status=%s body=%s',
                         tg_id,
                         response.status_code,
                         response.text[:300],
                     )
-                    return None
-                token = response.json().get('access_token')
-                if not token:
-                    return None
-                self._tokens[tg_id] = str(token)
-                return self._tokens[tg_id]
-        except Exception:
-            logger.exception('bot-token request failed for tg_id=%s', tg_id)
-            return None
+                else:
+                    last_error = AccessError.UNKNOWN
+                    logger.warning(
+                        'bot-token failed tg_id=%s status=%s body=%s',
+                        tg_id,
+                        response.status_code,
+                        response.text[:300],
+                    )
+                    return None, last_error
+            except (httpx.TimeoutException, httpx.NetworkError, httpx.TransportError) as exc:
+                last_error = AccessError.UNREACHABLE
+                logger.warning(
+                    'bot-token network error tg_id=%s attempt=%s: %s',
+                    tg_id,
+                    attempt + 1,
+                    exc,
+                )
+            except Exception:
+                last_error = AccessError.UNKNOWN
+                logger.exception('bot-token unexpected error tg_id=%s', tg_id)
+                return None, last_error
+
+            if attempt < self.retries:
+                await asyncio.sleep(0.4 * (attempt + 1))
+
+        return None, last_error
+
+    async def _get_token(self, tg_id: int) -> str | None:
+        token, _error = await self._get_token_result(tg_id)
+        return token
 
     @staticmethod
     def _h(token: str) -> dict[str, str]:
@@ -67,15 +211,17 @@ class ApiClient:
             return None
 
         url = f'{self.BASE}{path}'
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.request(
-                    method,
-                    url,
-                    headers=self._h(token),
-                    json=json,
-                    params=params,
-                )
+        last_exc: Exception | None = None
+        for attempt in range(self.retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    response = await client.request(
+                        method,
+                        url,
+                        headers=self._h(token),
+                        json=json,
+                        params=params,
+                    )
                 if response.status_code == 401 and retry_auth:
                     self.invalidate_token(tg_id)
                     return await self._request(
@@ -87,21 +233,29 @@ class ApiClient:
                         retry_auth=False,
                     )
                 return response
-        except Exception:
-            logger.exception('%s %s failed for tg_id=%s', method, path, tg_id)
-            return None
+            except (httpx.TimeoutException, httpx.NetworkError, httpx.TransportError) as exc:
+                last_exc = exc
+                logger.warning(
+                    '%s %s network error tg_id=%s attempt=%s: %s',
+                    method,
+                    path,
+                    tg_id,
+                    attempt + 1,
+                    exc,
+                )
+                if attempt < self.retries:
+                    await asyncio.sleep(0.4 * (attempt + 1))
+            except Exception:
+                logger.exception('%s %s failed for tg_id=%s', method, path, tg_id)
+                return None
+
+        if last_exc is not None:
+            logger.error('%s %s gave up for tg_id=%s: %s', method, path, tg_id, last_exc)
+        return None
 
     async def get_employee(self, tg_id: int) -> dict | None:
-        response = await self._request(tg_id, 'GET', '/api/employees/me')
-        if response is None or response.status_code != 200:
-            if response is not None:
-                logger.warning('get_employee status=%s', response.status_code)
-            return None
-        try:
-            return response.json()
-        except Exception:
-            logger.exception('get_employee parse failed')
-            return None
+        result = await self.resolve_access(tg_id)
+        return result.employee
 
     async def is_admin(self, tg_id: int) -> bool:
         employee = await self.get_employee(tg_id)

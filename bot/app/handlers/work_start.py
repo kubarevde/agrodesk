@@ -5,7 +5,7 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
 
-from app.services.api_client import ApiClient
+from app.services.api_client import AccessError, ApiClient, access_message
 from app.services.dual_writer import DualWriter
 from app.states.workday import StartWork
 from app.utils.menu import menu_for_user
@@ -72,15 +72,20 @@ async def work_start_begin(
     api: ApiClient,
 ) -> None:
     tg_id = message.from_user.id
-    is_admin = await api.is_admin(tg_id)
-
-    employee = await api.get_employee(tg_id)
-    if not employee:
-        await message.answer(
-            f'Вы не найдены, ваш ID: {tg_id}',
-            reply_markup=menu_for_user(is_admin),
-        )
+    access = await api.resolve_access(tg_id)
+    if not access.ok:
+        error = access.error or AccessError.UNKNOWN
+        if error == AccessError.NOT_LINKED:
+            await message.answer(
+                f'Вы не привязаны к системе.\n'
+                f'Сообщите менеджеру ваш Telegram ID: {tg_id}'
+            )
+        else:
+            await message.answer(access_message(error, tg_id))
         return
+
+    employee = access.employee or {}
+    is_admin = str(employee.get('role', '')) in ('admin', 'manager')
 
     active = await api.get_active_shift(tg_id)
     if active:

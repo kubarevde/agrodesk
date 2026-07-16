@@ -88,6 +88,23 @@ docker compose --env-file .env.production logs -f --tail=100
 - Health: http://213.183.104.142:3010/api/health  
 - Суперадмин: http://213.183.104.142:3010/superadmin/login  
 
+### Telegram-бот на bothost.ru (отдельно от VPS)
+
+Бот можно вынести на [bothost.ru](https://bothost.ru) и оставить на VPS только `db`, `api`, `nginx`.
+Подробно: **[docs/bot-bothost.md](bot-bothost.md)**.
+
+Кратко:
+
+1. `API_BASE_URL` на bothost = публичный URL API (`http://213.183.104.142:3010` или HTTPS-домен).
+2. `BOT_INTERNAL_SECRET` — тот же, что в `.env.production` на VPS.
+3. Убедитесь, что `curl http://213.183.104.142:3010/api/health` работает **с внешней сети** (не только с localhost).
+4. Не запускайте сервис `bot` в docker-compose одновременно с bothost (один токен = один polling).
+
+```bash
+# VPS без локального бота:
+docker compose --env-file .env.production up -d db api nginx
+```
+
 ---
 
 ## Обновление (релизы)
