@@ -8,8 +8,6 @@ import sys
 
 from dotenv import load_dotenv
 
-load_dotenv()
-
 logger = logging.getLogger(__name__)
 
 _DEFAULT_SECRET = 'agrodesk-bot-secret-change-me'
@@ -21,6 +19,21 @@ _ENV_ALIASES: dict[str, str] = {
     'APIBASEURL': 'API_BASE_URL',
     'BOTINTERNALSECRET': 'BOT_INTERNAL_SECRET',
     'LOGLEVEL': 'LOG_LEVEL',
+    # Bothost may inject token under these names when creating the bot
+    'TELEGRAM_BOT_TOKEN': 'BOT_TOKEN',
+    'API_TOKEN': 'BOT_TOKEN',
+}
+
+_REQUIRED_ENV = ('BOT_TOKEN', 'API_BASE_URL', 'BOT_INTERNAL_SECRET')
+
+# Case-insensitive fallback (some panels lowercase keys)
+_CANONICAL_FROM_LOWER: dict[str, str] = {
+    'bot_token': 'BOT_TOKEN',
+    'api_base_url': 'API_BASE_URL',
+    'bot_internal_secret': 'BOT_INTERNAL_SECRET',
+    'bottoken': 'BOT_TOKEN',
+    'apibaseurl': 'API_BASE_URL',
+    'botinternalsecret': 'BOT_INTERNAL_SECRET',
 }
 
 
@@ -31,16 +44,65 @@ def _normalize_env_aliases() -> None:
         if alias_val and not canonical_val:
             os.environ[canonical] = alias_val
 
+    for lower_key, canonical in _CANONICAL_FROM_LOWER.items():
+        if (os.environ.get(canonical) or '').strip():
+            continue
+        for key, value in os.environ.items():
+            if key.lower() == lower_key and (value or '').strip():
+                os.environ[canonical] = value.strip()
+                break
+
+
+def _load_env_files() -> None:
+    candidates = (
+        '.env',
+        'bot.env',
+        'bothost.env',
+        '/app/.env',
+        '/app/bot.env',
+        '/app/bothost.env',
+    )
+    for path in candidates:
+        load_dotenv(path, override=False)
+    # File on disk should win over empty panel placeholders
+    for path in candidates:
+        load_dotenv(path, override=True)
+
+
+def _debug_env_keys() -> str:
+    names = sorted(
+        k for k in os.environ if any(p in k.upper() for p in ('BOT', 'API', 'SECRET', 'TOKEN', 'URL'))
+    )
+    return ', '.join(names) if names else '(no BOT/API/TOKEN/SECRET keys in os.environ at all)'
+
 
 _normalize_env_aliases()
+_load_env_files()
+_normalize_env_aliases()
+
+
+def _env_status_line() -> str:
+    parts: list[str] = []
+    for name in _REQUIRED_ENV:
+        parts.append(f'{name}={"set" if (os.environ.get(name) or "").strip() else "MISSING"}')
+    return ', '.join(parts)
 
 
 def _require(name: str) -> str:
     value = (os.environ.get(name) or '').strip()
     if not value:
+        missing = [n for n in _REQUIRED_ENV if not (os.environ.get(n) or '').strip()]
         raise RuntimeError(
-            f'Missing required env var {name}. '
-            f'See bot/.env.example, bot/bot.env.example and docs/bot-bothost.md'
+            f'Missing required env var {name} ({_env_status_line()}).\n'
+            f'Detected env keys: {_debug_env_keys()}\n'
+            'Fix on bothost.ru (one of):\n'
+            '  A) Settings → Переменные окружения → add BOT_INTERNAL_SECRET, then REBUILD bot\n'
+            '  B) Add file bothost.env in repo root (private repo!) — see bot/bothost.env.example\n'
+            '  C) Run: python scripts/env_debug.py — to see what container actually receives\n'
+            'Required:\n'
+            '  BOT_TOKEN=...\n'
+            '  API_BASE_URL=http://213.183.104.142:3010\n'
+            '  BOT_INTERNAL_SECRET=<same as on AgroDesk VPS>'
         )
     return value
 
