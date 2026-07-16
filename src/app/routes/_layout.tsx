@@ -3,7 +3,7 @@ import { createFileRoute, isRedirect, Outlet, redirect } from '@tanstack/react-r
 import { Toaster } from 'sonner'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
-import { fetchCurrentUser, TOKEN_KEY } from '@/features/auth/utils'
+import { resolveCurrentUser, TOKEN_KEY } from '@/features/auth/utils'
 
 export const Route = createFileRoute('/_layout')({
   beforeLoad: async ({ context }) => {
@@ -13,13 +13,9 @@ export const Route = createFileRoute('/_layout')({
     }
 
     try {
-      await context.queryClient.fetchQuery({
-        queryKey: ['auth', 'me'],
-        queryFn: fetchCurrentUser,
-      })
+      await resolveCurrentUser(context.queryClient)
     } catch (error) {
       if (isRedirect(error)) throw error
-      localStorage.removeItem(TOKEN_KEY)
       throw redirect({ to: '/login' })
     }
   },

@@ -14,6 +14,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { LabeledSelect } from '@/components/ui/labeled-select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { entityOptions } from '@/lib/selectOptions'
 import { useCreateShift } from './hooks'
@@ -232,7 +233,9 @@ export function OpenShiftModal({
             )}
             {errors.location ? (
               <p className="text-xs text-destructive">{errors.location.message}</p>
-            ) : null}
+            ) : (
+              <ManageInSettingsLink tabHint="места работы" />
+            )}
           </div>
 
           <ShiftFieldSelect control={control} />
@@ -258,7 +261,9 @@ export function OpenShiftModal({
             )}
             {errors.workType ? (
               <p className="text-xs text-destructive">{errors.workType.message}</p>
-            ) : null}
+            ) : (
+              <ManageInSettingsLink tabHint="типы работ" />
+            )}
           </div>
 
           <div className="space-y-2">

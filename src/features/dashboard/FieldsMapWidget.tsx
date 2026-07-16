@@ -65,8 +65,8 @@ export function FieldsMapWidget() {
         : [51.5, 36.5]
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-base font-semibold text-foreground">Поля хозяйства</h2>
+    <section className="space-y-2">
+      <h2 className="text-sm font-semibold text-foreground">Карта полей</h2>
       {markers.length === 0 && polygons.length === 0 ? (
         <Card>
           <CardContent className="flex items-center gap-3 py-6 text-sm text-muted-foreground">
@@ -75,7 +75,7 @@ export function FieldsMapWidget() {
           </CardContent>
         </Card>
       ) : (
-        <MapView height="350px" center={center} zoom={11} markers={markers} polygons={polygons} />
+        <MapView height="280px" center={center} zoom={11} markers={markers} polygons={polygons} />
       )}
     </section>
   )

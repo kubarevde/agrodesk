@@ -33,14 +33,6 @@ export type ImplementMaintenanceResponse = {
   expense_id: string | null
 }
 
-export const CATEGORY_OPTIONS = [
-  'Посевная',
-  'Опрыскивание',
-  'Обработка почвы',
-  'Уборочная',
-  'Транспорт',
-] as const
-
 export const MAINTENANCE_TYPES = [
   'ТО-1',
   'ТО-2',

@@ -36,13 +36,15 @@ export function EquipmentDetailHeader({
   return (
     <div className="space-y-4">
       {item.image_url ? (
-        <img
-          src={mediaUrl(item.image_url)}
-          alt={item.name}
-          className="h-[100px] w-full rounded-lg object-cover"
-        />
+        <div className="flex max-h-56 w-full items-center justify-center overflow-hidden rounded-lg bg-muted">
+          <img
+            src={mediaUrl(item.image_url)}
+            alt={item.name}
+            className="max-h-56 w-full object-contain"
+          />
+        </div>
       ) : (
-        <div className="flex h-[100px] w-full items-center justify-center rounded-lg bg-muted text-muted-foreground">
+        <div className="flex h-32 w-full items-center justify-center rounded-lg bg-muted text-muted-foreground">
           <Tractor className="size-8 opacity-50" />
         </div>
       )}

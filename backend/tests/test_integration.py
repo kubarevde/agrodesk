@@ -1,54 +1,19 @@
 """Minimal API integration tests (pytest + httpx).
 
-Run (API must be up on localhost:8000 with seeded DB):
+Run:
   cd backend
+  alembic upgrade head && python -m app.seed
   pytest tests/ -q
+
+Fixtures (demo org) live in conftest.py — never use orgs[0].
 """
 
 from __future__ import annotations
 
-import os
 from datetime import date, datetime, timedelta
 
 import httpx
 import pytest
-
-BASE = os.environ.get('API_BASE_URL', 'http://127.0.0.1:8000')
-
-
-@pytest.fixture(scope='module')
-def client() -> httpx.Client:
-    with httpx.Client(base_url=BASE, timeout=30) as c:
-        yield c
-
-
-@pytest.fixture(scope='module')
-def org_id(client: httpx.Client) -> str:
-    r = client.get('/api/auth/orgs')
-    assert r.status_code == 200, r.text
-    orgs = r.json()
-    assert orgs, 'seed organizations first'
-    return orgs[0]['id']
-
-
-@pytest.fixture(scope='module')
-def admin_headers(client: httpx.Client, org_id: str) -> dict[str, str]:
-    r = client.post(
-        '/api/auth/login',
-        json={'email': 'EMP000', 'password': '1234', 'org_id': org_id},
-    )
-    assert r.status_code == 200, r.text
-    return {'Authorization': f"Bearer {r.json()['access_token']}"}
-
-
-@pytest.fixture(scope='module')
-def manager_headers(client: httpx.Client, org_id: str) -> dict[str, str]:
-    r = client.post(
-        '/api/auth/login',
-        json={'email': 'EMP003', 'password': '1234', 'org_id': org_id},
-    )
-    assert r.status_code == 200, r.text
-    return {'Authorization': f"Bearer {r.json()['access_token']}"}
 
 
 def test_login_and_me(client: httpx.Client, org_id: str, admin_headers: dict[str, str]) -> None:
@@ -90,7 +55,6 @@ def test_close_shift_salary(client: httpx.Client, manager_headers: dict[str, str
 def test_sharing_request_notification(
     client: httpx.Client, manager_headers: dict[str, str], org_id: str
 ) -> None:
-    # Create a listing as manager/admin of demo org
     fields = client.get('/api/fields', headers=manager_headers)
     assert fields.status_code == 200
     field_list = fields.json()
@@ -108,7 +72,6 @@ def test_sharing_request_notification(
             'description': 'integration',
         },
     )
-    # Some schemas may differ — accept create or validation skip
     if listing.status_code not in (200, 201):
         pytest.skip(f'listing create not available: {listing.status_code} {listing.text[:200]}')
 
@@ -116,7 +79,6 @@ def test_sharing_request_notification(
     before = client.get('/api/notifications/count', headers=manager_headers)
     assert before.status_code == 200
 
-    # Second user in same org requests
     emp_login = client.post(
         '/api/auth/login',
         json={'email': 'EMP001', 'password': '1234', 'org_id': org_id},

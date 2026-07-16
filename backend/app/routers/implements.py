@@ -11,7 +11,6 @@ from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_admin, require_manager
 from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
-from app.models.expense import Expense
 from app.models.implement import Implement, ImplementMaintenance
 from app.models.reference import Equipment
 from app.schemas.implement import (
@@ -27,6 +26,10 @@ from app.services.maintenance import (
     build_maintenance_summary,
     calculate_next_service_hours,
     next_after_completed_service,
+)
+from app.services.maintenance_expense import (
+    create_maintenance_expense,
+    should_create_maintenance_expense,
 )
 
 router = APIRouter()
@@ -286,17 +289,16 @@ async def create_implement_maintenance(
     item = await get_implement_or_404(db, implement_id, org_id)
 
     expense_id: UUID | None = None
-    if payload.cost is not None and payload.cost > 0:
-        expense = Expense(
+    if should_create_maintenance_expense(payload.cost):
+        expense = await create_maintenance_expense(
+            db,
             org_id=org_id,
-            date=payload.date,
-            category='parts',
-            amount=Decimal(str(payload.cost)),
+            expense_date=payload.date,
+            amount=payload.cost,  # validated > 0 above
             description=f'ТО приспособления ({payload.type}): {item.name}',
             created_by=current.id,
+            equipment_id=None,
         )
-        db.add(expense)
-        await db.flush()
         expense_id = expense.id
 
     record = ImplementMaintenance(

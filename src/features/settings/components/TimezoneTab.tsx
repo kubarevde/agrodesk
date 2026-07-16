@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useOrganizationSettings, useUpdateOrganizationSettings } from '../hooks'
+import { formatOrgDateTime } from '@/lib/timezone'
 
 const TIMEZONE_LABELS: Record<string, string> = {
   'Asia/Bangkok': 'Бангкок (Asia/Bangkok)',
@@ -72,7 +73,10 @@ export function TimezoneTab() {
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">
-          Используется для дат смен, ТО и отчётов в вашей организации.
+          Используется для дат смен, ТО, уведомлений и отчётов. Сейчас в выбранном поясе:{' '}
+          <span className="font-medium text-foreground">
+            {formatOrgDateTime(new Date(), timezone)}
+          </span>
         </p>
       </div>
       <Button

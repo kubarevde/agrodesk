@@ -1,15 +1,15 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useDictionary } from '@/features/dictionaries/hooks'
 import {
-  CATEGORY_COLORS,
-  CATEGORY_LABELS,
   formatMoney,
-  type ExpenseCategory,
+  getCategoryColor,
+  getCategoryLabel,
 } from '@/features/expenses/utils'
 
 interface CategoryChartPoint {
-  category: ExpenseCategory
+  category: string
   amount: number
   percent: number
 }
@@ -22,14 +22,15 @@ interface ExpensesByCategoryChartProps {
 interface ChartTooltipProps {
   active?: boolean
   payload?: Array<{ payload: CategoryChartPoint }>
+  labelFn: (category: string) => string
 }
 
-function ChartTooltip({ active, payload }: ChartTooltipProps) {
+function ChartTooltip({ active, payload, labelFn }: ChartTooltipProps) {
   if (!active || !payload?.length) return null
   const point = payload[0].payload
   return (
     <div className="rounded-lg border border-border bg-popover px-3 py-2 text-sm shadow-md">
-      <p className="font-medium text-foreground">{CATEGORY_LABELS[point.category]}</p>
+      <p className="font-medium text-foreground">{labelFn(point.category)}</p>
       <p className="text-muted-foreground">
         {formatMoney(point.amount)} · {point.percent}%
       </p>
@@ -38,6 +39,9 @@ function ChartTooltip({ active, payload }: ChartTooltipProps) {
 }
 
 export function ExpensesByCategoryChart({ data, isLoading }: ExpensesByCategoryChartProps) {
+  const { data: categories = [] } = useDictionary('expense_category', { activeOnly: false })
+  const labelFn = (category: string) => getCategoryLabel(category, categories)
+
   if (isLoading) {
     return (
       <Card>
@@ -73,15 +77,13 @@ export function ExpensesByCategoryChart({ data, isLoading }: ExpensesByCategoryC
                 cx="50%"
                 cy="50%"
                 outerRadius={100}
-                label={({ payload }) =>
-                  CATEGORY_LABELS[(payload as CategoryChartPoint).category]
-                }
+                label={({ payload }) => labelFn((payload as CategoryChartPoint).category)}
               >
                 {data.map((entry) => (
-                  <Cell key={entry.category} fill={CATEGORY_COLORS[entry.category]} />
+                  <Cell key={entry.category} fill={getCategoryColor(entry.category)} />
                 ))}
               </Pie>
-              <Tooltip content={<ChartTooltip />} />
+              <Tooltip content={<ChartTooltip labelFn={labelFn} />} />
             </PieChart>
           </ResponsiveContainer>
         )}

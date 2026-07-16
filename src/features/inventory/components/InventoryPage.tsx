@@ -1,7 +1,7 @@
 import { Minus, Package, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
 import { SectionHelp } from '@/components/shared/SectionHelp'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -9,24 +9,25 @@ import type { InventoryItem } from '@/types'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { inventoryHelp } from '@/features/help/content'
 import { useInventory, useInventoryOperations } from '@/features/inventory/hooks'
-import type { InventoryCategoryFilter } from '@/features/inventory/utils'
 import { CategoryFilter } from './CategoryFilter'
 import { ExpenseModal } from './ExpenseModal'
 import { IncomeModal } from './IncomeModal'
 import { InventoryCard } from './InventoryCard'
 import { InventoryDetailSheet } from './InventoryDetailSheet'
+import { InventoryItemFormModal } from './InventoryItemFormModal'
 import { InventoryOperationsTable } from './InventoryOperationsTable'
 
 export function InventoryPage() {
-  const navigate = useNavigate()
   const { data: user } = useCurrentUser()
-  const canManageSettings = user?.role === 'admin' || user?.role === 'manager'
+  const canManage = user?.role === 'admin' || user?.role === 'manager'
   const { data: items = [], isLoading } = useInventory()
   const { data: operations = [], isLoading: operationsLoading } = useInventoryOperations()
-  const [category, setCategory] = useState<InventoryCategoryFilter>('all')
+  const [category, setCategory] = useState<string>('all')
   const [incomeOpen, setIncomeOpen] = useState(false)
   const [expenseOpen, setExpenseOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null)
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState<InventoryItem | null>(null)
 
   const filteredItems = useMemo(() => {
     if (category === 'all') return items
@@ -38,6 +39,19 @@ export function InventoryPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold text-foreground">Склад ТМЦ</h1>
         <div className="flex flex-wrap gap-2">
+          {canManage ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setEditing(null)
+                setFormOpen(true)
+              }}
+            >
+              <Plus className="size-4" />
+              Позиция
+            </Button>
+          ) : null}
           <Button
             type="button"
             className="bg-primary hover:bg-primary-hover text-primary-foreground"
@@ -59,6 +73,7 @@ export function InventoryPage() {
       </div>
 
       <SectionHelp title="Справка: склад" items={inventoryHelp} />
+      <ManageInSettingsLink tabHint="категории ТМЦ" />
 
       <CategoryFilter value={category} onChange={setCategory} />
 
@@ -72,12 +87,15 @@ export function InventoryPage() {
         <EmptyState
           icon={Package}
           title="Позиций нет"
-          description="Добавьте позицию ТМЦ в настройках"
+          description="Добавьте позицию склада, затем оформите приход."
           action={
-            canManageSettings
+            canManage
               ? {
                   label: 'Добавить позицию',
-                  onClick: () => void navigate({ to: '/settings' }),
+                  onClick: () => {
+                    setEditing(null)
+                    setFormOpen(true)
+                  },
                 }
               : undefined
           }
@@ -92,7 +110,19 @@ export function InventoryPage() {
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
           {filteredItems.map((item) => (
-            <InventoryCard key={item.id} item={item} onClick={setSelectedItem} />
+            <InventoryCard
+              key={item.id}
+              item={item}
+              onClick={setSelectedItem}
+              onEdit={
+                canManage
+                  ? (row) => {
+                      setEditing(row)
+                      setFormOpen(true)
+                    }
+                  : undefined
+              }
+            />
           ))}
         </div>
       )}
@@ -106,6 +136,17 @@ export function InventoryPage() {
         open={Boolean(selectedItem)}
         onClose={() => setSelectedItem(null)}
       />
+      {canManage ? (
+        <InventoryItemFormModal
+          key={editing?.id ?? 'create'}
+          open={formOpen}
+          item={editing}
+          onClose={() => {
+            setFormOpen(false)
+            setEditing(null)
+          }}
+        />
+      ) : null}
     </div>
   )
 }

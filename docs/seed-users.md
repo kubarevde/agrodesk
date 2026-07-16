@@ -2,6 +2,11 @@
 
 После `alembic upgrade head` и `python -m app.seed` (или автозапуска API) доступны учётки ниже.
 
+> Если «Настройки → Добавить» отвечает «Не удалось добавить», сначала выполните  
+> `cd backend && alembic upgrade head && python -m app.seed` и **полностью перезапустите** API  
+> (`scripts/dev-backend.ps1` / `scripts/dev-backend.sh`). Проверка: `curl /api/health` → `db_up_to_date: true`  
+> и `python scripts/smoke_settings.py`.
+
 ## Куда заходить
 
 | Режим | Frontend | Backend |

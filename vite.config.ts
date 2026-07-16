@@ -6,10 +6,12 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const base = mode === 'production' ? env.VITE_BASE_PATH || '/' : '/'
+  const normalizedBase = base.endsWith('/') ? base : `${base}/`
 
   return {
     // Prod Docker/nginx: '/' | Yandex subfolder deploy: set VITE_BASE_PATH=/agrodesk-prod/
-    base: mode === 'production' ? (env.VITE_BASE_PATH || '/') : '/',
+    base: normalizedBase,
     server: {
       host: '0.0.0.0',
       port: 5173,
@@ -34,105 +36,119 @@ export default defineConfig(({ mode }) => {
       },
     },
     plugins: [
-    tanstackRouter({
-      routesDirectory: './src/app/routes',
-      generatedRouteTree: './src/routeTree.gen.ts',
-    }),
-    react(),
-    tailwindcss(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: { cacheName: 'google-fonts-cache' },
-          },
-          // Do NOT cache authenticated data APIs (/api/shifts etc.) —
-          // NetworkFirst previously served stale/error responses and broke org isolation.
-          {
-            urlPattern: /\/api\/(locations|work-types|equipment)(\?|$)/,
-            handler: 'NetworkOnly',
-            options: { cacheName: 'api-references-bypass' },
-          },
-        ],
+      tanstackRouter({
+        routesDirectory: './src/app/routes',
+        generatedRouteTree: './src/routeTree.gen.ts',
+      }),
+      react(),
+      tailwindcss(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        includeAssets: ['favicon.svg', 'icons/*.png', 'icons.svg', 'screenshots/*'],
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest,woff2}'],
+          // SPA shell: any navigation without network gets cached index.html
+          navigateFallback: 'index.html',
+          navigateFallbackDenylist: [/^\/api/, /^\/uploads/, /^\/health/, /^\/superadmin\/api/],
+          cleanupOutdatedCaches: true,
+          clientsClaim: true,
+          runtimeCaching: [
+            {
+              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: { cacheName: 'google-fonts-cache' },
+            },
+            {
+              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: { cacheName: 'google-fonts-webfonts' },
+            },
+            // Do NOT cache authenticated data APIs — NetworkFirst previously
+            // served stale/error responses and broke org isolation.
+            {
+              urlPattern: /\/api\/.*/i,
+              handler: 'NetworkOnly',
+              options: { cacheName: 'api-network-only' },
+            },
+          ],
+        },
+        manifest: {
+          name: 'АгроДеск',
+          short_name: 'АгроДеск',
+          description: 'Управление крестьянско-фермерским хозяйством',
+          theme_color: '#01696F',
+          background_color: '#F7F6F2',
+          display: 'standalone',
+          // Relative to base — works for root and subfolder deploys
+          start_url: './',
+          scope: './',
+          id: './',
+          icons: [
+            { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+            { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+            {
+              src: 'icons/icon-512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'maskable',
+            },
+          ],
+          screenshots: [
+            {
+              src: 'screenshots/desktop.png',
+              sizes: '1280x720',
+              type: 'image/png',
+              form_factor: 'wide',
+            },
+            {
+              src: 'screenshots/mobile.png',
+              sizes: '390x844',
+              type: 'image/png',
+              form_factor: 'narrow',
+            },
+          ],
+        },
+      }),
+    ],
+    resolve: {
+      alias: {
+        '@': '/src',
       },
-      manifest: {
-        name: 'АгроДеск',
-        short_name: 'АгроДеск',
-        description: 'Управление крестьянско-фермерским хозяйством',
-        theme_color: '#01696F',
-        background_color: '#F7F6F2',
-        display: 'standalone',
-        start_url: '/',
-        icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-          {
-            src: '/icons/icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
-        ],
-        screenshots: [
-          {
-            src: '/screenshots/desktop.png',
-            sizes: '1280x720',
-            type: 'image/png',
-            form_factor: 'wide',
-          },
-          {
-            src: '/screenshots/mobile.png',
-            sizes: '390x844',
-            type: 'image/png',
-            form_factor: 'narrow',
-          },
-        ],
-      },
-    }),
-  ],
-  resolve: {
-    alias: {
-      '@': '/src',
     },
-  },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (!id.includes('node_modules')) return
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return
 
-          if (id.includes('react-dom') || /[\\/]react[\\/]/.test(id)) {
-            return 'vendor'
-          }
-          if (id.includes('@tanstack/react-router') || id.includes('@tanstack/react-query')) {
-            return 'router'
-          }
-          if (
-            id.includes('leaflet') ||
-            id.includes('react-leaflet') ||
-            id.includes('@turf/turf') ||
-            id.includes('@turf/')
-          ) {
-            return 'maps'
-          }
-          if (id.includes('recharts')) {
-            return 'charts'
-          }
-          if (
-            id.includes('@base-ui/react') ||
-            id.includes('@radix-ui/react-dialog') ||
-            id.includes('@radix-ui/react-select') ||
-            id.includes('sonner')
-          ) {
-            return 'ui'
-          }
+            if (id.includes('react-dom') || /[\\/]react[\\/]/.test(id)) {
+              return 'vendor'
+            }
+            if (id.includes('@tanstack/react-router') || id.includes('@tanstack/react-query')) {
+              return 'router'
+            }
+            if (
+              id.includes('leaflet') ||
+              id.includes('react-leaflet') ||
+              id.includes('@turf/turf') ||
+              id.includes('@turf/')
+            ) {
+              return 'maps'
+            }
+            if (id.includes('recharts')) {
+              return 'charts'
+            }
+            if (
+              id.includes('@base-ui/react') ||
+              id.includes('@radix-ui/react-dialog') ||
+              id.includes('@radix-ui/react-select') ||
+              id.includes('sonner')
+            ) {
+              return 'ui'
+            }
+          },
         },
       },
     },
-  },
   }
 })

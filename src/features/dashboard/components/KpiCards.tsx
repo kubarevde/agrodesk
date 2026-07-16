@@ -1,5 +1,3 @@
-import { format } from 'date-fns'
-import { ru } from 'date-fns/locale'
 import { AlertTriangle, Clock, Truck, Users, Wallet, Wrench, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
@@ -8,6 +6,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { DashboardStats } from '@/types'
 import { useLiveTodayHours } from '@/features/dashboard/useLiveTodayHours'
+import { useOrgTimezone } from '@/features/settings/useOrgTimezone'
+import { formatInOrgTimezone } from '@/lib/timezone'
 import { cn } from '@/lib/utils'
 
 interface KpiCardsProps {
@@ -39,12 +39,12 @@ function KpiCard({
 }: KpiCardProps) {
   const content = (
     <Card className={cardClassName}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className="size-4 text-muted-foreground" />
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-3 pb-1">
+        <CardTitle className="text-xs font-medium text-muted-foreground">{title}</CardTitle>
+        <Icon className="size-3.5 text-muted-foreground" />
       </CardHeader>
-      <CardContent>
-        <p className={cn('text-2xl font-semibold text-foreground', valueClassName)}>{value}</p>
+      <CardContent className="px-4 pb-3">
+        <p className={cn('text-xl font-semibold text-foreground', valueClassName)}>{value}</p>
         {footer}
       </CardContent>
     </Card>
@@ -62,14 +62,15 @@ function KpiCard({
 
 export function KpiCards({ stats }: KpiCardsProps) {
   const liveTodayHours = useLiveTodayHours(stats.todayHours, stats.activeShifts)
+  const timezone = useOrgTimezone()
   const activeNames = stats.activeShifts.map((shift) => shift.employeeName).join(', ')
   const critical = stats.criticalInventoryCount > 0
   const needsTo = stats.equipmentWarningCount > 0
-  const monthLabel = format(new Date(), 'LLLL', { locale: ru })
+  const monthLabel = formatInOrgTimezone(new Date(), { month: 'long' }, timezone)
   const noRate = stats.noRateShiftsCount > 0
 
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
       <KpiCard
         title="Сейчас на смене"
         value={`${stats.activeShiftsCount} чел.`}
@@ -132,14 +133,14 @@ export function KpiCards({ stats }: KpiCardsProps) {
 
 export function KpiCardsSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
       {Array.from({ length: 6 }).map((_, index) => (
         <Card key={index}>
-          <CardHeader>
-            <Skeleton className="h-4 w-24" />
+          <CardHeader className="px-4 pt-3 pb-1">
+            <Skeleton className="h-3 w-20" />
           </CardHeader>
-          <CardContent>
-            <Skeleton className="h-8 w-24" />
+          <CardContent className="px-4 pb-3">
+            <Skeleton className="h-6 w-20" />
           </CardContent>
         </Card>
       ))}

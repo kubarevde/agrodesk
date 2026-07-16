@@ -58,7 +58,11 @@ async function fetchShifts(filters: ShiftFilters): Promise<Shift[]> {
   if (!Array.isArray(data)) {
     throw new Error('Некорректный ответ API смен')
   }
-  return data.map((item) => shiftFromApi(item as Record<string, unknown>))
+  const shifts = data.map((item) => shiftFromApi(item as Record<string, unknown>))
+  // Cache for offline read; keep local-only (_isLocal) rows until sync finishes
+  const localOnly = await db.shifts.filter((shift) => Boolean(shift._isLocal)).toArray()
+  await db.shifts.bulkPut([...shifts, ...localOnly])
+  return shifts
 }
 
 async function fetchShift(id: string): Promise<Shift> {
@@ -71,7 +75,9 @@ async function fetchShift(id: string): Promise<Shift> {
   }
 
   const { data } = await api.get<Record<string, unknown>>(`/api/shifts/${id}`)
-  return shiftFromApi(data)
+  const shift = shiftFromApi(data)
+  await db.shifts.put(shift)
+  return shift
 }
 
 export function useShifts(filters: ShiftFilters, options?: { enabled?: boolean }) {
@@ -104,7 +110,7 @@ export function useCreateShift() {
           queryClient.getQueryData<WorkType[]>(['work-types']) ?? [],
           queryClient.getQueryData<Equipment[]>(['equipment']) ?? [],
         )
-        toast.info('💾 Сохранено офлайн')
+        toast.info('Сохранено офлайн — синхронизируется при появлении сети')
         await queryClient.invalidateQueries({ queryKey: ['shifts'] })
         return { shift: localShift, offline: true as const }
       }
@@ -129,7 +135,7 @@ export function useCloseShift() {
     mutationFn: async ({ id, ...payload }: { id: string } & ShiftCloseInput) => {
       if (!navigator.onLine) {
         const existing = await enqueueCloseShiftOffline(id, payload)
-        toast.info('💾 Сохранено офлайн')
+        toast.info('Сохранено офлайн — синхронизируется при появлении сети')
         await queryClient.invalidateQueries({ queryKey: ['shifts'] })
         return { shift: existing, offline: true as const }
       }

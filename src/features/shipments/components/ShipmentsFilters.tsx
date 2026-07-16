@@ -6,7 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { CROP_TYPES } from '@/features/shipments/utils'
+import { useDictionary } from '@/features/dictionaries/hooks'
 
 interface ShipmentsFiltersProps {
   from?: string
@@ -23,6 +23,9 @@ export function ShipmentsFilters({
   onRangeChange,
   onCropChange,
 }: ShipmentsFiltersProps) {
+  const { data: crops = [] } = useDictionary('crop')
+  const cropNames = crops.map((crop) => crop.name)
+
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
       <DateRangePicker from={from} to={to} onChange={onRangeChange} />
@@ -31,7 +34,7 @@ export function ShipmentsFilters({
         onValueChange={(value) => onCropChange(!value || value === 'all' ? undefined : value)}
         items={[
           { value: 'all', label: 'Все культуры' },
-          ...CROP_TYPES.map((crop) => ({ value: crop, label: crop })),
+          ...cropNames.map((crop) => ({ value: crop, label: crop })),
         ]}
       >
         <SelectTrigger className="w-full sm:w-52">
@@ -39,7 +42,7 @@ export function ShipmentsFilters({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">Все культуры</SelectItem>
-          {CROP_TYPES.map((crop) => (
+          {cropNames.map((crop) => (
             <SelectItem key={crop} value={crop}>
               {crop}
             </SelectItem>

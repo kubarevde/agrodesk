@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { Expense, ExpenseFilters } from '@/types'
 import { api } from '@/lib/api'
+import { apiErrorMessage } from '@/lib/apiError'
 import {
   expenseCreateToApi,
   expenseFiltersToApi,
@@ -44,7 +45,7 @@ export function useCreateExpense() {
       await invalidateExpenseQueries(queryClient)
       toast.success('Затрата добавлена')
     },
-    onError: () => toast.error('Не удалось добавить затрату'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось добавить затрату')),
   })
 }
 
@@ -63,7 +64,7 @@ export function useUpdateExpense() {
       await invalidateExpenseQueries(queryClient)
       toast.success('Затрата обновлена')
     },
-    onError: () => toast.error('Не удалось обновить затрату'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось обновить затрату')),
   })
 }
 
@@ -78,6 +79,6 @@ export function useDeleteExpense() {
       await invalidateExpenseQueries(queryClient)
       toast.success('Затрата удалена')
     },
-    onError: () => toast.error('Не удалось удалить затрату'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось удалить затрату')),
   })
 }

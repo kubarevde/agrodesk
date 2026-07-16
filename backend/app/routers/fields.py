@@ -8,8 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.dependencies.auth import get_current_employee, require_admin, require_manager
+from app.dependencies.auth import get_current_employee, require_manager
 from app.middleware.org_context import get_org_id
+from app.models.dictionary import normalize_name
 from app.models.employee import Employee
 from app.models.reference import Location
 from app.schemas.field import FieldCreate, FieldResponse, FieldUpdate
@@ -47,7 +48,8 @@ def location_to_field(location: Location) -> FieldResponse:
         name=location.name,
         crop_type=location.crop_type,
         area_ha=_num(location.area_ha),
-        soil_type=location.soil_type,
+        # soil_type kept in DB as legacy — not exposed for create/update UX
+        soil_type=None,
         description=location.description,
         latitude=_num(location.latitude),
         longitude=_num(location.longitude),
@@ -74,6 +76,8 @@ async def get_field_or_404(db: AsyncSession, field_id: UUID, org_id: UUID) -> Lo
 
 
 def is_field_location(location: Location) -> bool:
+    if getattr(location, 'kind', None) == 'field':
+        return True
     if location.crop_type:
         return True
     return location.name.startswith('Поле')
@@ -92,7 +96,11 @@ async def list_fields(
         .where(
             Location.org_id == org_id,
             Location.is_active.is_(True),
-            or_(Location.crop_type.is_not(None), Location.name.like('Поле%')),
+            or_(
+                Location.kind == 'field',
+                Location.crop_type.is_not(None),
+                Location.name.like('Поле%'),
+            ),
         )
         .order_by(Location.name)
     )
@@ -120,12 +128,18 @@ async def create_field(
     _: Employee = Depends(require_manager),
 ) -> FieldResponse:
     org_id = get_org_id(request)
+    name = normalize_name(payload.name)
+    if not name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Укажите название поля')
+
     location = Location(
         org_id=org_id,
-        name=payload.name,
-        crop_type=payload.crop_type,
+        name=name,
+        kind='field',
+        crop_type=normalize_name(payload.crop_type) if payload.crop_type else None,
         area_ha=Decimal(str(payload.area_ha)) if payload.area_ha is not None else None,
-        soil_type=payload.soil_type,
+        # soil_type ignored (legacy column)
+        soil_type=None,
         description=payload.description,
         latitude=Decimal(str(payload.latitude)) if payload.latitude is not None else None,
         longitude=Decimal(str(payload.longitude)) if payload.longitude is not None else None,
@@ -139,7 +153,7 @@ async def create_field(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail='Поле с таким названием уже существует',
+            detail='Поле с таким названием уже существует в организации',
         ) from None
 
     location = await get_field_or_404(db, location.id, org_id)
@@ -156,8 +170,23 @@ async def update_field(
 ) -> FieldResponse:
     org_id = get_org_id(request)
     location = await get_field_or_404(db, field_id, org_id)
-    updates = payload.model_dump(exclude_unset=True)
+    if not is_field_location(location):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Поле не найдено')
 
+    updates = payload.model_dump(exclude_unset=True)
+    updates.pop('soil_type', None)  # deprecated — ignore if client still sends
+
+    if 'name' in updates and updates['name'] is not None:
+        updates['name'] = normalize_name(updates['name'])
+        if not updates['name']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Укажите название поля',
+            )
+    if 'crop_type' in updates and updates['crop_type'] is not None:
+        updates['crop_type'] = normalize_name(updates['crop_type']) or None
+
+    location.kind = 'field'
     for field, value in updates.items():
         if field in {'area_ha', 'latitude', 'longitude'} and value is not None:
             setattr(location, field, Decimal(str(value)))
@@ -171,7 +200,7 @@ async def update_field(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail='Поле с таким названием уже существует',
+            detail='Поле с таким названием уже существует в организации',
         ) from None
 
     location = await get_field_or_404(db, field_id, org_id)
@@ -183,7 +212,7 @@ async def delete_field(
     request: Request,
     field_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_admin),
+    _: Employee = Depends(require_manager),
 ) -> None:
     location = await get_field_or_404(db, field_id, get_org_id(request))
     location.is_active = False

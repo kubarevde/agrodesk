@@ -51,7 +51,8 @@ export function MeterLogModal({
       date: formatApiDate(new Date()),
       note: '',
     })
-  }, [form, open])
+  }, [open])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on open only
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

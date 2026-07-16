@@ -7,6 +7,21 @@ import { db } from './db'
 import { shiftFromApi } from './transformers'
 
 const SUCCESS_STATUSES = new Set([200, 201, 204])
+const MAX_RETRIES = 5
+
+export interface FlushSyncResult {
+  synced: number
+  failed: number
+  skipped: number
+}
+
+export type FlushSyncOptions = {
+  /** Re-queue previously failed items (manual «Повторить»). */
+  includeFailed?: boolean
+}
+
+/** Serializes flushes (startup + online + manual retry) — no parallel queue races. */
+let flushChain: Promise<void> = Promise.resolve()
 
 async function remapQueuedCloseUrls(localId: string, serverId: string): Promise<void> {
   const pending = await db.syncQueue
@@ -31,7 +46,7 @@ async function handleSuccessfulShiftCreate(
 
   const serverShift = shiftFromApi(responseData as Record<string, unknown>)
   await db.shifts.delete(item.idempotencyKey)
-  await db.shifts.put(serverShift)
+  await db.shifts.put({ ...serverShift, _isLocal: false })
   await remapQueuedCloseUrls(item.idempotencyKey, serverShift.id)
 }
 
@@ -53,11 +68,14 @@ async function processSyncItem(item: SyncQueueItem): Promise<'done' | 'retry' | 
     }
 
     if (response.status === 409) {
+      // Idempotent conflict — already applied on server
       await db.syncQueue.delete(item.id)
       return 'done'
     }
 
-    // Other client errors: leave in queue without burning retries
+    if (import.meta.env.DEV) {
+      console.warn('[sync] skip client error', item.url, response.status)
+    }
     return 'skip'
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 409) {
@@ -65,24 +83,32 @@ async function processSyncItem(item: SyncQueueItem): Promise<'done' | 'retry' | 
       return 'done'
     }
 
-    // Network / server errors → increment retries
     const retries = (item.retries ?? 0) + 1
     await db.syncQueue.update(item.id, {
       retries,
-      status: retries > 5 ? 'failed' : 'pending',
+      status: retries > MAX_RETRIES ? 'failed' : 'pending',
     })
+    if (import.meta.env.DEV) {
+      console.warn('[sync] retry', item.url, retries, error)
+    }
     return 'retry'
   }
 }
 
-export interface FlushSyncResult {
-  synced: number
-  failed: number
-}
-
-export async function flushSyncQueue(): Promise<FlushSyncResult> {
+async function runFlush(options: FlushSyncOptions = {}): Promise<FlushSyncResult> {
   if (!navigator.onLine) {
-    return { synced: 0, failed: 0 }
+    return { synced: 0, failed: 0, skipped: 0 }
+  }
+
+  if (options.includeFailed) {
+    const failedItems = await db.syncQueue
+      .filter((item) => item.status === 'failed')
+      .toArray()
+    await Promise.all(
+      failedItems.map((item) =>
+        db.syncQueue.update(item.id, { status: 'pending', retries: 0 }),
+      ),
+    )
   }
 
   const items = await db.syncQueue
@@ -92,17 +118,33 @@ export async function flushSyncQueue(): Promise<FlushSyncResult> {
 
   let synced = 0
   let failed = 0
+  let skipped = 0
 
   for (const item of items) {
     const result = await processSyncItem(item)
     if (result === 'done') synced += 1
+    if (result === 'skip') skipped += 1
     if (result === 'retry') {
       const updated = await db.syncQueue.get(item.id)
       if (updated?.status === 'failed') failed += 1
     }
   }
 
-  return { synced, failed }
+  return { synced, failed, skipped }
+}
+
+export async function flushSyncQueue(options: FlushSyncOptions = {}): Promise<FlushSyncResult> {
+  const resultPromise = flushChain.then(() => runFlush(options))
+  flushChain = resultPromise.then(
+    () => undefined,
+    () => undefined,
+  )
+  return resultPromise
+}
+
+/** @internal test helper */
+export function __resetFlushLockForTests(): void {
+  flushChain = Promise.resolve()
 }
 
 export function useSyncQueue() {

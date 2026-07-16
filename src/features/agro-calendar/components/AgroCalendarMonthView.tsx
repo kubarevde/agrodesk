@@ -10,7 +10,6 @@ import {
 } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { useMemo } from 'react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -153,29 +152,36 @@ export function AgroCalendarMonthView({
                     {format(day, 'd')}
                   </p>
                   <div className="space-y-1">
-                    {dayPlans.slice(0, 3).map((plan) => (
+                    {dayPlans.slice(0, 2).map((plan) => (
                       <button
                         key={`${plan.id}-${key}`}
                         type="button"
-                        className="w-full text-left"
+                        className="w-full rounded-md border border-border/60 bg-background/80 p-1 text-left hover:bg-muted/50"
                         onClick={(event) => {
                           event.stopPropagation()
                           onSelectPlan(plan)
                         }}
                       >
-                        <Badge
-                          variant="outline"
+                        <p
                           className={cn(
-                            'w-full justify-start truncate text-[10px]',
+                            'truncate text-[10px] font-medium',
                             workTypeBadgeClass(humanLabel(plan.workTypeName, 'Работа')),
                           )}
                         >
                           {humanLabel(plan.workTypeName, 'Работа')}
-                        </Badge>
+                        </p>
+                        <p className="truncate text-[9px] text-muted-foreground">
+                          {[plan.equipmentName, plan.implementName]
+                            .filter(Boolean)
+                            .join(' · ') || 'Без техники'}
+                        </p>
+                        <p className="truncate text-[9px] text-muted-foreground">
+                          {plan.employeeName || 'Оператор не назначен'}
+                        </p>
                       </button>
                     ))}
-                    {dayPlans.length > 3 ? (
-                      <p className="text-[10px] text-muted-foreground">+{dayPlans.length - 3} ещё</p>
+                    {dayPlans.length > 2 ? (
+                      <p className="text-[10px] text-muted-foreground">+{dayPlans.length - 2} ещё</p>
                     ) : null}
                   </div>
                 </div>

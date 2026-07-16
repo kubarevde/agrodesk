@@ -1,12 +1,15 @@
 import { formatDistanceToNow } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { Handshake, Wrench, type LucideIcon } from 'lucide-react'
+import { formatOrgDateTime } from '@/lib/timezone'
 import { NOTIFICATION_TYPE_GROUPS } from './types'
 
-export function notificationTimeAgo(createdAt: string): string {
+export function notificationTimeAgo(createdAt: string, timezone?: string): string {
   const date = new Date(createdAt)
   if (Number.isNaN(date.getTime())) return ''
-  return formatDistanceToNow(date, { addSuffix: true, locale: ru })
+  const relative = formatDistanceToNow(date, { addSuffix: true, locale: ru })
+  if (!timezone) return relative
+  return `${relative} · ${formatOrgDateTime(date, timezone)}`
 }
 
 export function notificationTypeLabel(type: string): string {

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { SharingListing } from '@/types'
 import { api } from '@/lib/api'
+import { apiErrorMessage } from '@/lib/apiError'
 import { db } from '@/lib/db'
 import { displayDateToIso } from '@/lib/transformers'
 import {
@@ -20,23 +21,6 @@ import type {
   SharingRequestCreateInput,
   SharingRequestStatus,
 } from './types'
-
-function apiErrorMessage(error: unknown, fallback: string): string {
-  if (
-    error &&
-    typeof error === 'object' &&
-    'response' in error &&
-    error.response &&
-    typeof error.response === 'object' &&
-    'data' in error.response &&
-    error.response.data &&
-    typeof error.response.data === 'object' &&
-    'detail' in error.response.data
-  ) {
-    return String((error.response.data as { detail: unknown }).detail)
-  }
-  return fallback
-}
 
 async function invalidateSharing(queryClient: ReturnType<typeof useQueryClient>) {
   await Promise.all([

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.agro_plan import AgroPlan
+from app.models.dictionary import OrgDictionary
 from app.models.employee import Employee
 from app.models.equipment_log import EquipmentMaintenance, EquipmentMeterLog
 from app.models.expense import Expense
@@ -25,6 +26,7 @@ from app.services.excel_styles import new_workbook, write_table
 from app.services.shifts import calc_duration_from_datetimes, combine_date_time
 
 EXPENSE_CATEGORY_LABELS = {
+    # Legacy compatibility for historical expense.category codes before custom dictionaries.
     'fuel': 'Топливо',
     'fertilizer': 'Удобрения',
     'parts': 'Запчасти',
@@ -34,13 +36,49 @@ EXPENSE_CATEGORY_LABELS = {
 }
 
 INVENTORY_CATEGORY_LABELS = {
+    # Legacy compatibility for historical inventory.category codes.
     'fuel': 'Топливо',
     'fertilizer': 'Удобрения',
     'parts': 'Запчасти',
     'seeds': 'Семена',
-    'chemicals': 'Химия',
+    'chemicals': 'СЗР',
     'other': 'Прочее',
 }
+
+
+async def load_dictionary_labels(
+    db: AsyncSession,
+    org_id: UUID | None,
+    dict_type: str,
+    fallback: dict[str, str] | None = None,
+    *,
+    include_inactive: bool = True,
+) -> dict[str, str]:
+    """Map dictionary code (and name) → display name for Excel / reports.
+
+    Includes inactive rows by default so historical records keep their labels
+    after a category was deactivated. Active names win over inactive on conflict.
+    """
+    labels = dict(fallback or {})
+    if org_id is None:
+        return labels
+    query = select(OrgDictionary).where(
+        OrgDictionary.org_id == org_id,
+        OrgDictionary.type == dict_type,
+    )
+    if not include_inactive:
+        query = query.where(OrgDictionary.is_active.is_(True))
+    result = await db.execute(query.order_by(OrgDictionary.is_active.asc()))
+    for row in result.scalars().all():
+        labels[row.code] = row.name
+        labels[row.name] = row.name
+    return labels
+
+
+def resolve_label(value: str | None, labels: dict[str, str]) -> str:
+    if not value:
+        return ''
+    return labels.get(value, value)
 
 OPERATION_TYPE_LABELS = {
     'income': 'Приход',
@@ -534,6 +572,9 @@ async def build_inventory_workbook(
 
     items_result = await db.execute(items_query.order_by(InventoryItem.name))
     items = items_result.scalars().all()
+    inventory_labels = await load_dictionary_labels(
+        db, org_id, 'inventory_category', INVENTORY_CATEGORY_LABELS
+    )
 
     workbook = new_workbook()
     ws_ops = workbook.active
@@ -561,7 +602,10 @@ async def build_inventory_workbook(
     stock_rows = [
         [
             item.name,
-            INVENTORY_CATEGORY_LABELS.get(item.category.value, item.category.value),
+            resolve_label(
+                str(getattr(item.category, 'value', item.category)),
+                inventory_labels,
+            ),
             item.unit,
             to_number(item.current_stock),
             to_number(item.min_stock),
@@ -627,6 +671,9 @@ async def build_expenses_workbook(
         query = query.where(Expense.org_id == org_id)
     result = await db.execute(query.order_by(Expense.date))
     expenses = result.scalars().all()
+    category_labels = await load_dictionary_labels(
+        db, org_id, 'expense_category', EXPENSE_CATEGORY_LABELS
+    )
 
     workbook = new_workbook()
     ws = workbook.active
@@ -640,7 +687,7 @@ async def build_expenses_workbook(
         rows.append(
             [
                 fmt_date(expense.date),
-                EXPENSE_CATEGORY_LABELS.get(expense.category, expense.category),
+                resolve_label(expense.category, category_labels),
                 amount,
                 expense.description or '',
                 expense.supplier or '',
@@ -662,28 +709,44 @@ async def build_summary_workbook(
     from_date, to_date = parse_month(month)
     shifts = await fetch_shifts(db, from_date, to_date, org_id=org_id)
 
-    shipments_result = await db.execute(
-        select(Shipment).where(Shipment.date >= from_date, Shipment.date <= to_date)
+    shipments_query = select(Shipment).where(
+        Shipment.date >= from_date, Shipment.date <= to_date
     )
+    if org_id is not None:
+        shipments_query = shipments_query.where(Shipment.org_id == org_id)
+    shipments_result = await db.execute(shipments_query)
     shipments = shipments_result.scalars().all()
 
-    expenses_result = await db.execute(
-        select(Expense).where(Expense.date >= from_date, Expense.date <= to_date)
+    expenses_query = select(Expense).where(
+        Expense.date >= from_date, Expense.date <= to_date
     )
+    if org_id is not None:
+        expenses_query = expenses_query.where(Expense.org_id == org_id)
+    expenses_result = await db.execute(expenses_query)
     expenses = expenses_result.scalars().all()
 
-    operations_result = await db.execute(
-        select(InventoryOperation).where(
+    operations_query = (
+        select(InventoryOperation)
+        .join(InventoryItem, InventoryOperation.item_id == InventoryItem.id)
+        .where(
             InventoryOperation.date >= from_date,
             InventoryOperation.date <= to_date,
         )
     )
+    if org_id is not None:
+        operations_query = operations_query.where(InventoryItem.org_id == org_id)
+    operations_result = await db.execute(operations_query)
     operations = operations_result.scalars().all()
 
-    items_result = await db.execute(
-        select(InventoryItem).where(InventoryItem.is_active.is_(True))
-    )
+    items_query = select(InventoryItem).where(InventoryItem.is_active.is_(True))
+    if org_id is not None:
+        items_query = items_query.where(InventoryItem.org_id == org_id)
+    items_result = await db.execute(items_query)
     items = items_result.scalars().all()
+
+    category_labels = await load_dictionary_labels(
+        db, org_id, 'expense_category', EXPENSE_CATEGORY_LABELS
+    )
 
     workbook = new_workbook()
 
@@ -720,7 +783,7 @@ async def build_summary_workbook(
     expenses_sum = sum(to_number(item.amount) for item in expenses)
     expenses_by_category: dict[str, float] = defaultdict(float)
     for expense in expenses:
-        label = EXPENSE_CATEGORY_LABELS.get(expense.category, expense.category)
+        label = resolve_label(expense.category, category_labels)
         expenses_by_category[label] += to_number(expense.amount)
 
     ws_finance = workbook.create_sheet('Финансы')
@@ -790,6 +853,9 @@ async def build_equipment_workbook(
 ) -> Workbook:
     equipment_list = await fetch_equipment_list(db, equipment_id, org_id=org_id)
     equipment_ids = [item.id for item in equipment_list]
+    category_labels = await load_dictionary_labels(
+        db, org_id, 'expense_category', EXPENSE_CATEGORY_LABELS
+    )
 
     meter_logs: list[EquipmentMeterLog] = []
     if equipment_ids:
@@ -960,7 +1026,7 @@ async def build_equipment_workbook(
         [
             fmt_date(expense.date),
             expense.equipment.name if expense.equipment else '',
-            EXPENSE_CATEGORY_LABELS.get(expense.category, expense.category),
+            resolve_label(expense.category, category_labels),
             to_number(expense.amount),
             expense.description or '',
             expense.supplier or '',

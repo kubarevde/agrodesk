@@ -1,6 +1,6 @@
 import { lazy } from 'react'
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import { fetchCurrentUser } from '@/features/auth/utils'
+import { createFileRoute, isRedirect, redirect } from '@tanstack/react-router'
+import { resolveCurrentUser } from '@/features/auth/utils'
 
 const SettingsPage = lazy(() =>
   import('@/features/settings/components/SettingsPage').then((module) => ({
@@ -10,13 +10,14 @@ const SettingsPage = lazy(() =>
 
 export const Route = createFileRoute('/_layout/settings/')({
   beforeLoad: async ({ context }) => {
-    const user = await context.queryClient.ensureQueryData({
-      queryKey: ['auth', 'me'],
-      queryFn: fetchCurrentUser,
-    })
-
-    if (user.role === 'employee') {
-      throw redirect({ to: '/my-shift' })
+    try {
+      const user = await resolveCurrentUser(context.queryClient)
+      if (user.role === 'employee') {
+        throw redirect({ to: '/my-shift' })
+      }
+    } catch (error) {
+      if (isRedirect(error)) throw error
+      throw redirect({ to: '/login' })
     }
   },
   component: SettingsPage,

@@ -23,7 +23,8 @@ import {
   useUpdateImplement,
 } from '@/features/implements/hooks'
 import type { ImplementFormValues } from '@/features/implements/schemas'
-import { CATEGORY_OPTIONS, type ImplementResponse } from '@/features/implements/types'
+import type { ImplementResponse } from '@/features/implements/types'
+import { useDictionary } from '@/features/dictionaries/hooks'
 import { ImplementAttachModal } from './ImplementAttachModal'
 import { ImplementCard } from './ImplementCard'
 import { ImplementFormDialog } from './ImplementFormDialog'
@@ -36,6 +37,7 @@ export function ImplementsPage() {
   const canDelete = user?.role === 'admin'
 
   const [category, setCategory] = useState<string | undefined>()
+  const { data: categoryOptions = [] } = useDictionary('implement_category')
   const { data: items = [], isLoading, isError } = useImplements(
     category ? { category } : undefined,
   )
@@ -89,17 +91,17 @@ export function ImplementsPage() {
           onValueChange={(value) => setCategory(!value || value === 'all' ? undefined : value)}
           items={[
             { value: 'all', label: 'Все' },
-            ...CATEGORY_OPTIONS.map((option) => ({ value: option, label: option })),
+            ...categoryOptions.map((option) => ({ value: option.name, label: option.name })),
           ]}
         >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Все" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent alignItemWithTrigger={false}>
             <SelectItem value="all">Все</SelectItem>
-            {CATEGORY_OPTIONS.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
+            {categoryOptions.map((option) => (
+              <SelectItem key={option.id} value={option.name}>
+                {option.name}
               </SelectItem>
             ))}
           </SelectContent>

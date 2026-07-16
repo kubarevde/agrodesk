@@ -37,7 +37,7 @@ export function FieldCard({
       <CardContent className="flex flex-1 flex-col gap-3">
         <div className="space-y-1 text-sm text-muted-foreground">
           {field.area_ha != null ? <p>{field.area_ha} га</p> : null}
-          {field.soil_type ? <p>{field.soil_type}</p> : null}
+          {field.description ? <p className="line-clamp-2">{field.description}</p> : null}
         </div>
         <div className="mt-auto flex flex-wrap gap-2">
           {canManage ? (

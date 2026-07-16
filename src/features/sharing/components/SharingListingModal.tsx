@@ -82,7 +82,8 @@ export function SharingListingModal({
   useEffect(() => {
     if (!open) return
     form.reset(listing ? toFormValues(listing) : defaultListingFormValues(preset))
-  }, [form, listing, open, preset])
+  }, [listing?.id, open, preset])
+  // form.reset intentionally omitted from deps — stable enough; listing object ref is not
 
   const pending =
     form.formState.isSubmitting || createListing.isPending || updateListing.isPending

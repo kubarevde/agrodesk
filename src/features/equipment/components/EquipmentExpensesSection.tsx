@@ -11,7 +11,8 @@ import {
 } from '@/components/ui/table'
 import { ExpenseFormModal } from '@/features/expenses/components/ExpenseFormModal'
 import { useExpenses } from '@/features/expenses/hooks'
-import { CATEGORY_LABELS, formatMoney, sumExpenses } from '@/features/expenses/utils'
+import { formatMoney, getCategoryLabel, sumExpenses } from '@/features/expenses/utils'
+import { useDictionary } from '@/features/dictionaries/hooks'
 
 type EquipmentExpensesSectionProps = {
   equipmentId: string
@@ -23,6 +24,7 @@ export function EquipmentExpensesSection({
   canManage,
 }: EquipmentExpensesSectionProps) {
   const { data: expenses = [], isLoading } = useExpenses({ equipmentId })
+  const { data: categories = [] } = useDictionary('expense_category', { activeOnly: false })
   const [formOpen, setFormOpen] = useState(false)
 
   const year = new Date().getFullYear()
@@ -79,7 +81,7 @@ export function EquipmentExpensesSection({
               {latest.map((expense) => (
                 <TableRow key={expense.id}>
                   <TableCell>{expense.date}</TableCell>
-                  <TableCell>{CATEGORY_LABELS[expense.category]}</TableCell>
+                  <TableCell>{getCategoryLabel(expense.category, categories)}</TableCell>
                   <TableCell>{formatMoney(expense.amount)}</TableCell>
                   <TableCell className="max-w-48 truncate">{expense.description}</TableCell>
                 </TableRow>

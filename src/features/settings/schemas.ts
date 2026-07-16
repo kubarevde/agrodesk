@@ -12,23 +12,5 @@ export const workTypeSchema = z.object({
   isActive: z.boolean(),
 })
 
-export const equipmentSchema = z.object({
-  name: z.string().min(1, 'Укажите название'),
-  type: z.string().optional(),
-  isActive: z.boolean(),
-})
-
-export const inventoryItemSchema = z.object({
-  name: z.string().min(1, 'Укажите название'),
-  category: z.enum(['fuel', 'fertilizer', 'parts', 'seeds', 'chemicals', 'other']),
-  unit: z.string().min(1, 'Укажите единицу измерения'),
-  currentStock: z.number().min(0),
-  minStock: z.number().min(0),
-  totalCapacity: z.number().min(0),
-  isActive: z.boolean(),
-})
-
 export type LocationFormValues = z.infer<typeof locationSchema>
 export type WorkTypeFormValues = z.infer<typeof workTypeSchema>
-export type EquipmentFormValues = z.infer<typeof equipmentSchema>
-export type InventoryItemFormValues = z.infer<typeof inventoryItemSchema>

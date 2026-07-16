@@ -11,7 +11,7 @@ from app.dependencies.auth import get_current_employee, require_admin, require_m
 from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
 from app.models.expense import Expense
-from app.schemas.expense import ExpenseCategory, ExpenseCreate, ExpenseResponse, ExpenseUpdate
+from app.schemas.expense import ExpenseCreate, ExpenseResponse, ExpenseUpdate
 from app.services.dashboard import clear_dashboard_cache
 
 router = APIRouter()
@@ -53,7 +53,7 @@ async def list_expenses(
     request: Request,
     from_date: date | None = Query(None),
     to_date: date | None = Query(None),
-    category: ExpenseCategory | None = Query(None),
+    category: str | None = Query(None),
     equipment_id: UUID | None = Query(None),
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
@@ -66,7 +66,7 @@ async def list_expenses(
     if to_date is not None:
         query = query.where(Expense.date <= to_date)
     if category is not None:
-        query = query.where(Expense.category == category.value)
+        query = query.where(Expense.category == category)
     if equipment_id is not None:
         query = query.where(Expense.equipment_id == equipment_id)
 
@@ -97,7 +97,7 @@ async def create_expense(
     expense = Expense(
         org_id=org_id,
         date=payload.date,
-        category=payload.category.value,
+        category=payload.category.strip(),
         amount=payload.amount,
         description=payload.description,
         supplier=payload.supplier,
@@ -124,7 +124,7 @@ async def update_expense(
     update_data = payload.model_dump(exclude_unset=True)
 
     if 'category' in update_data and update_data['category'] is not None:
-        update_data['category'] = update_data['category'].value
+        update_data['category'] = str(update_data['category']).strip()
     if 'payment_method' in update_data and update_data['payment_method'] is not None:
         update_data['payment_method'] = update_data['payment_method'].value
 

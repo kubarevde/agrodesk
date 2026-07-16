@@ -1,9 +1,9 @@
 import { z } from 'zod'
-import { CATEGORY_OPTIONS, MAINTENANCE_TYPES } from './types'
+import { MAINTENANCE_TYPES } from './types'
 
 export const implementFormSchema = z.object({
   name: z.string().min(1, 'Укажите название'),
-  category: z.enum(CATEGORY_OPTIONS, { message: 'Выберите категорию' }),
+  category: z.string().min(1, 'Выберите категорию'),
   serial_number: z.string().optional(),
   year_of_manufacture: z.number().int().min(1950).max(2100).optional(),
   description: z.string().optional(),

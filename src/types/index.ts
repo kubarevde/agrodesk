@@ -214,7 +214,7 @@ export interface AgroPlan {
 export interface InventoryItem {
   id: string
   name: string
-  category: 'fuel' | 'fertilizer' | 'parts' | 'seeds' | 'chemicals' | 'other'
+  category: string
   unit: string
   currentStock: number
   minStock: number
@@ -255,7 +255,8 @@ export interface ShipmentFilters {
 export interface Expense {
   id: string
   date: string
-  category: 'fuel' | 'fertilizer' | 'parts' | 'salary' | 'rent' | 'other'
+  /** Dictionary code from expense_category (e.g. fuel) */
+  category: string
   amount: number
   description: string
   supplier?: string

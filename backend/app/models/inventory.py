@@ -9,6 +9,8 @@ from app.database import Base
 
 
 class InventoryCategory(str, enum.Enum):
+    """Legacy enum values kept for type hints; DB stores free-text category codes."""
+
     fuel = 'fuel'
     fertilizer = 'fertilizer'
     parts = 'parts'
@@ -29,10 +31,8 @@ class InventoryItem(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id'), nullable=False)
     name = Column(String(200), nullable=False)
-    category = Column(
-        Enum(InventoryCategory, name='inventory_category'),
-        nullable=False,
-    )
+    # Dictionary code (e.g. fuel) — was PG enum; now editable via org_dictionaries
+    category = Column(String(50), nullable=False)
     unit = Column(String(50), nullable=False)
     current_stock = Column(Numeric(12, 2), default=0, nullable=False)
     min_stock = Column(Numeric(12, 2), default=0, nullable=False)

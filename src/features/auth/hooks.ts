@@ -3,8 +3,12 @@ import { useNavigate } from '@tanstack/react-router'
 import { api } from '@/lib/api'
 import { currentUserFromApi } from '@/lib/transformers'
 import {
+  cacheCurrentUser,
+  clearAuthStorage,
   fetchCurrentUser,
   getHomeRoute,
+  isRecoverableAuthFailure,
+  readCachedCurrentUser,
   TOKEN_KEY,
 } from '@/features/auth/utils'
 import type { SelectedOrg } from '@/features/auth/selectedOrg'
@@ -25,9 +29,21 @@ export { TOKEN_KEY, fetchCurrentUser, getHomeRoute }
 export function useCurrentUser() {
   return useQuery({
     queryKey: ['auth', 'me'],
-    queryFn: fetchCurrentUser,
+    queryFn: async () => {
+      try {
+        return await fetchCurrentUser()
+      } catch (error) {
+        if (isRecoverableAuthFailure(error)) {
+          const cached = readCachedCurrentUser()
+          if (cached) return cached
+        }
+        throw error
+      }
+    },
     staleTime: 300_000,
+    networkMode: 'offlineFirst',
     enabled: Boolean(localStorage.getItem(TOKEN_KEY)),
+    initialData: () => readCachedCurrentUser() ?? undefined,
   })
 }
 
@@ -66,6 +82,7 @@ export function useLogin() {
     onSuccess: (data) => {
       localStorage.setItem(TOKEN_KEY, data.access_token)
       const user = currentUserFromApi(data.employee)
+      cacheCurrentUser(user)
       queryClient.setQueryData(['auth', 'me'], user)
       void navigate({ to: getHomeRoute(user.role) })
     },
@@ -77,7 +94,7 @@ export function useLogout() {
   const queryClient = useQueryClient()
 
   return () => {
-    localStorage.removeItem(TOKEN_KEY)
+    clearAuthStorage()
     queryClient.clear()
     void navigate({ to: '/login' })
   }

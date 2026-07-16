@@ -9,10 +9,13 @@ from app.database import AsyncSessionLocal
 from app.models.employee import Employee, EmployeeRole
 from app.models.employee_rate import EmployeeRate
 from app.models.implement import Implement
-from app.models.inventory import InventoryCategory, InventoryItem
+from app.models.inventory import InventoryItem
 from app.models.organization import Organization
 from app.models.reference import Equipment, Location, WorkType
 from app.models.shift import Shift, ShiftStatus
+from app.models.dictionary import ensure_default_dictionaries
+from app.models.expense import Expense
+from app.models.shipment import Shipment
 from app.services.maintenance import calculate_next_service_hours
 from app.services.org_timezone import DEFAULT_TIMEZONE
 
@@ -89,14 +92,14 @@ EMPLOYEES = [
 ]
 
 INVENTORY_ITEMS = [
-    ('Дизельное топливо', InventoryCategory.fuel, 'л', Decimal('2340'), Decimal('500'), Decimal('5000')),
-    ('Аммиачная селитра', InventoryCategory.fertilizer, 'кг', Decimal('1200'), Decimal('300'), Decimal('3000')),
-    ('Подсолнечник семена', InventoryCategory.seeds, 'кг', Decimal('850'), Decimal('200'), Decimal('2000')),
-    ('Гербицид Балерина', InventoryCategory.chemicals, 'л', Decimal('45'), Decimal('50'), Decimal('500')),
-    ('Масло моторное М-10', InventoryCategory.parts, 'л', Decimal('80'), Decimal('100'), Decimal('300')),
-    ('Запчасти МТЗ', InventoryCategory.parts, 'шт', Decimal('5'), Decimal('5'), Decimal('20')),
-    ('Пшеница семенная', InventoryCategory.seeds, 'кг', Decimal('4500'), Decimal('1000'), Decimal('5000')),
-    ('Аммофос', InventoryCategory.fertilizer, 'кг', Decimal('600'), Decimal('200'), Decimal('1500')),
+    ('Дизельное топливо', 'fuel', 'л', Decimal('2340'), Decimal('500'), Decimal('5000')),
+    ('Аммиачная селитра', 'fertilizer', 'кг', Decimal('1200'), Decimal('300'), Decimal('3000')),
+    ('Подсолнечник семена', 'seeds', 'кг', Decimal('850'), Decimal('200'), Decimal('2000')),
+    ('Гербицид Балерина', 'chemicals', 'л', Decimal('45'), Decimal('50'), Decimal('500')),
+    ('Масло моторное М-10', 'parts', 'л', Decimal('80'), Decimal('100'), Decimal('300')),
+    ('Запчасти МТЗ', 'parts', 'шт', Decimal('5'), Decimal('5'), Decimal('20')),
+    ('Пшеница семенная', 'seeds', 'кг', Decimal('4500'), Decimal('1000'), Decimal('5000')),
+    ('Аммофос', 'fertilizer', 'кг', Decimal('600'), Decimal('200'), Decimal('1500')),
 ]
 
 # name, category, condition(legacy), year, serial, usage_hours, service_interval
@@ -162,7 +165,13 @@ async def seed_locations(session, org_id) -> None:
 
     session.add_all(
         [
-            Location(org_id=org_id, name=name, description=description, is_active=True)
+            Location(
+                org_id=org_id,
+                name=name,
+                description=description,
+                kind='object',
+                is_active=True,
+            )
             for name, description in LOCATIONS
         ]
     )
@@ -184,6 +193,7 @@ async def update_field_seed(session, org_id=None) -> None:
         item.crop_type = crop_type
         item.area_ha = area_ha
         item.soil_type = soil_type
+        item.kind = 'field'
         item.latitude = latitude
         item.longitude = longitude
         item.description = item.description or crop_type
@@ -409,11 +419,44 @@ async def ensure_test_farm_org(session) -> None:
                 org_id=org.id,
                 name='Поле Т1',
                 description='Тестовое поле',
+                kind='field',
+                crop_type='Пшеница',
                 is_active=True,
             )
         )
         await session.commit()
         print(f'locations: created Поле Т1 in {TEST_ORG_SLUG}')
+    else:
+        location.kind = 'field'
+        session.add(location)
+        await session.commit()
+
+    workshop = await session.execute(
+        select(Location).where(
+            Location.org_id == org.id,
+            Location.name == 'Мастерская Т',
+        )
+    )
+    if workshop.scalar_one_or_none() is None:
+        session.add(
+            Location(
+                org_id=org.id,
+                name='Мастерская Т',
+                description='Объект для смен',
+                kind='object',
+                is_active=True,
+            )
+        )
+        await session.commit()
+
+    wt = await session.execute(
+        select(WorkType).where(WorkType.org_id == org.id).limit(1)
+    )
+    if wt.scalar_one_or_none() is None:
+        session.add(WorkType(org_id=org.id, name='Пахота', category='полевые', is_active=True))
+        await session.commit()
+
+    await ensure_default_dictionaries(session, org.id)
 
 
 async def ensure_demo_open_shift(session, org_id) -> None:
@@ -566,16 +609,118 @@ async def seed_implements(session, org_id) -> None:
         print('implements: attachments already set or missing rows')
 
 
+async def seed_finance_demo(session, org_id) -> None:
+    """Idempotent sample shipments + expenses for dashboard/reports QA."""
+    today = date.today()
+    month_start = today.replace(day=1)
+
+    shipments_count = await session.scalar(
+        select(func.count()).select_from(Shipment).where(Shipment.org_id == org_id)
+    )
+    if not shipments_count:
+        session.add_all(
+            [
+                Shipment(
+                    org_id=org_id,
+                    date=month_start,
+                    crop_type='Пшеница',
+                    quantity_kg=Decimal('12500'),
+                    destination='Элеватор №1',
+                    price_per_kg=Decimal('14.50'),
+                    notes='Демо-отгрузка пшеницы',
+                ),
+                Shipment(
+                    org_id=org_id,
+                    date=today,
+                    crop_type='Подсолнечник',
+                    quantity_kg=Decimal('8200'),
+                    destination='Маслозавод',
+                    price_per_kg=Decimal('28.00'),
+                    notes='Демо-отгрузка подсолнечника',
+                ),
+                Shipment(
+                    org_id=org_id,
+                    date=today.replace(day=max(1, today.day - 3)),
+                    crop_type='Кукуруза',
+                    quantity_kg=Decimal('15000'),
+                    destination='Элеватор №2',
+                    price_per_kg=Decimal('11.20'),
+                ),
+            ]
+        )
+        await session.commit()
+        print('shipments: seeded 3 demo rows')
+    else:
+        print(f'shipments: already have {shipments_count} rows')
+
+    expenses_count = await session.scalar(
+        select(func.count()).select_from(Expense).where(Expense.org_id == org_id)
+    )
+    if not expenses_count:
+        equip = (
+            await session.execute(
+                select(Equipment).where(Equipment.org_id == org_id).limit(1)
+            )
+        ).scalar_one_or_none()
+        session.add_all(
+            [
+                Expense(
+                    org_id=org_id,
+                    date=month_start,
+                    category='fuel',
+                    amount=Decimal('45000'),
+                    description='Дизель за месяц',
+                    supplier='Нефтебаза',
+                    payment_method='transfer',
+                    equipment_id=equip.id if equip else None,
+                ),
+                Expense(
+                    org_id=org_id,
+                    date=today.replace(day=max(1, today.day - 2)),
+                    category='fertilizer',
+                    amount=Decimal('120000'),
+                    description='Аммиачная селитра',
+                    supplier='Агрохим',
+                    payment_method='invoice',
+                ),
+                Expense(
+                    org_id=org_id,
+                    date=today,
+                    category='parts',
+                    amount=Decimal('18500'),
+                    description='Фильтры и масла',
+                    supplier='Техносервис',
+                    payment_method='cash',
+                    equipment_id=equip.id if equip else None,
+                ),
+                Expense(
+                    org_id=org_id,
+                    date=today,
+                    category='rent',
+                    amount=Decimal('30000'),
+                    description='Аренда склада',
+                    payment_method='transfer',
+                ),
+            ]
+        )
+        await session.commit()
+        print('expenses: seeded 4 demo rows')
+    else:
+        print(f'expenses: already have {expenses_count} rows')
+
+
 async def ensure_demo_data() -> None:
     """Idempotent demo bootstrap used by CLI seed and API startup."""
     async with AsyncSessionLocal() as session:
         org = await get_or_create_demo_org(session)
+        await ensure_default_dictionaries(session, org.id)
         await seed_locations(session, org.id)
         await seed_work_types(session, org.id)
         await seed_equipment(session, org.id)
         await seed_employees(session, org.id)
         await seed_inventory_items(session, org.id)
         await seed_implements(session, org.id)
+        await seed_finance_demo(session, org.id)
         await ensure_demo_open_shift(session, org.id)
         await ensure_test_farm_org(session)
 
