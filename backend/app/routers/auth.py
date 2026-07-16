@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +18,7 @@ from app.schemas.auth import (
     TokenResponse,
 )
 from app.services.auth import create_access_token, hash_password, verify_password
+from app.services.rate_limit import bot_token_limiter
 
 router = APIRouter()
 
@@ -135,7 +136,20 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> To
 
 
 @router.post('/bot-token', response_model=TokenResponse)
-async def bot_token(payload: BotTokenRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+async def bot_token(
+    payload: BotTokenRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    client_host = request.client.host if request.client else 'unknown'
+    rate_key = f'{client_host}:{payload.telegram_id}'
+    if not bot_token_limiter.allow(rate_key):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail='Слишком много попыток. Подождите минуту.',
+        )
+
+    # Constant-time-ish reject for wrong secret (do not leak employee existence)
     if payload.secret != settings.bot_internal_secret:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Неверный секрет')
 

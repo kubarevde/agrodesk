@@ -1,35 +1,49 @@
 # Telegram-бот АгроДеск
 
-Каноническая реализация — **эта папка `bot/`**.
+Автономный Python-сервис для **отдельного деплоя на bothost.ru**.
 
-Папки `bot-main/` и копии — **legacy** (Sheets как источник правды). Не запускайте их.
-
-## Как работает
-
-1. Авторизация: `POST /api/auth/bot-token` (`telegram_id` + `BOT_INTERNAL_SECRET`).
-2. Все чтения и записи смен — через `ApiClient` → PostgreSQL.
-3. При `SHEETS_MIRROR_ENABLED=true` `DualWriter` дополнительно пишет/закрывает строку в Google Sheets.
-4. Ошибки Sheets **не блокируют** бота.
-
-## Env
-
-```env
-BOT_TOKEN=
-API_BASE_URL=http://localhost:8000
-BOT_INTERNAL_SECRET=agrodesk-bot-secret-change-me
-SHEETS_MIRROR_ENABLED=false
-GOOGLE_SHEETS_NAME=worktime_bot
-GOOGLE_CREDS_PATH=credentials/service_account.json
+```
+Telegram → Bot (bothost) → HTTPS → AgroDesk API → PostgreSQL
 ```
 
-## Демо сотрудник
+Полная инструкция: **[docs/bot-bothost.md](../docs/bot-bothost.md)**
 
-См. [docs/seed-users.md](../docs/seed-users.md): `EMP001`, пароль `1234`, `telegram_id=111111111`.
-
-## Запуск
+## Быстрый старт
 
 ```bash
 cd bot
 pip install -r requirements.txt
+cp bot.env.example .env
+# заполнить BOT_TOKEN, API_BASE_URL, BOT_INTERNAL_SECRET
+python scripts/self_check.py --telegram-id 111111111
 python bot.py
 ```
+
+## Env (обязательные)
+
+| Переменная | Описание |
+|------------|----------|
+| `BOT_TOKEN` | Токен @BotFather |
+| `API_BASE_URL` | Публичный URL API (не localhost на bothost) |
+| `BOT_INTERNAL_SECRET` | Общий секрет с backend |
+
+На bothost: `AGRODESK_ENV=production`, `BOT_RUN_MODE=polling`.
+
+Шаблоны: `.env.example`, `bot.env.example`.
+
+## Entrypoint
+
+```bash
+python bot.py
+```
+
+## Self-check
+
+```bash
+python scripts/self_check.py --telegram-id 111111111
+python scripts/self_check.py --telegram-id 111111111 --with-shifts  # dev only
+```
+
+## Режим
+
+**Polling** — рекомендован для bothost.ru (исходящие запросы, автопереподключение).
