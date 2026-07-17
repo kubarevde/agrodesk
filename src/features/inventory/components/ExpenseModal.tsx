@@ -23,6 +23,7 @@ import { Textarea } from '@/components/ui/textarea'
 import type { InventoryItem } from '@/types'
 import { useCreateExpense } from '@/features/inventory/hooks'
 import { expenseSchema, type ExpenseFormValues } from '@/features/inventory/schemas'
+import { numberInputRegister } from '@/lib/formNumbers'
 
 interface ExpenseModalProps {
   open: boolean
@@ -30,9 +31,9 @@ interface ExpenseModalProps {
   onClose: () => void
 }
 
-const defaultValues: ExpenseFormValues = {
+const defaultValues: Partial<ExpenseFormValues> = {
   itemId: '',
-  quantity: 0,
+  quantity: undefined,
   reason: '',
 }
 
@@ -109,7 +110,7 @@ export function ExpenseModal({ open, items, onClose }: ExpenseModalProps) {
               min={0}
               step="any"
               aria-invalid={Boolean(errors.quantity)}
-              {...register('quantity', { valueAsNumber: true })}
+              {...register('quantity', numberInputRegister)}
             />
             {errors.quantity ? (
               <p className="text-xs text-destructive">{errors.quantity.message}</p>

@@ -26,6 +26,7 @@ import {
   type EmployeeFormValues,
 } from '@/features/employees/schemas'
 import { ROLE_LABELS } from '@/features/employees/utils'
+import { numberInputRegister } from '@/lib/formNumbers'
 
 interface EmployeeFormModalProps {
   open: boolean
@@ -33,11 +34,11 @@ interface EmployeeFormModalProps {
   onClose: () => void
 }
 
-const defaultValues: EmployeeFormValues = {
+const defaultValues: Partial<EmployeeFormValues> = {
   employeeCode: '',
   employeeName: '',
   position: '',
-  hourlyRate: 0,
+  hourlyRate: undefined,
   role: 'employee',
   password: '',
   isActive: true,
@@ -161,7 +162,7 @@ export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModal
               min={0}
               step="any"
               aria-invalid={Boolean(errors.hourlyRate)}
-              {...register('hourlyRate', { valueAsNumber: true })}
+              {...register('hourlyRate', numberInputRegister)}
             />
             {errors.hourlyRate ? (
               <p className="text-xs text-destructive">{errors.hourlyRate.message}</p>

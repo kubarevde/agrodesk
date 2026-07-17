@@ -9,10 +9,43 @@ function toIsoDate(value: unknown): string {
   return raw.slice(0, 10)
 }
 
+function parseIdList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.map((item) => String(item)).filter(Boolean)
+}
+
+function parseNameList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => humanLabel(String(item ?? ''), ''))
+    .filter(Boolean)
+}
+
 export function planFromApi(raw: ApiRecord): AgroPlan {
+  const parsedIds = parseIdList(raw.field_ids)
+  const fieldIds =
+    parsedIds.length > 0
+      ? parsedIds
+      : raw.field_id != null
+        ? [String(raw.field_id)]
+        : []
+  const fieldNamesRaw = parseNameList(raw.field_names)
+  const fieldNames =
+    fieldNamesRaw.length > 0
+      ? fieldNamesRaw
+      : raw.field_name != null
+        ? [humanLabel(String(raw.field_name), 'Поле')].filter(Boolean)
+        : []
+  const fieldId = fieldIds[0] ?? (raw.field_id != null ? String(raw.field_id) : '')
+  const fieldName =
+    fieldNames[0] ?? humanLabel(String(raw.field_name ?? ''), 'Поле')
+
   return {
     id: String(raw.id),
-    fieldId: String(raw.field_id),
+    fieldId,
+    fieldIds,
+    fieldName,
+    fieldNames,
     workTypeId: String(raw.work_type_id),
     plannedDate: toIsoDate(raw.planned_date),
     plannedEndDate: raw.planned_end_date ? toIsoDate(raw.planned_end_date) : null,
@@ -21,7 +54,6 @@ export function planFromApi(raw: ApiRecord): AgroPlan {
     employeeId: raw.employee_id != null ? String(raw.employee_id) : null,
     notes: raw.notes != null ? String(raw.notes) : null,
     status: (raw.status as AgroPlanStatus) ?? 'planned',
-    fieldName: humanLabel(String(raw.field_name ?? ''), 'Поле'),
     workTypeName: humanLabel(String(raw.work_type_name ?? ''), 'Работа'),
     equipmentName: raw.equipment_name != null ? humanLabel(String(raw.equipment_name), '') || null : null,
     implementName: raw.implement_name != null ? humanLabel(String(raw.implement_name), '') || null : null,
@@ -34,6 +66,7 @@ export function planToStored(plan: AgroPlan): StoredAgroPlan {
   return {
     id: plan.id,
     field_id: plan.fieldId,
+    field_ids: plan.fieldIds,
     work_type_id: plan.workTypeId,
     planned_date: plan.plannedDate,
     planned_end_date: plan.plannedEndDate,
@@ -43,6 +76,7 @@ export function planToStored(plan: AgroPlan): StoredAgroPlan {
     notes: plan.notes,
     status: plan.status,
     field_name: plan.fieldName,
+    field_names: plan.fieldNames,
     work_type_name: plan.workTypeName,
     equipment_name: plan.equipmentName,
     implement_name: plan.implementName,
@@ -52,9 +86,25 @@ export function planToStored(plan: AgroPlan): StoredAgroPlan {
 }
 
 export function planFromStored(plan: StoredAgroPlan): AgroPlan {
+  const fieldIds =
+    plan.field_ids && plan.field_ids.length > 0
+      ? plan.field_ids
+      : plan.field_id
+        ? [plan.field_id]
+        : []
+  const fieldNames =
+    plan.field_names && plan.field_names.length > 0
+      ? plan.field_names
+      : plan.field_name
+        ? [plan.field_name]
+        : []
+
   return {
     id: plan.id,
-    fieldId: plan.field_id,
+    fieldId: fieldIds[0] ?? plan.field_id,
+    fieldIds,
+    fieldName: fieldNames[0] ?? plan.field_name,
+    fieldNames,
     workTypeId: plan.work_type_id,
     plannedDate: plan.planned_date,
     plannedEndDate: plan.planned_end_date,
@@ -63,7 +113,6 @@ export function planFromStored(plan: StoredAgroPlan): AgroPlan {
     employeeId: plan.employee_id,
     notes: plan.notes,
     status: plan.status,
-    fieldName: plan.field_name,
     workTypeName: plan.work_type_name,
     equipmentName: plan.equipment_name,
     implementName: plan.implement_name,
@@ -86,9 +135,19 @@ export function planFiltersToApi(filters: {
   return params
 }
 
-export function planCreateToApi(input: AgroPlanFormInput & { plannedDateIso: string; plannedEndDateIso?: string }): ApiRecord {
+export function planCreateToApi(
+  input: AgroPlanFormInput & { plannedDateIso: string; plannedEndDateIso?: string },
+): ApiRecord {
+  const fieldIds =
+    input.fieldIds?.length > 0
+      ? input.fieldIds
+      : input.fieldId
+        ? [input.fieldId]
+        : []
+
   return {
-    field_id: input.fieldId,
+    field_ids: fieldIds,
+    field_id: fieldIds[0],
     work_type_id: input.workTypeId,
     planned_date: input.plannedDateIso,
     planned_end_date: input.plannedEndDateIso || undefined,

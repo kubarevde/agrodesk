@@ -1,3 +1,13 @@
+import { humanLabel, joinLabels } from '@/lib/display'
+import type { AgroPlan } from './types'
+
+export function planFieldsLabel(plan: AgroPlan, fallback = 'Поле'): string {
+  if (plan.fieldNames.length > 0) {
+    return joinLabels(plan.fieldNames, ', ', fallback)
+  }
+  return humanLabel(plan.fieldName, fallback)
+}
+
 const WORK_TYPE_COLORS: Record<string, string> = {
   Опрыскивание: 'border-primary/30 bg-primary/10 text-primary',
   Посев: 'border-success/30 bg-success/10 text-success',

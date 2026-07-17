@@ -27,6 +27,8 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
         return 'Не найдено. Если это Настройки/справочники — выполните alembic upgrade head и перезапустите API'
       case 409:
         return 'Конфликт: запись уже существует или ещё используется'
+      case 503:
+        return 'Сервис временно недоступен. Возможно, не применены миграции БД'
       case 422:
         return 'Некорректные данные формы'
       case 500:

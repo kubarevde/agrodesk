@@ -24,7 +24,12 @@ import { humanLabel, joinLabels } from '@/lib/display'
 import { useAgroPlans } from '../hooks'
 import type { AgroPlan, AgroPlanStatus } from '../types'
 import { STATUS_LABELS } from '../types'
-import { displayFromIsoDate, isoFromDisplayDate, statusBadgeClass } from '../utils'
+import {
+  displayFromIsoDate,
+  isoFromDisplayDate,
+  planFieldsLabel,
+  statusBadgeClass,
+} from '../utils'
 
 type AgroCalendarListViewProps = {
   fieldId?: string
@@ -129,6 +134,7 @@ export function AgroCalendarListView({
                 <TableHead>Поле</TableHead>
                 <TableHead>Тип работы</TableHead>
                 <TableHead>Техника + Приспособление</TableHead>
+                <TableHead>Комментарий</TableHead>
                 <TableHead>Сотрудник</TableHead>
                 <TableHead>Статус</TableHead>
               </TableRow>
@@ -141,10 +147,15 @@ export function AgroCalendarListView({
                   onClick={() => onSelectPlan(plan)}
                 >
                   <TableCell>{displayFromIsoDate(plan.plannedDate)}</TableCell>
-                  <TableCell>{humanLabel(plan.fieldName, 'Поле')}</TableCell>
+                  <TableCell>{planFieldsLabel(plan)}</TableCell>
                   <TableCell>{humanLabel(plan.workTypeName, 'Работа')}</TableCell>
                   <TableCell>
                     {joinLabels([plan.equipmentName, plan.implementName])}
+                  </TableCell>
+                  <TableCell className="max-w-48">
+                    <span className="block truncate text-muted-foreground">
+                      {plan.notes?.trim() || '—'}
+                    </span>
                   </TableCell>
                   <TableCell>{humanLabel(plan.employeeName, '—')}</TableCell>
                   <TableCell>

@@ -25,6 +25,7 @@ import { useDictionary } from '@/features/dictionaries/hooks'
 import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
 import { implementFormSchema, type ImplementFormValues } from '../schemas'
 import type { ImplementResponse } from '../types'
+import { numberInputRegister } from '@/lib/formNumbers'
 
 type ImplementFormDialogProps = {
   open: boolean
@@ -42,7 +43,7 @@ const defaults: ImplementFormValues = {
   description: '',
   current_equipment_id: undefined,
   image_url: undefined,
-  current_usage_hours: 0,
+  current_usage_hours: undefined,
   service_interval_hours: undefined,
 }
 
@@ -80,7 +81,7 @@ export function ImplementFormDialog({
             description: item.description ?? '',
             current_equipment_id: item.current_equipment_id ?? undefined,
             image_url: item.image_url ?? undefined,
-            current_usage_hours: item.current_usage_hours ?? 0,
+            current_usage_hours: item.current_usage_hours ?? undefined,
             service_interval_hours: item.service_interval_hours ?? undefined,
           }
         : {
@@ -164,7 +165,7 @@ export function ImplementFormDialog({
                 type="number"
                 min={0}
                 step="any"
-                {...form.register('current_usage_hours', { valueAsNumber: true })}
+                {...form.register('current_usage_hours', numberInputRegister)}
               />
             </div>
             <div className="space-y-2">

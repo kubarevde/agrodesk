@@ -20,10 +20,16 @@ import {
   type EquipmentStockFormValues,
   type EquipmentStockPurpose,
 } from '../hooks'
+import { numberInputRegister } from '@/lib/formNumbers'
 
 const stockSchema = z.object({
   item_id: z.string().min(1, 'Выберите позицию'),
-  quantity: z.number().positive('Укажите количество больше 0'),
+  quantity: z
+    .number({
+      required_error: 'Укажите количество',
+      invalid_type_error: 'Укажите количество',
+    })
+    .positive('Укажите количество больше 0'),
   date: z.string().optional(),
   comment: z.string().optional(),
 })
@@ -50,7 +56,7 @@ export function EquipmentStockSection({
   )
   const form = useForm<EquipmentStockFormValues>({
     resolver: zodResolver(stockSchema),
-    defaultValues: { item_id: '', quantity: 0, date: '', comment: '' },
+    defaultValues: { item_id: '', quantity: undefined, date: '', comment: '' },
   })
 
   const filtered =
@@ -67,7 +73,7 @@ export function EquipmentStockSection({
         className="grid gap-3 sm:grid-cols-2"
         onSubmit={form.handleSubmit(async (values) => {
           await onSubmit(values)
-          form.reset({ item_id: '', quantity: 0, date: '', comment: '' })
+          form.reset({ item_id: '', quantity: undefined, date: '', comment: '' })
         })}
       >
         <div className="space-y-1.5 sm:col-span-2">
@@ -105,7 +111,7 @@ export function EquipmentStockSection({
             type="number"
             min={0}
             step="any"
-            {...form.register('quantity', { valueAsNumber: true })}
+            {...form.register('quantity', numberInputRegister)}
           />
         </div>
         <div className="space-y-1.5">

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { apiErrorMessage } from '@/lib/apiError'
 import { db } from '@/lib/db'
 import { displayDateToIso } from '@/lib/transformers'
 import {
@@ -14,7 +15,11 @@ import type { AgroPlan, AgroPlanFilters, AgroPlanFormInput } from './types'
 
 function filterStoredPlans(plans: AgroPlan[], filters: AgroPlanFilters) {
   return plans.filter((plan) => {
-    if (filters.fieldId && plan.fieldId !== filters.fieldId) return false
+    if (filters.fieldId) {
+      const matchesSingular = plan.fieldId === filters.fieldId
+      const matchesMulti = plan.fieldIds.includes(filters.fieldId)
+      if (!matchesSingular && !matchesMulti) return false
+    }
     if (filters.employeeId && plan.employeeId !== filters.employeeId) return false
     if (filters.month) {
       const start = plan.plannedDate
@@ -85,6 +90,11 @@ export function useCreateAgroPlan() {
         '/api/agro-plan',
         planCreateToApi({
           ...input,
+          fieldIds: input.fieldIds?.length
+            ? input.fieldIds
+            : input.fieldId
+              ? [input.fieldId]
+              : [],
           plannedDateIso: displayDateToIso(input.plannedDate),
           plannedEndDateIso: input.plannedEndDate
             ? displayDateToIso(input.plannedEndDate)
@@ -97,7 +107,7 @@ export function useCreateAgroPlan() {
       await queryClient.invalidateQueries({ queryKey: ['agro-plan'] })
       toast.success('Работа запланирована')
     },
-    onError: () => toast.error('Не удалось создать план'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось создать план')),
   })
 }
 
@@ -110,7 +120,16 @@ export function useUpdateAgroPlan() {
       ...input
     }: Partial<AgroPlanFormInput> & { id: string; status?: string }) => {
       const body: Record<string, unknown> = {}
-      if (input.fieldId) body.field_id = input.fieldId
+      const fieldIds =
+        input.fieldIds && input.fieldIds.length > 0
+          ? input.fieldIds
+          : input.fieldId
+            ? [input.fieldId]
+            : undefined
+      if (fieldIds) {
+        body.field_ids = fieldIds
+        body.field_id = fieldIds[0]
+      }
       if (input.workTypeId) body.work_type_id = input.workTypeId
       if (input.plannedDate) body.planned_date = displayDateToIso(input.plannedDate)
       if (input.plannedEndDate !== undefined) {
@@ -131,7 +150,7 @@ export function useUpdateAgroPlan() {
       await queryClient.invalidateQueries({ queryKey: ['agro-plan'] })
       toast.success('План обновлён')
     },
-    onError: () => toast.error('Не удалось обновить план'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось обновить план')),
   })
 }
 
@@ -147,6 +166,6 @@ export function useDeleteAgroPlan() {
       await queryClient.invalidateQueries({ queryKey: ['agro-plan'] })
       toast.success('План удалён')
     },
-    onError: () => toast.error('Не удалось удалить план'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось удалить план')),
   })
 }

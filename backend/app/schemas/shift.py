@@ -28,6 +28,7 @@ class ShiftManualAdd(BaseModel):
     date: date_type
     start_time: time
     end_time: time
+    end_date: date_type | None = None
     location_id: UUID
     work_type_id: UUID
     equipment_id: UUID | None = None

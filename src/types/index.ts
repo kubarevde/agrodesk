@@ -195,6 +195,7 @@ export type AgroPlanStatus = 'planned' | 'in_progress' | 'done' | 'cancelled'
 export interface AgroPlan {
   id: string
   field_id: string
+  field_ids?: string[]
   work_type_id: string
   planned_date: string
   planned_end_date: string | null
@@ -204,6 +205,7 @@ export interface AgroPlan {
   notes: string | null
   status: AgroPlanStatus
   field_name: string
+  field_names?: string[]
   work_type_name: string
   equipment_name: string | null
   implement_name: string | null

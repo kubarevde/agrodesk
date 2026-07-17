@@ -27,6 +27,7 @@ import type { InventoryItem } from '@/types'
 import { formatApiDate, parseApiDate } from '@/features/worktime/utils'
 import { useCreateIncome } from '@/features/inventory/hooks'
 import { incomeSchema, type IncomeFormValues } from '@/features/inventory/schemas'
+import { numberInputRegister } from '@/lib/formNumbers'
 
 interface IncomeModalProps {
   open: boolean
@@ -34,12 +35,12 @@ interface IncomeModalProps {
   onClose: () => void
 }
 
-function getDefaultValues(): IncomeFormValues {
+function getDefaultValues(): Partial<IncomeFormValues> {
   return {
     itemId: '',
-    quantity: 0,
+    quantity: undefined,
     supplier: '',
-    cost: 0,
+    cost: undefined,
     date: formatApiDate(new Date()),
   }
 }
@@ -117,7 +118,7 @@ export function IncomeModal({ open, items, onClose }: IncomeModalProps) {
               min={0}
               step="any"
               aria-invalid={Boolean(errors.quantity)}
-              {...register('quantity', { valueAsNumber: true })}
+              {...register('quantity', numberInputRegister)}
             />
             {errors.quantity ? (
               <p className="text-xs text-destructive">{errors.quantity.message}</p>
@@ -145,7 +146,7 @@ export function IncomeModal({ open, items, onClose }: IncomeModalProps) {
               min={0}
               step="any"
               aria-invalid={Boolean(errors.cost)}
-              {...register('cost', { valueAsNumber: true })}
+              {...register('cost', numberInputRegister)}
             />
             {errors.cost ? (
               <p className="text-xs text-destructive">{errors.cost.message}</p>

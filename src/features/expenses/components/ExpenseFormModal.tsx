@@ -32,6 +32,7 @@ import { useCreateExpense, useUpdateExpense } from '@/features/expenses/hooks'
 import { expenseFormSchema, type ExpenseFormValues } from '@/features/expenses/schemas'
 import { PAYMENT_LABELS, PAYMENT_METHODS } from '@/features/expenses/utils'
 import { useEquipment } from '@/features/worktime/referenceHooks'
+import { numberInputRegister } from '@/lib/formNumbers'
 
 interface ExpenseFormModalProps {
   open: boolean
@@ -40,11 +41,14 @@ interface ExpenseFormModalProps {
   onClose: () => void
 }
 
-function getDefaultValues(equipmentId?: string, defaultCategory = ''): ExpenseFormValues {
+function getDefaultValues(
+  equipmentId?: string,
+  defaultCategory = '',
+): Partial<ExpenseFormValues> {
   return {
     date: formatApiDate(new Date()),
     category: defaultCategory,
-    amount: 0,
+    amount: undefined,
     description: '',
     supplier: '',
     paymentMethod: 'cash',
@@ -212,7 +216,7 @@ export function ExpenseFormModal({
               min={0}
               step="any"
               aria-invalid={Boolean(errors.amount)}
-              {...register('amount', { valueAsNumber: true })}
+              {...register('amount', numberInputRegister)}
             />
             {errors.amount ? (
               <p className="text-xs text-destructive">{errors.amount.message}</p>

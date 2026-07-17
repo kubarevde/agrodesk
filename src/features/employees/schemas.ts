@@ -4,7 +4,9 @@ export const employeeFormSchema = z.object({
   employeeCode: z.string().min(1, 'Укажите код'),
   employeeName: z.string().min(1, 'Укажите ФИО'),
   position: z.string(),
-  hourlyRate: z.number().min(0, 'Ставка не может быть отрицательной'),
+  hourlyRate: z
+    .number({ required_error: 'Укажите ставку', invalid_type_error: 'Укажите ставку' })
+    .min(0, 'Ставка не может быть отрицательной'),
   role: z.enum(['admin', 'manager', 'employee']),
   password: z.string(),
   isActive: z.boolean(),
@@ -36,9 +38,18 @@ export function getEmployeeSchema(isEdit: boolean) {
 export const employeeRateFormSchema = z
   .object({
     workTypeId: z.string().nullable(),
-    rate: z.number().min(0, 'Ставка не может быть отрицательной'),
-    overtimeThresholdHours: z.number().min(0, 'Порог не может быть отрицательным'),
-    overtimeMultiplier: z.number().min(0, 'Множитель не может быть отрицательным'),
+    rate: z
+      .number({ required_error: 'Укажите ставку', invalid_type_error: 'Укажите ставку' })
+      .min(0, 'Ставка не может быть отрицательной'),
+    overtimeThresholdHours: z
+      .number({ required_error: 'Укажите порог', invalid_type_error: 'Укажите порог' })
+      .min(0, 'Порог не может быть отрицательным'),
+    overtimeMultiplier: z
+      .number({
+        required_error: 'Укажите множитель',
+        invalid_type_error: 'Укажите множитель',
+      })
+      .min(0, 'Множитель не может быть отрицательным'),
     validFrom: z.string().min(1, 'Укажите дату начала'),
     validTo: z.string().nullable(),
     notes: z.string().nullable(),

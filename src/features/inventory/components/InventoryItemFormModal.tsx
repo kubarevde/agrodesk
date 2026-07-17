@@ -30,6 +30,7 @@ import {
   inventoryItemSchema,
   type InventoryItemFormValues,
 } from '@/features/inventory/schemas'
+import { numberInputRegister } from '@/lib/formNumbers'
 import { ActiveToggle } from '@/features/settings/components/StatusControls'
 
 interface InventoryItemFormModalProps {
@@ -38,15 +39,15 @@ interface InventoryItemFormModalProps {
   onClose: () => void
 }
 
-const defaults: InventoryItemFormValues = {
+const defaults = {
   name: '',
   category: 'fuel',
   unit: 'л',
-  currentStock: 0,
-  minStock: 0,
-  totalCapacity: 0,
+  currentStock: undefined as number | undefined,
+  minStock: undefined as number | undefined,
+  totalCapacity: undefined as number | undefined,
   isActive: true,
-}
+} satisfies Partial<InventoryItemFormValues>
 
 export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFormModalProps) {
   const isEdit = Boolean(item)
@@ -182,7 +183,7 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
                 type="number"
                 min={0}
                 step="any"
-                {...register('currentStock', { valueAsNumber: true })}
+                {...register('currentStock', numberInputRegister)}
               />
             </div>
           ) : null}
@@ -194,7 +195,7 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
               type="number"
               min={0}
               step="any"
-              {...register('minStock', { valueAsNumber: true })}
+              {...register('minStock', numberInputRegister)}
             />
           </div>
 
@@ -205,7 +206,7 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
               type="number"
               min={0}
               step="any"
-              {...register('totalCapacity', { valueAsNumber: true })}
+              {...register('totalCapacity', numberInputRegister)}
             />
           </div>
 
