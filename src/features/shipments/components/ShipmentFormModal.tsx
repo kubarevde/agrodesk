@@ -54,7 +54,7 @@ function getDefaultValues(defaultCrop = ''): Partial<ShipmentFormValues> {
   }
 }
 
-function toFormValues(shipment: Shipment): ShipmentFormValues {
+function toFormValues(shipment: Shipment): Partial<ShipmentFormValues> {
   return {
     date: shipment.date,
     cropType: shipment.cropType,

@@ -6,12 +6,7 @@ export const equipmentFormSchema = z.object({
   year_of_manufacture: z.number().int().min(1950).max(2100).optional(),
   serial_number: z.string().optional(),
   meter_type: z.enum(['motohours', 'km', 'shift_hours']),
-  current_meter: z
-    .number({
-      required_error: 'Укажите текущий показатель',
-      invalid_type_error: 'Укажите текущий показатель',
-    })
-    .min(0),
+  current_meter: z.number({ error: 'Укажите текущий показатель' }).min(0),
   to_interval: z.number().min(0).optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),

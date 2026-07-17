@@ -1,7 +1,6 @@
 import { z } from 'zod'
 
-const requiredNumber = (message: string) =>
-  z.number({ required_error: message, invalid_type_error: message })
+const requiredNumber = (message: string) => z.number({ error: message })
 
 export const incomeSchema = z.object({
   itemId: z.string().min(1, 'Выберите наименование'),

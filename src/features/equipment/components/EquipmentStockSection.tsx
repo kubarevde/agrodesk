@@ -24,12 +24,7 @@ import { numberInputRegister } from '@/lib/formNumbers'
 
 const stockSchema = z.object({
   item_id: z.string().min(1, 'Выберите позицию'),
-  quantity: z
-    .number({
-      required_error: 'Укажите количество',
-      invalid_type_error: 'Укажите количество',
-    })
-    .positive('Укажите количество больше 0'),
+  quantity: z.number({ error: 'Укажите количество' }).positive('Укажите количество больше 0'),
   date: z.string().optional(),
   comment: z.string().optional(),
 })
