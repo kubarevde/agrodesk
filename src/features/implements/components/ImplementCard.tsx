@@ -10,6 +10,7 @@ import {
 } from '@/features/equipment/types'
 import { implementToStatus, type ImplementResponse } from '../types'
 import { ImplementCategoryBadge } from './ImplementCategoryBadge'
+import { AssetOperationalStatus } from '@/components/shared/AssetOperationalStatus'
 
 type ImplementCardProps = {
   item: ImplementResponse
@@ -53,6 +54,7 @@ export function ImplementCard({
         <div className="flex flex-wrap gap-2">
           <ImplementCategoryBadge category={item.category} />
           <ToStatusBadge status={implementToStatus(item)} />
+          <AssetOperationalStatus implementId={item.id} compact />
           {item.current_equipment_name ? (
             <Badge variant="outline">Прикреплено к: {item.current_equipment_name}</Badge>
           ) : (

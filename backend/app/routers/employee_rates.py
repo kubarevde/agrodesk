@@ -18,6 +18,7 @@ from app.schemas.employee_rate import (
     EmployeeRateUpdate,
     RatePreviewResponse,
 )
+from app.services.audit import log_change, model_snapshot
 from app.services.salary import calculate_amount, get_rate_for_shift
 
 router = APIRouter()
@@ -187,6 +188,9 @@ async def create_employee_rate(
         created_by=current.id,
     )
     db.add(rate)
+    await db.flush()
+    await log_change(db, org_id=org_id, entity_type='employee_rate', entity_id=rate.id,
+                     action='create', changed_by=current.id, after=model_snapshot(rate))
     await db.commit()
     return rate_to_response(await get_rate_or_404(db, rate.id, org_id))
 
@@ -197,10 +201,11 @@ async def update_employee_rate(
     rate_id: UUID,
     payload: EmployeeRateUpdate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> EmployeeRateResponse:
     org_id = get_org_id(request)
     rate = await get_rate_or_404(db, rate_id, org_id)
+    before = model_snapshot(rate)
     data = payload.model_dump(exclude_unset=True)
 
     if 'work_type_id' in data and data['work_type_id'] is not None:
@@ -235,6 +240,8 @@ async def update_employee_rate(
         setattr(rate, field, value)
 
     db.add(rate)
+    await log_change(db, org_id=org_id, entity_type='employee_rate', entity_id=rate.id,
+                     action='update', changed_by=current.id, before=before, after=model_snapshot(rate))
     await db.commit()
     return rate_to_response(await get_rate_or_404(db, rate.id, org_id))
 
@@ -244,8 +251,11 @@ async def delete_employee_rate(
     request: Request,
     rate_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> None:
     rate = await get_rate_or_404(db, rate_id, get_org_id(request))
+    before = model_snapshot(rate)
+    await log_change(db, org_id=rate.org_id, entity_type='employee_rate', entity_id=rate.id,
+                     action='delete', changed_by=current.id, before=before)
     await db.delete(rate)
     await db.commit()

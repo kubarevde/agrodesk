@@ -44,6 +44,14 @@ class DashboardAgroPlanToday(BaseModel):
     status: str
 
 
+class DashboardUrgentPurchase(BaseModel):
+    id: UUID
+    title: str
+    linked_label: str | None = None
+    urgency: str
+    estimated_cost: float | None = None
+
+
 class DashboardStatsResponse(BaseModel):
     active_shifts_count: int
     active_shifts: list[DashboardActiveShift]
@@ -62,3 +70,5 @@ class DashboardStatsResponse(BaseModel):
     equipment_warnings: list[DashboardEquipmentWarning]
     agro_plan_today: list[DashboardAgroPlanToday]
     sharing_new_requests: int
+    urgent_purchases_count: int = 0
+    urgent_purchases: list[DashboardUrgentPurchase] = []

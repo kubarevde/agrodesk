@@ -24,6 +24,7 @@ import { EquipmentStockModal } from './EquipmentStockModal'
 import { EquipmentStockSection } from './EquipmentStockSection'
 import { MaintenanceModal } from './MaintenanceModal'
 import { MeterLogModal } from './MeterLogModal'
+import { RepairHistorySection } from '@/features/repair-journal/components/RepairHistorySection'
 
 type EquipmentDetailPageProps = {
   equipmentId: string
@@ -93,6 +94,7 @@ export function EquipmentDetailPage({ equipmentId }: EquipmentDetailPageProps) {
         canManage={canManage}
         onAdd={() => setToOpen(true)}
       />
+      <RepairHistorySection equipmentId={item.id} canManage={canManage} />
 
       {canManage ? (
         <div className="grid gap-4 lg:grid-cols-2">

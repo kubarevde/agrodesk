@@ -26,6 +26,7 @@ from app.schemas.reference import (
     WorkTypeResponse,
     WorkTypeUpdate,
 )
+from app.services.audit import log_change, model_snapshot
 
 from app.services.equipment_meters import calc_meter_label
 from app.services.maintenance import (
@@ -91,6 +92,7 @@ def build_reference_router(
     response_model: type[BaseModel],
     create_model: type[BaseModel],
     update_model: type[BaseModel],
+    entity_type: str,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -123,11 +125,14 @@ def build_reference_router(
         request: Request,
         payload: create_model,  # type: ignore[valid-type]
         db: AsyncSession = Depends(get_db),
-        _: Employee = Depends(require_manager),
+        current: Employee = Depends(require_manager),
     ) -> Any:
         item = model(**payload.model_dump(), org_id=get_org_id(request))
         db.add(item)
         try:
+            await db.flush()
+            await log_change(db, org_id=item.org_id, entity_type=entity_type, entity_id=item.id,
+                             action='create', changed_by=current.id, after=model_snapshot(item))
             await db.commit()
         except IntegrityError:
             await db.rollback()
@@ -144,13 +149,16 @@ def build_reference_router(
         item_id: UUID,
         payload: update_model,  # type: ignore[valid-type]
         db: AsyncSession = Depends(get_db),
-        _: Employee = Depends(require_manager),
+        current: Employee = Depends(require_manager),
     ) -> Any:
         item = await _get_item_or_404(db, model, item_id, get_org_id(request))
+        before = model_snapshot(item)
         for field, value in payload.model_dump(exclude_unset=True).items():
             setattr(item, field, value)
         db.add(item)
         try:
+            await log_change(db, org_id=item.org_id, entity_type=entity_type, entity_id=item.id,
+                             action='update', changed_by=current.id, before=before, after=model_snapshot(item))
             await db.commit()
         except IntegrityError:
             await db.rollback()
@@ -166,11 +174,14 @@ def build_reference_router(
         request: Request,
         item_id: UUID,
         db: AsyncSession = Depends(get_db),
-        _: Employee = Depends(require_manager),
+        current: Employee = Depends(require_manager),
     ) -> None:
         item = await _get_item_or_404(db, model, item_id, get_org_id(request))
+        before = model_snapshot(item)
         item.is_active = False
         db.add(item)
+        await log_change(db, org_id=item.org_id, entity_type=entity_type, entity_id=item.id,
+                         action='delete', changed_by=current.id, before=before, after=model_snapshot(item))
         await db.commit()
 
     return router
@@ -221,7 +232,7 @@ def build_equipment_router() -> APIRouter:
         request: Request,
         payload: EquipmentCreate,
         db: AsyncSession = Depends(get_db),
-        _: Employee = Depends(require_manager),
+        current: Employee = Depends(require_manager),
     ) -> EquipmentResponse:
         data = payload.model_dump()
         data['org_id'] = get_org_id(request)
@@ -233,6 +244,9 @@ def build_equipment_router() -> APIRouter:
         item = Equipment(**data)
         db.add(item)
         try:
+            await db.flush()
+            await log_change(db, org_id=item.org_id, entity_type='equipment', entity_id=item.id,
+                             action='create', changed_by=current.id, after=model_snapshot(item))
             await db.commit()
         except IntegrityError:
             await db.rollback()
@@ -252,6 +266,7 @@ def build_equipment_router() -> APIRouter:
         current: Employee = Depends(require_manager),
     ) -> EquipmentResponse:
         item = await _get_item_or_404(db, Equipment, item_id, get_org_id(request))
+        before = model_snapshot(item)
         updates = payload.model_dump(exclude_unset=True)
         previous_meter = Decimal(str(item.current_meter or 0))
 
@@ -282,6 +297,8 @@ def build_equipment_router() -> APIRouter:
 
         db.add(item)
         try:
+            await log_change(db, org_id=item.org_id, entity_type='equipment', entity_id=item.id,
+                             action='update', changed_by=current.id, before=before, after=model_snapshot(item))
             await db.commit()
         except IntegrityError:
             await db.rollback()
@@ -297,11 +314,14 @@ def build_equipment_router() -> APIRouter:
         request: Request,
         item_id: UUID,
         db: AsyncSession = Depends(get_db),
-        _: Employee = Depends(require_manager),
+        current: Employee = Depends(require_manager),
     ) -> None:
         item = await _get_item_or_404(db, Equipment, item_id, get_org_id(request))
+        before = model_snapshot(item)
         item.is_active = False
         db.add(item)
+        await log_change(db, org_id=item.org_id, entity_type='equipment', entity_id=item.id,
+                         action='delete', changed_by=current.id, before=before, after=model_snapshot(item))
         await db.commit()
 
     return router
@@ -362,7 +382,7 @@ async def create_location(
     request: Request,
     payload: LocationCreate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> LocationResponse:
     from app.models.dictionary import normalize_name
 
@@ -376,6 +396,9 @@ async def create_location(
     )
     db.add(item)
     try:
+        await db.flush()
+        await log_change(db, org_id=item.org_id, entity_type='location', entity_id=item.id,
+                         action='create', changed_by=current.id, after=model_snapshot(item))
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -398,11 +421,12 @@ async def update_location(
     item_id: UUID,
     payload: LocationUpdate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> LocationResponse:
     from app.models.dictionary import normalize_name
 
     item = await _get_item_or_404(db, Location, item_id, get_org_id(request))
+    before = model_snapshot(item)
     updates = payload.model_dump(exclude_unset=True)
     if 'name' in updates and updates['name'] is not None:
         updates['name'] = normalize_name(updates['name'])
@@ -410,6 +434,8 @@ async def update_location(
         setattr(item, key, value)
     db.add(item)
     try:
+        await log_change(db, org_id=item.org_id, entity_type='location', entity_id=item.id,
+                         action='update', changed_by=current.id, before=before, after=model_snapshot(item))
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -431,11 +457,14 @@ async def delete_location(
     request: Request,
     item_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> None:
     item = await _get_item_or_404(db, Location, item_id, get_org_id(request))
+    before = model_snapshot(item)
     item.is_active = False
     db.add(item)
+    await log_change(db, org_id=item.org_id, entity_type='location', entity_id=item.id,
+                     action='delete', changed_by=current.id, before=before, after=model_snapshot(item))
     await db.commit()
 
 
@@ -444,6 +473,7 @@ work_types_router = build_reference_router(
     response_model=WorkTypeResponse,
     create_model=WorkTypeCreate,
     update_model=WorkTypeUpdate,
+    entity_type='work_type',
 )
 
 equipment_router = build_equipment_router()

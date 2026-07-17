@@ -4,6 +4,8 @@ import { SectionHelp } from '@/components/shared/SectionHelp'
 import { SystemStatus } from '@/components/shared/SystemStatus'
 import { Button } from '@/components/ui/button'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { ForecastDashboardWidget } from '@/features/analytics/components/ForecastDashboardWidget'
+import { ActiveRepairsWidget } from '@/features/repair-journal/components/ActiveRepairsWidget'
 import { dashboardHelp } from '@/features/help/content'
 import { useOrgTimezone } from '@/features/settings/useOrgTimezone'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
@@ -16,12 +18,14 @@ import { EquipmentWarningsSection } from './components/EquipmentWarningsSection'
 import { FinanceCards, FinanceCardsSkeleton } from './components/FinanceCards'
 import { KpiCards, KpiCardsSkeleton } from './components/KpiCards'
 import { SharingDashboardSection } from './components/SharingDashboardSection'
+import { UrgentPurchasesSection } from './components/UrgentPurchasesSection'
 import { WeeklyHoursChart, WeeklyHoursChartSkeleton } from './components/WeeklyHoursChart'
 import { useDashboardStats } from './hooks'
 
 export function DashboardPage() {
   const { data: user } = useCurrentUser()
   const isAdmin = user?.role === 'admin'
+  const canForecast = user?.role === 'admin' || user?.role === 'manager'
   const isOnline = useOnlineStatus()
   const timezone = useOrgTimezone()
   const { data: stats, isLoading, isFetching, dataUpdatedAt, refetch, isError } =
@@ -87,6 +91,13 @@ export function DashboardPage() {
 
       {isLoading || !stats ? <FinanceCardsSkeleton /> : <FinanceCards stats={stats} />}
 
+      {canForecast ? (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <ForecastDashboardWidget />
+          <ActiveRepairsWidget />
+        </div>
+      ) : null}
+
       <div className="grid gap-3 lg:grid-cols-2">
         {isLoading || !stats ? (
           <WeeklyHoursChartSkeleton />
@@ -101,6 +112,14 @@ export function DashboardPage() {
           items={stats?.criticalInventory ?? []}
           isLoading={isLoading}
         />
+        <UrgentPurchasesSection
+          count={stats?.urgentPurchasesCount ?? 0}
+          items={stats?.urgentPurchases ?? []}
+          isLoading={isLoading}
+        />
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
         <SharingDashboardSection
           newRequests={stats?.sharingNewRequests ?? 0}
           isLoadingStats={isLoading}

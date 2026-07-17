@@ -20,6 +20,7 @@ from app.schemas.dashboard import (
     DashboardCriticalItem,
     DashboardEquipmentWarning,
     DashboardStatsResponse,
+    DashboardUrgentPurchase,
     DashboardWeeklyHours,
 )
 from app.services.equipment_meters import calc_meter_label
@@ -289,6 +290,58 @@ async def fetch_sharing_new_requests(owner_id: UUID) -> int:
     return int(count or 0)
 
 
+async def fetch_urgent_purchases(org_id: UUID) -> tuple[int, list[DashboardUrgentPurchase]]:
+    from app.models.purchase_planner import PurchasePlannerItem
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(PurchasePlannerItem)
+            .options(
+                selectinload(PurchasePlannerItem.equipment),
+                selectinload(PurchasePlannerItem.implement),
+                selectinload(PurchasePlannerItem.inventory_item),
+            )
+            .where(
+                PurchasePlannerItem.org_id == org_id,
+                PurchasePlannerItem.status == 'planned',
+                PurchasePlannerItem.urgency == 'urgent',
+            )
+            .order_by(PurchasePlannerItem.created_at.desc())
+            .limit(5)
+        )
+        rows = list(result.scalars().all())
+        count = await db.scalar(
+            select(func.count())
+            .select_from(PurchasePlannerItem)
+            .where(
+                PurchasePlannerItem.org_id == org_id,
+                PurchasePlannerItem.status == 'planned',
+                PurchasePlannerItem.urgency == 'urgent',
+            )
+        )
+    items: list[DashboardUrgentPurchase] = []
+    for row in rows:
+        linked = None
+        if row.equipment:
+            linked = row.equipment.name
+        elif row.implement:
+            linked = row.implement.name
+        elif row.inventory_item:
+            linked = row.inventory_item.name
+        elif row.category == 'general':
+            linked = 'Общее'
+        items.append(
+            DashboardUrgentPurchase(
+                id=row.id,
+                title=row.title,
+                linked_label=linked,
+                urgency=row.urgency,
+                estimated_cost=float(row.estimated_cost) if row.estimated_cost is not None else None,
+            )
+        )
+    return int(count or 0), items
+
+
 async def compute_stats(owner_id: UUID, org_id: UUID) -> DashboardStatsResponse:
     today = date.today()
     now = datetime.now()
@@ -303,6 +356,7 @@ async def compute_stats(owner_id: UUID, org_id: UUID) -> DashboardStatsResponse:
         equipment_result,
         agro_plan_today,
         sharing_new_requests,
+        urgent_purchases_result,
     ) = await asyncio.gather(
         fetch_shift_stats(today, month_start, month_end, week_start, week_end, now, org_id),
         fetch_shipment_stats(month_start, month_end, org_id),
@@ -311,6 +365,7 @@ async def compute_stats(owner_id: UUID, org_id: UUID) -> DashboardStatsResponse:
         fetch_equipment_warnings(org_id),
         fetch_agro_plan_today(today, org_id),
         fetch_sharing_new_requests(owner_id),
+        fetch_urgent_purchases(org_id),
     )
 
     (
@@ -326,6 +381,7 @@ async def compute_stats(owner_id: UUID, org_id: UUID) -> DashboardStatsResponse:
     month_shipments_kg, month_shipments_sum = shipment_stats
     critical_inventory_count, critical_inventory = critical_result
     equipment_warning_count, equipment_warnings = equipment_result
+    urgent_purchases_count, urgent_purchases = urgent_purchases_result
 
     return DashboardStatsResponse(
         active_shifts_count=active_shifts_count,
@@ -345,6 +401,8 @@ async def compute_stats(owner_id: UUID, org_id: UUID) -> DashboardStatsResponse:
         equipment_warnings=equipment_warnings,
         agro_plan_today=agro_plan_today,
         sharing_new_requests=sharing_new_requests,
+        urgent_purchases_count=urgent_purchases_count,
+        urgent_purchases=urgent_purchases,
     )
 
 

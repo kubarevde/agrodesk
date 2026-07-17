@@ -22,19 +22,23 @@ import { Route as LayoutShipmentsIndexRouteImport } from './app/routes/_layout/s
 import { Route as LayoutSharingIndexRouteImport } from './app/routes/_layout/sharing/index'
 import { Route as LayoutSettingsIndexRouteImport } from './app/routes/_layout/settings/index'
 import { Route as LayoutReportsIndexRouteImport } from './app/routes/_layout/reports/index'
+import { Route as LayoutPurchasePlannerIndexRouteImport } from './app/routes/_layout/purchase-planner/index'
 import { Route as LayoutProfileIndexRouteImport } from './app/routes/_layout/profile/index'
 import { Route as LayoutNotificationsIndexRouteImport } from './app/routes/_layout/notifications/index'
 import { Route as LayoutMyShiftIndexRouteImport } from './app/routes/_layout/my-shift/index'
+import { Route as LayoutMaintenanceIndexRouteImport } from './app/routes/_layout/maintenance/index'
 import { Route as LayoutInventoryIndexRouteImport } from './app/routes/_layout/inventory/index'
 import { Route as LayoutImplementsIndexRouteImport } from './app/routes/_layout/implements/index'
 import { Route as LayoutFieldsIndexRouteImport } from './app/routes/_layout/fields/index'
 import { Route as LayoutExpensesIndexRouteImport } from './app/routes/_layout/expenses/index'
 import { Route as LayoutEquipmentIndexRouteImport } from './app/routes/_layout/equipment/index'
 import { Route as LayoutEmployeesIndexRouteImport } from './app/routes/_layout/employees/index'
+import { Route as LayoutAuditLogIndexRouteImport } from './app/routes/_layout/audit-log/index'
 import { Route as LayoutAgroCalendarIndexRouteImport } from './app/routes/_layout/agro-calendar/index'
 import { Route as SuperadminAuthenticatedDashboardRouteImport } from './app/routes/superadmin/_authenticated/dashboard'
 import { Route as LayoutImplementsImplementIdRouteImport } from './app/routes/_layout/implements/$implementId'
 import { Route as LayoutEquipmentEquipmentIdRouteImport } from './app/routes/_layout/equipment/$equipmentId'
+import { Route as LayoutAnalyticsForecastIndexRouteImport } from './app/routes/_layout/analytics/forecast/index'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -99,6 +103,12 @@ const LayoutReportsIndexRoute = LayoutReportsIndexRouteImport.update({
   path: '/reports/',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutPurchasePlannerIndexRoute =
+  LayoutPurchasePlannerIndexRouteImport.update({
+    id: '/purchase-planner/',
+    path: '/purchase-planner/',
+    getParentRoute: () => LayoutRoute,
+  } as any)
 const LayoutProfileIndexRoute = LayoutProfileIndexRouteImport.update({
   id: '/profile/',
   path: '/profile/',
@@ -113,6 +123,11 @@ const LayoutNotificationsIndexRoute =
 const LayoutMyShiftIndexRoute = LayoutMyShiftIndexRouteImport.update({
   id: '/my-shift/',
   path: '/my-shift/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutMaintenanceIndexRoute = LayoutMaintenanceIndexRouteImport.update({
+  id: '/maintenance/',
+  path: '/maintenance/',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutInventoryIndexRoute = LayoutInventoryIndexRouteImport.update({
@@ -145,6 +160,11 @@ const LayoutEmployeesIndexRoute = LayoutEmployeesIndexRouteImport.update({
   path: '/employees/',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutAuditLogIndexRoute = LayoutAuditLogIndexRouteImport.update({
+  id: '/audit-log/',
+  path: '/audit-log/',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutAgroCalendarIndexRoute = LayoutAgroCalendarIndexRouteImport.update({
   id: '/agro-calendar/',
   path: '/agro-calendar/',
@@ -168,6 +188,12 @@ const LayoutEquipmentEquipmentIdRoute =
     path: '/equipment/$equipmentId',
     getParentRoute: () => LayoutRoute,
   } as any)
+const LayoutAnalyticsForecastIndexRoute =
+  LayoutAnalyticsForecastIndexRouteImport.update({
+    id: '/analytics/forecast/',
+    path: '/analytics/forecast/',
+    getParentRoute: () => LayoutRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -180,20 +206,24 @@ export interface FileRoutesByFullPath {
   '/implements/$implementId': typeof LayoutImplementsImplementIdRoute
   '/superadmin/dashboard': typeof SuperadminAuthenticatedDashboardRoute
   '/agro-calendar/': typeof LayoutAgroCalendarIndexRoute
+  '/audit-log/': typeof LayoutAuditLogIndexRoute
   '/employees/': typeof LayoutEmployeesIndexRoute
   '/equipment/': typeof LayoutEquipmentIndexRoute
   '/expenses/': typeof LayoutExpensesIndexRoute
   '/fields/': typeof LayoutFieldsIndexRoute
   '/implements/': typeof LayoutImplementsIndexRoute
   '/inventory/': typeof LayoutInventoryIndexRoute
+  '/maintenance/': typeof LayoutMaintenanceIndexRoute
   '/my-shift/': typeof LayoutMyShiftIndexRoute
   '/notifications/': typeof LayoutNotificationsIndexRoute
   '/profile/': typeof LayoutProfileIndexRoute
+  '/purchase-planner/': typeof LayoutPurchasePlannerIndexRoute
   '/reports/': typeof LayoutReportsIndexRoute
   '/settings/': typeof LayoutSettingsIndexRoute
   '/sharing/': typeof LayoutSharingIndexRoute
   '/shipments/': typeof LayoutShipmentsIndexRoute
   '/worktime/': typeof LayoutWorktimeIndexRoute
+  '/analytics/forecast/': typeof LayoutAnalyticsForecastIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -206,20 +236,24 @@ export interface FileRoutesByTo {
   '/implements/$implementId': typeof LayoutImplementsImplementIdRoute
   '/superadmin/dashboard': typeof SuperadminAuthenticatedDashboardRoute
   '/agro-calendar': typeof LayoutAgroCalendarIndexRoute
+  '/audit-log': typeof LayoutAuditLogIndexRoute
   '/employees': typeof LayoutEmployeesIndexRoute
   '/equipment': typeof LayoutEquipmentIndexRoute
   '/expenses': typeof LayoutExpensesIndexRoute
   '/fields': typeof LayoutFieldsIndexRoute
   '/implements': typeof LayoutImplementsIndexRoute
   '/inventory': typeof LayoutInventoryIndexRoute
+  '/maintenance': typeof LayoutMaintenanceIndexRoute
   '/my-shift': typeof LayoutMyShiftIndexRoute
   '/notifications': typeof LayoutNotificationsIndexRoute
   '/profile': typeof LayoutProfileIndexRoute
+  '/purchase-planner': typeof LayoutPurchasePlannerIndexRoute
   '/reports': typeof LayoutReportsIndexRoute
   '/settings': typeof LayoutSettingsIndexRoute
   '/sharing': typeof LayoutSharingIndexRoute
   '/shipments': typeof LayoutShipmentsIndexRoute
   '/worktime': typeof LayoutWorktimeIndexRoute
+  '/analytics/forecast': typeof LayoutAnalyticsForecastIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -235,20 +269,24 @@ export interface FileRoutesById {
   '/_layout/implements/$implementId': typeof LayoutImplementsImplementIdRoute
   '/superadmin/_authenticated/dashboard': typeof SuperadminAuthenticatedDashboardRoute
   '/_layout/agro-calendar/': typeof LayoutAgroCalendarIndexRoute
+  '/_layout/audit-log/': typeof LayoutAuditLogIndexRoute
   '/_layout/employees/': typeof LayoutEmployeesIndexRoute
   '/_layout/equipment/': typeof LayoutEquipmentIndexRoute
   '/_layout/expenses/': typeof LayoutExpensesIndexRoute
   '/_layout/fields/': typeof LayoutFieldsIndexRoute
   '/_layout/implements/': typeof LayoutImplementsIndexRoute
   '/_layout/inventory/': typeof LayoutInventoryIndexRoute
+  '/_layout/maintenance/': typeof LayoutMaintenanceIndexRoute
   '/_layout/my-shift/': typeof LayoutMyShiftIndexRoute
   '/_layout/notifications/': typeof LayoutNotificationsIndexRoute
   '/_layout/profile/': typeof LayoutProfileIndexRoute
+  '/_layout/purchase-planner/': typeof LayoutPurchasePlannerIndexRoute
   '/_layout/reports/': typeof LayoutReportsIndexRoute
   '/_layout/settings/': typeof LayoutSettingsIndexRoute
   '/_layout/sharing/': typeof LayoutSharingIndexRoute
   '/_layout/shipments/': typeof LayoutShipmentsIndexRoute
   '/_layout/worktime/': typeof LayoutWorktimeIndexRoute
+  '/_layout/analytics/forecast/': typeof LayoutAnalyticsForecastIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -263,20 +301,24 @@ export interface FileRouteTypes {
     | '/implements/$implementId'
     | '/superadmin/dashboard'
     | '/agro-calendar/'
+    | '/audit-log/'
     | '/employees/'
     | '/equipment/'
     | '/expenses/'
     | '/fields/'
     | '/implements/'
     | '/inventory/'
+    | '/maintenance/'
     | '/my-shift/'
     | '/notifications/'
     | '/profile/'
+    | '/purchase-planner/'
     | '/reports/'
     | '/settings/'
     | '/sharing/'
     | '/shipments/'
     | '/worktime/'
+    | '/analytics/forecast/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -289,20 +331,24 @@ export interface FileRouteTypes {
     | '/implements/$implementId'
     | '/superadmin/dashboard'
     | '/agro-calendar'
+    | '/audit-log'
     | '/employees'
     | '/equipment'
     | '/expenses'
     | '/fields'
     | '/implements'
     | '/inventory'
+    | '/maintenance'
     | '/my-shift'
     | '/notifications'
     | '/profile'
+    | '/purchase-planner'
     | '/reports'
     | '/settings'
     | '/sharing'
     | '/shipments'
     | '/worktime'
+    | '/analytics/forecast'
   id:
     | '__root__'
     | '/'
@@ -317,20 +363,24 @@ export interface FileRouteTypes {
     | '/_layout/implements/$implementId'
     | '/superadmin/_authenticated/dashboard'
     | '/_layout/agro-calendar/'
+    | '/_layout/audit-log/'
     | '/_layout/employees/'
     | '/_layout/equipment/'
     | '/_layout/expenses/'
     | '/_layout/fields/'
     | '/_layout/implements/'
     | '/_layout/inventory/'
+    | '/_layout/maintenance/'
     | '/_layout/my-shift/'
     | '/_layout/notifications/'
     | '/_layout/profile/'
+    | '/_layout/purchase-planner/'
     | '/_layout/reports/'
     | '/_layout/settings/'
     | '/_layout/sharing/'
     | '/_layout/shipments/'
     | '/_layout/worktime/'
+    | '/_layout/analytics/forecast/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -434,6 +484,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutReportsIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/purchase-planner/': {
+      id: '/_layout/purchase-planner/'
+      path: '/purchase-planner'
+      fullPath: '/purchase-planner/'
+      preLoaderRoute: typeof LayoutPurchasePlannerIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/profile/': {
       id: '/_layout/profile/'
       path: '/profile'
@@ -453,6 +510,13 @@ declare module '@tanstack/react-router' {
       path: '/my-shift'
       fullPath: '/my-shift/'
       preLoaderRoute: typeof LayoutMyShiftIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/maintenance/': {
+      id: '/_layout/maintenance/'
+      path: '/maintenance'
+      fullPath: '/maintenance/'
+      preLoaderRoute: typeof LayoutMaintenanceIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/inventory/': {
@@ -497,6 +561,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutEmployeesIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/audit-log/': {
+      id: '/_layout/audit-log/'
+      path: '/audit-log'
+      fullPath: '/audit-log/'
+      preLoaderRoute: typeof LayoutAuditLogIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/agro-calendar/': {
       id: '/_layout/agro-calendar/'
       path: '/agro-calendar'
@@ -523,6 +594,13 @@ declare module '@tanstack/react-router' {
       path: '/equipment/$equipmentId'
       fullPath: '/equipment/$equipmentId'
       preLoaderRoute: typeof LayoutEquipmentEquipmentIdRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/analytics/forecast/': {
+      id: '/_layout/analytics/forecast/'
+      path: '/analytics/forecast'
+      fullPath: '/analytics/forecast/'
+      preLoaderRoute: typeof LayoutAnalyticsForecastIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
   }
@@ -562,20 +640,24 @@ interface LayoutRouteChildren {
   LayoutEquipmentEquipmentIdRoute: typeof LayoutEquipmentEquipmentIdRoute
   LayoutImplementsImplementIdRoute: typeof LayoutImplementsImplementIdRoute
   LayoutAgroCalendarIndexRoute: typeof LayoutAgroCalendarIndexRoute
+  LayoutAuditLogIndexRoute: typeof LayoutAuditLogIndexRoute
   LayoutEmployeesIndexRoute: typeof LayoutEmployeesIndexRoute
   LayoutEquipmentIndexRoute: typeof LayoutEquipmentIndexRoute
   LayoutExpensesIndexRoute: typeof LayoutExpensesIndexRoute
   LayoutFieldsIndexRoute: typeof LayoutFieldsIndexRoute
   LayoutImplementsIndexRoute: typeof LayoutImplementsIndexRoute
   LayoutInventoryIndexRoute: typeof LayoutInventoryIndexRoute
+  LayoutMaintenanceIndexRoute: typeof LayoutMaintenanceIndexRoute
   LayoutMyShiftIndexRoute: typeof LayoutMyShiftIndexRoute
   LayoutNotificationsIndexRoute: typeof LayoutNotificationsIndexRoute
   LayoutProfileIndexRoute: typeof LayoutProfileIndexRoute
+  LayoutPurchasePlannerIndexRoute: typeof LayoutPurchasePlannerIndexRoute
   LayoutReportsIndexRoute: typeof LayoutReportsIndexRoute
   LayoutSettingsIndexRoute: typeof LayoutSettingsIndexRoute
   LayoutSharingIndexRoute: typeof LayoutSharingIndexRoute
   LayoutShipmentsIndexRoute: typeof LayoutShipmentsIndexRoute
   LayoutWorktimeIndexRoute: typeof LayoutWorktimeIndexRoute
+  LayoutAnalyticsForecastIndexRoute: typeof LayoutAnalyticsForecastIndexRoute
 }
 
 const LayoutRouteChildren: LayoutRouteChildren = {
@@ -583,20 +665,24 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutEquipmentEquipmentIdRoute: LayoutEquipmentEquipmentIdRoute,
   LayoutImplementsImplementIdRoute: LayoutImplementsImplementIdRoute,
   LayoutAgroCalendarIndexRoute: LayoutAgroCalendarIndexRoute,
+  LayoutAuditLogIndexRoute: LayoutAuditLogIndexRoute,
   LayoutEmployeesIndexRoute: LayoutEmployeesIndexRoute,
   LayoutEquipmentIndexRoute: LayoutEquipmentIndexRoute,
   LayoutExpensesIndexRoute: LayoutExpensesIndexRoute,
   LayoutFieldsIndexRoute: LayoutFieldsIndexRoute,
   LayoutImplementsIndexRoute: LayoutImplementsIndexRoute,
   LayoutInventoryIndexRoute: LayoutInventoryIndexRoute,
+  LayoutMaintenanceIndexRoute: LayoutMaintenanceIndexRoute,
   LayoutMyShiftIndexRoute: LayoutMyShiftIndexRoute,
   LayoutNotificationsIndexRoute: LayoutNotificationsIndexRoute,
   LayoutProfileIndexRoute: LayoutProfileIndexRoute,
+  LayoutPurchasePlannerIndexRoute: LayoutPurchasePlannerIndexRoute,
   LayoutReportsIndexRoute: LayoutReportsIndexRoute,
   LayoutSettingsIndexRoute: LayoutSettingsIndexRoute,
   LayoutSharingIndexRoute: LayoutSharingIndexRoute,
   LayoutShipmentsIndexRoute: LayoutShipmentsIndexRoute,
   LayoutWorktimeIndexRoute: LayoutWorktimeIndexRoute,
+  LayoutAnalyticsForecastIndexRoute: LayoutAnalyticsForecastIndexRoute,
 }
 
 const LayoutRouteWithChildren =

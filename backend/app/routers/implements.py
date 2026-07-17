@@ -21,6 +21,7 @@ from app.schemas.implement import (
     ImplementResponse,
     ImplementUpdate,
 )
+from app.services.audit import log_change, model_snapshot
 from app.services.dashboard import clear_dashboard_cache
 from app.services.maintenance import (
     build_maintenance_summary,
@@ -31,8 +32,9 @@ from app.services.maintenance_expense import (
     create_maintenance_expense,
     should_create_maintenance_expense,
 )
+from app.services.permissions import require_manager_section
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_manager_section('implements'))])
 
 
 def implement_to_response(item: Implement) -> ImplementResponse:
@@ -143,7 +145,7 @@ async def create_implement(
     request: Request,
     payload: ImplementCreate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> ImplementResponse:
     org_id = get_org_id(request)
     if payload.current_equipment_id is not None:
@@ -156,6 +158,9 @@ async def create_implement(
     item = Implement(**data, org_id=org_id)
     db.add(item)
     try:
+        await db.flush()
+        await log_change(db, org_id=org_id, entity_type='implement', entity_id=item.id,
+                         action='create', changed_by=current.id, after=model_snapshot(item))
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -172,10 +177,11 @@ async def update_implement(
     implement_id: UUID,
     payload: ImplementUpdate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> ImplementResponse:
     org_id = get_org_id(request)
     item = await get_implement_or_404(db, implement_id, org_id)
+    before = model_snapshot(item)
     updates = payload.model_dump(exclude_unset=True)
     if 'current_equipment_id' in updates and updates['current_equipment_id'] is not None:
         await get_org_equipment_or_400(db, updates['current_equipment_id'], org_id)
@@ -189,6 +195,8 @@ async def update_implement(
 
     db.add(item)
     try:
+        await log_change(db, org_id=org_id, entity_type='implement', entity_id=item.id,
+                         action='update', changed_by=current.id, before=before, after=model_snapshot(item))
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -207,9 +215,12 @@ async def delete_implement(
     _: Employee = Depends(require_admin),
 ) -> None:
     item = await get_implement_or_404(db, implement_id, get_org_id(request))
+    before = model_snapshot(item)
     item.is_active = False
     item.current_equipment_id = None
     db.add(item)
+    await log_change(db, org_id=item.org_id, entity_type='implement', entity_id=item.id,
+                     action='delete', changed_by=current.id, before=before, after=model_snapshot(item))
     await db.commit()
 
 
@@ -223,9 +234,12 @@ async def attach_implement(
 ) -> ImplementResponse:
     org_id = get_org_id(request)
     item = await get_implement_or_404(db, implement_id, org_id)
+    before = model_snapshot(item)
     equipment = await get_org_equipment_or_400(db, payload.equipment_id, org_id)
     item.current_equipment_id = equipment.id
     db.add(item)
+    await log_change(db, org_id=org_id, entity_type='implement', entity_id=item.id,
+                     action='update', changed_by=current.id, before=before, after=model_snapshot(item))
     await db.commit()
     return implement_to_response(await get_implement_or_404(db, implement_id, org_id))
 
@@ -239,8 +253,11 @@ async def detach_implement(
 ) -> ImplementResponse:
     org_id = get_org_id(request)
     item = await get_implement_or_404(db, implement_id, org_id)
+    before = model_snapshot(item)
     item.current_equipment_id = None
     db.add(item)
+    await log_change(db, org_id=org_id, entity_type='implement', entity_id=item.id,
+                     action='update', changed_by=current.id, before=before, after=model_snapshot(item))
     await db.commit()
     return implement_to_response(await get_implement_or_404(db, implement_id, org_id))
 
@@ -311,6 +328,7 @@ async def create_implement_maintenance(
         created_by=current.id,
     )
     db.add(record)
+    await db.flush()
 
     interval = payload.next_service_interval
     if interval is None and item.service_interval_hours is not None:
@@ -322,6 +340,8 @@ async def create_implement_maintenance(
         item.last_service_date = payload.date
         db.add(item)
 
+    await log_change(db, org_id=org_id, entity_type='implement_maintenance', entity_id=record.id,
+                     action='create', changed_by=current.id, after=model_snapshot(record))
     await db.commit()
     clear_dashboard_cache()
     await db.refresh(record)

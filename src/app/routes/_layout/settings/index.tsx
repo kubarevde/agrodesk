@@ -1,6 +1,6 @@
 import { lazy } from 'react'
-import { createFileRoute, isRedirect, redirect } from '@tanstack/react-router'
-import { resolveCurrentUser } from '@/features/auth/utils'
+import { createFileRoute } from '@tanstack/react-router'
+import { makeSectionBeforeLoad } from '@/lib/routeSectionGuard'
 
 const SettingsPage = lazy(() =>
   import('@/features/settings/components/SettingsPage').then((module) => ({
@@ -9,16 +9,6 @@ const SettingsPage = lazy(() =>
 )
 
 export const Route = createFileRoute('/_layout/settings/')({
-  beforeLoad: async ({ context }) => {
-    try {
-      const user = await resolveCurrentUser(context.queryClient)
-      if (user.role === 'employee') {
-        throw redirect({ to: '/my-shift' })
-      }
-    } catch (error) {
-      if (isRedirect(error)) throw error
-      throw redirect({ to: '/login' })
-    }
-  },
+  beforeLoad: makeSectionBeforeLoad('settings'),
   component: SettingsPage,
 })

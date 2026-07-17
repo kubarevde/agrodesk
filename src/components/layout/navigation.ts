@@ -5,16 +5,21 @@ import {
   Clock,
   DollarSign,
   Handshake,
+  HardHat,
+  History,
   LayoutDashboard,
   Map,
   Package,
   Settings,
+  ShoppingCart,
   Tractor,
+  TrendingUp,
   Truck,
   Users,
   Wrench,
 } from 'lucide-react'
 import type { CurrentUser } from '@/lib/transformers'
+import { filterNavBySections } from '@/lib/permissions'
 
 export interface NavItem {
   to: string
@@ -50,17 +55,21 @@ const RESOURCES_ITEMS: NavItem[] = [
   { to: '/fields', label: 'Поля', icon: Map },
   { to: '/equipment', label: 'Техника', icon: Tractor },
   { to: '/implements', label: 'Приспособления', icon: Wrench },
+  { to: '/maintenance', label: 'Ремонт и обслуживание', icon: HardHat },
+  { to: '/purchase-planner', label: 'Планировщик закупок', icon: ShoppingCart },
   { to: '/inventory', label: 'ТМЦ', icon: Package },
 ]
 
 const FINANCE_ITEMS: NavItem[] = [
   { to: '/shipments', label: 'Отгрузки', icon: Truck },
   { to: '/expenses', label: 'Затраты', icon: DollarSign },
+  { to: '/analytics/forecast', label: 'Прогноз и оптимизация', icon: TrendingUp },
   { to: '/reports', label: 'Отчёты', icon: BarChart2 },
 ]
 
 const ADMIN_ITEMS: NavItem[] = [
   { to: '/employees', label: 'Сотрудники', icon: Users },
+  { to: '/audit-log', label: 'История изменений', icon: History },
   { to: '/settings', label: 'Настройки', icon: Settings },
 ]
 
@@ -74,15 +83,24 @@ export const NAV_GROUPS: NavGroup[] = [
 /** Flat list for page titles and legacy lookups. */
 export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((group) => group.items)
 
-export function getNavGroups(role?: CurrentUser['role']): NavGroup[] {
-  if (role === 'employee') {
+export function getNavGroups(
+  role?: CurrentUser['role'],
+  allowedSections?: string[],
+): NavGroup[] {
+  if (role === 'employee' && !allowedSections) {
     return [{ title: 'Операционные', items: [MY_SHIFT_ITEM, SHARING_ITEM] }]
   }
-  return NAV_GROUPS
+  return NAV_GROUPS.map((group) => ({
+    ...group,
+    items: filterNavBySections(group.items, allowedSections, role),
+  })).filter((group) => group.items.length > 0)
 }
 
-export function getNavItems(role?: CurrentUser['role']): NavItem[] {
-  return getNavGroups(role).flatMap((group) => group.items)
+export function getNavItems(
+  role?: CurrentUser['role'],
+  allowedSections?: string[],
+): NavItem[] {
+  return getNavGroups(role, allowedSections).flatMap((group) => group.items)
 }
 
 export function getPageTitle(pathname: string): string {

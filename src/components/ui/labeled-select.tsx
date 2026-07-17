@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils'
 import type { SelectOption } from '@/lib/selectOptions'
+import { Label } from './label'
 import {
   Select,
   SelectContent,
@@ -12,6 +13,8 @@ type LabeledSelectProps = {
   value?: string | null
   onValueChange: (value: string | null) => void
   options: SelectOption[]
+  label?: string
+  hint?: string
   placeholder?: string
   disabled?: boolean
   className?: string
@@ -23,12 +26,14 @@ export function LabeledSelect({
   value,
   onValueChange,
   options,
+  label,
+  hint,
   placeholder,
   disabled,
   className,
   'aria-invalid': ariaInvalid,
 }: LabeledSelectProps) {
-  return (
+  const select = (
     <Select
       value={value || null}
       onValueChange={onValueChange}
@@ -46,5 +51,15 @@ export function LabeledSelect({
         ))}
       </SelectContent>
     </Select>
+  )
+
+  if (!label) return select
+
+  return (
+    <div className="space-y-1">
+      <Label>{label}</Label>
+      {select}
+      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+    </div>
   )
 }

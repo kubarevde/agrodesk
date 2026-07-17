@@ -331,6 +331,14 @@ export interface DashboardAgroPlanToday {
   status: string
 }
 
+export interface DashboardUrgentPurchase {
+  id: string
+  title: string
+  linkedLabel: string | null
+  urgency: string
+  estimatedCost: number | null
+}
+
 export interface DashboardStats {
   activeShiftsCount: number
   activeShifts: DashboardActiveShift[]
@@ -347,4 +355,6 @@ export interface DashboardStats {
   equipmentWarnings: DashboardEquipmentWarning[]
   agroPlanToday: DashboardAgroPlanToday[]
   sharingNewRequests: number
+  urgentPurchasesCount: number
+  urgentPurchases: DashboardUrgentPurchase[]
 }

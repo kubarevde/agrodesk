@@ -5,8 +5,9 @@ from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
 from app.schemas.dashboard import DashboardStatsResponse
 from app.services.dashboard import get_dashboard_stats
+from app.services.permissions import require_manager_section
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_manager_section('dashboard'))])
 
 
 @router.get('/stats', response_model=DashboardStatsResponse)

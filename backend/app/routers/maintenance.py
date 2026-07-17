@@ -17,6 +17,7 @@ from app.models.reference import Equipment
 from app.routers.references import equipment_to_response
 from app.schemas.maintenance import MaintenanceCreate, MaintenanceResponse, MaintenanceUpdate
 from app.schemas.reference import EquipmentResponse
+from app.services.audit import log_change, model_snapshot
 from app.services.dashboard import clear_dashboard_cache
 from app.services.equipment_meters import calc_meter_label
 from app.services.maintenance_expense import (
@@ -187,6 +188,8 @@ async def create_maintenance(
         next_to_at=next_to_at,
         expense_id=expense_id,
         created_by=current.id,
+        status='done',
+        priority='normal',
     )
     db.add(record)
 
@@ -206,6 +209,9 @@ async def create_maintenance(
         link=f'/equipment/{equipment.id}',
     )
 
+    await db.flush()
+    await log_change(db, org_id=org_id, entity_type='equipment_maintenance', entity_id=record.id,
+                     action='create', changed_by=current.id, after=model_snapshot(record))
     await db.commit()
     clear_dashboard_cache()
 
@@ -224,7 +230,7 @@ async def update_maintenance(
     mid: UUID,
     payload: MaintenanceUpdate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> MaintenanceResponse:
     equipment = await _get_equipment_or_404(db, id, get_org_id(request))
     result = await db.execute(
@@ -238,6 +244,7 @@ async def update_maintenance(
     record = result.scalar_one_or_none()
     if record is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Запись ТО не найдена')
+    before = model_snapshot(record)
 
     updates = payload.model_dump(exclude_unset=True)
     next_to_interval = updates.pop('next_to_interval', None)
@@ -273,6 +280,8 @@ async def update_maintenance(
             db.add(expense)
 
     db.add(record)
+    await log_change(db, org_id=get_org_id(request), entity_type='equipment_maintenance', entity_id=record.id,
+                     action='update', changed_by=current.id, before=before, after=model_snapshot(record))
     await db.commit()
     clear_dashboard_cache()
 
@@ -290,7 +299,7 @@ async def delete_maintenance(
     id: UUID,
     mid: UUID,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_admin),
+    current: Employee = Depends(require_admin),
 ) -> None:
     await _get_equipment_or_404(db, id, get_org_id(request))
     result = await db.execute(
@@ -303,6 +312,9 @@ async def delete_maintenance(
     if record is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Запись ТО не найдена')
 
+    before = model_snapshot(record)
+    await log_change(db, org_id=get_org_id(request), entity_type='equipment_maintenance', entity_id=record.id,
+                     action='delete', changed_by=current.id, before=before)
     await db.delete(record)
     await db.commit()
     clear_dashboard_cache()

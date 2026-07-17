@@ -10,6 +10,7 @@ from app.dependencies.auth import get_current_employee, require_admin, require_m
 from app.middleware.org_context import get_org_id
 from app.models.employee import Employee, EmployeeRole
 from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate, LinkTelegramRequest
+from app.services.audit import log_change, model_snapshot
 from app.services.auth import hash_password
 
 router = APIRouter()
@@ -92,7 +93,7 @@ async def link_telegram(
     employee_id: UUID,
     payload: LinkTelegramRequest,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> EmployeeResponse:
     org_id = get_org_id(request)
     employee = await get_employee_or_404(db, employee_id, org_id)
@@ -110,9 +111,12 @@ async def link_telegram(
             detail='Этот Telegram ID уже привязан к другому сотруднику',
         )
 
+    before = model_snapshot(employee)
     employee.telegram_id = payload.telegram_id
     db.add(employee)
     try:
+        await log_change(db, org_id=org_id, entity_type='employee', entity_id=employee.id,
+                         action='update', changed_by=current.id, before=before, after=model_snapshot(employee))
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -129,7 +133,7 @@ async def create_employee(
     request: Request,
     payload: EmployeeCreate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_admin),
+    current: Employee = Depends(require_admin),
 ) -> EmployeeResponse:
     employee = Employee(
         org_id=get_org_id(request),
@@ -143,6 +147,9 @@ async def create_employee(
     )
     db.add(employee)
     try:
+        await db.flush()
+        await log_change(db, org_id=employee.org_id, entity_type='employee', entity_id=employee.id,
+                         action='create', changed_by=current.id, after=model_snapshot(employee))
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -160,9 +167,10 @@ async def update_employee(
     employee_id: UUID,
     payload: EmployeeUpdate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_admin),
+    current: Employee = Depends(require_admin),
 ) -> EmployeeResponse:
     employee = await get_employee_or_404(db, employee_id, get_org_id(request))
+    before = model_snapshot(employee)
     update_data = payload.model_dump(exclude_unset=True)
 
     password = update_data.pop('password', None)
@@ -174,6 +182,8 @@ async def update_employee(
 
     db.add(employee)
     try:
+        await log_change(db, org_id=employee.org_id, entity_type='employee', entity_id=employee.id,
+                         action='update', changed_by=current.id, before=before, after=model_snapshot(employee))
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -199,6 +209,9 @@ async def delete_employee(
         )
 
     employee = await get_employee_or_404(db, employee_id, get_org_id(request))
+    before = model_snapshot(employee)
     employee.is_active = False
     db.add(employee)
+    await log_change(db, org_id=employee.org_id, entity_type='employee', entity_id=employee.id,
+                     action='delete', changed_by=current.id, before=before, after=model_snapshot(employee))
     await db.commit()

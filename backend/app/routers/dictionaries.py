@@ -21,6 +21,7 @@ from app.models.dictionary import (
     slugify_code,
 )
 from app.models.employee import Employee
+from app.services.audit import log_change, model_snapshot
 from app.services.dictionary_usage import dictionary_usage_count
 
 router = APIRouter()
@@ -119,7 +120,7 @@ async def create_dictionary_item(
     dict_type: str,
     payload: DictionaryItemCreate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> DictionaryItemResponse:
     dict_type = _validate_type(dict_type)
     org_id = get_org_id(request)
@@ -137,6 +138,9 @@ async def create_dictionary_item(
     )
     db.add(item)
     try:
+        await db.flush()
+        await log_change(db, org_id=org_id, entity_type='dictionary_item', entity_id=item.id,
+                         action='create', changed_by=current.id, after=model_snapshot(item))
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -155,7 +159,7 @@ async def update_dictionary_item(
     item_id: UUID,
     payload: DictionaryItemUpdate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> DictionaryItemResponse:
     dict_type = _validate_type(dict_type)
     org_id = get_org_id(request)
@@ -169,6 +173,7 @@ async def update_dictionary_item(
     item = result.scalar_one_or_none()
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Запись не найдена')
+    before = model_snapshot(item)
 
     updates = payload.model_dump(exclude_unset=True)
     if updates.get('is_active') is False and item.is_active:
@@ -179,6 +184,8 @@ async def update_dictionary_item(
         setattr(item, key, value)
     db.add(item)
     try:
+        await log_change(db, org_id=org_id, entity_type='dictionary_item', entity_id=item.id,
+                         action='update', changed_by=current.id, before=before, after=model_snapshot(item))
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -196,7 +203,7 @@ async def deactivate_dictionary_item(
     dict_type: str,
     item_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_admin),
+    current: Employee = Depends(require_admin),
 ) -> Response:
     dict_type = _validate_type(dict_type)
     org_id = get_org_id(request)
@@ -211,7 +218,10 @@ async def deactivate_dictionary_item(
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Запись не найдена')
     await _assert_can_deactivate(db, org_id=org_id, item=item)
+    before = model_snapshot(item)
     item.is_active = False
     db.add(item)
+    await log_change(db, org_id=org_id, entity_type='dictionary_item', entity_id=item.id,
+                     action='delete', changed_by=current.id, before=before, after=model_snapshot(item))
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

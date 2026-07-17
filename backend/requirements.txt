@@ -13,4 +13,8 @@ openpyxl==3.1.5
 httpx==0.27.2
 Pillow>=10.0.0
 pytest==8.3.3
+numpy>=1.26.0
+pandas>=2.1.0
+statsmodels>=0.14.0
+# prophet>=1.1.5  # optional; enable when build deps available — auto-detected at runtime
 # boto3>=1.34.0  ← пригодится для Яндекс Storage в будущем

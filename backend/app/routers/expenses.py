@@ -12,9 +12,11 @@ from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
 from app.models.expense import Expense
 from app.schemas.expense import ExpenseCreate, ExpenseResponse, ExpenseUpdate
+from app.services.audit import log_change, model_snapshot
 from app.services.dashboard import clear_dashboard_cache
+from app.services.permissions import require_manager_section
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_manager_section('expenses'))])
 
 
 def expense_to_response(expense: Expense) -> ExpenseResponse:
@@ -106,6 +108,9 @@ async def create_expense(
         created_by=current.id,
     )
     db.add(expense)
+    await db.flush()
+    await log_change(db, org_id=org_id, entity_type='expense', entity_id=expense.id,
+                     action='create', changed_by=current.id, after=model_snapshot(expense))
     await db.commit()
     clear_dashboard_cache()
     return expense_to_response(await get_expense_or_404(db, expense.id, org_id))
@@ -117,10 +122,11 @@ async def update_expense(
     expense_id: UUID,
     payload: ExpenseUpdate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> ExpenseResponse:
     org_id = get_org_id(request)
     expense = await get_expense_or_404(db, expense_id, org_id)
+    before = model_snapshot(expense)
     update_data = payload.model_dump(exclude_unset=True)
 
     if 'category' in update_data and update_data['category'] is not None:
@@ -132,6 +138,8 @@ async def update_expense(
         setattr(expense, field, value)
 
     db.add(expense)
+    await log_change(db, org_id=org_id, entity_type='expense', entity_id=expense.id,
+                     action='update', changed_by=current.id, before=before, after=model_snapshot(expense))
     await db.commit()
     clear_dashboard_cache()
     return expense_to_response(await get_expense_or_404(db, expense.id, org_id))
@@ -142,9 +150,12 @@ async def delete_expense(
     request: Request,
     expense_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_admin),
+    current: Employee = Depends(require_admin),
 ) -> None:
     expense = await get_expense_or_404(db, expense_id, get_org_id(request))
+    before = model_snapshot(expense)
+    await log_change(db, org_id=expense.org_id, entity_type='expense', entity_id=expense.id,
+                     action='delete', changed_by=current.id, before=before)
     await db.delete(expense)
     await db.commit()
     clear_dashboard_cache()

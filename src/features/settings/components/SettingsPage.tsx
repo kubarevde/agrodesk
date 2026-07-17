@@ -3,8 +3,10 @@ import { SectionHelp } from '@/components/shared/SectionHelp'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DictionarySettingsTab } from '@/features/dictionaries/components/DictionarySettingsTab'
 import { settingsTimezoneHelp } from '@/features/help/content'
+import { settingsAccessHelp } from '@/features/help/modules'
 import { LocationsTab } from './LocationsTab'
 import { NotificationPrefsTab } from './NotificationPrefsTab'
+import { RolePermissionsTab } from './RolePermissionsTab'
 import { SectionMovedNotice } from './SectionMovedNotice'
 import { TimezoneTab } from './TimezoneTab'
 import { WorkTypesTab } from './WorkTypesTab'
@@ -48,6 +50,9 @@ export function SettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="timezone" className="shrink-0 flex-none">
             Часовой пояс
+          </TabsTrigger>
+          <TabsTrigger value="access" className="shrink-0 flex-none">
+            Доступы
           </TabsTrigger>
           <TabsTrigger value="notifications" className="shrink-0 flex-none">
             Мои уведомления
@@ -123,6 +128,14 @@ export function SettingsPage() {
 
         <TabsContent value="timezone" className="mt-4">
           <TimezoneTab />
+        </TabsContent>
+
+        <TabsContent value="access" className="mt-4 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Какие разделы видят менеджеры и сотрудники. Администратор всегда имеет полный доступ.
+          </p>
+          <RolePermissionsTab />
+          <SectionHelp title="Справка: доступы" items={settingsAccessHelp} />
         </TabsContent>
 
         <TabsContent value="notifications" className="mt-4 space-y-3">

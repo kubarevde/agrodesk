@@ -1,4 +1,4 @@
-import { type ReactNode, useMemo } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 import L from 'leaflet'
 import {
   AttributionControl,
@@ -10,11 +10,19 @@ import {
   Tooltip,
 } from 'react-leaflet'
 import { cn } from '@/lib/utils'
+import '@/lib/maps/setup'
+
+function normalizeTileUrl(url: string): string {
+  // Prevent mixed-content blocking when local is served over HTTPS.
+  if (url.startsWith('http://')) return url.replace(/^http:\/\//, 'https://')
+  return url
+}
 
 // Swap later via VITE_MAP_TILES_URL (MapTiler, other OSM-compatible providers).
-const TILE_URL =
-  import.meta.env.VITE_MAP_TILES_URL ??
-  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+const TILE_URL_RAW = import.meta.env.VITE_MAP_TILES_URL as string | undefined
+const TILE_URL = normalizeTileUrl(
+  TILE_URL_RAW ?? 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+)
 
 const TILE_ATTRIBUTION =
   'Данные карт © OpenStreetMap contributors, лицензия ODbL'
@@ -77,6 +85,8 @@ export function MapView({
   markers = [],
   polygons = [],
 }: MapViewProps) {
+  const [tileError, setTileError] = useState(false)
+
   const icons = useMemo(() => {
     const map = new Map<MapMarkerColor, L.DivIcon>()
     for (const color of Object.keys(MARKER_COLORS) as MapMarkerColor[]) {
@@ -87,7 +97,10 @@ export function MapView({
 
   return (
     <div
-      className={cn('w-full overflow-hidden rounded-lg border border-border', className)}
+      className={cn(
+        'relative w-full overflow-hidden rounded-lg border border-border',
+        className,
+      )}
       style={{ height }}
     >
       <MapContainer
@@ -98,7 +111,13 @@ export function MapView({
         attributionControl={false}
       >
         <AttributionControl position="bottomright" prefix={false} />
-        <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
+        <TileLayer
+          url={TILE_URL}
+          attribution={TILE_ATTRIBUTION}
+          eventHandlers={{
+            tileerror: () => setTileError(true),
+          }}
+        />
 
         {markers.map((marker) => (
           <Marker
@@ -138,6 +157,31 @@ export function MapView({
             {polygon.label ? <Tooltip sticky>{polygon.label}</Tooltip> : null}
           </Polygon>
         ))}
+
+        {tileError ? (
+          <div className="absolute inset-0 z-[1000] flex flex-col items-center justify-center gap-3 bg-background/85 p-4 text-center">
+            <p className="text-sm font-medium text-foreground">
+              Не удалось загрузить карту
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Тайлы могут блокироваться (CSP / mixed content / сеть). Попробуйте позже или
+              откройте координаты в OpenStreetMap.
+            </p>
+            <a
+              className="rounded-md border border-border bg-card px-3 py-2 text-xs font-medium text-primary hover:bg-muted/30"
+              target="_blank"
+              rel="noreferrer"
+              href={`https://www.openstreetmap.org/#map=${zoom}/${center[0]}/${center[1]}`}
+            >
+              Открыть в OpenStreetMap
+            </a>
+            {TILE_URL_RAW ? (
+              <p className="max-w-[340px] text-[10px] text-muted-foreground">
+                Используется URL тайлов: {TILE_URL_RAW}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </MapContainer>
     </div>
   )
