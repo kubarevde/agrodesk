@@ -34,7 +34,7 @@ describe('apiErrorMessage for shift conflicts', () => {
       data: { detail: 'У сотрудника уже есть открытая смена (с 08:15)' },
       statusText: 'Conflict',
       headers: {},
-      config: { headers: {} },
+      config: { headers: new axios.AxiosHeaders() },
     }
     expect(apiErrorMessage(error, 'fallback')).toBe(
       'У сотрудника уже есть открытая смена (с 08:15)',
@@ -48,7 +48,7 @@ describe('apiErrorMessage for shift conflicts', () => {
       data: {},
       statusText: 'Conflict',
       headers: {},
-      config: { headers: {} },
+      config: { headers: new axios.AxiosHeaders() },
     }
     expect(apiErrorMessage(error, 'Не удалось')).toBe(
       'Конфликт: запись уже существует или ещё используется',
