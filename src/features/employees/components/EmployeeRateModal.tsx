@@ -31,9 +31,9 @@ interface EmployeeRateModalProps {
   onClose: () => void
 }
 
-const defaults: EmployeeRateFormValues = {
+const defaults: Partial<EmployeeRateFormValues> = {
   workTypeId: null,
-  rate: 0,
+  rate: undefined,
   overtimeThresholdHours: 8,
   overtimeMultiplier: 1,
   validFrom: todayIsoDate(),

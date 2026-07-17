@@ -27,15 +27,31 @@ export function SettingsPage() {
       <SectionHelp title="Справка: часовой пояс" items={settingsTimezoneHelp} />
 
       <Tabs defaultValue="crops">
-        <TabsList className="h-auto w-full flex-wrap justify-start sm:w-fit">
-          <TabsTrigger value="crops">Культуры</TabsTrigger>
-          <TabsTrigger value="implement-cats">Категории приспособлений</TabsTrigger>
-          <TabsTrigger value="inventory-cats">Категории ТМЦ</TabsTrigger>
-          <TabsTrigger value="expense-cats">Категории затрат</TabsTrigger>
-          <TabsTrigger value="locations">Места работы</TabsTrigger>
-          <TabsTrigger value="work-types">Типы работ</TabsTrigger>
-          <TabsTrigger value="timezone">Часовой пояс</TabsTrigger>
-          <TabsTrigger value="notifications">Мои уведомления</TabsTrigger>
+        <TabsList className="flex h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto overscroll-x-contain sm:w-fit sm:flex-wrap">
+          <TabsTrigger value="crops" className="shrink-0 flex-none">
+            Культуры
+          </TabsTrigger>
+          <TabsTrigger value="implement-cats" className="shrink-0 flex-none">
+            Категории приспособлений
+          </TabsTrigger>
+          <TabsTrigger value="inventory-cats" className="shrink-0 flex-none">
+            Категории ТМЦ
+          </TabsTrigger>
+          <TabsTrigger value="expense-cats" className="shrink-0 flex-none">
+            Категории затрат
+          </TabsTrigger>
+          <TabsTrigger value="locations" className="shrink-0 flex-none">
+            Места работы
+          </TabsTrigger>
+          <TabsTrigger value="work-types" className="shrink-0 flex-none">
+            Типы работ
+          </TabsTrigger>
+          <TabsTrigger value="timezone" className="shrink-0 flex-none">
+            Часовой пояс
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="shrink-0 flex-none">
+            Мои уведомления
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="crops" className="mt-4 space-y-3">

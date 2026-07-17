@@ -49,6 +49,7 @@ export interface ShiftManualAddInput {
   date: string
   startTime: string
   endTime: string
+  endDate?: string
   locationId: string
   workTypeId: string
   equipmentId?: string
@@ -157,6 +158,7 @@ export function shiftManualAddToApi(payload: ShiftManualAddInput): ApiRecord {
     date: displayDateToIso(payload.date),
     start_time: toShiftTimeValue(payload.startTime),
     end_time: toShiftTimeValue(payload.endTime),
+    end_date: payload.endDate ? displayDateToIso(payload.endDate) : undefined,
     location_id: payload.locationId,
     work_type_id: payload.workTypeId,
     equipment_id: payload.equipmentId || undefined,

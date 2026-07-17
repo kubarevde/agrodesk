@@ -1,5 +1,8 @@
 # Деплой АгроДеск на VPS
 
+> **Обновление прода (фронт / бэк / бот) — короткая шпаргалка:**  
+> **[docs/PROD-UPDATE.md](PROD-UPDATE.md)** — обычный апдейт, точечные rebuild, bothost, чеклист.
+
 Целевой сервер: **http://213.183.104.142:3010**  
 Стек: Docker Compose — `db` (PostgreSQL 16), `api` (FastAPI), `bot` (Telegram), `nginx` (фронт + proxy `/api`).
 

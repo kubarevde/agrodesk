@@ -25,6 +25,9 @@ PWA + FastAPI + Telegram-бот для учёта работ в КФХ: муль
 
 Демо-логины: [docs/seed-users.md](docs/seed-users.md).
 
+**Прод — обновление и запуск (фронт, бэк, бот):** [docs/PROD-UPDATE.md](docs/PROD-UPDATE.md).  
+Первый деплой на VPS: [docs/DEPLOY.md](docs/DEPLOY.md). Бот на bothost: [docs/bot-bothost.md](docs/bot-bothost.md).
+
 ---
 
 ## Первый запуск (Dev)

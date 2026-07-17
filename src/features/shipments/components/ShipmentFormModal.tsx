@@ -35,6 +35,7 @@ import {
 } from '@/features/shipments/hooks'
 import { shipmentSchema, type ShipmentFormValues } from '@/features/shipments/schemas'
 import { calcShipmentSum, formatMoney } from '@/features/shipments/utils'
+import { numberInputRegister } from '@/lib/formNumbers'
 
 interface ShipmentFormModalProps {
   open: boolean
@@ -42,13 +43,13 @@ interface ShipmentFormModalProps {
   onClose: () => void
 }
 
-function getDefaultValues(defaultCrop = ''): ShipmentFormValues {
+function getDefaultValues(defaultCrop = ''): Partial<ShipmentFormValues> {
   return {
     date: formatApiDate(new Date()),
     cropType: defaultCrop,
-    quantityKg: 0,
+    quantityKg: undefined,
     destination: '',
-    pricePerKg: 0,
+    pricePerKg: undefined,
     notes: '',
   }
 }
@@ -59,7 +60,7 @@ function toFormValues(shipment: Shipment): ShipmentFormValues {
     cropType: shipment.cropType,
     quantityKg: shipment.quantityKg,
     destination: shipment.destination ?? '',
-    pricePerKg: shipment.pricePerKg ?? 0,
+    pricePerKg: shipment.pricePerKg ?? undefined,
     notes: shipment.notes ?? '',
   }
 }
@@ -206,7 +207,7 @@ export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModal
               min={0}
               step="any"
               aria-invalid={Boolean(errors.quantityKg)}
-              {...register('quantityKg', { valueAsNumber: true })}
+              {...register('quantityKg', numberInputRegister)}
             />
             {errors.quantityKg ? (
               <p className="text-xs text-destructive">{errors.quantityKg.message}</p>
@@ -233,7 +234,7 @@ export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModal
               min={0}
               step="any"
               aria-invalid={Boolean(errors.pricePerKg)}
-              {...register('pricePerKg', { valueAsNumber: true })}
+              {...register('pricePerKg', numberInputRegister)}
             />
             {errors.pricePerKg ? (
               <p className="text-xs text-destructive">{errors.pricePerKg.message}</p>

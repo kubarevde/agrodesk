@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label'
 import { LabeledSelect } from '@/components/ui/labeled-select'
 import { Textarea } from '@/components/ui/textarea'
 import type { SelectOption } from '@/lib/selectOptions'
+import { numberInputRegister } from '@/lib/formNumbers'
 import type { EmployeeRateFormValues } from '@/features/employees/schemas'
 
 interface EmployeeRateFormFieldsProps {
@@ -51,7 +52,7 @@ export function EmployeeRateFormFields({
             step="0.01"
             min={0}
             aria-invalid={Boolean(errors.rate)}
-            {...register('rate', { valueAsNumber: true })}
+            {...register('rate', numberInputRegister)}
           />
           {errors.rate ? (
             <p className="text-xs text-destructive">{errors.rate.message}</p>
@@ -64,7 +65,7 @@ export function EmployeeRateFormFields({
             type="number"
             step="0.5"
             min={0}
-            {...register('overtimeThresholdHours', { valueAsNumber: true })}
+            {...register('overtimeThresholdHours', numberInputRegister)}
           />
         </div>
       </div>
@@ -76,7 +77,7 @@ export function EmployeeRateFormFields({
           type="number"
           step="0.01"
           min={0}
-          {...register('overtimeMultiplier', { valueAsNumber: true })}
+          {...register('overtimeMultiplier', numberInputRegister)}
         />
         <p className="text-xs text-muted-foreground">1.33 = +33%</p>
       </div>

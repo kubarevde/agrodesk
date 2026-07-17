@@ -13,6 +13,7 @@ dist-ssr
 *.local
 backend/.env
 bot/.env
+bot/bothost.env
 .env
 .env.*
 !.env.example

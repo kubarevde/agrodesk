@@ -24,7 +24,7 @@ import { humanLabel } from '@/lib/display'
 import { cn } from '@/lib/utils'
 import { useAgroPlans } from '../hooks'
 import type { AgroPlan } from '../types'
-import { expandPlanDayKeys, workTypeBadgeClass } from '../utils'
+import { expandPlanDayKeys, planFieldsLabel, workTypeBadgeClass } from '../utils'
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
@@ -171,13 +171,16 @@ export function AgroCalendarMonthView({
                           {humanLabel(plan.workTypeName, 'Работа')}
                         </p>
                         <p className="truncate text-[9px] text-muted-foreground">
+                          {planFieldsLabel(plan)}
+                        </p>
+                        <p className="truncate text-[9px] text-muted-foreground">
                           {[plan.equipmentName, plan.implementName]
                             .filter(Boolean)
                             .join(' · ') || 'Без техники'}
                         </p>
-                        <p className="truncate text-[9px] text-muted-foreground">
-                          {plan.employeeName || 'Оператор не назначен'}
-                        </p>
+                        {plan.notes ? (
+                          <p className="truncate text-[9px] text-muted-foreground">{plan.notes}</p>
+                        ) : null}
                       </button>
                     ))}
                     {dayPlans.length > 2 ? (

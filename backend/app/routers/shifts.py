@@ -1,8 +1,8 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -29,7 +29,11 @@ from app.services.shifts import (
     calc_duration_from_datetimes,
     calc_duration_minutes,
     calc_duration_rounded,
+    calc_manual_duration_minutes,
     combine_date_time,
+    ranges_overlap,
+    resolve_shift_end_datetime,
+    shift_time_range,
 )
 
 router = APIRouter()
@@ -141,17 +145,76 @@ async def get_employee_or_400(db: AsyncSession, employee_id: UUID, org_id: UUID)
 
 async def ensure_no_open_shift(db: AsyncSession, employee_id: UUID, org_id: UUID) -> None:
     result = await db.execute(
-        select(Shift.id).where(
+        select(Shift).where(
             Shift.org_id == org_id,
             Shift.employee_id == employee_id,
             Shift.status == ShiftStatus.open,
         )
     )
-    if result.scalar_one_or_none() is not None:
+    open_shift = result.scalar_one_or_none()
+    if open_shift is not None:
+        start_label = open_shift.start_time.strftime('%H:%M')
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail='У сотрудника уже есть открытая смена',
+            detail=f'У сотрудника уже есть открытая смена (с {start_label})',
         )
+
+
+async def ensure_no_shift_overlap(
+    db: AsyncSession,
+    *,
+    org_id: UUID,
+    employee_id: UUID,
+    start_dt: datetime,
+    end_dt: datetime,
+    now: datetime | None = None,
+    exclude_shift_id: UUID | None = None,
+) -> None:
+    """Block only when time ranges actually overlap.
+
+    Open shifts are treated as [start, now] (or open-ended if now is missing).
+    They must NOT block a non-overlapping retrospective interval.
+    """
+    date_from = start_dt.date() - timedelta(days=1)
+    date_to = end_dt.date() + timedelta(days=1)
+    query = select(Shift).where(
+        Shift.org_id == org_id,
+        Shift.employee_id == employee_id,
+        or_(
+            and_(Shift.date >= date_from, Shift.date <= date_to),
+            Shift.status == ShiftStatus.open,
+        ),
+    )
+    if exclude_shift_id is not None:
+        query = query.where(Shift.id != exclude_shift_id)
+
+    result = await db.execute(query)
+    for existing in result.scalars().all():
+        existing_start, existing_end = shift_time_range(
+            existing.date,
+            existing.start_time,
+            existing.end_time,
+            now=now,
+        )
+        if existing_end is None:
+            # Open shift without a "now" bound — still open-ended into the future
+            existing_end = datetime.max.replace(microsecond=0)
+
+        if not ranges_overlap(start_dt, end_dt, existing_start, existing_end):
+            continue
+
+        start_label = existing.start_time.strftime('%H:%M')
+        if existing.status == ShiftStatus.open:
+            detail = (
+                f'Смена пересекается с открытой сменой '
+                f'от {existing.date.strftime("%d.%m.%Y")} {start_label}'
+            )
+        else:
+            detail = (
+                f'Смена пересекается с существующей сменой '
+                f'от {existing.date.strftime("%d.%m.%Y")} {start_label}'
+            )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
 
 def resolve_target_employee_id(payload: ShiftCreate, current: Employee) -> UUID:
@@ -166,9 +229,12 @@ def recalculate_duration(shift: Shift) -> None:
         shift.duration_rounded = None
         return
 
-    duration_raw = calc_duration_minutes(shift.start_time, shift.end_time)
-    if duration_raw < 0:
-        duration_raw = 0
+    duration_raw = calc_manual_duration_minutes(
+        shift.date,
+        shift.start_time,
+        shift.end_time,
+        end_date=None,
+    )
     shift.duration_raw = duration_raw
     shift.duration_rounded = calc_duration_rounded(duration_raw)
 
@@ -235,9 +301,19 @@ async def open_shift(
         field_id=payload.field_id,
         implement_id=payload.implement_id,
     )
-    await ensure_no_open_shift(db, target_employee_id, org_id)
-
     now = await now_in_org(db, org_id)
+    await ensure_no_open_shift(db, target_employee_id, org_id)
+    open_start = now.replace(microsecond=0)
+    # Treat new open shift as starting now with open-ended range for overlap against closed shifts
+    await ensure_no_shift_overlap(
+        db,
+        org_id=org_id,
+        employee_id=target_employee_id,
+        start_dt=open_start,
+        end_dt=open_start + timedelta(minutes=1),
+        now=now,
+    )
+
     shift = Shift(
         org_id=org_id,
         date=now.date(),
@@ -279,12 +355,36 @@ async def add_manual_shift(
         implement_id=payload.implement_id,
     )
 
-    duration_raw = calc_duration_minutes(payload.start_time, payload.end_time)
-    if duration_raw < 0:
+    duration_raw = calc_manual_duration_minutes(
+        payload.date,
+        payload.start_time,
+        payload.end_time,
+        payload.end_date,
+    )
+    if duration_raw <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Время окончания должно быть позже времени начала',
         )
+
+    start_dt = combine_date_time(payload.date, payload.start_time)
+    end_dt = resolve_shift_end_datetime(
+        payload.date,
+        payload.start_time,
+        payload.end_time,
+        payload.end_date,
+    )
+    now = await now_in_org(db, org_id)
+    # Manual/retrospective shifts: only real interval overlap (open shifts included
+    # as [start, now]). Do NOT block solely because an unrelated open shift exists.
+    await ensure_no_shift_overlap(
+        db,
+        org_id=org_id,
+        employee_id=payload.employee_id,
+        start_dt=start_dt,
+        end_dt=end_dt,
+        now=now,
+    )
 
     shift = Shift(
         org_id=org_id,

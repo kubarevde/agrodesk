@@ -3,9 +3,13 @@ import { z } from 'zod'
 export const shipmentSchema = z.object({
   date: z.string().min(1, 'Укажите дату'),
   cropType: z.string().min(1, 'Выберите культуру'),
-  quantityKg: z.number().gt(0, 'Количество должно быть больше 0'),
+  quantityKg: z
+    .number({ required_error: 'Укажите количество', invalid_type_error: 'Укажите количество' })
+    .gt(0, 'Количество должно быть больше 0'),
   destination: z.string().min(1, 'Укажите направление'),
-  pricePerKg: z.number().min(0, 'Цена не может быть отрицательной'),
+  pricePerKg: z
+    .number({ required_error: 'Укажите цену', invalid_type_error: 'Укажите цену' })
+    .min(0, 'Цена не может быть отрицательной'),
   notes: z.string().optional(),
 })
 

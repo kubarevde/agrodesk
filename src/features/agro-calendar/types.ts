@@ -3,6 +3,9 @@ export type AgroPlanStatus = 'planned' | 'in_progress' | 'done' | 'cancelled'
 export type AgroPlan = {
   id: string
   fieldId: string
+  fieldIds: string[]
+  fieldName: string
+  fieldNames: string[]
   workTypeId: string
   plannedDate: string
   plannedEndDate: string | null
@@ -11,7 +14,6 @@ export type AgroPlan = {
   employeeId: string | null
   notes: string | null
   status: AgroPlanStatus
-  fieldName: string
   workTypeName: string
   equipmentName: string | null
   implementName: string | null
@@ -27,7 +29,9 @@ export type AgroPlanFilters = {
 }
 
 export type AgroPlanFormInput = {
-  fieldId: string
+  fieldIds: string[]
+  /** @deprecated Prefer fieldIds; kept for compat */
+  fieldId?: string
   workTypeId: string
   plannedDate: string
   plannedEndDate?: string

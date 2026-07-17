@@ -4,6 +4,7 @@ import type { Equipment, Location, Shift, ShiftFilters, WorkType } from '@/types
 import type { CurrentUser } from '@/lib/transformers'
 import { api } from '@/lib/api'
 import { db } from '@/lib/db'
+import { apiErrorMessage } from '@/lib/apiError'
 import {
   shiftCloseToApi,
   shiftCreateToApi,
@@ -156,9 +157,7 @@ export function useCloseShift() {
       toast.success(`Смена завершена — ${hours} ч`)
     },
     onError: (error) => {
-      const message =
-        error instanceof Error ? error.message : 'Не удалось закрыть смену'
-      toast.error(`Ошибка: ${message}`)
+      toast.error(apiErrorMessage(error, 'Не удалось закрыть смену'))
     },
   })
 }

@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label'
 import { LabeledSelect } from '@/components/ui/labeled-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { apiErrorMessage } from '@/lib/apiError'
 import { entityOptions } from '@/lib/selectOptions'
 import { addShiftSchema, type AddShiftFormValues } from './addShiftSchema'
 import { ShiftDateTimeField } from './components/ShiftDateTimeField'
@@ -131,6 +132,7 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
         date: values.startDate,
         startTime: values.startTime,
         endTime: values.endTime,
+        endDate: values.endDate,
         locationId: values.location,
         workTypeId: values.workType,
         equipmentId: values.equipment || undefined,
@@ -141,8 +143,8 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
       })
       toast.success('Смена добавлена')
       handleClose()
-    } catch {
-      toast.error('Не удалось добавить смену')
+    } catch (error) {
+      toast.error(apiErrorMessage(error, 'Не удалось добавить смену'))
     }
   }
 

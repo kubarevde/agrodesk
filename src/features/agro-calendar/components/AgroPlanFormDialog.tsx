@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { CalendarIcon, Loader2 } from 'lucide-react'
-import { Controller, useForm, useWatch } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import {
@@ -25,72 +25,97 @@ import {
   useEquipment,
   useWorkTypes,
 } from '@/features/worktime/referenceHooks'
-import { useCreateAgroPlan } from '../hooks'
+import { useCreateAgroPlan, useUpdateAgroPlan } from '../hooks'
 import { agroPlanFormSchema, type AgroPlanFormValues } from '../schemas'
+import type { AgroPlan } from '../types'
+import { displayFromIsoDate } from '../utils'
+import { AgroPlanFieldsPicker } from './AgroPlanFieldsPicker'
 
 type AgroPlanFormDialogProps = {
   open: boolean
   onClose: () => void
+  plan?: AgroPlan | null
+  defaultPlannedDate?: string
 }
 
-export function AgroPlanFormDialog({ open, onClose }: AgroPlanFormDialogProps) {
+function toFormDate(isoOrDisplay?: string | null): string {
+  if (!isoOrDisplay) return formatApiDate(new Date())
+  if (/^\d{4}-\d{2}-\d{2}/.test(isoOrDisplay)) {
+    return displayFromIsoDate(isoOrDisplay.slice(0, 10))
+  }
+  return isoOrDisplay
+}
+
+function emptyValues(plannedDate: string): AgroPlanFormValues {
+  return {
+    plannedDate,
+    plannedEndDate: '',
+    fieldIds: [],
+    workTypeId: '',
+    equipmentId: '',
+    implementId: '',
+    employeeId: '',
+    notes: '',
+  }
+}
+
+function valuesFromPlan(plan: AgroPlan): AgroPlanFormValues {
+  return {
+    plannedDate: toFormDate(plan.plannedDate),
+    plannedEndDate: plan.plannedEndDate ? toFormDate(plan.plannedEndDate) : '',
+    fieldIds: plan.fieldIds.length > 0 ? plan.fieldIds : plan.fieldId ? [plan.fieldId] : [],
+    workTypeId: plan.workTypeId,
+    equipmentId: plan.equipmentId ?? '',
+    implementId: plan.implementId ?? '',
+    employeeId: plan.employeeId ?? '',
+    notes: plan.notes ?? '',
+  }
+}
+
+export function AgroPlanFormDialog({
+  open,
+  onClose,
+  plan = null,
+  defaultPlannedDate,
+}: AgroPlanFormDialogProps) {
+  const isEdit = Boolean(plan)
   const createPlan = useCreateAgroPlan()
+  const updatePlan = useUpdateAgroPlan()
   const { data: fields = [] } = useFields()
   const { data: workTypes = [] } = useWorkTypes()
   const { data: equipment = [] } = useEquipment()
+  const { data: implementsList = [] } = useImplements()
   const { data: employees = [] } = useEmployees()
 
   const form = useForm<AgroPlanFormValues>({
     resolver: zodResolver(agroPlanFormSchema),
-    defaultValues: {
-      plannedDate: formatApiDate(new Date()),
-      plannedEndDate: '',
-      fieldId: '',
-      workTypeId: '',
-      equipmentId: '',
-      implementId: '',
-      employeeId: '',
-      notes: '',
-    },
+    defaultValues: emptyValues(formatApiDate(new Date())),
   })
-
-  const equipmentId = useWatch({ control: form.control, name: 'equipmentId' })
-  const { data: implementsList = [] } = useImplements(
-    equipmentId ? { equipmentId } : undefined,
-  )
 
   useEffect(() => {
     if (!open) return
-    form.reset({
-      plannedDate: formatApiDate(new Date()),
-      plannedEndDate: '',
-      fieldId: '',
-      workTypeId: '',
-      equipmentId: '',
-      implementId: '',
-      employeeId: '',
-      notes: '',
-    })
-  }, [form, open])
+    if (plan) {
+      form.reset(valuesFromPlan(plan))
+      return
+    }
+    form.reset(emptyValues(toFormDate(defaultPlannedDate)))
+  }, [defaultPlannedDate, form, open, plan])
 
-  useEffect(() => {
-    form.setValue('implementId', '')
-  }, [equipmentId, form])
-
-  const pending = form.formState.isSubmitting || createPlan.isPending
+  const pending =
+    form.formState.isSubmitting || createPlan.isPending || updatePlan.isPending
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Запланировать работу</DialogTitle>
+          <DialogTitle>{isEdit ? 'Редактировать задачу' : 'Запланировать работу'}</DialogTitle>
         </DialogHeader>
 
         <form
           className="space-y-4"
           onSubmit={form.handleSubmit(async (values) => {
-            await createPlan.mutateAsync({
-              fieldId: values.fieldId,
+            const payload = {
+              fieldIds: values.fieldIds,
               workTypeId: values.workTypeId,
               plannedDate: values.plannedDate,
               plannedEndDate: values.plannedEndDate || undefined,
@@ -98,19 +123,25 @@ export function AgroPlanFormDialog({ open, onClose }: AgroPlanFormDialogProps) {
               implementId: values.implementId || undefined,
               employeeId: values.employeeId || undefined,
               notes: values.notes || undefined,
-            })
+            }
+            if (plan) {
+              await updatePlan.mutateAsync({ id: plan.id, ...payload })
+            } else {
+              await createPlan.mutateAsync(payload)
+            }
             onClose()
           })}
         >
           <DateField control={form.control} name="plannedDate" label="Дата начала" required />
           <DateField control={form.control} name="plannedEndDate" label="Дата окончания" />
 
-          <SelectField
-            label="Поле"
-            value={form.watch('fieldId')}
-            onChange={(value) => form.setValue('fieldId', value)}
-            options={fields.map((item) => ({ value: item.id, label: item.name }))}
-            error={form.formState.errors.fieldId?.message}
+          <AgroPlanFieldsPicker
+            fields={fields.map((item) => ({ id: item.id, name: item.name }))}
+            selectedIds={form.watch('fieldIds')}
+            onChange={(ids) => {
+              form.setValue('fieldIds', ids, { shouldValidate: true })
+            }}
+            error={form.formState.errors.fieldIds?.message}
           />
 
           <SelectField
@@ -130,12 +161,11 @@ export function AgroPlanFormDialog({ open, onClose }: AgroPlanFormDialogProps) {
           />
 
           <SelectField
-            label="Приспособление"
+            label="Приспособление (плановое)"
             optional
             value={form.watch('implementId') || 'none'}
             onChange={(value) => form.setValue('implementId', value === 'none' ? '' : value)}
             options={implementsList.map((item) => ({ value: item.id, label: item.name }))}
-            disabled={!equipmentId}
           />
 
           <SelectField
@@ -147,7 +177,7 @@ export function AgroPlanFormDialog({ open, onClose }: AgroPlanFormDialogProps) {
           />
 
           <div className="space-y-2">
-            <Label htmlFor="notes">Примечания</Label>
+            <Label htmlFor="notes">Комментарий / вид обработки</Label>
             <Textarea id="notes" rows={3} {...form.register('notes')} />
           </div>
 

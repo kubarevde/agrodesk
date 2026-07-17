@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { humanLabel } from '@/lib/display'
 import { useAgroPlansToday } from '@/features/agro-calendar/hooks'
 import { STATUS_LABELS } from '@/features/agro-calendar/types'
-import { statusBadgeClass } from '@/features/agro-calendar/utils'
+import { statusBadgeClass, planFieldsLabel } from '@/features/agro-calendar/utils'
 
 type EmployeeAgroTodaySectionProps = {
   employeeId: string
@@ -32,7 +32,7 @@ export function EmployeeAgroTodaySection({ employeeId }: EmployeeAgroTodaySectio
           >
             <div>
               <p className="font-medium text-foreground">{humanLabel(plan.workTypeName, 'Работа')}</p>
-              <p className="text-xs text-muted-foreground">{humanLabel(plan.fieldName, 'Поле')}</p>
+              <p className="text-xs text-muted-foreground">{planFieldsLabel(plan)}</p>
             </div>
             <Badge className={statusBadgeClass(plan.status)}>{STATUS_LABELS[plan.status]}</Badge>
           </li>

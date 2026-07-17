@@ -26,6 +26,8 @@ export function AgroCalendarPage() {
   const [dayKey, setDayKey] = useState<string | null>(null)
   const [dayOpen, setDayOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
+  const [editingPlan, setEditingPlan] = useState<AgroPlan | null>(null)
+  const [formDefaultDate, setFormDefaultDate] = useState<string | undefined>()
 
   const openPlan = (plan: AgroPlan) => {
     setSelected(plan)
@@ -37,12 +39,31 @@ export function AgroCalendarPage() {
     setDayOpen(true)
   }
 
+  const openCreateForm = (defaultDate?: string) => {
+    setEditingPlan(null)
+    setFormDefaultDate(defaultDate)
+    setFormOpen(true)
+  }
+
+  const openEditForm = (plan: AgroPlan) => {
+    setDetailOpen(false)
+    setEditingPlan(plan)
+    setFormDefaultDate(undefined)
+    setFormOpen(true)
+  }
+
+  const closeForm = () => {
+    setFormOpen(false)
+    setEditingPlan(null)
+    setFormDefaultDate(undefined)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold text-foreground">Агрокалендарь</h1>
         {canManage ? (
-          <Button type="button" onClick={() => setFormOpen(true)}>
+          <Button type="button" onClick={() => openCreateForm()}>
             <Plus className="size-4" />
             Запланировать работу
           </Button>
@@ -86,7 +107,7 @@ export function AgroCalendarPage() {
               setTo(nextTo)
             }}
             onSelectPlan={openPlan}
-            onAddPlan={canManage ? () => setFormOpen(true) : undefined}
+            onAddPlan={canManage ? () => openCreateForm() : undefined}
           />
         </TabsContent>
       </Tabs>
@@ -95,10 +116,15 @@ export function AgroCalendarPage() {
         day={dayKey}
         fieldId={fieldId}
         open={dayOpen}
+        canManage={canManage}
         onClose={() => setDayOpen(false)}
         onSelectPlan={(plan) => {
           setDayOpen(false)
           openPlan(plan)
+        }}
+        onAddPlan={(day) => {
+          setDayOpen(false)
+          openCreateForm(day)
         }}
       />
 
@@ -108,10 +134,16 @@ export function AgroCalendarPage() {
         canManage={canManage}
         onClose={() => setDetailOpen(false)}
         onDeleted={() => setSelected(null)}
+        onEdit={openEditForm}
       />
 
       {canManage ? (
-        <AgroPlanFormDialog open={formOpen} onClose={() => setFormOpen(false)} />
+        <AgroPlanFormDialog
+          open={formOpen}
+          onClose={closeForm}
+          plan={editingPlan}
+          defaultPlannedDate={formDefaultDate}
+        />
       ) : null}
     </div>
   )

@@ -21,13 +21,13 @@ type EquipmentFormDialogProps = {
   isPending: boolean
 }
 
-const defaults: EquipmentFormValues = {
+const defaults: Partial<EquipmentFormValues> = {
   name: '',
   type: 'Трактор',
   year_of_manufacture: undefined,
   serial_number: '',
   meter_type: 'motohours',
-  current_meter: 0,
+  current_meter: undefined,
   to_interval: undefined,
   latitude: undefined,
   longitude: undefined,

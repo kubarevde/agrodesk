@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select'
 import type { EquipmentFormValues } from '../schemas'
 import { EQUIPMENT_TYPES, METER_TYPE_OPTIONS } from '../types'
+import { numberInputRegister } from '@/lib/formNumbers'
 
 type EquipmentFormFieldsProps = {
   control: Control<EquipmentFormValues>
@@ -133,9 +134,7 @@ export function EquipmentFormFields({
             id="eq-meter"
             type="number"
             step="any"
-            {...register('current_meter', {
-              setValueAs: (v) => (v === '' || v == null ? 0 : Number(v)),
-            })}
+            {...register('current_meter', numberInputRegister)}
           />
         </div>
         <div className="space-y-2">

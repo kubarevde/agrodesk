@@ -39,3 +39,26 @@ class AgroPlan(Base):
         back_populates='created_agro_plans',
         foreign_keys=[created_by],
     )
+    fields = relationship(
+        'AgroPlanField',
+        back_populates='plan',
+        cascade='all, delete-orphan',
+    )
+
+
+class AgroPlanField(Base):
+    __tablename__ = 'agro_plan_fields'
+
+    plan_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('agro_plan.id', ondelete='CASCADE'),
+        primary_key=True,
+    )
+    location_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('locations.id'),
+        primary_key=True,
+    )
+
+    plan = relationship('AgroPlan', back_populates='fields')
+    location = relationship('Location')

@@ -16,6 +16,7 @@ import { LabeledSelect } from '@/components/ui/labeled-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { apiErrorMessage } from '@/lib/apiError'
 import { entityOptions } from '@/lib/selectOptions'
 import { useCreateShift } from './hooks'
 import {
@@ -171,8 +172,7 @@ export function OpenShiftModal({
       }
       handleClose()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Не удалось открыть смену'
-      toast.error(`Ошибка: ${message}`)
+      toast.error(apiErrorMessage(error, 'Не удалось открыть смену'))
     }
   }
 
