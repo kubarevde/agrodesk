@@ -7,6 +7,7 @@ import type {
   DashboardCriticalItem,
   DashboardEquipmentWarning,
   DashboardStats,
+  DashboardUrgentPurchase,
   DashboardWeeklyHours,
   Employee,
   Equipment,
@@ -541,6 +542,19 @@ export function dashboardStatsFromApi(raw: ApiRecord): DashboardStats {
     ? raw.agro_plan_today.map((item) => dashboardAgroPlanTodayFromApi(item as ApiRecord))
     : []
 
+  const urgentPurchases = Array.isArray(raw.urgent_purchases)
+    ? raw.urgent_purchases.map((item) => {
+        const row = item as ApiRecord
+        return {
+          id: String(row.id),
+          title: String(row.title ?? ''),
+          linkedLabel: row.linked_label != null ? String(row.linked_label) : null,
+          urgency: String(row.urgency ?? 'urgent'),
+          estimatedCost: row.estimated_cost == null ? null : toNumber(row.estimated_cost),
+        } satisfies DashboardUrgentPurchase
+      })
+    : []
+
   return {
     activeShiftsCount: toNumber(raw.active_shifts_count),
     activeShifts,
@@ -557,5 +571,7 @@ export function dashboardStatsFromApi(raw: ApiRecord): DashboardStats {
     equipmentWarnings,
     agroPlanToday,
     sharingNewRequests: toNumber(raw.sharing_new_requests),
+    urgentPurchasesCount: toNumber(raw.urgent_purchases_count),
+    urgentPurchases,
   }
 }

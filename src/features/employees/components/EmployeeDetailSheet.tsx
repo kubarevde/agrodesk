@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Employee } from '@/types'
+import { EntityHistoryButton } from '@/features/audit-log/components/EntityHistoryButton'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { useEmployee, useEmployeeMonthStats } from '@/features/employees/hooks'
 import { EmployeeProfileBody } from './EmployeeProfileBody'
@@ -38,7 +39,10 @@ export function EmployeeDetailSheet({ employee, open, onClose }: EmployeeDetailS
           <>
             <SheetHeader>
               <SheetTitle>{current.employeeName}</SheetTitle>
-              <SheetDescription>{current.employeeCode}</SheetDescription>
+              <SheetDescription className="flex flex-wrap items-center gap-2">
+                <span>{current.employeeCode}</span>
+                <EntityHistoryButton entityType="employee" entityId={current.id} />
+              </SheetDescription>
             </SheetHeader>
 
             <div className="px-4 pb-6">

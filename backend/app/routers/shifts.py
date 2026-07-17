@@ -22,6 +22,7 @@ from app.schemas.shift import (
     ShiftUpdate,
 )
 from app.services.dashboard import clear_dashboard_cache
+from app.services.audit import log_change, model_snapshot
 from app.services.equipment_meters import add_equipment_meter_log, calc_meter_label
 from app.services.org_timezone import now_in_org
 from app.services.salary import apply_salary_to_shift
@@ -329,6 +330,9 @@ async def open_shift(
         longitude=payload.longitude,
     )
     db.add(shift)
+    await db.flush()
+    await log_change(db, org_id=org_id, entity_type='shift', entity_id=shift.id,
+                     action='create', changed_by=current.id, after=model_snapshot(shift))
     await db.commit()
     clear_dashboard_cache()
 
@@ -341,7 +345,7 @@ async def add_manual_shift(
     request: Request,
     payload: ShiftManualAdd,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> ShiftResponse:
     org_id = get_org_id(request)
     await get_employee_or_400(db, payload.employee_id, org_id)
@@ -406,6 +410,8 @@ async def add_manual_shift(
     db.add(shift)
     await db.flush()
     await apply_salary_to_shift(db, shift)
+    await log_change(db, org_id=org_id, entity_type='shift', entity_id=shift.id,
+                     action='create', changed_by=current.id, after=model_snapshot(shift))
     await db.commit()
     clear_dashboard_cache()
 
@@ -423,6 +429,7 @@ async def close_shift(
 ) -> ShiftResponse:
     org_id = get_org_id(request)
     shift = await get_shift_or_404(db, shift_id, org_id)
+    before = model_snapshot(shift)
 
     if shift.status != ShiftStatus.open:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Смена уже закрыта')
@@ -478,6 +485,8 @@ async def close_shift(
             plan.actual_shift_id = shift.id
             db.add(plan)
 
+    await log_change(db, org_id=org_id, entity_type='shift', entity_id=shift.id,
+                     action='update', changed_by=current.id, before=before, after=model_snapshot(shift))
     await db.commit()
     clear_dashboard_cache()
 
@@ -491,10 +500,11 @@ async def update_shift(
     shift_id: UUID,
     payload: ShiftUpdate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> ShiftResponse:
     org_id = get_org_id(request)
     shift = await get_shift_or_404(db, shift_id, org_id)
+    before = model_snapshot(shift)
     update_data = payload.model_dump(exclude_unset=True)
 
     if 'employee_id' in update_data:
@@ -530,6 +540,8 @@ async def update_shift(
         await apply_salary_to_shift(db, shift)
 
     db.add(shift)
+    await log_change(db, org_id=org_id, entity_type='shift', entity_id=shift.id,
+                     action='update', changed_by=current.id, before=before, after=model_snapshot(shift))
     await db.commit()
     clear_dashboard_cache()
 
@@ -542,9 +554,12 @@ async def delete_shift(
     request: Request,
     shift_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_admin),
+    current: Employee = Depends(require_admin),
 ) -> None:
     shift = await get_shift_or_404(db, shift_id, get_org_id(request))
+    before = model_snapshot(shift)
+    await log_change(db, org_id=shift.org_id, entity_type='shift', entity_id=shift.id,
+                     action='delete', changed_by=current.id, before=before)
     await db.delete(shift)
     await db.commit()
     clear_dashboard_cache()

@@ -15,6 +15,8 @@ from app.middleware.org_context import OrgContextMiddleware
 from app.models.organization import SuperAdminUser
 from app.routers import (
     agro_plan,
+    analytics,
+    audit_log,
     auth,
     dashboard,
     dictionaries,
@@ -28,6 +30,8 @@ from app.routers import (
     maintenance,
     notifications,
     references,
+    repair_journal,
+    purchase_planner,
     reports,
     settings as settings_router,
     sharing,
@@ -147,6 +151,8 @@ async def api_health() -> dict[str, object]:
 app.include_router(superadmin.router, prefix='/superadmin/api', tags=['superadmin'])
 app.include_router(auth.router, prefix='/api/auth', tags=['auth'])
 app.include_router(agro_plan.router, prefix='/api/agro-plan', tags=['agro-plan'])
+app.include_router(audit_log.router, prefix='/api/audit-log', tags=['audit-log'])
+app.include_router(analytics.router, prefix='/api/analytics', tags=['analytics'])
 app.include_router(employees.router, prefix='/api/employees', tags=['employees'])
 app.include_router(employee_rates.router, prefix='/api/employee-rates', tags=['employee-rates'])
 app.include_router(shifts.router, prefix='/api/shifts', tags=['shifts'])
@@ -156,6 +162,8 @@ app.include_router(implements.router, prefix='/api/implements', tags=['implement
 app.include_router(references.work_types_router, prefix='/api/work-types', tags=['work-types'])
 # maintenance before equipment so /maintenance/upcoming is not captured by /{item_id}
 app.include_router(maintenance.router, prefix='/api/equipment', tags=['maintenance'])
+app.include_router(repair_journal.router, prefix='/api/equipment-maintenance', tags=['repair-journal'])
+app.include_router(purchase_planner.router, prefix='/api/purchase-planner', tags=['purchase-planner'])
 app.include_router(references.equipment_router, prefix='/api/equipment', tags=['equipment'])
 app.include_router(equipment_logs.router, prefix='/api/equipment', tags=['equipment-logs'])
 app.include_router(inventory.router, prefix='/api/inventory', tags=['inventory'])

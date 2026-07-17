@@ -6,6 +6,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { useUserPermissions } from '@/features/settings/permissionsHooks'
 import { getNavGroups } from './navigation'
 
 interface SidebarNavProps {
@@ -16,7 +17,8 @@ interface SidebarNavProps {
 export function SidebarNav({ collapsed, onNavigate }: SidebarNavProps) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const { data: user } = useCurrentUser()
-  const navGroups = getNavGroups(user?.role)
+  const { data: perms } = useUserPermissions(Boolean(user))
+  const navGroups = getNavGroups(user?.role, perms?.allowedSections)
 
   return (
     <nav className="flex flex-1 flex-col gap-4 overflow-y-auto px-2 py-1">

@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { mediaUrl } from '@/lib/media'
 import { Tractor } from 'lucide-react'
+import { EntityHistoryButton } from '@/features/audit-log/components/EntityHistoryButton'
 import {
   hoursToNextService,
   meterProgress,
@@ -10,6 +11,7 @@ import {
   type EquipmentDetail,
 } from '../types'
 import { ToStatusBadge } from './ToStatusBadge'
+import { AssetOperationalSummary } from '@/components/shared/AssetOperationalSummary'
 
 type EquipmentDetailHeaderProps = {
   item: EquipmentDetail
@@ -56,8 +58,10 @@ export function EquipmentDetailHeader({
             {item.type ? <Badge variant="secondary">{item.type}</Badge> : null}
             <ToStatusBadge status={status} />
           </div>
+          <AssetOperationalSummary equipmentId={item.id} equipmentName={item.name} />
         </div>
         <div className="flex flex-wrap gap-2">
+          <EntityHistoryButton entityType="equipment" entityId={item.id} />
           {canManage ? (
             <Button type="button" variant="outline" onClick={onEdit}>
               Редактировать

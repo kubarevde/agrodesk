@@ -12,6 +12,7 @@ from app.models.employee import Employee
 from app.models.equipment_log import EquipmentMeterLog
 from app.models.reference import Equipment
 from app.schemas.equipment_log import MeterLogCreate, MeterLogResponse
+from app.services.audit import log_change, model_snapshot
 from app.services.equipment_meters import (
     add_equipment_meter_log,
     meter_log_load_options,
@@ -88,6 +89,9 @@ async def create_meter_log(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
+    await db.flush()
+    await log_change(db, org_id=get_org_id(request), entity_type='equipment_meter_log', entity_id=log.id,
+                     action='create', changed_by=current.id, after=model_snapshot(log))
     await db.commit()
 
     result = await db.execute(
@@ -104,7 +108,7 @@ async def delete_meter_log(
     id: UUID,
     log_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_admin),
+    current: Employee = Depends(require_admin),
 ) -> None:
     await _get_equipment_or_404(db, id, get_org_id(request))
 
@@ -118,6 +122,9 @@ async def delete_meter_log(
     if log is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Запись не найдена')
 
+    before = model_snapshot(log)
+    await log_change(db, org_id=get_org_id(request), entity_type='equipment_meter_log', entity_id=log.id,
+                     action='delete', changed_by=current.id, before=before)
     await db.delete(log)
     await db.flush()
     await recalculate_equipment_meter(db, id)

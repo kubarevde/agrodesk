@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { OnlineOnlyNotice } from '@/components/shared/OnlineOnlyNotice'
+import { SectionHelp } from '@/components/shared/SectionHelp'
+import { reportsHelp } from '@/features/help/modules'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import type { ReportDefinition } from '@/features/reports/reportDefinitions'
 import { REPORT_DEFINITIONS } from '@/features/reports/reportDefinitions'
@@ -45,6 +47,8 @@ export function ReportsPage() {
           setSelectedReport(null)
         }}
       />
+
+      <SectionHelp title="Справка: отчёты" items={reportsHelp} />
     </div>
   )
 }

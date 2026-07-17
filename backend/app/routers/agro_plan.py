@@ -17,6 +17,7 @@ from app.models.implement import Implement
 from app.models.reference import Equipment, Location, WorkType
 from app.routers.fields import get_field_or_404
 from app.schemas.agro_plan import AgroPlanCreate, AgroPlanResponse, AgroPlanUpdate
+from app.services.audit import log_change, model_snapshot
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -281,6 +282,9 @@ async def create_agro_plan(
         payload.planned_date,
     )
     try:
+        await db.flush()
+        await log_change(db, org_id=org_id, entity_type='agro_plan', entity_id=plan.id,
+                         action='create', changed_by=current.id, after=model_snapshot(plan))
         await db.commit()
     except Exception as exc:
         await db.rollback()
@@ -309,10 +313,11 @@ async def update_agro_plan(
     plan_id: UUID,
     payload: AgroPlanUpdate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> AgroPlanResponse:
     org_id = get_org_id(request)
     plan = await get_plan_or_404(db, plan_id, org_id)
+    before = model_snapshot(plan)
     update_data = payload.model_dump(exclude_unset=True)
 
     await validate_plan_refs(
@@ -340,6 +345,8 @@ async def update_agro_plan(
 
     db.add(plan)
     try:
+        await log_change(db, org_id=org_id, entity_type='agro_plan', entity_id=plan.id,
+                         action='update', changed_by=current.id, before=before, after=model_snapshot(plan))
         await db.commit()
     except Exception as exc:
         await db.rollback()
@@ -365,9 +372,12 @@ async def delete_agro_plan(
     request: Request,
     plan_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> None:
     org_id = get_org_id(request)
     plan = await get_plan_or_404(db, plan_id, org_id)
+    before = model_snapshot(plan)
+    await log_change(db, org_id=org_id, entity_type='agro_plan', entity_id=plan.id,
+                     action='delete', changed_by=current.id, before=before)
     await db.delete(plan)
     await db.commit()

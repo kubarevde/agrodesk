@@ -12,6 +12,7 @@ import {
   type EquipmentDetail,
 } from '../types'
 import { ToStatusBadge } from './ToStatusBadge'
+import { AssetOperationalStatus } from '@/components/shared/AssetOperationalStatus'
 
 type EquipmentCardProps = {
   item: EquipmentDetail
@@ -62,6 +63,7 @@ export function EquipmentCard({
           {item.type ? <Badge variant="secondary">{item.type}</Badge> : null}
         </div>
         <ToStatusBadge status={status} />
+        <AssetOperationalStatus equipmentId={item.id} compact />
 
         {nextAt != null ? (
           <div className="space-y-1.5">

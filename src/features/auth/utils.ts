@@ -1,7 +1,9 @@
 import axios from 'axios'
 import type { QueryClient } from '@tanstack/react-query'
+import { redirect } from '@tanstack/react-router'
 import { api } from '@/lib/api'
 import { currentUserFromApi, type CurrentUser } from '@/lib/transformers'
+import { canAccessPath } from '@/lib/permissions'
 import {
   cacheCurrentUser,
   clearAuthStorage,
@@ -81,4 +83,41 @@ export async function resolveCurrentUser(queryClient: QueryClient): Promise<Curr
 
     throw error
   }
+}
+
+export async function fetchAllowedSections(queryClient: QueryClient): Promise<string[]> {
+  const data = await queryClient.fetchQuery({
+    queryKey: ['auth', 'permissions'],
+    queryFn: async () => {
+      const { data: raw } = await api.get<{ allowed_sections: string[] }>(
+        '/api/auth/permissions',
+      )
+      return raw.allowed_sections ?? []
+    },
+    staleTime: 60_000,
+  })
+  return data
+}
+
+/** Route guard: redirect if current role cannot access section. */
+export async function guardSectionAccess(
+  queryClient: QueryClient,
+  section: string,
+  fallback?: '/dashboard' | '/my-shift',
+): Promise<CurrentUser> {
+  const user = await resolveCurrentUser(queryClient)
+  if (user.role === 'admin') return user
+  const allowed = await fetchAllowedSections(queryClient)
+  if (!allowed.includes(section)) {
+    throw redirect({ to: fallback ?? getHomeRoute(user.role) })
+  }
+  return user
+}
+
+export function guardPathAccess(
+  pathname: string,
+  user: CurrentUser,
+  allowedSections: string[],
+): boolean {
+  return canAccessPath(pathname, user.role, allowedSections)
 }

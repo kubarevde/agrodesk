@@ -18,6 +18,7 @@ from app.models.equipment_log import EquipmentMaintenance, EquipmentMeterLog
 from app.models.expense import Expense
 from app.models.implement import Implement, ImplementMaintenance
 from app.models.inventory import InventoryItem, InventoryOperation
+from app.models.purchase_planner import PurchasePlannerItem
 from app.models.reference import Equipment, Location
 from app.models.shift import Shift, ShiftStatus
 from app.models.shipment import Shipment
@@ -1451,4 +1452,156 @@ async def build_season_workbook(
         ['ИТОГО', sum(int(employee_stats[e.id]['shifts']) for e in employees), total_hours, total_pay],
     )
 
+    return workbook
+
+
+REPAIR_STATUS_LABELS = {
+    'in_progress': 'В ремонте',
+    'waiting_parts': 'Ожидает запчасти',
+    'done': 'Готово',
+}
+
+PURCHASE_STATUS_LABELS = {
+    'planned': 'К покупке',
+    'purchased': 'Куплено',
+    'cancelled': 'Отменено',
+}
+
+PURCHASE_URGENCY_LABELS = {
+    'urgent': 'Срочно',
+    'normal': 'Обычный',
+    'low': 'Низкий',
+}
+
+
+async def build_maintenance_workbook(
+    db: AsyncSession, from_date: date, to_date: date, org_id: UUID | None = None
+) -> Workbook:
+    query = (
+        select(EquipmentMaintenance)
+        .options(
+            selectinload(EquipmentMaintenance.equipment),
+            selectinload(EquipmentMaintenance.implement),
+            selectinload(EquipmentMaintenance.checklist_items),
+        )
+        .where(EquipmentMaintenance.date >= from_date, EquipmentMaintenance.date <= to_date)
+    )
+    if org_id is not None:
+        query = query.where(
+            or_(
+                EquipmentMaintenance.equipment.has(Equipment.org_id == org_id),
+                EquipmentMaintenance.implement.has(Implement.org_id == org_id),
+            )
+        )
+    result = await db.execute(query.order_by(EquipmentMaintenance.date.desc()))
+    records = list(result.scalars().unique().all())
+
+    workbook = new_workbook()
+    ws = workbook.active
+    ws.title = 'Ремонт и ТО'
+
+    rows = []
+    for record in records:
+        asset = ''
+        if record.equipment:
+            asset = record.equipment.name
+        elif record.implement:
+            asset = record.implement.name
+        checklist = record.checklist_items or []
+        done = sum(1 for item in checklist if item.is_done)
+        total = len(checklist)
+        rows.append(
+            [
+                fmt_date(record.date),
+                asset,
+                record.type,
+                REPAIR_STATUS_LABELS.get(record.status or '', record.status or ''),
+                record.priority or '',
+                f'{done}/{total}' if total else '',
+                to_number(record.cost),
+                record.description or '',
+                fmt_date(record.date_returned) if record.date_returned else '',
+            ]
+        )
+
+    write_table(
+        ws,
+        [
+            'Дата',
+            'Техника / приспособление',
+            'Тип',
+            'Статус',
+            'Приоритет',
+            'Чек-лист',
+            'Стоимость',
+            'Описание',
+            'Возврат в строй',
+        ],
+        rows,
+    )
+    return workbook
+
+
+async def build_purchases_workbook(
+    db: AsyncSession, from_date: date, to_date: date, org_id: UUID | None = None
+) -> Workbook:
+    query = (
+        select(PurchasePlannerItem)
+        .options(
+            selectinload(PurchasePlannerItem.equipment),
+            selectinload(PurchasePlannerItem.implement),
+            selectinload(PurchasePlannerItem.maintenance),
+        )
+        .where(
+            PurchasePlannerItem.created_at >= datetime.combine(from_date, datetime.min.time()),
+            PurchasePlannerItem.created_at
+            <= datetime.combine(to_date, datetime.max.time()),
+        )
+    )
+    if org_id is not None:
+        query = query.where(PurchasePlannerItem.org_id == org_id)
+    result = await db.execute(query.order_by(PurchasePlannerItem.created_at.desc()))
+    items = list(result.scalars().unique().all())
+
+    workbook = new_workbook()
+    ws = workbook.active
+    ws.title = 'Закупки'
+
+    rows = []
+    for item in items:
+        asset = ''
+        if item.equipment:
+            asset = item.equipment.name
+        elif item.implement:
+            asset = item.implement.name
+        for_repair = 'Да' if item.maintenance_id else 'Нет'
+        rows.append(
+            [
+                item.title,
+                PURCHASE_STATUS_LABELS.get(item.status or '', item.status or ''),
+                PURCHASE_URGENCY_LABELS.get(item.urgency or '', item.urgency or ''),
+                asset,
+                for_repair,
+                to_number(item.estimated_cost),
+                to_number(item.actual_cost),
+                item.purchase_place or '',
+                item.notes or '',
+            ]
+        )
+
+    write_table(
+        ws,
+        [
+            'Позиция',
+            'Статус',
+            'Срочность',
+            'Для чего',
+            'Для ремонта',
+            'Оценка ₽',
+            'Факт ₽',
+            'Где купить',
+            'Комментарий',
+        ],
+        rows,
+    )
     return workbook

@@ -12,9 +12,11 @@ from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
 from app.models.shipment import Shipment
 from app.schemas.shipment import ShipmentCreate, ShipmentResponse, ShipmentUpdate
+from app.services.audit import log_change, model_snapshot
 from app.services.dashboard import clear_dashboard_cache
+from app.services.permissions import require_manager_section
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_manager_section('shipments'))])
 
 
 def calc_total_sum(quantity_kg: Decimal, price_per_kg: Decimal | None) -> Decimal | None:
@@ -100,6 +102,9 @@ async def create_shipment(
         created_by=current.id,
     )
     db.add(shipment)
+    await db.flush()
+    await log_change(db, org_id=shipment.org_id, entity_type='shipment', entity_id=shipment.id,
+                     action='create', changed_by=current.id, after=model_snapshot(shipment))
     await db.commit()
     await db.refresh(shipment)
     clear_dashboard_cache()
@@ -112,14 +117,17 @@ async def update_shipment(
     shipment_id: UUID,
     payload: ShipmentUpdate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> ShipmentResponse:
     shipment = await get_shipment_or_404(db, shipment_id, get_org_id(request))
+    before = model_snapshot(shipment)
 
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(shipment, field, value)
 
     db.add(shipment)
+    await log_change(db, org_id=shipment.org_id, entity_type='shipment', entity_id=shipment.id,
+                     action='update', changed_by=current.id, before=before, after=model_snapshot(shipment))
     await db.commit()
     await db.refresh(shipment)
     clear_dashboard_cache()
@@ -131,9 +139,12 @@ async def delete_shipment(
     request: Request,
     shipment_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_admin),
+    current: Employee = Depends(require_admin),
 ) -> None:
     shipment = await get_shipment_or_404(db, shipment_id, get_org_id(request))
+    before = model_snapshot(shipment)
+    await log_change(db, org_id=shipment.org_id, entity_type='shipment', entity_id=shipment.id,
+                     action='delete', changed_by=current.id, before=before)
     await db.delete(shipment)
     await db.commit()
     clear_dashboard_cache()

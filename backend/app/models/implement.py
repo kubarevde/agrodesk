@@ -30,6 +30,10 @@ class Implement(Base):
 
     current_equipment = relationship('Equipment', back_populates='implements')
     maintenance_records = relationship('ImplementMaintenance', back_populates='implement')
+    equipment_maintenance_records = relationship(
+        'EquipmentMaintenance',
+        back_populates='implement',
+    )
     shifts = relationship('Shift', back_populates='implement')
     sharing_listings = relationship('SharingListing', back_populates='implement')
     agro_plans = relationship('AgroPlan', back_populates='implement')

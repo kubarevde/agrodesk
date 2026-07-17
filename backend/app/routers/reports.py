@@ -18,6 +18,8 @@ from app.services.reports import (
     build_expenses_workbook,
     build_fields_workbook,
     build_inventory_workbook,
+    build_maintenance_workbook,
+    build_purchases_workbook,
     build_salary_preview,
     build_salary_workbook,
     build_season_workbook,
@@ -26,8 +28,9 @@ from app.services.reports import (
     build_timesheet_workbook,
     workbook_response,
 )
+from app.services.permissions import require_manager_section
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_manager_section('reports'))])
 
 
 @router.post('/timesheet')
@@ -167,3 +170,35 @@ async def report_season(
 ):
     workbook = await build_season_workbook(db, payload.year, org_id=get_org_id(request))
     return workbook_response(workbook, f'season_{payload.year}.xlsx')
+
+
+@router.post('/maintenance')
+async def report_maintenance(
+    request: Request,
+    payload: DateRangeRequest,
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(require_manager),
+):
+    workbook = await build_maintenance_workbook(
+        db, payload.from_date, payload.to_date, org_id=get_org_id(request)
+    )
+    return workbook_response(
+        workbook,
+        f'maintenance_{payload.from_date}_{payload.to_date}.xlsx',
+    )
+
+
+@router.post('/purchases')
+async def report_purchases(
+    request: Request,
+    payload: DateRangeRequest,
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(require_manager),
+):
+    workbook = await build_purchases_workbook(
+        db, payload.from_date, payload.to_date, org_id=get_org_id(request)
+    )
+    return workbook_response(
+        workbook,
+        f'purchases_{payload.from_date}_{payload.to_date}.xlsx',
+    )

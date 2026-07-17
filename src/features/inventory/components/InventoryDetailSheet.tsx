@@ -7,6 +7,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { EntityHistoryButton } from '@/features/audit-log/components/EntityHistoryButton'
 import { humanLabel } from '@/lib/display'
 import type { InventoryItem } from '@/types'
 import { getCategoryLabel, isCriticalStock } from '@/features/inventory/utils'
@@ -29,13 +30,14 @@ export function InventoryDetailSheet({ item, open, onClose }: InventoryDetailShe
             <Package className="size-5 text-primary" aria-hidden />
             {humanLabel(item.name, 'Товар')}
           </SheetTitle>
-          <SheetDescription className="flex flex-wrap gap-1.5 pt-1">
+          <SheetDescription className="flex flex-wrap items-center gap-1.5 pt-1">
             <Badge variant="outline">{getCategoryLabel(item.category)}</Badge>
             {isCriticalStock(item) ? (
               <Badge variant="destructive">Критичный остаток</Badge>
             ) : (
               <Badge variant="secondary">В норме</Badge>
             )}
+            <EntityHistoryButton entityType="inventory_item" entityId={item.id} />
           </SheetDescription>
         </SheetHeader>
 

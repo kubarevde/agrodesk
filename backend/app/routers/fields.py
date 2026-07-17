@@ -14,8 +14,10 @@ from app.models.dictionary import normalize_name
 from app.models.employee import Employee
 from app.models.reference import Location
 from app.schemas.field import FieldCreate, FieldResponse, FieldUpdate
+from app.services.audit import log_change, model_snapshot
+from app.services.permissions import require_manager_section
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_manager_section('fields'))])
 
 
 def _num(value: Decimal | float | None) -> float | None:
@@ -125,7 +127,7 @@ async def create_field(
     request: Request,
     payload: FieldCreate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> FieldResponse:
     org_id = get_org_id(request)
     name = normalize_name(payload.name)
@@ -148,6 +150,9 @@ async def create_field(
     )
     db.add(location)
     try:
+        await db.flush()
+        await log_change(db, org_id=org_id, entity_type='location', entity_id=location.id,
+                         action='create', changed_by=current.id, after=model_snapshot(location))
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -166,10 +171,11 @@ async def update_field(
     field_id: UUID,
     payload: FieldUpdate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> FieldResponse:
     org_id = get_org_id(request)
     location = await get_field_or_404(db, field_id, org_id)
+    before = model_snapshot(location)
     if not is_field_location(location):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Поле не найдено')
 
@@ -195,6 +201,8 @@ async def update_field(
 
     db.add(location)
     try:
+        await log_change(db, org_id=org_id, entity_type='location', entity_id=location.id,
+                         action='update', changed_by=current.id, before=before, after=model_snapshot(location))
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -212,9 +220,12 @@ async def delete_field(
     request: Request,
     field_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> None:
     location = await get_field_or_404(db, field_id, get_org_id(request))
+    before = model_snapshot(location)
     location.is_active = False
     db.add(location)
+    await log_change(db, org_id=location.org_id, entity_type='location', entity_id=location.id,
+                     action='delete', changed_by=current.id, before=before, after=model_snapshot(location))
     await db.commit()

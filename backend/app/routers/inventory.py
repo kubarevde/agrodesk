@@ -25,8 +25,10 @@ from app.schemas.inventory import (
     InventoryOperationCreate,
     InventoryOperationResponse,
 )
+from app.services.audit import log_change, model_snapshot
+from app.services.permissions import require_manager_section
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_manager_section('inventory'))])
 
 
 def item_to_response(item: InventoryItem) -> InventoryItemResponse:
@@ -178,6 +180,9 @@ async def create_operation(
 
     db.add(operation)
     db.add(item)
+    await db.flush()
+    await log_change(db, org_id=item.org_id, entity_type='inventory_operation', entity_id=operation.id,
+                     action='create', changed_by=current.id, after=model_snapshot(operation))
     await db.commit()
 
     result = await db.execute(
@@ -239,6 +244,9 @@ async def _stock_to_equipment(
     item.current_stock = new_stock
     db.add(operation)
     db.add(item)
+    await db.flush()
+    await log_change(db, org_id=org_id, entity_type='inventory_operation', entity_id=operation.id,
+                     action='create', changed_by=current.id, after=model_snapshot(operation))
     await db.commit()
 
     result = await db.execute(
@@ -319,7 +327,7 @@ async def create_inventory_item(
     request: Request,
     payload: InventoryItemCreate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> InventoryItemResponse:
     item = InventoryItem(
         org_id=get_org_id(request),
@@ -333,6 +341,9 @@ async def create_inventory_item(
     )
     db.add(item)
     try:
+        await db.flush()
+        await log_change(db, org_id=item.org_id, entity_type='inventory_item', entity_id=item.id,
+                         action='create', changed_by=current.id, after=model_snapshot(item))
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -350,15 +361,18 @@ async def update_inventory_item(
     item_id: UUID,
     payload: InventoryItemUpdate,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> InventoryItemResponse:
     item = await get_item_or_404(db, item_id, get_org_id(request))
+    before = model_snapshot(item)
 
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, field, value)
 
     db.add(item)
     try:
+        await log_change(db, org_id=item.org_id, entity_type='inventory_item', entity_id=item.id,
+                         action='update', changed_by=current.id, before=before, after=model_snapshot(item))
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -375,9 +389,12 @@ async def delete_inventory_item(
     request: Request,
     item_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    current: Employee = Depends(require_manager),
 ) -> None:
     item = await get_item_or_404(db, item_id, get_org_id(request))
+    before = model_snapshot(item)
     item.is_active = False
     db.add(item)
+    await log_change(db, org_id=item.org_id, entity_type='inventory_item', entity_id=item.id,
+                     action='delete', changed_by=current.id, before=before, after=model_snapshot(item))
     await db.commit()
