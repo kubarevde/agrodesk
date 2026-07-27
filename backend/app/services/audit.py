@@ -58,6 +58,17 @@ ACTION_LABELS: dict[str, str] = {
     'delete': 'Удаление',
 }
 
+# Humanize values used inside generic audit summaries.
+#
+# These are entity-field codes stored in DB (e.g. purchase_planner.category),
+# so we map them to the same Russian labels used across the UI.
+CATEGORY_VALUE_LABELS: dict[str, str] = {
+    'equipment': 'Техника',
+    'implement': 'Приспособление',
+    'inventory_item': 'ТМЦ',
+    'general': 'Общее',
+}
+
 
 def entity_type_label(entity_type: str) -> str:
     return ENTITY_TYPE_LABELS.get(entity_type, entity_type)
@@ -94,15 +105,27 @@ def sanitize_payload(data: dict[str, Any] | None) -> dict[str, Any] | None:
 
 
 def model_snapshot(obj: Any, *, extra_exclude: frozenset[str] | None = None) -> dict[str, Any]:
-    """Plain column values from an ORM instance (no relationships)."""
+    """Plain column values from an ORM instance (no relationships).
+
+    Async-safe: never triggers expired/lazy attribute IO.
+    Under AsyncSession, getattr() on expired columns raises MissingGreenlet and
+    used to break close_shift when audit ran after a related flush.
+    """
     exclude = SENSITIVE_KEYS | (extra_exclude or frozenset())
     mapper = sa_inspect(type(obj))
+    state = sa_inspect(obj)
+    # Loaded / pending values only — no network round-trip.
+    loaded = dict(state.dict) if state.dict is not None else {}
+
     data: dict[str, Any] = {}
     for column in mapper.columns:
         key = column.key
         if key.lower() in exclude:
             continue
-        data[key] = _jsonable(getattr(obj, key, None))
+        if key in loaded:
+            data[key] = _jsonable(loaded[key])
+        else:
+            data[key] = None
     return data
 
 
@@ -125,7 +148,10 @@ def build_summary(
         for key in ('full_name', 'name', 'employee_code', 'category', 'description', 'title'):
             value = source.get(key)
             if value:
-                name = str(value)
+                if key == 'category' and isinstance(value, str):
+                    name = CATEGORY_VALUE_LABELS.get(value, value)
+                else:
+                    name = str(value)
                 break
         if name:
             break

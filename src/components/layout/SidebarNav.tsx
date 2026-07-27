@@ -14,10 +14,31 @@ interface SidebarNavProps {
   onNavigate?: () => void
 }
 
+function NavSkeleton({ collapsed }: { collapsed: boolean }) {
+  return (
+    <div className="flex flex-1 flex-col gap-2 px-2 py-1" aria-busy="true" aria-label="Загрузка меню">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <div
+          key={index}
+          className={cn(
+            'h-9 animate-pulse rounded-md bg-muted/60',
+            collapsed ? 'mx-auto w-9' : 'w-full',
+          )}
+        />
+      ))}
+    </div>
+  )
+}
+
 export function SidebarNav({ collapsed, onNavigate }: SidebarNavProps) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const { data: user } = useCurrentUser()
-  const { data: perms } = useUserPermissions(Boolean(user))
+  const { data: perms, isPending } = useUserPermissions(Boolean(user))
+
+  if (user && isPending && !perms) {
+    return <NavSkeleton collapsed={collapsed} />
+  }
+
   const navGroups = getNavGroups(user?.role, perms?.allowedSections)
 
   return (

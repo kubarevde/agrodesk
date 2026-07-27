@@ -1,5 +1,6 @@
 import { api } from '@/lib/api'
 import { getAuditSectionLabel } from './lib/auditLabels'
+import { displayDateToIso } from '@/lib/transformers'
 import type { AuditLogEntry, AuditLogFilters, AuditLogList } from './types'
 
 type ApiRecord = Record<string, unknown>
@@ -28,14 +29,24 @@ function entryFromApi(raw: ApiRecord): AuditLogEntry {
 }
 
 export async function fetchAuditLog(filters: AuditLogFilters = {}): Promise<AuditLogList> {
+  const toApiDate = (value?: string): string | undefined => {
+    if (!value) return undefined
+    try {
+      return displayDateToIso(value)
+    } catch {
+      // Keep backend call valid even if UI provided an unexpected format.
+      return undefined
+    }
+  }
+
   const { data } = await api.get<ApiRecord>('/api/audit-log', {
     params: {
       entity_type: filters.entityType || undefined,
       entity_id: filters.entityId || undefined,
       employee_id: filters.employeeId || undefined,
       action: filters.action || undefined,
-      from_date: filters.fromDate || undefined,
-      to_date: filters.toDate || undefined,
+      from_date: toApiDate(filters.fromDate),
+      to_date: toApiDate(filters.toDate),
       page: filters.page ?? 1,
       page_size: filters.pageSize ?? 50,
     },

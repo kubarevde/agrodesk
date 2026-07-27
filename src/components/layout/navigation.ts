@@ -83,11 +83,16 @@ export const NAV_GROUPS: NavGroup[] = [
 /** Flat list for page titles and legacy lookups. */
 export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((group) => group.items)
 
+/**
+ * Build sidebar/mobile nav from the shared NAV_GROUPS + permission model.
+ * When employee permissions are still loading (undefined), show only the
+ * always-visible defaults — never invent extra items, never hide grants once loaded.
+ */
 export function getNavGroups(
   role?: CurrentUser['role'],
   allowedSections?: string[],
 ): NavGroup[] {
-  if (role === 'employee' && !allowedSections) {
+  if (role === 'employee' && allowedSections === undefined) {
     return [{ title: 'Операционные', items: [MY_SHIFT_ITEM, SHARING_ITEM] }]
   }
   return NAV_GROUPS.map((group) => ({

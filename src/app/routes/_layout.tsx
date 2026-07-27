@@ -16,6 +16,7 @@ export const Route = createFileRoute('/_layout')({
       await resolveCurrentUser(context.queryClient)
     } catch (error) {
       if (isRedirect(error)) throw error
+      // Offline without cached profile: login page (LoginPage shows offline hint)
       throw redirect({ to: '/login' })
     }
   },

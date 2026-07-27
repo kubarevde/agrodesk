@@ -154,7 +154,7 @@ export function useCloseShift() {
         queryClient.invalidateQueries({ queryKey: ['equipment'] }),
       ])
       const hours = result.shift.durationRounded ?? 0
-      toast.success(`Смена завершена — ${hours} ч`)
+      toast.success(`Смена закрыта — ${hours} ч`)
     },
     onError: (error) => {
       toast.error(apiErrorMessage(error, 'Не удалось закрыть смену'))

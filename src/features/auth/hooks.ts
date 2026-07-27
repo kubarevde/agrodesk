@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { api } from '@/lib/api'
 import { currentUserFromApi } from '@/lib/transformers'
 import {
+  AUTH_PERMISSIONS_QUERY_KEY,
   cacheCurrentUser,
   clearAuthStorage,
   fetchCurrentUser,
@@ -84,6 +85,8 @@ export function useLogin() {
       const user = currentUserFromApi(data.employee)
       cacheCurrentUser(user)
       queryClient.setQueryData(['auth', 'me'], user)
+      // Force fresh grants for the new session (never reuse previous user's cache).
+      queryClient.removeQueries({ queryKey: AUTH_PERMISSIONS_QUERY_KEY })
       void navigate({ to: getHomeRoute(user.role) })
     },
   })

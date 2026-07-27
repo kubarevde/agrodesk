@@ -34,20 +34,36 @@ def test_close_shift_salary(client: httpx.Client, manager_headers: dict[str, str
     loc = next(l for l in locs if l.get('is_active'))
     wt = next(w for w in wts if w.get('is_active'))
 
-    today = date.today().isoformat()
-    start = (datetime.now() - timedelta(hours=2)).strftime('%H:%M:%S')
+    start = '06:00:00'
     payload = {
         'employee_id': target['id'],
-        'date': today,
         'start_time': start,
-        'end_time': datetime.now().strftime('%H:%M:%S'),
+        'end_time': '07:00:00',
         'location_id': loc['id'],
         'work_type_id': wt['id'],
         'description': 'pytest salary',
     }
-    created = client.post('/api/shifts/manual', headers=manager_headers, json=payload)
-    assert created.status_code in (200, 201), created.text
-    shift = created.json()
+
+    # The demo dataset accumulates shifts between runs. To keep this test deterministic,
+    # find the first date (within a safe window) where the manual shift window doesn't overlap.
+    shift = None
+    last_conflict: httpx.Response | None = None
+    for days_ago in range(0, 370):
+        payload['date'] = (date.today() - timedelta(days=days_ago)).isoformat()
+        created = client.post('/api/shifts/manual', headers=manager_headers, json=payload)
+        if created.status_code in (200, 201):
+            shift = created.json()
+            break
+        if created.status_code == 409:
+            last_conflict = created
+            continue
+        # For non-409 errors, fail immediately (permissions/validation regression).
+        raise AssertionError(f'manual shift create failed: {created.status_code} {created.text[:250]}')
+
+    assert shift is not None, (
+        'No non-conflicting shift date found: '
+        f'{last_conflict.text[:250] if last_conflict else "unknown"}'
+    )
     assert shift.get('calculated_amount') is not None
     assert float(shift['calculated_amount']) >= 0
 
