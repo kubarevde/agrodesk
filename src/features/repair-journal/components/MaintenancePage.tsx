@@ -7,6 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { LabeledSelect } from '@/components/ui/labeled-select'
 import { selectOptions } from '@/lib/selectOptions'
+import { accessLoadErrorDescription } from '@/lib/apiError'
+import { useCurrentUser } from '@/features/auth/hooks'
+import { maintenanceHelp } from '@/features/help/modules'
 import { useRepairs } from '../hooks'
 import type { RepairJournalEntry } from '../types'
 import { RepairCreateDialog } from './RepairCreateDialog'
@@ -18,7 +21,6 @@ import {
   getPriorityBadgeClass,
   getStatusBadgeClass,
 } from '../lib/labels'
-import { maintenanceHelp } from '@/features/help/modules'
 
 const STATUS_FILTER = selectOptions([
   { value: 'all', label: 'Все статусы' },
@@ -28,10 +30,12 @@ const STATUS_FILTER = selectOptions([
 ])
 
 export function MaintenancePage() {
+  const { data: user } = useCurrentUser()
+  const canManage = user?.role === 'admin' || user?.role === 'manager'
   const [status, setStatus] = useState('all')
   const [createOpen, setCreateOpen] = useState(false)
   const [selected, setSelected] = useState<RepairJournalEntry | null>(null)
-  const { data = [], isLoading, isError } = useRepairs({
+  const { data = [], isLoading, isError, error } = useRepairs({
     status: status === 'all' ? undefined : status,
   })
   const { data: inProgress = [] } = useRepairs({ status: 'in_progress' })
@@ -46,13 +50,8 @@ export function MaintenancePage() {
 
   if (isLoading) return <PageSkeleton />
   if (isError) {
-    return (
-      <EmptyState
-        icon={Wrench}
-        title="Не удалось загрузить журнал ремонта"
-        description="Проверьте сеть и права менеджера."
-      />
-    )
+    const loadError = accessLoadErrorDescription(error, 'Не удалось загрузить журнал ремонта')
+    return <EmptyState icon={Wrench} title={loadError.title} description={loadError.description} />
   }
 
   return (
@@ -64,9 +63,11 @@ export function MaintenancePage() {
             Журнал постановки техники и приспособлений на ремонт с чек-листом работ и закупок.
           </p>
         </div>
-        <Button type="button" onClick={() => setCreateOpen(true)}>
-          Поставить на ремонт
-        </Button>
+        {canManage ? (
+          <Button type="button" onClick={() => setCreateOpen(true)}>
+            Поставить на ремонт
+          </Button>
+        ) : null}
       </div>
 
       <div className="grid gap-2 sm:grid-cols-4">
@@ -105,7 +106,9 @@ export function MaintenancePage() {
 
       <RepairList items={data} onOpen={setSelected} />
 
-      <RepairCreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+      {canManage ? (
+        <RepairCreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+      ) : null}
       <RepairDetailDialog
         entry={selected}
         open={Boolean(selected)}

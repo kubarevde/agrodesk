@@ -44,9 +44,17 @@ export function useUpdatePurchaseItem() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: PurchaseUpdatePayload }) =>
       updatePurchaseItem(id, payload),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ['purchase-planner'] })
-      await qc.invalidateQueries({ queryKey: ['dashboard'] })
+    onSuccess: async (_data, variables) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['purchase-planner'] }),
+        qc.invalidateQueries({ queryKey: ['dashboard'] }),
+        variables.payload.createExpense
+          ? qc.invalidateQueries({ queryKey: ['expenses'] })
+          : Promise.resolve(),
+        variables.payload.status === 'planned'
+          ? qc.invalidateQueries({ queryKey: ['expenses'] })
+          : Promise.resolve(),
+      ])
       toast.success('Обновлено')
     },
     onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось обновить')),

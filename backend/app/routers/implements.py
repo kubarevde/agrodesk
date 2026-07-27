@@ -32,9 +32,9 @@ from app.services.maintenance_expense import (
     create_maintenance_expense,
     should_create_maintenance_expense,
 )
-from app.services.permissions import require_manager_section
-
-router = APIRouter(dependencies=[Depends(require_manager_section('implements'))])
+# Read (list/get) is available to any authenticated employee — needed for open-shift
+# implement selection. Mutations stay manager-only below.
+router = APIRouter()
 
 
 def implement_to_response(item: Implement) -> ImplementResponse:

@@ -7,9 +7,10 @@ import {
   cacheCurrentUser,
   clearAuthStorage,
   fetchCurrentUser,
-  getHomeRoute,
+  fetchUserPermissions,
   isRecoverableAuthFailure,
   readCachedCurrentUser,
+  resolveHomeRoute,
   TOKEN_KEY,
 } from '@/features/auth/utils'
 import type { SelectedOrg } from '@/features/auth/selectedOrg'
@@ -25,7 +26,7 @@ interface LoginResponse {
   employee: Record<string, unknown>
 }
 
-export { TOKEN_KEY, fetchCurrentUser, getHomeRoute }
+export { TOKEN_KEY, fetchCurrentUser, resolveHomeRoute as getHomeRoute }
 
 export function useCurrentUser() {
   return useQuery({
@@ -80,14 +81,17 @@ export function useLogin() {
       })
       return data
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       localStorage.setItem(TOKEN_KEY, data.access_token)
       const user = currentUserFromApi(data.employee)
       cacheCurrentUser(user)
       queryClient.setQueryData(['auth', 'me'], user)
-      // Force fresh grants for the new session (never reuse previous user's cache).
       queryClient.removeQueries({ queryKey: AUTH_PERMISSIONS_QUERY_KEY })
-      void navigate({ to: getHomeRoute(user.role) })
+      const perms = await queryClient.fetchQuery({
+        queryKey: AUTH_PERMISSIONS_QUERY_KEY,
+        queryFn: fetchUserPermissions,
+      })
+      void navigate({ to: resolveHomeRoute(user.role, perms.allowedSections) })
     },
   })
 }

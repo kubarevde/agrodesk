@@ -40,6 +40,7 @@ export interface ShiftCreateInput {
   equipmentId?: string
   fieldId?: string
   implementId?: string
+  agroPlanId?: string
   latitude?: number | null
   longitude?: number | null
   employeeId?: string
@@ -56,6 +57,7 @@ export interface ShiftManualAddInput {
   equipmentId?: string
   fieldId?: string
   implementId?: string
+  agroPlanId?: string
   description?: string
   comment?: string
 }
@@ -129,6 +131,7 @@ export function shiftFromApi(raw: ApiRecord): Shift {
     fieldName: raw.field_name != null ? humanLabel(String(raw.field_name), '') || null : null,
     implementId: raw.implement_id != null ? String(raw.implement_id) : null,
     implementName: raw.implement_name != null ? humanLabel(String(raw.implement_name), '') || null : null,
+    agroPlanId: raw.agro_plan_id != null ? String(raw.agro_plan_id) : null,
     description: String(raw.description ?? ''),
     comment: String(raw.comment ?? ''),
     status: raw.status as Shift['status'],
@@ -147,6 +150,7 @@ export function shiftCreateToApi(payload: ShiftCreateInput): ApiRecord {
     equipment_id: payload.equipmentId || undefined,
     field_id: payload.fieldId || undefined,
     implement_id: payload.implementId || undefined,
+    agro_plan_id: payload.agroPlanId || undefined,
     latitude: payload.latitude ?? undefined,
     longitude: payload.longitude ?? undefined,
     employee_id: payload.employeeId,
@@ -165,6 +169,7 @@ export function shiftManualAddToApi(payload: ShiftManualAddInput): ApiRecord {
     equipment_id: payload.equipmentId || undefined,
     field_id: payload.fieldId || undefined,
     implement_id: payload.implementId || undefined,
+    agro_plan_id: payload.agroPlanId || undefined,
     description: payload.description,
     comment: payload.comment,
   }
@@ -281,6 +286,7 @@ export function workTypeFromApi(raw: ApiRecord): WorkType {
     id: String(raw.id),
     name: humanLabel(String(raw.name), 'Без названия'),
     category: raw.category ? String(raw.category) : undefined,
+    isFieldWork: Boolean(raw.is_field_work),
     isActive: raw.is_active !== false,
   }
 }
@@ -321,6 +327,8 @@ export function inventoryOperationFromApi(raw: ApiRecord): InventoryOperation {
     reason: raw.reason ? String(raw.reason) : undefined,
     supplier: raw.supplier ? String(raw.supplier) : undefined,
     cost: raw.cost != null ? toNumber(raw.cost) : undefined,
+    createdByName:
+      raw.created_by_name != null ? String(raw.created_by_name) : undefined,
   }
 }
 

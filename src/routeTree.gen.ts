@@ -25,6 +25,7 @@ import { Route as LayoutReportsIndexRouteImport } from './app/routes/_layout/rep
 import { Route as LayoutPurchasePlannerIndexRouteImport } from './app/routes/_layout/purchase-planner/index'
 import { Route as LayoutProfileIndexRouteImport } from './app/routes/_layout/profile/index'
 import { Route as LayoutNotificationsIndexRouteImport } from './app/routes/_layout/notifications/index'
+import { Route as LayoutNoAccessIndexRouteImport } from './app/routes/_layout/no-access/index'
 import { Route as LayoutMyShiftIndexRouteImport } from './app/routes/_layout/my-shift/index'
 import { Route as LayoutMaintenanceIndexRouteImport } from './app/routes/_layout/maintenance/index'
 import { Route as LayoutInventoryIndexRouteImport } from './app/routes/_layout/inventory/index'
@@ -120,6 +121,11 @@ const LayoutNotificationsIndexRoute =
     path: '/notifications/',
     getParentRoute: () => LayoutRoute,
   } as any)
+const LayoutNoAccessIndexRoute = LayoutNoAccessIndexRouteImport.update({
+  id: '/no-access/',
+  path: '/no-access/',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutMyShiftIndexRoute = LayoutMyShiftIndexRouteImport.update({
   id: '/my-shift/',
   path: '/my-shift/',
@@ -215,6 +221,7 @@ export interface FileRoutesByFullPath {
   '/inventory/': typeof LayoutInventoryIndexRoute
   '/maintenance/': typeof LayoutMaintenanceIndexRoute
   '/my-shift/': typeof LayoutMyShiftIndexRoute
+  '/no-access/': typeof LayoutNoAccessIndexRoute
   '/notifications/': typeof LayoutNotificationsIndexRoute
   '/profile/': typeof LayoutProfileIndexRoute
   '/purchase-planner/': typeof LayoutPurchasePlannerIndexRoute
@@ -245,6 +252,7 @@ export interface FileRoutesByTo {
   '/inventory': typeof LayoutInventoryIndexRoute
   '/maintenance': typeof LayoutMaintenanceIndexRoute
   '/my-shift': typeof LayoutMyShiftIndexRoute
+  '/no-access': typeof LayoutNoAccessIndexRoute
   '/notifications': typeof LayoutNotificationsIndexRoute
   '/profile': typeof LayoutProfileIndexRoute
   '/purchase-planner': typeof LayoutPurchasePlannerIndexRoute
@@ -278,6 +286,7 @@ export interface FileRoutesById {
   '/_layout/inventory/': typeof LayoutInventoryIndexRoute
   '/_layout/maintenance/': typeof LayoutMaintenanceIndexRoute
   '/_layout/my-shift/': typeof LayoutMyShiftIndexRoute
+  '/_layout/no-access/': typeof LayoutNoAccessIndexRoute
   '/_layout/notifications/': typeof LayoutNotificationsIndexRoute
   '/_layout/profile/': typeof LayoutProfileIndexRoute
   '/_layout/purchase-planner/': typeof LayoutPurchasePlannerIndexRoute
@@ -310,6 +319,7 @@ export interface FileRouteTypes {
     | '/inventory/'
     | '/maintenance/'
     | '/my-shift/'
+    | '/no-access/'
     | '/notifications/'
     | '/profile/'
     | '/purchase-planner/'
@@ -340,6 +350,7 @@ export interface FileRouteTypes {
     | '/inventory'
     | '/maintenance'
     | '/my-shift'
+    | '/no-access'
     | '/notifications'
     | '/profile'
     | '/purchase-planner'
@@ -372,6 +383,7 @@ export interface FileRouteTypes {
     | '/_layout/inventory/'
     | '/_layout/maintenance/'
     | '/_layout/my-shift/'
+    | '/_layout/no-access/'
     | '/_layout/notifications/'
     | '/_layout/profile/'
     | '/_layout/purchase-planner/'
@@ -503,6 +515,13 @@ declare module '@tanstack/react-router' {
       path: '/notifications'
       fullPath: '/notifications/'
       preLoaderRoute: typeof LayoutNotificationsIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/no-access/': {
+      id: '/_layout/no-access/'
+      path: '/no-access'
+      fullPath: '/no-access/'
+      preLoaderRoute: typeof LayoutNoAccessIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/my-shift/': {
@@ -649,6 +668,7 @@ interface LayoutRouteChildren {
   LayoutInventoryIndexRoute: typeof LayoutInventoryIndexRoute
   LayoutMaintenanceIndexRoute: typeof LayoutMaintenanceIndexRoute
   LayoutMyShiftIndexRoute: typeof LayoutMyShiftIndexRoute
+  LayoutNoAccessIndexRoute: typeof LayoutNoAccessIndexRoute
   LayoutNotificationsIndexRoute: typeof LayoutNotificationsIndexRoute
   LayoutProfileIndexRoute: typeof LayoutProfileIndexRoute
   LayoutPurchasePlannerIndexRoute: typeof LayoutPurchasePlannerIndexRoute
@@ -674,6 +694,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutInventoryIndexRoute: LayoutInventoryIndexRoute,
   LayoutMaintenanceIndexRoute: LayoutMaintenanceIndexRoute,
   LayoutMyShiftIndexRoute: LayoutMyShiftIndexRoute,
+  LayoutNoAccessIndexRoute: LayoutNoAccessIndexRoute,
   LayoutNotificationsIndexRoute: LayoutNotificationsIndexRoute,
   LayoutProfileIndexRoute: LayoutProfileIndexRoute,
   LayoutPurchasePlannerIndexRoute: LayoutPurchasePlannerIndexRoute,

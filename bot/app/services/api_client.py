@@ -272,6 +272,12 @@ class ApiClient:
     async def get_equipment(self, tg_id: int) -> list[dict]:
         return await self._get_list(tg_id, '/api/equipment', params={'is_active': True})
 
+    async def get_fields(self, tg_id: int) -> list[dict]:
+        return await self._get_list(tg_id, '/api/fields')
+
+    async def get_agro_plans_today(self, tg_id: int) -> list[dict]:
+        return await self._get_list(tg_id, '/api/agro-plan/today')
+
     async def open_shift(
         self,
         tg_id: int,
@@ -280,6 +286,8 @@ class ApiClient:
         equipment_id: str | None,
         lat: float | None,
         lng: float | None,
+        field_id: str | None = None,
+        agro_plan_id: str | None = None,
     ) -> dict | None:
         body: dict[str, Any] = {
             'location_id': location_id,
@@ -288,6 +296,10 @@ class ApiClient:
             'latitude': lat,
             'longitude': lng,
         }
+        if field_id:
+            body['field_id'] = field_id
+        if agro_plan_id:
+            body['agro_plan_id'] = agro_plan_id
         response = await self._request(tg_id, 'POST', '/api/shifts', json=body)
         if response is None or response.status_code not in (200, 201):
             if response is not None:
@@ -338,6 +350,7 @@ class ApiClient:
         start_time: str,
         end_time: str,
         description: str,
+        field_id: str | None = None,
     ) -> dict | None:
         shift_date, start_t = self._split_datetime(start_time)
         _, end_t = self._split_datetime(end_time)
@@ -355,6 +368,8 @@ class ApiClient:
             'equipment_id': equipment_id,
             'description': description or None,
         }
+        if field_id:
+            body['field_id'] = field_id
         response = await self._request(admin_tg_id, 'POST', '/api/shifts/manual', json=body)
         if response is None or response.status_code not in (200, 201):
             if response is not None:

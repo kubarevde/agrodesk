@@ -38,14 +38,27 @@ export function workTypeBadgeClass(name: string): string {
 export function statusBadgeClass(status: string): string {
   switch (status) {
     case 'done':
-      return 'bg-success text-primary-foreground'
+      return 'border-success/30 bg-success/10 text-success'
     case 'in_progress':
-      return 'bg-primary text-primary-foreground'
+      return 'border-primary/30 bg-primary/10 text-primary'
     case 'cancelled':
-      return 'bg-muted text-muted-foreground'
+      return 'border-border bg-muted text-muted-foreground'
     default:
-      return 'bg-amber-500 text-primary-foreground'
+      return 'border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-400'
   }
+}
+
+export function entryKindBadgeClass(kind: string): string {
+  if (kind === 'fact') return 'border-success/40 bg-success/10 text-success'
+  return 'border-amber-500/40 bg-amber-500/10 text-amber-800'
+}
+
+export function isCalendarFact(plan: AgroPlan): boolean {
+  return plan.entryKind === 'fact'
+}
+
+export function isOpenPlan(plan: AgroPlan): boolean {
+  return !isCalendarFact(plan) && (plan.status === 'planned' || plan.status === 'in_progress')
 }
 
 export function isoFromDisplayDate(display: string): string {

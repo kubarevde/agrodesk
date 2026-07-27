@@ -16,6 +16,7 @@ export interface Shift {
   fieldName?: string | null
   implementId?: string | null
   implementName?: string | null
+  agroPlanId?: string | null
   description: string
   comment: string
   status: 'open' | 'closed'
@@ -50,6 +51,7 @@ export interface WorkType {
   id: string
   name: string
   category?: string
+  isFieldWork: boolean
   isActive: boolean
 }
 
@@ -204,6 +206,7 @@ export interface AgroPlan {
   employee_id: string | null
   notes: string | null
   status: AgroPlanStatus
+  entry_kind?: 'plan' | 'fact'
   field_name: string
   field_names?: string[]
   work_type_name: string
@@ -211,6 +214,10 @@ export interface AgroPlan {
   implement_name: string | null
   employee_name: string | null
   actual_shift_id: string | null
+  closed_by?: string | null
+  closed_by_name?: string | null
+  closed_at?: string | null
+  close_note?: string | null
 }
 
 export interface InventoryItem {
@@ -235,6 +242,7 @@ export interface InventoryOperation {
   reason?: string
   supplier?: string
   cost?: number
+  createdByName?: string
 }
 
 export interface Shipment {

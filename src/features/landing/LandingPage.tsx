@@ -1,15 +1,16 @@
-import { useEffect, type CSSProperties } from 'react'
-import { FeaturesGrid } from '@/features/landing/FeaturesGrid'
-import { ForWhom } from '@/features/landing/ForWhom'
-import { HowItWorks } from '@/features/landing/HowItWorks'
+import { useEffect } from 'react'
+import { FieldDaySection } from '@/features/landing/FieldDaySection'
 import { LandingCta } from '@/features/landing/LandingCta'
 import { LandingFooter } from '@/features/landing/LandingFooter'
 import { LandingHeader } from '@/features/landing/LandingHeader'
 import { LandingHero } from '@/features/landing/LandingHero'
-import { ScreenshotsStrip } from '@/features/landing/ScreenshotsStrip'
+import { ModulesSection } from '@/features/landing/ModulesSection'
+import { RolesFlow } from '@/features/landing/RolesFlow'
+import { TelegramSection } from '@/features/landing/TelegramSection'
+import '@/features/landing/landing.css'
 
 const META_DESCRIPTION =
-  'Учёт рабочего времени, склад и зарплата для агропредприятий. Telegram-бот, дашборд в реальном времени, расчёт зарплаты.'
+  'АгроДеск — учёт смен, склад ТМЦ, закупки, агрокалендарь и отчёты для КФХ. Роли admin, manager, employee и Telegram-бот.'
 
 function upsertMeta(attr: 'name' | 'property', key: string, content: string) {
   const selector = `meta[${attr}="${key}"]`
@@ -22,17 +23,11 @@ function upsertMeta(attr: 'name' | 'property', key: string, content: string) {
   el.setAttribute('content', content)
 }
 
-const landingVars = {
-  '--landing-primary': '#16a34a',
-  '--landing-section-alt': '#f0fdf4',
-  '--landing-text': '#111827',
-  '--landing-muted': '#6b7280',
-} as CSSProperties
-
+/** Public marketing page — no auth API calls. */
 export function LandingPage() {
   useEffect(() => {
     const previousTitle = document.title
-    document.title = 'АгроДеск — Управление аграрным хозяйством'
+    document.title = 'АгроДеск — учёт хозяйства для КФХ'
     upsertMeta('name', 'description', META_DESCRIPTION)
     upsertMeta('property', 'og:title', 'АгроДеск')
     upsertMeta('property', 'og:description', META_DESCRIPTION)
@@ -42,14 +37,14 @@ export function LandingPage() {
   }, [])
 
   return (
-    <div className="landing-page min-h-screen bg-white text-[var(--landing-text)]" style={landingVars}>
+    <div className="landing-root min-h-screen overflow-x-hidden bg-background text-foreground">
       <LandingHeader />
       <main>
         <LandingHero />
-        <HowItWorks />
-        <FeaturesGrid />
-        <ForWhom />
-        <ScreenshotsStrip />
+        <FieldDaySection />
+        <RolesFlow />
+        <ModulesSection />
+        <TelegramSection />
         <LandingCta />
       </main>
       <LandingFooter />

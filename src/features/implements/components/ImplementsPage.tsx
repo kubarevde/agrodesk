@@ -115,7 +115,7 @@ export function ImplementsPage() {
           description="Добавьте первое приспособление для учёта навески."
         />
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
           {items.map((item) => (
             <ImplementCard
               key={item.id}

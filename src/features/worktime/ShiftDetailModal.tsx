@@ -30,6 +30,7 @@ interface ShiftDetailModalProps {
   shift: Shift
   open: boolean
   onClose: () => void
+  onDelete?: (shift: Shift) => void
 }
 
 interface DetailItemProps {
@@ -62,7 +63,7 @@ function getDurationLabel(shift: Shift): string {
   return '—'
 }
 
-export function ShiftDetailModal({ shift, open, onClose }: ShiftDetailModalProps) {
+export function ShiftDetailModal({ shift, open, onClose, onDelete }: ShiftDetailModalProps) {
   const { data: user } = useCurrentUser()
   const isManager = user?.role === 'admin' || user?.role === 'manager'
   const canClose =
@@ -185,7 +186,17 @@ export function ShiftDetailModal({ shift, open, onClose }: ShiftDetailModalProps
             </section>
           ) : null}
 
-          <DialogFooter>
+          <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            {onDelete ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="text-destructive"
+                onClick={() => onDelete(shift)}
+              >
+                Удалить смену
+              </Button>
+            ) : null}
             {canClose ? (
               <Button
                 type="button"

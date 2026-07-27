@@ -1,7 +1,7 @@
 import uuid
 
 from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Numeric, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -50,6 +50,7 @@ class PurchasePlannerItem(Base):
         nullable=True,
     )
     notes = Column(Text, nullable=True)
+    images = Column(JSONB, nullable=False, server_default='[]')
     created_by = Column(UUID(as_uuid=True), ForeignKey('employees.id'), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     purchased_at = Column(DateTime(timezone=True), nullable=True)

@@ -1,10 +1,9 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { LandingPage } from '@/features/landing/LandingPage'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
-/**
- * Landing entry kept at /landing for structure.
- * Same public page also available at `/` via routes/index.tsx.
- */
+/** Legacy path — keep one public landing at `/`. */
 export const Route = createFileRoute('/landing/')({
-  component: LandingPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/' })
+  },
+  component: () => null,
 })

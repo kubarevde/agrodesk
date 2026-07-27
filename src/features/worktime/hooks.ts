@@ -152,6 +152,8 @@ export function useCloseShift() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['shifts'] }),
         queryClient.invalidateQueries({ queryKey: ['equipment'] }),
+        queryClient.invalidateQueries({ queryKey: ['agro-plan'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       ])
       const hours = result.shift.durationRounded ?? 0
       toast.success(`Смена закрыта — ${hours} ч`)
@@ -174,7 +176,11 @@ export function useManualAddShift() {
       return shiftFromApi(data)
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['shifts'] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['shifts'] }),
+        queryClient.invalidateQueries({ queryKey: ['agro-plan'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+      ])
     },
   })
 }
@@ -201,10 +207,21 @@ export function useDeleteShift() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!navigator.onLine) {
+        throw new Error('Удаление смены доступно только онлайн')
+      }
       await api.delete(`/api/shifts/${id}`)
+      await db.shifts.delete(id)
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['shifts'] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['shifts'] }),
+        queryClient.invalidateQueries({ queryKey: ['agro-plan'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+        queryClient.invalidateQueries({ queryKey: ['equipment'] }),
+      ])
+      toast.success('Смена удалена')
     },
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось удалить смену')),
   })
 }

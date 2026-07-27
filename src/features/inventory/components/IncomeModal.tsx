@@ -175,6 +175,7 @@ export function IncomeModal({ open, items, onClose }: IncomeModalProps) {
                         mode="single"
                         locale={ru}
                         selected={selected}
+                        disabled={(date) => date > new Date()}
                         onSelect={(value) => value && field.onChange(formatApiDate(value))}
                         defaultMonth={selected}
                       />

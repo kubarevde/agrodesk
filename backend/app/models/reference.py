@@ -55,6 +55,7 @@ class WorkType(Base):
     org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id'), nullable=False)
     name = Column(String(200), unique=True, nullable=False)
     category = Column(String(100), nullable=True)
+    is_field_work = Column(Boolean, default=False, nullable=False, server_default='false')
     is_active = Column(Boolean, default=True, nullable=False)
 
     shifts = relationship('Shift', back_populates='work_type')

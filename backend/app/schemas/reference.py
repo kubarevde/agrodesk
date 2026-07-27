@@ -29,17 +29,20 @@ class WorkTypeResponse(BaseModel):
     id: UUID
     name: str
     category: str | None = None
+    is_field_work: bool = False
     is_active: bool
 
 
 class WorkTypeCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     category: str | None = Field(default=None, max_length=100)
+    is_field_work: bool = False
 
 
 class WorkTypeUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     category: str | None = Field(default=None, max_length=100)
+    is_field_work: bool | None = None
     is_active: bool | None = None
 
 

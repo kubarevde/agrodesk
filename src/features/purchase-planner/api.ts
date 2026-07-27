@@ -38,6 +38,9 @@ function itemFromApi(raw: ApiRecord): PurchasePlannerItem {
     maintenanceAssetLabel:
       raw.maintenance_asset_label != null ? String(raw.maintenance_asset_label) : null,
     notes: raw.notes != null ? String(raw.notes) : null,
+    images: Array.isArray(raw.images)
+      ? raw.images.map((url) => String(url))
+      : [],
     createdBy: raw.created_by != null ? String(raw.created_by) : null,
     createdAt: raw.created_at != null ? String(raw.created_at) : null,
     purchasedAt: raw.purchased_at != null ? String(raw.purchased_at) : null,
@@ -80,6 +83,7 @@ export async function createPurchaseItem(
     responsible_id: payload.responsibleId || null,
     estimated_cost: payload.estimatedCost ?? null,
     notes: payload.notes || null,
+    images: payload.images ?? [],
   })
   return itemFromApi(data)
 }
@@ -101,6 +105,7 @@ export async function updatePurchaseItem(
   if (payload.estimatedCost !== undefined) body.estimated_cost = payload.estimatedCost
   if (payload.actualCost !== undefined) body.actual_cost = payload.actualCost
   if (payload.notes !== undefined) body.notes = payload.notes
+  if (payload.images !== undefined) body.images = payload.images
   if (payload.createExpense !== undefined) body.create_expense = payload.createExpense
   if (payload.expenseCategory !== undefined) body.expense_category = payload.expenseCategory
   const { data } = await api.patch<ApiRecord>(`/api/purchase-planner/${id}`, body)

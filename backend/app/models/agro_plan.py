@@ -20,9 +20,17 @@ class AgroPlan(Base):
     employee_id = Column(UUID(as_uuid=True), ForeignKey('employees.id'), nullable=True)
     notes = Column(Text, nullable=True)
     status = Column(String(20), default='planned')  # planned / in_progress / done / cancelled
-    actual_shift_id = Column(UUID(as_uuid=True), ForeignKey('shifts.id'), nullable=True)
+    entry_kind = Column(String(20), nullable=False, default='plan', server_default='plan')
+    actual_shift_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('shifts.id', ondelete='SET NULL'),
+        nullable=True,
+    )
     created_by = Column(UUID(as_uuid=True), ForeignKey('employees.id'), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    closed_by = Column(UUID(as_uuid=True), ForeignKey('employees.id'), nullable=True)
+    closed_at = Column(DateTime(timezone=True), nullable=True)
+    close_note = Column(Text, nullable=True)
 
     location = relationship('Location', back_populates='agro_plans')
     work_type = relationship('WorkType', back_populates='agro_plans')
@@ -33,11 +41,19 @@ class AgroPlan(Base):
         back_populates='agro_plan_assignments',
         foreign_keys=[employee_id],
     )
-    actual_shift = relationship('Shift', back_populates='agro_plans')
+    actual_shift = relationship(
+        'Shift',
+        back_populates='agro_plans',
+        foreign_keys=[actual_shift_id],
+    )
     created_by_user = relationship(
         'Employee',
         back_populates='created_agro_plans',
         foreign_keys=[created_by],
+    )
+    closed_by_user = relationship(
+        'Employee',
+        foreign_keys=[closed_by],
     )
     fields = relationship(
         'AgroPlanField',

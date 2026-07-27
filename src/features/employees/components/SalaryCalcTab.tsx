@@ -104,7 +104,7 @@ export function SalaryCalcTab() {
             ) : null}
           </div>
 
-          <div className="overflow-x-auto rounded-lg border border-border">
+          <div className="hidden md:block overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -136,6 +136,34 @@ export function SalaryCalcTab() {
               </TableBody>
             </Table>
           </div>
+
+          <ul className="space-y-3 md:hidden">
+            {data.summary.map((row) => (
+              <li
+                key={row.employeeId}
+                className="rounded-lg border border-border bg-surface p-4"
+              >
+                <p className="font-medium text-foreground">{row.employeeName}</p>
+                <p className="font-mono text-xs text-muted-foreground">{row.employeeCode}</p>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <span className="text-muted-foreground">Смен</span>
+                  <span className="text-right text-foreground">{row.shiftsCount}</span>
+                  <span className="text-muted-foreground">Часов</span>
+                  <span className="text-right text-foreground">{row.hours}</span>
+                  <span className="text-muted-foreground">К выплате</span>
+                  <span className="text-right font-medium text-foreground">
+                    {formatMoney(row.amount)}
+                  </span>
+                </div>
+              </li>
+            ))}
+            <li className="rounded-lg border border-border bg-muted/40 p-4 font-semibold">
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span>Итого</span>
+                <span>{formatMoney(data.totalAmount)}</span>
+              </div>
+            </li>
+          </ul>
         </div>
       ) : null}
     </div>

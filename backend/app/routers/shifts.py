@@ -10,7 +10,6 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_admin, require_manager
 from app.middleware.org_context import get_org_id
-from app.models.agro_plan import AgroPlan
 from app.models.employee import Employee, EmployeeRole
 from app.models.implement import Implement
 from app.models.reference import Equipment, Location, WorkType
@@ -22,6 +21,7 @@ from app.schemas.shift import (
     ShiftResponse,
     ShiftUpdate,
 )
+from app.services.agro_calendar_facts import apply_shift_to_agro_calendar, get_selectable_plan
 from app.services.dashboard import clear_dashboard_cache
 from app.services.audit import log_change, model_snapshot
 from app.services.equipment_meters import add_equipment_meter_log, calc_meter_label
@@ -37,6 +37,7 @@ from app.services.shifts import (
     ranges_overlap,
     resolve_shift_end_datetime,
     shift_time_range,
+    unlink_shift_dependencies,
 )
 
 router = APIRouter()
@@ -64,6 +65,7 @@ def shift_to_response(shift: Shift) -> ShiftResponse:
         field_name=shift.field.name if shift.field else None,
         implement_id=shift.implement_id,
         implement_name=shift.implement.name if shift.implement else None,
+        agro_plan_id=shift.agro_plan_id,
         description=shift.description,
         comment=shift.comment,
         status=shift.status.value,
@@ -327,6 +329,45 @@ async def open_shift(
         field_id=payload.field_id,
         implement_id=payload.implement_id,
     )
+    work_type = await db.get(WorkType, payload.work_type_id)
+    is_field = bool(work_type is not None and work_type.is_field_work)
+    if is_field and payload.field_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Для полевой работы укажите поле',
+        )
+
+    agro_plan_id = payload.agro_plan_id
+    if agro_plan_id is not None:
+        if not is_field:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='План агрокалендаря можно выбрать только для полевой работы',
+            )
+        plan = await get_selectable_plan(
+            db,
+            org_id=org_id,
+            plan_id=agro_plan_id,
+            employee_id=target_employee_id,
+        )
+        if plan is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Выбранный план недоступен',
+            )
+        if plan.work_type_id != payload.work_type_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Тип работ смены не совпадает с выбранным планом',
+            )
+        if payload.field_id is not None:
+            plan_field_ids = {plan.location_id, *(row.location_id for row in plan.fields)}
+            if payload.field_id not in plan_field_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail='Поле смены не совпадает с выбранным планом',
+                )
+
     now = await now_in_org(db, org_id)
     await ensure_no_open_shift(db, target_employee_id, org_id)
     open_start = now.replace(microsecond=0)
@@ -350,6 +391,7 @@ async def open_shift(
         equipment_id=payload.equipment_id,
         field_id=payload.field_id,
         implement_id=payload.implement_id,
+        agro_plan_id=agro_plan_id,
         status=ShiftStatus.open,
         latitude=payload.latitude,
         longitude=payload.longitude,
@@ -384,6 +426,44 @@ async def add_manual_shift(
         field_id=payload.field_id,
         implement_id=payload.implement_id,
     )
+    work_type = await db.get(WorkType, payload.work_type_id)
+    is_field = bool(work_type is not None and work_type.is_field_work)
+    if is_field and payload.field_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Для полевой работы укажите поле',
+        )
+
+    agro_plan_id = payload.agro_plan_id
+    if agro_plan_id is not None:
+        if not is_field:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='План агрокалендаря можно выбрать только для полевой работы',
+            )
+        plan = await get_selectable_plan(
+            db,
+            org_id=org_id,
+            plan_id=agro_plan_id,
+            employee_id=payload.employee_id,
+        )
+        if plan is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Выбранный план недоступен',
+            )
+        if plan.work_type_id != payload.work_type_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Тип работ смены не совпадает с выбранным планом',
+            )
+        if payload.field_id is not None:
+            plan_field_ids = {plan.location_id, *(row.location_id for row in plan.fields)}
+            if payload.field_id not in plan_field_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail='Поле смены не совпадает с выбранным планом',
+                )
 
     duration_raw = calc_manual_duration_minutes(
         payload.date,
@@ -427,6 +507,7 @@ async def add_manual_shift(
         equipment_id=payload.equipment_id,
         field_id=payload.field_id,
         implement_id=payload.implement_id,
+        agro_plan_id=agro_plan_id,
         description=payload.description,
         comment=payload.comment,
         status=ShiftStatus.closed,
@@ -436,6 +517,8 @@ async def add_manual_shift(
     db.add(shift)
     await db.flush()
     await apply_salary_to_shift(db, shift)
+    if shift.field_id is not None:
+        await apply_shift_to_agro_calendar(db, org_id=org_id, shift=shift)
     await log_change(db, org_id=org_id, entity_type='shift', entity_id=shift.id,
                      action='create', changed_by=current.id, after=model_snapshot(shift))
     await db.commit()
@@ -528,17 +611,7 @@ async def close_shift(
                     )
 
         if shift.field_id is not None:
-            result = await db.execute(
-                select(AgroPlan).where(
-                    AgroPlan.location_id == shift.field_id,
-                    AgroPlan.planned_date == shift.date,
-                    AgroPlan.status == 'planned',
-                )
-            )
-            for plan in result.scalars().all():
-                plan.status = 'done'
-                plan.actual_shift_id = shift.id
-                db.add(plan)
+            await apply_shift_to_agro_calendar(db, org_id=org_id, shift=shift)
 
         await log_change(
             db,
@@ -632,10 +705,20 @@ async def delete_shift(
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(require_admin),
 ) -> None:
-    shift = await get_shift_or_404(db, shift_id, get_org_id(request))
+    """Hard-delete a shift (admin only). Unlinks agro facts/plans and meter logs first."""
+    org_id = get_org_id(request)
+    shift = await get_shift_or_404(db, shift_id, org_id)
     before = model_snapshot(shift)
-    await log_change(db, org_id=shift.org_id, entity_type='shift', entity_id=shift.id,
-                     action='delete', changed_by=current.id, before=before)
+    await unlink_shift_dependencies(db, shift.id)
+    await log_change(
+        db,
+        org_id=shift.org_id,
+        entity_type='shift',
+        entity_id=shift.id,
+        action='delete',
+        changed_by=current.id,
+        before=before,
+    )
     await db.delete(shift)
     await db.commit()
     clear_dashboard_cache()

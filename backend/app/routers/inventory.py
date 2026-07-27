@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
@@ -26,9 +26,16 @@ from app.schemas.inventory import (
     InventoryOperationResponse,
 )
 from app.services.audit import log_change, model_snapshot
+from app.services.inventory import create_inventory_operation, create_opening_balance_operation
 from app.services.permissions import require_manager_section
 
 router = APIRouter(dependencies=[Depends(require_manager_section('inventory'))])
+
+_OPERATION_LOAD_OPTIONS = (
+    selectinload(InventoryOperation.item),
+    selectinload(InventoryOperation.equipment),
+    selectinload(InventoryOperation.created_by_user),
+)
 
 
 def item_to_response(item: InventoryItem) -> InventoryItemResponse:
@@ -62,6 +69,9 @@ def operation_to_response(operation: InventoryOperation) -> InventoryOperationRe
         supplier=operation.supplier,
         cost=operation.cost,
         created_by=operation.created_by,
+        created_by_name=(
+            operation.created_by_user.full_name if operation.created_by_user else None
+        ),
         equipment_id=operation.equipment_id,
         purpose=operation.purpose or 'general',
         equipment_name=operation.equipment.name if operation.equipment else None,
@@ -76,6 +86,25 @@ async def get_item_or_404(db: AsyncSession, item_id: UUID, org_id: UUID) -> Inve
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Позиция не найдена')
     return item
+
+
+async def _load_operation(db: AsyncSession, operation_id: UUID) -> InventoryOperation:
+    result = await db.execute(
+        select(InventoryOperation)
+        .options(*_OPERATION_LOAD_OPTIONS)
+        .where(InventoryOperation.id == operation_id)
+    )
+    return result.scalar_one()
+
+
+def _operations_query(org_id: UUID):
+    return (
+        select(InventoryOperation)
+        .join(InventoryItem, InventoryOperation.item_id == InventoryItem.id)
+        .options(*_OPERATION_LOAD_OPTIONS)
+        .where(InventoryItem.org_id == org_id)
+        .order_by(InventoryOperation.date.desc(), InventoryOperation.created_at.desc())
+    )
 
 
 @router.get('', response_model=list[InventoryItemResponse])
@@ -110,20 +139,13 @@ async def list_operations(
     from_date: date | None = Query(None),
     to_date: date | None = Query(None),
     operation_type: InventoryOperationType | None = Query(None, alias='type'),
+    exclude_opening: bool = Query(True),
+    limit: int | None = Query(None, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> list[InventoryOperationResponse]:
     org_id = get_org_id(request)
-    query = (
-        select(InventoryOperation)
-        .join(InventoryItem, InventoryOperation.item_id == InventoryItem.id)
-        .options(
-            selectinload(InventoryOperation.item),
-            selectinload(InventoryOperation.equipment),
-        )
-        .where(InventoryItem.org_id == org_id)
-        .order_by(InventoryOperation.date.desc(), InventoryOperation.created_at.desc())
-    )
+    query = _operations_query(org_id)
 
     if item_id is not None:
         query = query.where(InventoryOperation.item_id == item_id)
@@ -131,12 +153,16 @@ async def list_operations(
         query = query.where(InventoryOperation.equipment_id == equipment_id)
     if purpose is not None:
         query = query.where(InventoryOperation.purpose == purpose)
+    elif exclude_opening:
+        query = query.where(InventoryOperation.purpose != 'opening')
     if from_date is not None:
         query = query.where(InventoryOperation.date >= from_date)
     if to_date is not None:
         query = query.where(InventoryOperation.date <= to_date)
     if operation_type is not None:
         query = query.where(InventoryOperation.type == operation_type)
+    if limit is not None:
+        query = query.limit(limit)
 
     result = await db.execute(query)
     return [operation_to_response(operation) for operation in result.scalars().all()]
@@ -153,48 +179,30 @@ async def create_operation(
     if not item.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Позиция неактивна')
 
-    if payload.type == InventoryOperationType.expense:
-        if item.current_stock < payload.quantity:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail='Недостаточно запасов',
-            )
-        new_stock = item.current_stock - payload.quantity
-    else:
-        new_stock = item.current_stock + payload.quantity
-
-    operation = InventoryOperation(
-        date=payload.date or datetime.now().date(),
-        item_id=item.id,
-        type=payload.type,
-        quantity=payload.quantity,
-        stock_after=new_stock,
+    operation = await create_inventory_operation(
+        db,
+        item=item,
+        op_type=payload.type,
+        quantity=Decimal(str(payload.quantity)),
+        op_date=payload.date,
+        created_by=current.id,
         reason=payload.reason,
         supplier=payload.supplier,
-        cost=payload.cost,
-        created_by=current.id,
+        cost=Decimal(str(payload.cost)) if payload.cost is not None else None,
         equipment_id=payload.equipment_id,
         purpose=payload.purpose or 'general',
     )
-    item.current_stock = new_stock
-
-    db.add(operation)
-    db.add(item)
-    await db.flush()
-    await log_change(db, org_id=item.org_id, entity_type='inventory_operation', entity_id=operation.id,
-                     action='create', changed_by=current.id, after=model_snapshot(operation))
-    await db.commit()
-
-    result = await db.execute(
-        select(InventoryOperation)
-        .options(
-            selectinload(InventoryOperation.item),
-            selectinload(InventoryOperation.equipment),
-        )
-        .where(InventoryOperation.id == operation.id)
+    await log_change(
+        db,
+        org_id=item.org_id,
+        entity_type='inventory_operation',
+        entity_id=operation.id,
+        action='create',
+        changed_by=current.id,
+        after=model_snapshot(operation),
     )
-    operation = result.scalar_one()
-    return operation_to_response(operation)
+    await db.commit()
+    return operation_to_response(await _load_operation(db, operation.id))
 
 
 async def _stock_to_equipment(
@@ -221,43 +229,30 @@ async def _stock_to_equipment(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Неподходящая категория товара для этой операции',
         )
-    if item.current_stock < payload.quantity:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f'Недостаточно запасов (доступно {float(item.current_stock):g} {item.unit})',
-        )
 
-    new_stock = item.current_stock - payload.quantity
-    op_date = payload.date or datetime.now().date()
     reason_label = 'Заправка' if purpose == 'refuel' else 'Установка на технику'
-    operation = InventoryOperation(
-        date=op_date,
-        item_id=item.id,
-        type=InventoryOperationType.expense,
-        quantity=payload.quantity,
-        stock_after=new_stock,
-        reason=payload.comment or f'{reason_label}: {equipment.name}',
+    operation = await create_inventory_operation(
+        db,
+        item=item,
+        op_type=InventoryOperationType.expense,
+        quantity=Decimal(str(payload.quantity)),
+        op_date=payload.date,
         created_by=current.id,
+        reason=payload.comment or f'{reason_label}: {equipment.name}',
         equipment_id=equipment.id,
         purpose=purpose,
     )
-    item.current_stock = new_stock
-    db.add(operation)
-    db.add(item)
-    await db.flush()
-    await log_change(db, org_id=org_id, entity_type='inventory_operation', entity_id=operation.id,
-                     action='create', changed_by=current.id, after=model_snapshot(operation))
-    await db.commit()
-
-    result = await db.execute(
-        select(InventoryOperation)
-        .options(
-            selectinload(InventoryOperation.item),
-            selectinload(InventoryOperation.equipment),
-        )
-        .where(InventoryOperation.id == operation.id)
+    await log_change(
+        db,
+        org_id=org_id,
+        entity_type='inventory_operation',
+        entity_id=operation.id,
+        action='create',
+        changed_by=current.id,
+        after=model_snapshot(operation),
     )
-    return operation_to_response(result.scalar_one())
+    await db.commit()
+    return operation_to_response(await _load_operation(db, operation.id))
 
 
 @router.post(
@@ -311,6 +306,28 @@ async def install_on_equipment(
     )
 
 
+@router.get('/{item_id}/operations', response_model=list[InventoryOperationResponse])
+async def list_item_operations(
+    request: Request,
+    item_id: UUID,
+    limit: int = Query(10, ge=1, le=100),
+    exclude_opening: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(get_current_employee),
+) -> list[InventoryOperationResponse]:
+    org_id = get_org_id(request)
+    await get_item_or_404(db, item_id, org_id)
+    query = (
+        _operations_query(org_id)
+        .where(InventoryOperation.item_id == item_id)
+    )
+    if exclude_opening:
+        query = query.where(InventoryOperation.purpose != 'opening')
+    query = query.limit(limit)
+    result = await db.execute(query)
+    return [operation_to_response(operation) for operation in result.scalars().all()]
+
+
 @router.get('/{item_id}', response_model=InventoryItemResponse)
 async def get_inventory_item(
     request: Request,
@@ -342,8 +359,16 @@ async def create_inventory_item(
     db.add(item)
     try:
         await db.flush()
-        await log_change(db, org_id=item.org_id, entity_type='inventory_item', entity_id=item.id,
-                         action='create', changed_by=current.id, after=model_snapshot(item))
+        await create_opening_balance_operation(db, item=item, created_by=current.id)
+        await log_change(
+            db,
+            org_id=item.org_id,
+            entity_type='inventory_item',
+            entity_id=item.id,
+            action='create',
+            changed_by=current.id,
+            after=model_snapshot(item),
+        )
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -371,8 +396,16 @@ async def update_inventory_item(
 
     db.add(item)
     try:
-        await log_change(db, org_id=item.org_id, entity_type='inventory_item', entity_id=item.id,
-                         action='update', changed_by=current.id, before=before, after=model_snapshot(item))
+        await log_change(
+            db,
+            org_id=item.org_id,
+            entity_type='inventory_item',
+            entity_id=item.id,
+            action='update',
+            changed_by=current.id,
+            before=before,
+            after=model_snapshot(item),
+        )
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -395,6 +428,14 @@ async def delete_inventory_item(
     before = model_snapshot(item)
     item.is_active = False
     db.add(item)
-    await log_change(db, org_id=item.org_id, entity_type='inventory_item', entity_id=item.id,
-                     action='delete', changed_by=current.id, before=before, after=model_snapshot(item))
+    await log_change(
+        db,
+        org_id=item.org_id,
+        entity_type='inventory_item',
+        entity_id=item.id,
+        action='delete',
+        changed_by=current.id,
+        before=before,
+        after=model_snapshot(item),
+    )
     await db.commit()

@@ -10,7 +10,9 @@ import {
 import { EntityHistoryButton } from '@/features/audit-log/components/EntityHistoryButton'
 import { humanLabel } from '@/lib/display'
 import type { InventoryItem } from '@/types'
+import { useInventoryItemOperations } from '@/features/inventory/hooks'
 import { getCategoryLabel, isCriticalStock } from '@/features/inventory/utils'
+import { InventoryItemOperationsHistory } from './InventoryItemOperationsHistory'
 import { StockProgressBar } from './StockProgressBar'
 
 type InventoryDetailSheetProps = {
@@ -20,6 +22,12 @@ type InventoryDetailSheetProps = {
 }
 
 export function InventoryDetailSheet({ item, open, onClose }: InventoryDetailSheetProps) {
+  const {
+    data: operations = [],
+    isLoading: operationsLoading,
+    isError: operationsError,
+  } = useInventoryItemOperations(item?.id ?? null, open)
+
   if (!item) return null
 
   return (
@@ -41,7 +49,7 @@ export function InventoryDetailSheet({ item, open, onClose }: InventoryDetailShe
           </SheetDescription>
         </SheetHeader>
 
-        <div className="space-y-4 px-4 pb-6 text-sm">
+        <div className="space-y-5 px-4 pb-6 text-sm">
           <div>
             <p className="text-muted-foreground">Остаток</p>
             <p className="text-2xl font-semibold text-foreground">
@@ -59,6 +67,13 @@ export function InventoryDetailSheet({ item, open, onClose }: InventoryDetailShe
             value={`${item.totalCapacity.toLocaleString('ru-RU')} ${item.unit}`}
           />
           <Row label="Статус позиции" value={item.isActive ? 'Активна' : 'Неактивна'} />
+
+          <InventoryItemOperationsHistory
+            operations={operations}
+            unit={item.unit}
+            isLoading={operationsLoading}
+            isError={operationsError}
+          />
         </div>
       </SheetContent>
     </Sheet>

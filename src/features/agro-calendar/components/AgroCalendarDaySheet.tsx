@@ -15,8 +15,8 @@ import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { humanLabel, joinLabels } from '@/lib/display'
 import { useAgroPlans } from '../hooks'
 import type { AgroPlan } from '../types'
-import { STATUS_LABELS } from '../types'
-import { planFieldsLabel, statusBadgeClass, workTypeBadgeClass } from '../utils'
+import { STATUS_LABELS, ENTRY_KIND_LABELS } from '../types'
+import { entryKindBadgeClass, planFieldsLabel, statusBadgeClass, workTypeBadgeClass } from '../utils'
 
 type AgroCalendarDaySheetProps = {
   day: string | null
@@ -87,13 +87,16 @@ export function AgroCalendarDaySheet({
                 onClick={() => onSelectPlan(plan)}
               >
                 <div className="mb-2 flex flex-wrap gap-1.5">
+                  <Badge variant="outline" className={entryKindBadgeClass(plan.entryKind)}>
+                    {ENTRY_KIND_LABELS[plan.entryKind]}
+                  </Badge>
                   <Badge
                     variant="outline"
                     className={workTypeBadgeClass(humanLabel(plan.workTypeName, 'Работа'))}
                   >
                     {humanLabel(plan.workTypeName, 'Работа')}
                   </Badge>
-                  <Badge className={statusBadgeClass(plan.status)}>
+                  <Badge variant="outline" className={statusBadgeClass(plan.status)}>
                     {STATUS_LABELS[plan.status]}
                   </Badge>
                 </div>

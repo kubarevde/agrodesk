@@ -14,6 +14,7 @@ class ShiftCreate(BaseModel):
     equipment_id: UUID | None = None
     field_id: UUID | None = None
     implement_id: UUID | None = None
+    agro_plan_id: UUID | None = None
     latitude: Decimal | None = None
     longitude: Decimal | None = None
 
@@ -34,6 +35,7 @@ class ShiftManualAdd(BaseModel):
     equipment_id: UUID | None = None
     field_id: UUID | None = None
     implement_id: UUID | None = None
+    agro_plan_id: UUID | None = None
     description: str | None = None
     comment: str | None = None
 
@@ -48,6 +50,7 @@ class ShiftUpdate(BaseModel):
     equipment_id: UUID | None = None
     field_id: UUID | None = None
     implement_id: UUID | None = None
+    agro_plan_id: UUID | None = None
     description: str | None = None
     comment: str | None = None
     status: ShiftStatus | None = None
@@ -75,6 +78,7 @@ class ShiftResponse(BaseModel):
     field_name: str | None = None
     implement_id: UUID | None = None
     implement_name: str | None = None
+    agro_plan_id: UUID | None = None
     description: str | None = None
     comment: str | None = None
     status: str

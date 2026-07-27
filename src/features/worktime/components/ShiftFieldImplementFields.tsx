@@ -9,10 +9,12 @@ import { entityOptions } from '@/lib/selectOptions'
 
 type ControlProps<T extends Record<string, unknown>> = {
   control: Control<T>
+  required?: boolean
 }
 
 export function ShiftFieldSelect<T extends Record<string, unknown>>({
   control,
+  required = false,
 }: ControlProps<T>) {
   const { data: fields = [], isLoading } = useFields()
   const activeFields = fields.filter((item) => item.is_active)
@@ -30,15 +32,18 @@ export function ShiftFieldSelect<T extends Record<string, unknown>>({
             .join(', ')
           return meta ? `${item.name} (${meta})` : item.name
         },
-        [{ value: 'none', label: 'Не выбрано' }],
+        required ? [] : [{ value: 'none', label: 'Не выбрано' }],
       ),
-    [activeFields],
+    [activeFields, required],
   )
 
   return (
     <div className="space-y-2">
       <Label>
-        Поле <span className="text-muted-foreground">(необязательно)</span>
+        Поле{' '}
+        {required ? null : (
+          <span className="text-muted-foreground">(необязательно)</span>
+        )}
       </Label>
       {isLoading ? (
         <Skeleton className="h-8 w-full" />

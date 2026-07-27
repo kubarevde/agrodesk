@@ -101,7 +101,7 @@ export function EquipmentPage() {
               description="Добавьте первую единицу техники для учёта счётчиков и ТО."
             />
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
               {items.map((item) => (
                 <EquipmentCard
                   key={item.id}

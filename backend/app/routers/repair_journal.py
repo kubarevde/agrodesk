@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.dependencies.auth import require_manager
+from app.dependencies.auth import get_current_employee, require_manager
 from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
 from app.models.equipment_log import EquipmentMaintenance, MaintenanceChecklistItem
@@ -148,7 +148,7 @@ def _org_filter(org_id: UUID):
 async def active_repairs_count(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    _: Employee = Depends(get_current_employee),
 ) -> ActiveRepairsCountResponse:
     org_id = get_org_id(request)
     result = await db.execute(
@@ -175,7 +175,7 @@ async def list_repairs(
     priority: str | None = None,
     include_done: bool = Query(True),
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    _: Employee = Depends(get_current_employee),
 ) -> list[RepairJournalResponse]:
     org_id = get_org_id(request)
     query = (
@@ -278,7 +278,7 @@ async def get_repair(
     request: Request,
     repair_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    _: Employee = Depends(get_current_employee),
 ) -> RepairJournalResponse:
     return repair_to_response(await _get_repair_or_404(db, repair_id, get_org_id(request)))
 

@@ -90,6 +90,7 @@ export function useCreateWorkType() {
       const { data } = await api.post<Record<string, unknown>>('/api/work-types', {
         name: payload.name,
         category: payload.category || undefined,
+        is_field_work: payload.isFieldWork,
       })
       const created = workTypeFromApi(data)
       if (payload.isActive === false) {
@@ -119,6 +120,7 @@ export function useUpdateWorkType() {
       const { data } = await api.patch<Record<string, unknown>>(`/api/work-types/${id}`, {
         name: payload.name,
         category: payload.category,
+        is_field_work: payload.isFieldWork,
         is_active: payload.isActive,
       })
       return workTypeFromApi(data)

@@ -78,7 +78,7 @@ export function SharingAllListingsTab({
               description="Измените фильтры или дождитесь новых предложений"
             />
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(320px,1fr))]">
               {filtered.map((listing) => (
                 <SharingListingCard
                   key={listing.id}

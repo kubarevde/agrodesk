@@ -1,5 +1,6 @@
 from datetime import date as date_type
-from typing import Any
+from datetime import datetime
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -48,6 +49,13 @@ class AgroPlanUpdate(BaseModel):
         return _coerce_legacy_field_id(data)
 
 
+class AgroPlanCloseRequest(BaseModel):
+    """Admin force-close: done or cancelled regardless of assignee/creator."""
+
+    status: Literal['done', 'cancelled']
+    note: str | None = Field(default=None, max_length=2000)
+
+
 class AgroPlanResponse(BaseModel):
     id: UUID
     field_id: UUID
@@ -62,10 +70,15 @@ class AgroPlanResponse(BaseModel):
     employee_id: UUID | None = None
     notes: str | None = None
     status: str
+    entry_kind: str = 'plan'
     work_type_name: str
     equipment_name: str | None
     implement_name: str | None
     employee_name: str | None
     actual_shift_id: UUID | None
+    closed_by: UUID | None = None
+    closed_by_name: str | None = None
+    closed_at: datetime | None = None
+    close_note: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

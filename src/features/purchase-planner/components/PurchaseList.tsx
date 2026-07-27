@@ -6,12 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { useDeletePurchaseItem, useUpdatePurchaseItem } from '../hooks'
+import { usePurchaseCapabilities } from '../hooks/usePurchaseCapabilities'
 import {
   CATEGORY_LABELS,
   STATUS_LABELS,
@@ -20,7 +20,9 @@ import {
   urgencyBadgeClass,
 } from '../lib/labels'
 import type { PurchasePlannerItem } from '../types'
+import { PurchaseCompleteDialog } from './PurchaseCompleteDialog'
 import { PurchaseFormDialog } from './PurchaseFormDialog'
+import { PurchasePhotoGallery } from './PurchasePhotoGallery'
 
 type PurchaseListProps = {
   items: PurchasePlannerItem[]
@@ -29,10 +31,10 @@ type PurchaseListProps = {
 export function PurchaseList({ items }: PurchaseListProps) {
   const update = useUpdatePurchaseItem()
   const remove = useDeletePurchaseItem()
+  const caps = usePurchaseCapabilities()
   const [editItem, setEditItem] = useState<PurchasePlannerItem | null>(null)
   const [buyItem, setBuyItem] = useState<PurchasePlannerItem | null>(null)
-  const [actualCost, setActualCost] = useState('')
-  const [createExpense, setCreateExpense] = useState(true)
+  const [revertItem, setRevertItem] = useState<PurchasePlannerItem | null>(null)
 
   if (items.length === 0) {
     return (
@@ -51,7 +53,7 @@ export function PurchaseList({ items }: PurchaseListProps) {
           <li key={item.id}>
             <Card className="shadow-none">
               <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2 pt-3">
-                <div className="min-w-[180px] space-y-1">
+                <div className="min-w-0 flex-1 space-y-1">
                   <CardTitle className="text-sm">{item.title}</CardTitle>
                   <p className="text-[11px] text-muted-foreground line-clamp-1">
                     {CATEGORY_LABELS[item.category] ?? item.category}
@@ -69,6 +71,10 @@ export function PurchaseList({ items }: PurchaseListProps) {
                 </div>
               </CardHeader>
               <CardContent className="space-y-2 pb-3">
+                {item.images.length > 0 ? (
+                  <PurchasePhotoGallery images={item.images} title={item.title} />
+                ) : null}
+
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-col">
                     {item.purchasePlace ? (
@@ -79,6 +85,11 @@ export function PurchaseList({ items }: PurchaseListProps) {
                         Оценка: {item.estimatedCost.toLocaleString('ru-RU')} ₽
                       </p>
                     ) : null}
+                    {item.actualCost != null ? (
+                      <p className="text-xs text-foreground">
+                        Факт: {item.actualCost.toLocaleString('ru-RU')} ₽
+                      </p>
+                    ) : null}
                   </div>
                   {item.expenseId ? (
                     <Link to="/expenses" className="text-xs text-primary hover:underline">
@@ -86,50 +97,65 @@ export function PurchaseList({ items }: PurchaseListProps) {
                     </Link>
                   ) : null}
                 </div>
+
                 <div className="flex flex-wrap gap-2">
-                {item.status === 'planned' ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => {
-                      setBuyItem(item)
-                      setActualCost(item.estimatedCost?.toString() ?? '')
-                      setCreateExpense(true)
-                    }}
-                    className="whitespace-nowrap"
-                  >
-                    Отметить купленным
-                  </Button>
-                ) : null}
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setEditItem(item)}
-                  >
-                    Изменить
-                  </Button>
-                {item.status === 'planned' ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() =>
-                      void update.mutateAsync({ id: item.id, payload: { status: 'cancelled' } })
-                    }
-                  >
-                    Отменить
-                  </Button>
-                ) : null}
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="text-destructive"
-                    onClick={() => void remove.mutateAsync(item.id)}
-                  >
-                    Удалить
-                  </Button>
+                  {item.status === 'planned' ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setBuyItem(item)}
+                      className="whitespace-nowrap"
+                    >
+                      Отметить купленным
+                    </Button>
+                  ) : null}
+
+                  {caps.canEdit ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditItem(item)}
+                    >
+                      Изменить
+                    </Button>
+                  ) : null}
+
+                  {item.status === 'purchased' && caps.canRevert ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setRevertItem(item)}
+                    >
+                      Вернуть к покупке
+                    </Button>
+                  ) : null}
+
+                  {item.status === 'planned' && caps.canCancel ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        void update.mutateAsync({ id: item.id, payload: { status: 'cancelled' } })
+                      }
+                    >
+                      Отменить
+                    </Button>
+                  ) : null}
+
+                  {caps.canDelete ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive"
+                      onClick={() => void remove.mutateAsync(item.id)}
+                    >
+                      Удалить
+                    </Button>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>
@@ -137,57 +163,44 @@ export function PurchaseList({ items }: PurchaseListProps) {
         ))}
       </ul>
 
-      <PurchaseFormDialog
-        open={Boolean(editItem)}
-        onClose={() => setEditItem(null)}
-        item={editItem}
+      {caps.canEdit ? (
+        <PurchaseFormDialog
+          open={Boolean(editItem)}
+          onClose={() => setEditItem(null)}
+          item={editItem}
+        />
+      ) : null}
+
+      <PurchaseCompleteDialog
+        item={buyItem}
+        open={Boolean(buyItem)}
+        onClose={() => setBuyItem(null)}
       />
 
-      <Dialog open={Boolean(buyItem)} onOpenChange={(o) => !o && setBuyItem(null)}>
+      <Dialog open={Boolean(revertItem)} onOpenChange={(open) => !open && setRevertItem(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Отметить купленным</DialogTitle>
+            <DialogTitle>Вернуть к покупке?</DialogTitle>
+            <DialogDescription>
+              Позиция снова появится в списке «к покупке». Связанный расход будет удалён, чтобы
+              отчёты не дублировались.
+            </DialogDescription>
           </DialogHeader>
-          {buyItem ? (
+          {revertItem ? (
             <div className="space-y-3">
-              <p className="text-sm text-foreground">{buyItem.title}</p>
-              <div className="space-y-1">
-                <Label htmlFor="actual-cost">Фактическая стоимость</Label>
-                <Input
-                  id="actual-cost"
-                  type="number"
-                  min={0}
-                  value={actualCost}
-                  onChange={(e) => setActualCost(e.target.value)}
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-primary"
-                  checked={createExpense}
-                  onChange={(e) => setCreateExpense(e.target.checked)}
-                />
-                Создать расход в разделе «Затраты»
-              </label>
+              <p className="text-sm text-foreground">{revertItem.title}</p>
               <Button
                 type="button"
+                variant="destructive"
                 className="w-full"
+                disabled={update.isPending}
                 onClick={() => {
                   void update
-                    .mutateAsync({
-                      id: buyItem.id,
-                      payload: {
-                        status: 'purchased',
-                        actualCost: actualCost === '' ? null : Number(actualCost),
-                        createExpense,
-                        expenseCategory: 'parts',
-                      },
-                    })
-                    .then(() => setBuyItem(null))
+                    .mutateAsync({ id: revertItem.id, payload: { status: 'planned' } })
+                    .then(() => setRevertItem(null))
                 }}
               >
-                Подтвердить
+                Подтвердить возврат
               </Button>
             </div>
           ) : null}

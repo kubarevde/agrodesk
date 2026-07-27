@@ -10,12 +10,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LabeledSelect } from '@/components/ui/labeled-select'
 import { Textarea } from '@/components/ui/textarea'
+import { ImageUploader } from '@/components/shared/ImageUploader'
 import { selectOptions } from '@/lib/selectOptions'
+import { useCurrentUser } from '@/features/auth/hooks'
 import { useEmployees } from '@/features/employees/hooks'
 import { useEquipment } from '@/features/equipment/hooks'
 import { useImplements } from '@/features/implements/hooks'
 import { useInventory } from '@/features/inventory/hooks'
 import { useCreatePurchaseItem, useUpdatePurchaseItem } from '../hooks'
+import { usePurchaseCapabilities } from '../hooks/usePurchaseCapabilities'
 import type {
   PurchaseCategory,
   PurchasePlannerItem,
@@ -44,10 +47,12 @@ const URGENCY_OPTIONS = selectOptions([
 export function PurchaseFormDialog({ open, onClose, item }: PurchaseFormDialogProps) {
   const create = useCreatePurchaseItem()
   const update = useUpdatePurchaseItem()
+  const { data: user } = useCurrentUser()
+  const { isManager } = usePurchaseCapabilities()
   const { data: equipment = [] } = useEquipment({ is_active: true })
   const { data: implementsList = [] } = useImplements()
-  const { data: inventory = [] } = useInventory()
-  const { data: employees = [] } = useEmployees()
+  const { data: inventory = [] } = useInventory({ enabled: isManager })
+  const { data: employees = [] } = useEmployees({ enabled: isManager })
 
   const [title, setTitle] = useState(item?.title ?? '')
   const [category, setCategory] = useState<PurchaseCategory>(
@@ -63,6 +68,7 @@ export function PurchaseFormDialog({ open, onClose, item }: PurchaseFormDialogPr
   const [responsibleId, setResponsibleId] = useState(item?.responsibleId ?? '')
   const [cost, setCost] = useState(item?.estimatedCost?.toString() ?? '')
   const [notes, setNotes] = useState(item?.notes ?? '')
+  const [images, setImages] = useState<string[]>(item?.images ?? [])
 
   useEffect(() => {
     if (!open) return
@@ -73,10 +79,30 @@ export function PurchaseFormDialog({ open, onClose, item }: PurchaseFormDialogPr
     setInventoryId(item?.inventoryItemId ?? '')
     setUrgency((item?.urgency as PurchaseUrgency) || 'normal')
     setPlace(item?.purchasePlace ?? '')
-    setResponsibleId(item?.responsibleId ?? '')
+    setResponsibleId(item?.responsibleId ?? (isManager ? '' : user?.id ?? ''))
     setCost(item?.estimatedCost?.toString() ?? '')
     setNotes(item?.notes ?? '')
-  }, [open, item])
+    setImages(item?.images ?? [])
+  }, [open, item, isManager, user?.id])
+
+  const categoryOptions = isManager
+    ? CATEGORY_OPTIONS
+    : selectOptions([
+        { value: 'general', label: 'Общее' },
+        { value: 'equipment', label: 'Техника' },
+        { value: 'implement', label: 'Приспособление' },
+      ])
+
+  const responsibleOptions = isManager
+    ? selectOptions([
+        { value: '', label: 'Без ответственного' },
+        ...employees.map((e) => ({ value: e.id, label: e.employeeName })),
+      ])
+    : selectOptions(
+        user
+          ? [{ value: user.id, label: user.fullName || 'Я' }]
+          : [],
+      )
 
   const payloadBase = () => ({
     title: title.trim(),
@@ -89,6 +115,7 @@ export function PurchaseFormDialog({ open, onClose, item }: PurchaseFormDialogPr
     responsibleId: responsibleId || null,
     estimatedCost: cost === '' ? null : Number(cost),
     notes: notes.trim() || null,
+    images,
   })
 
   const canSubmit =
@@ -122,7 +149,7 @@ export function PurchaseFormDialog({ open, onClose, item }: PurchaseFormDialogPr
           <LabeledSelect
             label="Категория"
             value={category}
-            options={CATEGORY_OPTIONS}
+            options={categoryOptions}
             hint="Для чего покупка: техника, приспособление, склад или общее"
             onValueChange={(v) => setCategory((v as PurchaseCategory) || 'general')}
           />
@@ -146,7 +173,7 @@ export function PurchaseFormDialog({ open, onClose, item }: PurchaseFormDialogPr
               onValueChange={(v) => setImplementId(v || '')}
             />
           ) : null}
-          {category === 'inventory_item' ? (
+          {category === 'inventory_item' && isManager ? (
             <LabeledSelect
               label="Позиция склада"
               value={inventoryId}
@@ -173,10 +200,7 @@ export function PurchaseFormDialog({ open, onClose, item }: PurchaseFormDialogPr
           <LabeledSelect
             label="Ответственный"
             value={responsibleId}
-            options={selectOptions([
-              { value: '', label: 'Без ответственного' },
-              ...employees.map((e) => ({ value: e.id, label: e.employeeName })),
-            ])}
+            options={responsibleOptions}
             placeholder="Не назначен"
             onValueChange={(v) => setResponsibleId(v || '')}
           />
@@ -193,6 +217,15 @@ export function PurchaseFormDialog({ open, onClose, item }: PurchaseFormDialogPr
           <div className="space-y-1">
             <Label htmlFor="pp-notes">Примечания</Label>
             <Textarea id="pp-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Фото</Label>
+            <ImageUploader
+              value={images}
+              onChange={setImages}
+              folder="purchase-planner"
+              maxFiles={5}
+            />
           </div>
           <Button
             type="button"
