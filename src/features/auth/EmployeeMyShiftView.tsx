@@ -10,6 +10,7 @@ import { SectionHelp } from '@/components/shared/SectionHelp'
 import { myShiftHelp } from '@/features/help/content'
 import { CurrentShiftCard } from './CurrentShiftCard'
 import { EmployeeAgroTodaySection } from './EmployeeAgroTodaySection'
+import { EmployeeSectionLinks } from './EmployeeSectionLinks'
 import { MonthShiftsList } from './MonthShiftsList'
 import { MyEarningsSection } from './MyEarningsSection'
 
@@ -55,6 +56,8 @@ export function EmployeeMyShiftView({ user }: EmployeeMyShiftViewProps) {
         onStart={() => setOpenShiftOpen(true)}
         onFinish={setCloseShiftTarget}
       />
+
+      <EmployeeSectionLinks />
 
       <EmployeeAgroTodaySection employeeId={user.id} />
 

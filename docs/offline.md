@@ -5,6 +5,18 @@
 
 ---
 
+## Критичный блокер: закрытие смены ONLINE
+
+До исправления `POST /api/shifts/{id}/close` мог отдавать **500**, особенно для техники с `meter_type = shift_hours`.
+
+**Первопричина:** после `add_equipment_meter_log` → `flush` SQLAlchemy expire'ил атрибуты смены; `model_snapshot()` делал `getattr` → lazy-load под AsyncSession → `MissingGreenlet` → 500.
+
+**Исправление:** async-safe `model_snapshot` (только `state.dict`) + снимок `after` до meter-flush + meter-ошибка не блокирует close.
+
+Без этого offline→sync для close тоже «висела» (очередь получала 500).
+
+---
+
 ## Для пользователя
 
 ### Подготовка (обязательно онлайн)
@@ -69,6 +81,7 @@ npm run build && npm run preview
 # Network → Offline → reload (сессия не должна уходить на /login)
 npm test -- src/features/auth/authOffline.test.ts
 npm run test:e2e -- e2e/shifts.spec.ts
+cd backend && python -m pytest tests/test_close_shift_online.py -q
 ```
 
 ### Важно
@@ -84,6 +97,7 @@ npm run test:e2e -- e2e/shifts.spec.ts
 2. `VITE_BASE_PATH` без relative manifest → сломан install/start_url.
 3. Auth снова дергает `/me` без fallback → logout офлайн.
 4. Ожидание offline write вне смен — пока не реализовано.
+5. Backend API без рестарта после фикса close → offline close queue снова получает 500.
 
 ### Manual QA checklist (релиз)
 - [ ] Онлайн: логин, «Онлайн», SW installed/activated (prod).
@@ -94,9 +108,9 @@ npm run test:e2e -- e2e/shifts.spec.ts
 - [ ] Открыть смену офлайн → очередь +1 → reload → запись на месте.
 - [ ] Закрыть смену офлайн → очередь.
 - [ ] Включить сеть → очередь очищается / Retry работает.
+- [ ] Закрытие смены **онлайн** с техникой `shift_hours` → 200, не 500.
 - [ ] Дашборд/Отчёты офлайн показывают честный online-only notice.
 - [ ] Android Chrome + (по возможности) iOS Safari.
 
 ### iOS Safari
-- «На экран Домой» — основной способ.
-- Ограничения SW жёстче, чем у Chrome; всегда прогревайте онлайн после установки.
+Add to Home Screen поддерживается; `beforeinstallprompt` нет. Offline shell работает после прогрева; ограничения Safari SW жёстче, чем у Chrome.

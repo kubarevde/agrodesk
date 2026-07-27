@@ -73,6 +73,27 @@ async function processSyncItem(item: SyncQueueItem): Promise<'done' | 'retry' | 
       return 'done'
     }
 
+    // Permanent client errors: already closed / not found → drop from queue
+    if (response.status === 400 || response.status === 404) {
+      const detail =
+        response.data && typeof response.data === 'object' && 'detail' in response.data
+          ? String((response.data as { detail?: unknown }).detail ?? '')
+          : ''
+      const alreadyDone =
+        response.status === 404 ||
+        /уже закрыта|не найдена|не найден/i.test(detail)
+      if (alreadyDone) {
+        await db.syncQueue.delete(item.id)
+        return 'done'
+      }
+      const retries = (item.retries ?? 0) + 1
+      await db.syncQueue.update(item.id, {
+        retries,
+        status: 'failed',
+      })
+      return 'retry'
+    }
+
     if (import.meta.env.DEV) {
       console.warn('[sync] skip client error', item.url, response.status)
     }

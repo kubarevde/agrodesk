@@ -44,3 +44,16 @@ def test_role_has_section_respects_custom():
     perms = {'manager': ['dashboard'], 'employee': ['sharing']}
     assert role_has_section('manager', 'dashboard', perms)
     assert not role_has_section('manager', 'maintenance', perms)
+
+
+def test_employee_can_be_granted_extra_sections():
+    perms = {
+        'manager': ['dashboard'],
+        'employee': ['my-shift', 'sharing', 'fields', 'equipment'],
+    }
+    allowed = allowed_sections_for_role('employee', perms)
+    assert 'fields' in allowed
+    assert 'equipment' in allowed
+    assert 'reports' not in allowed
+    assert role_has_section('employee', 'fields', perms)
+    assert not role_has_section('employee', 'reports', perms)

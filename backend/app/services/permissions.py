@@ -158,7 +158,12 @@ def require_section_dep(section: str):
 
 
 def require_manager_section(section: str):
-    """Manager or admin with section access (employees always denied)."""
+    """Section access for any role that was granted the section (incl. employee).
+
+    Historically named for manager-facing APIs; employees with an explicit
+    org grant in role_permissions must also pass, otherwise Settings → Доступы
+    can show a section that the API then rejects with 403.
+    """
 
     async def _checker(
         employee: Employee = Depends(get_current_employee),
@@ -166,11 +171,6 @@ def require_manager_section(section: str):
     ) -> Employee:
         if employee.role == EmployeeRole.admin:
             return employee
-        if employee.role != EmployeeRole.manager:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail='Недостаточно прав',
-            )
         perms = await get_org_permissions(db, employee.org_id)
         if not role_has_section(employee.role, section, perms):
             raise HTTPException(

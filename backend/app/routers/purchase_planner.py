@@ -380,6 +380,7 @@ async def delete_item(
         action='delete',
         changed_by=current.id,
         before=before,
+        summary=_purchase_audit_summary(row, verb='Удалена'),
     )
     await db.delete(row)
     await db.commit()

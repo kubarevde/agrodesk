@@ -108,6 +108,7 @@ async def _create_to_notifications(
 
     result = await db.execute(
         select(Employee).where(
+            Employee.org_id == equipment.org_id,
             Employee.role.in_([EmployeeRole.admin, EmployeeRole.manager]),
             Employee.is_active.is_(True),
         )

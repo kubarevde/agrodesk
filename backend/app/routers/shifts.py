@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -24,6 +25,7 @@ from app.schemas.shift import (
 from app.services.dashboard import clear_dashboard_cache
 from app.services.audit import log_change, model_snapshot
 from app.services.equipment_meters import add_equipment_meter_log, calc_meter_label
+from app.services.permissions import get_org_permissions, role_has_section
 from app.services.org_timezone import now_in_org
 from app.services.salary import apply_salary_to_shift
 from app.services.shifts import (
@@ -38,6 +40,8 @@ from app.services.shifts import (
 )
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 
 def shift_to_response(shift: Shift) -> ShiftResponse:
@@ -98,6 +102,24 @@ async def get_shift_or_404(db: AsyncSession, shift_id: UUID, org_id: UUID) -> Sh
 def ensure_shift_access(shift: Shift, current: Employee) -> None:
     if current.role == EmployeeRole.employee and shift.employee_id != current.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Недостаточно прав')
+
+
+async def ensure_shift_section_access(
+    db: AsyncSession,
+    org_id: UUID,
+    current: Employee,
+) -> None:
+    """Real enforcement for section permissions (checkboxes)."""
+    if current.role == EmployeeRole.admin:
+        return
+
+    perms = await get_org_permissions(db, org_id)
+    required_section = 'my-shift' if current.role == EmployeeRole.employee else 'worktime'
+    if not role_has_section(current.role, required_section, perms):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Раздел недоступен для вашей роли',
+        )
 
 
 async def validate_reference_ids(
@@ -254,6 +276,7 @@ async def list_shifts(
     org_id = get_org_id(request)
     query = select(Shift).options(*shift_load_options()).where(Shift.org_id == org_id)
 
+    await ensure_shift_section_access(db, org_id, current)
     if current.role == EmployeeRole.employee:
         query = query.where(Shift.employee_id == current.id)
     elif employee_id is not None:
@@ -280,6 +303,7 @@ async def get_shift(
 ) -> ShiftResponse:
     shift = await get_shift_or_404(db, shift_id, get_org_id(request))
     ensure_shift_access(shift, current)
+    await ensure_shift_section_access(db, shift.org_id, current)
     return shift_to_response(shift)
 
 
@@ -291,6 +315,7 @@ async def open_shift(
     current: Employee = Depends(get_current_employee),
 ) -> ShiftResponse:
     org_id = get_org_id(request)
+    await ensure_shift_section_access(db, org_id, current)
     target_employee_id = resolve_target_employee_id(payload, current)
     await get_employee_or_400(db, target_employee_id, org_id)
     await validate_reference_ids(
@@ -348,6 +373,7 @@ async def add_manual_shift(
     current: Employee = Depends(require_manager),
 ) -> ShiftResponse:
     org_id = get_org_id(request)
+    await ensure_shift_section_access(db, org_id, current)
     await get_employee_or_400(db, payload.employee_id, org_id)
     await validate_reference_ids(
         db,
@@ -431,6 +457,8 @@ async def close_shift(
     shift = await get_shift_or_404(db, shift_id, org_id)
     before = model_snapshot(shift)
 
+    await ensure_shift_section_access(db, org_id, current)
+
     if shift.status != ShiftStatus.open:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Смена уже закрыта')
 
@@ -440,58 +468,105 @@ async def close_shift(
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Недостаточно прав')
 
-    now = await now_in_org(db, org_id)
-    shift.end_time = now.time().replace(microsecond=0)
-    shift.description = payload.description
-    shift.comment = payload.comment
-    shift.status = ShiftStatus.closed
+    try:
+        now = await now_in_org(db, org_id)
+        shift.end_time = now.time().replace(microsecond=0)
+        shift.description = payload.description
+        shift.comment = payload.comment
+        shift.status = ShiftStatus.closed
 
-    start_dt = combine_date_time(shift.date, shift.start_time)
-    duration_raw = calc_duration_from_datetimes(start_dt, now)
-    shift.duration_raw = duration_raw
-    shift.duration_rounded = calc_duration_rounded(duration_raw)
-    await apply_salary_to_shift(db, shift)
-
-    db.add(shift)
-
-    if shift.equipment_id is not None and shift.duration_rounded is not None:
-        equipment = await db.get(Equipment, shift.equipment_id)
-        if (
-            equipment is not None
-            and equipment.org_id == org_id
-            and equipment.meter_type == 'shift_hours'
-            and float(shift.duration_rounded) > 0
-        ):
-            await add_equipment_meter_log(
-                db,
-                equipment_id=equipment.id,
-                value_added=shift.duration_rounded,
-                log_date=shift.date,
-                note='Автоматически из смены',
-                shift_id=shift.id,
-                created_by=current.id,
+        start_dt = combine_date_time(shift.date, shift.start_time)
+        duration_raw = calc_duration_from_datetimes(start_dt, now)
+        shift.duration_raw = duration_raw
+        shift.duration_rounded = calc_duration_rounded(duration_raw)
+        try:
+            await apply_salary_to_shift(db, shift)
+        except HTTPException:
+            raise
+        except Exception:
+            # Salary calculation is the most common source of unexpected 500s.
+            # Provide a safe, actionable message to the user and keep the stack in logs.
+            logger.exception(
+                'close_shift salary calculation failed shift_id=%s org_id=%s',
+                shift_id,
+                org_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Не удалось рассчитать оплату для смены. Проверьте тарифы и настройки сотрудника.',
             )
 
-    if shift.field_id is not None:
-        result = await db.execute(
-            select(AgroPlan).where(
-                AgroPlan.location_id == shift.field_id,
-                AgroPlan.planned_date == shift.date,
-                AgroPlan.status == 'planned',
+        db.add(shift)
+
+        # Snapshot after mutations, before related flushes (meter log expires attrs).
+        after = model_snapshot(shift)
+
+        if shift.equipment_id is not None and shift.duration_rounded is not None:
+            equipment = await db.get(Equipment, shift.equipment_id)
+            if (
+                equipment is not None
+                and equipment.org_id == org_id
+                and equipment.meter_type == 'shift_hours'
+                and float(shift.duration_rounded) > 0
+            ):
+                try:
+                    await add_equipment_meter_log(
+                        db,
+                        equipment_id=equipment.id,
+                        value_added=shift.duration_rounded,
+                        log_date=shift.date,
+                        note='Автоматически из смены',
+                        shift_id=shift.id,
+                        created_by=current.id,
+                    )
+                except Exception:
+                    # Meter side-effect must not block closing the shift.
+                    logger.exception(
+                        'close_shift meter log failed shift_id=%s equipment_id=%s',
+                        shift_id,
+                        shift.equipment_id,
+                    )
+
+        if shift.field_id is not None:
+            result = await db.execute(
+                select(AgroPlan).where(
+                    AgroPlan.location_id == shift.field_id,
+                    AgroPlan.planned_date == shift.date,
+                    AgroPlan.status == 'planned',
+                )
             )
+            for plan in result.scalars().all():
+                plan.status = 'done'
+                plan.actual_shift_id = shift.id
+                db.add(plan)
+
+        await log_change(
+            db,
+            org_id=org_id,
+            entity_type='shift',
+            entity_id=shift.id,
+            action='update',
+            changed_by=current.id,
+            before=before,
+            after=after,
+            summary=f'Закрыта смена от {shift.date.strftime("%d.%m.%Y")}',
         )
-        for plan in result.scalars().all():
-            plan.status = 'done'
-            plan.actual_shift_id = shift.id
-            db.add(plan)
+        await db.commit()
+        clear_dashboard_cache()
 
-    await log_change(db, org_id=org_id, entity_type='shift', entity_id=shift.id,
-                     action='update', changed_by=current.id, before=before, after=model_snapshot(shift))
-    await db.commit()
-    clear_dashboard_cache()
-
-    shift = await get_shift_or_404(db, shift.id, org_id)
-    return shift_to_response(shift)
+        shift = await get_shift_or_404(db, shift.id, org_id)
+        return shift_to_response(shift)
+    except HTTPException:
+        raise
+    except Exception:
+        # Keep 500 behaviour, but print the full stack trace for diagnostics.
+        logger.exception(
+            'close_shift failed shift_id=%s org_id=%s by_employee_id=%s',
+            shift_id,
+            org_id,
+            current.id,
+        )
+        raise
 
 
 @router.patch('/{shift_id}', response_model=ShiftResponse)
@@ -503,6 +578,7 @@ async def update_shift(
     current: Employee = Depends(require_manager),
 ) -> ShiftResponse:
     org_id = get_org_id(request)
+    await ensure_shift_section_access(db, org_id, current)
     shift = await get_shift_or_404(db, shift_id, org_id)
     before = model_snapshot(shift)
     update_data = payload.model_dump(exclude_unset=True)

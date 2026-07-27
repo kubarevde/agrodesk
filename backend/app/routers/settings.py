@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_admin
@@ -132,6 +133,7 @@ async def update_role_permissions(
     settings = _settings_dict(org)
     settings['role_permissions'] = normalize_role_permissions(payload.permissions)
     org.settings = settings
+    flag_modified(org, 'settings')
     db.add(org)
     await log_change(
         db,

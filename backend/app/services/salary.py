@@ -78,9 +78,24 @@ def calculate_amount(
     fallback_rate: float,
 ) -> dict[str, float]:
     """Compute regular + overtime pay for a shift duration."""
-    rate = float(rate_obj.rate) if rate_obj is not None else float(fallback_rate)
-    threshold = float(rate_obj.overtime_threshold_hours) if rate_obj is not None else 8.0
-    multiplier = float(rate_obj.overtime_multiplier) if rate_obj is not None else 1.0
+    def _to_float(value: Any, default: float) -> float:
+        # Protect against legacy/inconsistent rows with nullable numeric columns.
+        if value is None:
+            return float(default)
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return float(default)
+
+    rate = _to_float(getattr(rate_obj, 'rate', None) if rate_obj is not None else None, fallback_rate)
+    threshold = _to_float(
+        getattr(rate_obj, 'overtime_threshold_hours', None) if rate_obj is not None else None,
+        8.0,
+    )
+    multiplier = _to_float(
+        getattr(rate_obj, 'overtime_multiplier', None) if rate_obj is not None else None,
+        1.0,
+    )
 
     regular_h = min(hours, threshold)
     overtime_h = max(0.0, hours - threshold)

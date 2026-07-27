@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { WifiOff } from 'lucide-react'
 import { AgroLogo } from '@/components/layout/AgroLogo'
 import { SectionHelp } from '@/components/shared/SectionHelp'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -10,11 +11,13 @@ import {
   type SelectedOrg,
 } from '@/features/auth/selectedOrg'
 import { loginHelp } from '@/features/help/content'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 
 export function LoginPage() {
   const saved = getSelectedOrg()
   const [step, setStep] = useState<1 | 2>(saved ? 2 : 1)
   const [org, setOrg] = useState<SelectedOrg | null>(saved)
+  const isOnline = useOnlineStatus()
 
   const handleSelectOrg = (next: SelectedOrg) => {
     setOrg(next)
@@ -44,6 +47,21 @@ export function LoginPage() {
           </h1>
         </CardHeader>
         <CardContent>
+          {!isOnline ? (
+            <div
+              role="status"
+              className="mb-4 flex items-start gap-2 rounded-md border border-border bg-muted/60 p-3 text-left text-sm"
+            >
+              <WifiOff className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+              <div>
+                <p className="font-medium text-foreground">Нет сети</p>
+                <p className="text-xs text-muted-foreground">
+                  Первый вход без интернета невозможен. Откройте приложение онлайн, войдите и
+                  установите на главный экран — после этого shell откроется офлайн.
+                </p>
+              </div>
+            </div>
+          ) : null}
           {step === 1 ? (
             <OrgSelector
               value={org}

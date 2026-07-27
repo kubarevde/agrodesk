@@ -22,12 +22,34 @@ def test_build_summary_uses_name():
     assert 'Затрата' in summary or 'Изменение' in summary
 
 
+def test_build_summary_humanizes_purchase_planner_category():
+    summary = build_summary('delete', 'purchase_planner', before={'category': 'inventory_item'})
+    assert 'ТМЦ' in summary
+    assert 'inventory_item' not in summary
+
+
 def test_model_snapshot_skips_password_hash():
     class Dummy:
         __tablename__ = 'employees'
 
     # Lightweight: sanitize_payload already covers dict path used in routers
     assert sanitize_payload({'password_hash': 'x', 'full_name': 'Иван'}) == {'full_name': 'Иван'}
+
+
+def test_model_snapshot_reads_loaded_dict_without_getattr():
+    """Regression: getattr on expired attrs caused MissingGreenlet in close_shift."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+
+    from app.services.audit import model_snapshot
+
+    fake_column = SimpleNamespace(key='description')
+    fake_mapper = SimpleNamespace(columns=[fake_column])
+    fake_state = SimpleNamespace(dict={'description': 'Работа в поле'})
+
+    with patch('app.services.audit.sa_inspect', side_effect=[fake_mapper, fake_state]):
+        snap = model_snapshot(MagicMock())
+    assert snap == {'description': 'Работа в поле'}
 
 
 def test_audit_log_on_expense_crud(
