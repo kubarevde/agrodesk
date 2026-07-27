@@ -38,6 +38,8 @@ class DualWriter:
         lng: float | None,
         employee: dict[str, Any],
         start_time_str: str,
+        field_id: str | None = None,
+        agro_plan_id: str | None = None,
     ) -> dict | None:
         result = await self.api.open_shift(
             tg_id,
@@ -46,6 +48,8 @@ class DualWriter:
             equipment_id,
             lat,
             lng,
+            field_id=field_id,
+            agro_plan_id=agro_plan_id,
         )
         if result is None:
             return None

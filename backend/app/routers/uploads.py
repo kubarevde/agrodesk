@@ -13,7 +13,13 @@ from app.dependencies.auth import get_current_employee
 from app.models.employee import Employee
 
 UPLOADS_DIR = Path(settings.UPLOADS_DIR)
-ALLOWED_FOLDERS = frozenset({'equipment', 'implements', 'sharing', 'profile'})
+ALLOWED_FOLDERS = frozenset({
+    'equipment',
+    'implements',
+    'sharing',
+    'profile',
+    'purchase-planner',
+})
 ALLOWED_TYPES = frozenset({'image/jpeg', 'image/jpg', 'image/png', 'image/webp'})
 EXT_TYPES = {
     '.jpg': 'image/jpeg',

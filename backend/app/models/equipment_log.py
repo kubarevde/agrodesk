@@ -23,7 +23,11 @@ class EquipmentMeterLog(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     equipment_id = Column(UUID(as_uuid=True), ForeignKey('equipment.id'), nullable=False)
-    shift_id = Column(UUID(as_uuid=True), ForeignKey('shifts.id'), nullable=True)
+    shift_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('shifts.id', ondelete='SET NULL'),
+        nullable=True,
+    )
     date = Column(Date, nullable=False)
     value_added = Column(Numeric(10, 2), nullable=False)
     meter_after = Column(Numeric(10, 2), nullable=False)

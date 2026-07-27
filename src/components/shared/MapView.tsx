@@ -1,31 +1,23 @@
-import { type ReactNode, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import L from 'leaflet'
 import {
   AttributionControl,
+  LayersControl,
   MapContainer,
   Marker,
   Polygon,
   Popup,
   TileLayer,
   Tooltip,
+  useMap,
 } from 'react-leaflet'
 import { cn } from '@/lib/utils'
 import '@/lib/maps/setup'
-
-function normalizeTileUrl(url: string): string {
-  // Prevent mixed-content blocking when local is served over HTTPS.
-  if (url.startsWith('http://')) return url.replace(/^http:\/\//, 'https://')
-  return url
-}
-
-// Swap later via VITE_MAP_TILES_URL (MapTiler, other OSM-compatible providers).
-const TILE_URL_RAW = import.meta.env.VITE_MAP_TILES_URL as string | undefined
-const TILE_URL = normalizeTileUrl(
-  TILE_URL_RAW ?? 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-)
-
-const TILE_ATTRIBUTION =
-  'Данные карт © OpenStreetMap contributors, лицензия ODbL'
+import {
+  getBasemaps,
+  getDefaultBasemapId,
+  type MapBasemapId,
+} from '@/lib/maps/tiles'
 
 export type MapMarkerColor = 'green' | 'yellow' | 'red' | 'blue' | 'gray'
 
@@ -56,6 +48,12 @@ type MapViewProps = {
   className?: string
   markers?: MapMarker[]
   polygons?: MapPolygon[]
+  /** Default basemap; env VITE_MAP_DEFAULT_BASEMAP overrides when omitted. */
+  defaultBasemap?: MapBasemapId
+  /** Fit map to markers/polygons when data is present. */
+  fitToData?: boolean
+  /** Show schema/satellite layer switcher (default true). */
+  showBasemapControl?: boolean
 }
 
 const MARKER_COLORS: Record<MapMarkerColor, string> = {
@@ -77,6 +75,36 @@ function createColoredIcon(color: MapMarkerColor = 'blue') {
   })
 }
 
+function FitToData({
+  markers,
+  polygons,
+}: {
+  markers: MapMarker[]
+  polygons: MapPolygon[]
+}) {
+  const map = useMap()
+
+  useEffect(() => {
+    const points: L.LatLngExpression[] = []
+    for (const marker of markers) {
+      points.push([marker.lat, marker.lng])
+    }
+    for (const polygon of polygons) {
+      for (const pair of polygon.coordinates) {
+        if (pair.length >= 2) points.push([pair[0], pair[1]])
+      }
+    }
+    if (points.length === 0) return
+    if (points.length === 1) {
+      map.setView(points[0], Math.max(map.getZoom(), 14))
+      return
+    }
+    map.fitBounds(L.latLngBounds(points), { padding: [28, 28], maxZoom: 16 })
+  }, [map, markers, polygons])
+
+  return null
+}
+
 export function MapView({
   center = [51.5, 36.5],
   zoom = 10,
@@ -84,8 +112,13 @@ export function MapView({
   className,
   markers = [],
   polygons = [],
+  defaultBasemap,
+  fitToData = false,
+  showBasemapControl = true,
 }: MapViewProps) {
   const [tileError, setTileError] = useState(false)
+  const basemaps = useMemo(() => getBasemaps(), [])
+  const activeDefault = defaultBasemap ?? getDefaultBasemapId()
 
   const icons = useMemo(() => {
     const map = new Map<MapMarkerColor, L.DivIcon>()
@@ -98,7 +131,7 @@ export function MapView({
   return (
     <div
       className={cn(
-        'relative w-full overflow-hidden rounded-lg border border-border',
+        'relative w-full min-w-0 overflow-hidden rounded-lg border border-border',
         className,
       )}
       style={{ height }}
@@ -106,18 +139,46 @@ export function MapView({
       <MapContainer
         center={center}
         zoom={zoom}
-        className="h-full w-full"
+        className="h-full w-full touch-pan-y"
         scrollWheelZoom
         attributionControl={false}
       >
         <AttributionControl position="bottomright" prefix={false} />
-        <TileLayer
-          url={TILE_URL}
-          attribution={TILE_ATTRIBUTION}
-          eventHandlers={{
-            tileerror: () => setTileError(true),
-          }}
-        />
+
+        {showBasemapControl ? (
+          <LayersControl position="topright">
+            {basemaps.map((layer) => (
+              <LayersControl.BaseLayer
+                key={layer.id}
+                checked={layer.id === activeDefault}
+                name={layer.name}
+              >
+                <TileLayer
+                  url={layer.url}
+                  attribution={layer.attribution}
+                  maxZoom={layer.maxZoom ?? 19}
+                  eventHandlers={{
+                    tileerror: () => setTileError(true),
+                  }}
+                />
+              </LayersControl.BaseLayer>
+            ))}
+          </LayersControl>
+        ) : (
+          <TileLayer
+            url={basemaps.find((b) => b.id === activeDefault)?.url ?? basemaps[0].url}
+            attribution={
+              basemaps.find((b) => b.id === activeDefault)?.attribution ??
+              basemaps[0].attribution
+            }
+            maxZoom={19}
+            eventHandlers={{
+              tileerror: () => setTileError(true),
+            }}
+          />
+        )}
+
+        {fitToData ? <FitToData markers={markers} polygons={polygons} /> : null}
 
         {markers.map((marker) => (
           <Marker
@@ -147,10 +208,10 @@ export function MapView({
             key={polygon.id}
             positions={polygon.coordinates as [number, number][]}
             pathOptions={{
-              color: polygon.color ?? 'var(--primary)',
+              color: polygon.color ?? '#F9F8F5',
               fillColor: polygon.fillColor ?? polygon.color ?? 'var(--primary)',
-              fillOpacity: 0.25,
-              weight: 2,
+              fillOpacity: 0.35,
+              weight: 2.5,
             }}
             eventHandlers={polygon.onClick ? { click: polygon.onClick } : undefined}
           >
@@ -160,26 +221,17 @@ export function MapView({
 
         {tileError ? (
           <div className="absolute inset-0 z-[1000] flex flex-col items-center justify-center gap-3 bg-background/85 p-4 text-center">
-            <p className="text-sm font-medium text-foreground">
-              Не удалось загрузить карту
-            </p>
+            <p className="text-sm font-medium text-foreground">Не удалось загрузить карту</p>
             <p className="text-xs text-muted-foreground">
-              Тайлы могут блокироваться (CSP / mixed content / сеть). Попробуйте позже или
-              откройте координаты в OpenStreetMap.
+              Проверьте сеть или смените подложку (Спутник / Схема). Офлайн тайлы не кэшируются.
             </p>
-            <a
+            <button
+              type="button"
               className="rounded-md border border-border bg-card px-3 py-2 text-xs font-medium text-primary hover:bg-muted/30"
-              target="_blank"
-              rel="noreferrer"
-              href={`https://www.openstreetmap.org/#map=${zoom}/${center[0]}/${center[1]}`}
+              onClick={() => setTileError(false)}
             >
-              Открыть в OpenStreetMap
-            </a>
-            {TILE_URL_RAW ? (
-              <p className="max-w-[340px] text-[10px] text-muted-foreground">
-                Используется URL тайлов: {TILE_URL_RAW}
-              </p>
-            ) : null}
+              Скрыть предупреждение
+            </button>
           </div>
         ) : null}
       </MapContainer>

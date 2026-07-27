@@ -1,5 +1,5 @@
 import { AlertTriangle, Check, Loader2, MapPin, Play } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -16,6 +16,8 @@ import { LabeledSelect } from '@/components/ui/labeled-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { useAgroPlansToday } from '@/features/agro-calendar/hooks'
+import { planFieldsLabel } from '@/features/agro-calendar/utils'
 import { apiErrorMessage } from '@/lib/apiError'
 import { entityOptions } from '@/lib/selectOptions'
 import { useCreateShift } from './hooks'
@@ -36,7 +38,6 @@ import { formatShiftTime } from './utils'
 interface OpenShiftModalProps {
   open: boolean
   onClose: () => void
-  /** When true, manager/admin picks an employee instead of using the token user. */
   selectEmployee?: boolean
 }
 
@@ -46,6 +47,7 @@ const defaultValues: OpenShiftFormValues = {
   equipment: '',
   fieldId: '',
   implementId: '',
+  agroPlanId: '',
   latitude: null,
   longitude: null,
   employeeId: '',
@@ -83,7 +85,38 @@ export function OpenShiftModal({
   const latitude = watch('latitude')
   const longitude = watch('longitude')
   const equipmentId = watch('equipment')
+  const workTypeId = watch('workType')
+  const fieldId = watch('fieldId')
+  const agroPlanId = watch('agroPlanId')
+  const employeeId = watch('employeeId')
   const hasGeo = latitude != null && longitude != null
+
+  const selectedWorkType = workTypes.find((item) => item.id === workTypeId)
+  const isFieldWork = Boolean(selectedWorkType?.isFieldWork)
+  const planEmployeeId = canSelectEmployee ? employeeId || undefined : user?.id
+  const { data: todayPlans = [] } = useAgroPlansToday(planEmployeeId)
+
+  const availablePlans = useMemo(() => {
+    return todayPlans.filter((plan) => {
+      if (plan.status !== 'planned' && plan.status !== 'in_progress') return false
+      if (fieldId && !plan.fieldIds.includes(fieldId) && plan.fieldId !== fieldId) return false
+      return true
+    })
+  }, [todayPlans, fieldId])
+
+  useEffect(() => {
+    if (!isFieldWork && agroPlanId) setValue('agroPlanId', '')
+  }, [isFieldWork, agroPlanId, setValue])
+
+  useEffect(() => {
+    if (!agroPlanId) return
+    const plan = availablePlans.find((item) => item.id === agroPlanId)
+    if (!plan) return
+    setValue('workType', plan.workTypeId)
+    setValue('fieldId', plan.fieldId)
+    if (plan.equipmentId) setValue('equipment', plan.equipmentId)
+    if (plan.implementId) setValue('implementId', plan.implementId)
+  }, [agroPlanId, availablePlans, setValue])
 
   const employeeOptions = useMemo(
     () =>
@@ -115,6 +148,16 @@ export function OpenShiftModal({
       ),
     [equipment],
   )
+  const planOptions = useMemo(
+    () => [
+      { value: 'none', label: 'Без плана' },
+      ...availablePlans.map((plan) => ({
+        value: plan.id,
+        label: `${plan.workTypeName} · ${planFieldsLabel(plan)}`,
+      })),
+    ],
+    [availablePlans],
+  )
 
   const handleClose = () => {
     reset(defaultValues)
@@ -129,7 +172,6 @@ export function OpenShiftModal({
       toast.error(`Ошибка: ${message}`)
       return
     }
-
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setValue('latitude', position.coords.latitude)
@@ -144,15 +186,14 @@ export function OpenShiftModal({
     )
   }
 
-  const handleSkipGeo = () => {
-    setValue('latitude', null)
-    setValue('longitude', null)
-    setGeoError(null)
-  }
-
   const onSubmit = async (values: OpenShiftFormValues) => {
     if (!user) {
       toast.error('Ошибка: Пользователь не авторизован')
+      return
+    }
+    const workType = workTypes.find((item) => item.id === values.workType)
+    if (workType?.isFieldWork && !values.fieldId) {
+      toast.error('Для полевой работы укажите поле')
       return
     }
 
@@ -163,6 +204,7 @@ export function OpenShiftModal({
         equipmentId: values.equipment || undefined,
         fieldId: values.fieldId || undefined,
         implementId: values.implementId || undefined,
+        agroPlanId: values.agroPlanId || undefined,
         latitude: values.latitude ?? null,
         longitude: values.longitude ?? null,
         employeeId: canSelectEmployee ? values.employeeId : undefined,
@@ -178,7 +220,7 @@ export function OpenShiftModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
             {canSelectEmployee ? 'Открыть смену за сотрудника' : 'Открыть смену'}
@@ -212,6 +254,29 @@ export function OpenShiftModal({
             </div>
           ) : null}
 
+          {isFieldWork && availablePlans.length > 0 ? (
+            <div className="space-y-2">
+              <Label>План на сегодня</Label>
+              <Controller
+                name="agroPlanId"
+                control={control}
+                render={({ field }) => (
+                  <LabeledSelect
+                    value={field.value || 'none'}
+                    onValueChange={(value) =>
+                      field.onChange(!value || value === 'none' ? '' : value)
+                    }
+                    options={planOptions}
+                    placeholder="Без плана"
+                  />
+                )}
+              />
+              <p className="text-xs text-muted-foreground">
+                Выбор плана подставит поле, тип работ и технику.
+              </p>
+            </div>
+          ) : null}
+
           <div className="space-y-2">
             <Label>Объект</Label>
             {locationsLoading ? (
@@ -238,7 +303,7 @@ export function OpenShiftModal({
             )}
           </div>
 
-          <ShiftFieldSelect control={control} />
+          <ShiftFieldSelect control={control} required={isFieldWork} />
 
           <div className="space-y-2">
             <Label>Тип работ</Label>
@@ -312,7 +377,11 @@ export function OpenShiftModal({
                 {geoError}
               </p>
             ) : null}
-            <Button type="button" variant="ghost" size="sm" onClick={handleSkipGeo}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => {
+              setValue('latitude', null)
+              setValue('longitude', null)
+              setGeoError(null)
+            }}>
               Пропустить
             </Button>
           </div>

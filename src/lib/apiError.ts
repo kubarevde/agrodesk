@@ -39,3 +39,28 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
   }
   return fallback
 }
+
+/** Split network vs forbidden for page-level empty states. */
+export function accessLoadErrorDescription(
+  error: unknown,
+  fallback = 'Не удалось загрузить данные.',
+): { title: string; description: string } {
+  if (axios.isAxiosError(error)) {
+    if (!error.response) {
+      return {
+        title: 'Нет связи с сервером',
+        description: 'Проверьте интернет или что backend запущен.',
+      }
+    }
+    if (error.response.status === 403) {
+      return {
+        title: 'Раздел недоступен',
+        description: 'У вашей роли нет прав на эти данные. Обратитесь к администратору.',
+      }
+    }
+  }
+  return {
+    title: fallback,
+    description: apiErrorMessage(error, 'Попробуйте обновить страницу.'),
+  }
+}

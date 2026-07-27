@@ -260,6 +260,8 @@ async def fetch_agro_plan_today(today: date, org_id: UUID) -> list[DashboardAgro
             .where(
                 Location.org_id == org_id,
                 AgroPlan.planned_date == today,
+                AgroPlan.entry_kind == 'plan',
+                AgroPlan.status.in_(['planned', 'in_progress']),
             )
             .order_by(AgroPlan.status.asc())
         )

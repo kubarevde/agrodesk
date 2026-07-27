@@ -7,11 +7,15 @@ import {
   useUpdateRolePermissions,
 } from '@/features/settings/permissionsHooks'
 import { SECTION_DESCRIPTIONS } from '@/features/help/modules'
+import { EMPLOYEE_LOCKED_SECTIONS } from '@/lib/sectionRegistry'
 
 const ROLES: Array<{ key: 'manager' | 'employee'; label: string }> = [
   { key: 'manager', label: 'Менеджер' },
   { key: 'employee', label: 'Сотрудник' },
 ]
+
+/** Only «Моя смена» is non-revocable for employees — do not lock sharing or other sections. */
+const LOCKED_EMPLOYEE_SECTIONS = new Set(EMPLOYEE_LOCKED_SECTIONS)
 
 export function RolePermissionsTab() {
   const { data: user } = useCurrentUser()
@@ -35,6 +39,7 @@ export function RolePermissionsTab() {
   if (isLoading || !data) return <PageSkeleton />
 
   const toggle = (role: 'manager' | 'employee', sectionKey: string) => {
+    if (role === 'employee' && LOCKED_EMPLOYEE_SECTIONS.has(sectionKey)) return
     setDraft((prev) => {
       const current = new Set(prev[role] ?? [])
       if (current.has(sectionKey)) current.delete(sectionKey)
@@ -47,8 +52,10 @@ export function RolePermissionsTab() {
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         Администратор всегда видит все разделы. Здесь настраивается, какие разделы доступны
-        менеджерам и сотрудникам как ролям (не персонально одному человеку). После сохранения
-        сотрудникам нужно обновить страницу или войти заново, чтобы увидеть новые пункты меню.
+        менеджерам и сотрудникам как ролям (не персонально одному человеку). У сотрудника
+        обязателен только пункт «Моя смена» — его нельзя снять. Остальные разделы, включая
+        «Шеринг», включаются и выключаются свободно. После сохранения сотрудникам нужно
+        обновить страницу или войти заново, чтобы увидеть новые пункты меню.
       </p>
 
       {ROLES.map((role) => (
@@ -56,7 +63,10 @@ export function RolePermissionsTab() {
           <h3 className="text-sm font-semibold text-foreground">{role.label}</h3>
           <ul className="grid gap-2 sm:grid-cols-2">
             {data.sections.map((section) => {
-              const checked = (draft[role.key] ?? []).includes(section.key)
+              const locked =
+                role.key === 'employee' && LOCKED_EMPLOYEE_SECTIONS.has(section.key)
+              const checked =
+                locked || (draft[role.key] ?? []).includes(section.key)
               return (
                 <li key={`${role.key}-${section.key}`}>
                   <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-2 py-2 text-sm hover:bg-muted/30">
@@ -64,10 +74,16 @@ export function RolePermissionsTab() {
                       type="checkbox"
                       className="size-4 accent-primary"
                       checked={checked}
+                      disabled={locked}
                       onChange={() => toggle(role.key, section.key)}
                     />
                     <span className="flex flex-col">
-                      <span>{section.label}</span>
+                      <span>
+                        {section.label}
+                        {locked ? (
+                          <span className="ml-1 text-xs text-muted-foreground">(всегда)</span>
+                        ) : null}
+                      </span>
                       {SECTION_DESCRIPTIONS[section.key] ? (
                         <span className="text-xs font-normal text-muted-foreground">
                           {SECTION_DESCRIPTIONS[section.key]}

@@ -90,7 +90,7 @@ export function FieldsPage() {
               action={canManage ? { label: 'Добавить поле', onClick: openCreate } : undefined}
             />
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
               {fields.map((field) => (
                 <FieldCard
                   key={field.id}

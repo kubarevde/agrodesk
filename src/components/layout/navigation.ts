@@ -85,8 +85,8 @@ export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((group) => group.items)
 
 /**
  * Build sidebar/mobile nav from the shared NAV_GROUPS + permission model.
- * When employee permissions are still loading (undefined), show only the
- * always-visible defaults — never invent extra items, never hide grants once loaded.
+ * When employee permissions are still loading (undefined), show DEFAULT_EMPLOYEE_SECTIONS
+ * (my-shift + sharing) — not the locked-only set. Once loaded, respect exact grants.
  */
 export function getNavGroups(
   role?: CurrentUser['role'],

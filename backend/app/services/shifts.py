@@ -1,6 +1,10 @@
 import math
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from uuid import UUID
+
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def calc_duration_minutes(start_time: time, end_time: time) -> int:
@@ -67,3 +71,44 @@ def ranges_overlap(
     end_b: datetime,
 ) -> bool:
     return start_a < end_b and end_a > start_b
+
+
+async def unlink_shift_dependencies(db: AsyncSession, shift_id: UUID) -> None:
+    """Clear/delete dependent rows before hard-deleting a shift.
+
+    - Agro plan facts created for this shift are removed.
+    - Completed plans linked via actual_shift_id are unlinked and reopened to planned.
+    - Equipment meter logs keep values but drop shift_id.
+    """
+    from app.models.agro_plan import AgroPlan
+    from app.models.equipment_log import EquipmentMeterLog
+
+    facts = await db.execute(
+        select(AgroPlan).where(
+            AgroPlan.actual_shift_id == shift_id,
+            AgroPlan.entry_kind == 'fact',
+        )
+    )
+    for fact in facts.scalars().all():
+        await db.delete(fact)
+
+    plans = await db.execute(
+        select(AgroPlan).where(
+            AgroPlan.actual_shift_id == shift_id,
+            AgroPlan.entry_kind == 'plan',
+        )
+    )
+    for plan in plans.scalars().all():
+        plan.actual_shift_id = None
+        if plan.status == 'done':
+            plan.status = 'planned'
+            plan.closed_by = None
+            plan.closed_at = None
+            plan.close_note = None
+        db.add(plan)
+
+    await db.execute(
+        update(EquipmentMeterLog)
+        .where(EquipmentMeterLog.shift_id == shift_id)
+        .values(shift_id=None)
+    )

@@ -2,7 +2,7 @@ from datetime import date as date_type
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.inventory import InventoryOperationType
 
@@ -49,6 +49,13 @@ class InventoryOperationCreate(BaseModel):
     equipment_id: UUID | None = None
     purpose: str = Field(default='general', max_length=30)
 
+    @field_validator('date')
+    @classmethod
+    def validate_date_not_future(cls, value: date_type | None) -> date_type | None:
+        if value is not None and value > date_type.today():
+            raise ValueError('Дата не может быть в будущем')
+        return value
+
 
 class EquipmentStockAction(BaseModel):
     """Refuel or install material from stock onto equipment."""
@@ -58,6 +65,13 @@ class EquipmentStockAction(BaseModel):
     date: date_type | None = None
     comment: str | None = Field(default=None, max_length=500)
     purpose: str = Field(description='refuel | install')
+
+    @field_validator('date')
+    @classmethod
+    def validate_date_not_future(cls, value: date_type | None) -> date_type | None:
+        if value is not None and value > date_type.today():
+            raise ValueError('Дата не может быть в будущем')
+        return value
 
 
 class InventoryOperationResponse(BaseModel):
@@ -74,6 +88,7 @@ class InventoryOperationResponse(BaseModel):
     supplier: str | None = None
     cost: Decimal | None = None
     created_by: UUID | None = None
+    created_by_name: str | None = None
     equipment_id: UUID | None = None
     purpose: str = 'general'
     equipment_name: str | None = None

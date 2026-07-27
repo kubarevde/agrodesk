@@ -74,6 +74,9 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
   })
 
   const equipmentId = watch('equipment')
+  const workTypeId = watch('workType')
+  const selectedWorkType = workTypes.find((item) => item.id === workTypeId)
+  const isFieldWork = Boolean(selectedWorkType?.isFieldWork)
 
   const employeeOptions = useMemo(
     () =>
@@ -127,6 +130,11 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
     }
 
     try {
+      const workType = workTypes.find((item) => item.id === values.workType)
+      if (workType?.isFieldWork && !values.fieldId) {
+        toast.error('Для полевой работы укажите поле')
+        return
+      }
       await createShift.mutateAsync({
         employeeId: employee.id,
         date: values.startDate,
@@ -248,7 +256,7 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
             ) : null}
           </div>
 
-          <ShiftFieldSelect control={control} />
+          <ShiftFieldSelect control={control} required={isFieldWork} />
 
           <div className="space-y-2">
             <Label>Тип работ</Label>

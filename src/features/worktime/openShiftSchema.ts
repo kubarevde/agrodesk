@@ -6,6 +6,7 @@ const baseOpenShiftSchema = z.object({
   equipment: z.string().optional(),
   fieldId: z.string().optional(),
   implementId: z.string().optional(),
+  agroPlanId: z.string().optional(),
   latitude: z.number().nullable().optional(),
   longitude: z.number().nullable().optional(),
   employeeId: z.string().optional(),

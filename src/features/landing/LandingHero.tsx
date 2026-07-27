@@ -1,63 +1,63 @@
 import { Link } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
 import { buttonVariants } from '@/components/ui/button'
-import { MockupBrowser } from '@/features/landing/MockupBrowser'
-import { scrollToSection } from '@/features/landing/nav'
+import { LANDING_IMAGES, scrollToSection } from '@/features/landing/nav'
 import { cn } from '@/lib/utils'
 
+/** Full-bleed hero: brand + one promise + CTA + dominant field photo. */
 export function LandingHero() {
   return (
-    <section className="bg-[var(--landing-section-alt)] py-16 sm:py-24">
-      <div className="mx-auto flex max-w-6xl flex-col items-center gap-10 px-4 md:flex-row md:items-center md:gap-12">
+    <section className="relative isolate min-h-[min(92vh,52rem)] overflow-hidden bg-foreground text-primary-foreground">
+      <img
+        src={LANDING_IMAGES.hero}
+        alt=""
+        className="absolute inset-0 size-full object-cover"
+        fetchPriority="high"
+      />
+      <div
+        className="absolute inset-0 bg-gradient-to-r from-foreground/88 via-foreground/55 to-foreground/20 dark:from-background/90 dark:via-background/60 dark:to-background/25"
+        aria-hidden
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-foreground/50 via-transparent to-transparent dark:from-background/60" aria-hidden />
+
+      <div className="relative mx-auto flex min-h-[min(92vh,52rem)] max-w-6xl flex-col justify-end px-4 pb-12 pt-28 sm:pb-16 sm:pt-32 lg:justify-center lg:pb-20">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
-          className="w-full flex-1 space-y-6"
+          transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+          className="max-w-xl space-y-5 sm:max-w-2xl"
         >
-          <p className="text-sm font-medium uppercase tracking-wide text-[var(--landing-primary)]">
+          <p className="landing-display text-4xl font-semibold text-primary sm:text-5xl lg:text-6xl">
             АгроДеск
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-[var(--landing-text)] sm:text-4xl lg:text-5xl">
-            Управление аграрным хозяйством — просто и прозрачно
+          <h1 className="landing-display text-balance text-2xl font-semibold leading-[1.15] text-primary-foreground sm:text-4xl lg:text-[2.75rem]">
+            Учёт смен, склада и закупок для КФХ — без таблиц в чатах
           </h1>
-          <p className="max-w-xl text-base text-[var(--landing-muted)] sm:text-lg">
-            Учёт рабочего времени, склад, зарплата и Telegram-бот в одной системе.
+          <p className="max-w-lg text-base leading-relaxed text-primary-foreground/80 sm:text-lg">
+            Сотрудник отмечает работу в приложении или Telegram. Менеджер видит день
+            хозяйства. Администратор держит доступы и историю изменений.
           </p>
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center">
             <Link
               to="/login"
               className={cn(
                 buttonVariants({ size: 'lg' }),
-                'w-full justify-center bg-[var(--landing-primary)] text-white hover:bg-green-700 sm:w-auto',
+                'w-full justify-center bg-primary text-primary-foreground hover:bg-primary-hover sm:w-auto',
               )}
             >
-              Начать бесплатно
+              Войти в систему
             </Link>
             <button
               type="button"
               className={cn(
                 buttonVariants({ variant: 'outline', size: 'lg' }),
-                'w-full justify-center border-green-200 text-[var(--landing-text)] sm:w-auto',
+                'w-full justify-center border-primary-foreground/35 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground sm:w-auto',
               )}
-              onClick={() => scrollToSection('how')}
+              onClick={() => scrollToSection('day')}
             >
-              Смотреть как работает
+              Как проходит день
             </button>
           </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.15, ease: 'easeOut' }}
-          className="w-full flex-1"
-        >
-          <MockupBrowser
-            src="/screenshots/dashboard.png"
-            alt="Дашборд АгроДеск"
-            placeholderLabel="Скриншот дашборда"
-          />
         </motion.div>
       </div>
     </section>

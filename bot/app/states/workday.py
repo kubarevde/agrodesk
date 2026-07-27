@@ -5,6 +5,7 @@ class StartWork(StatesGroup):
     location = State()
     geo = State()
     work_type = State()
+    field = State()
     equipment = State()
     comment = State()
 

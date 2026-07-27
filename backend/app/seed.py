@@ -210,7 +210,7 @@ async def seed_work_types(session, org_id) -> None:
 
     session.add_all(
         [
-            WorkType(org_id=org_id, name=name, category=category, is_active=True)
+            WorkType(org_id=org_id, name=name, category=category, is_field_work='поле' in category.lower(), is_active=True)
             for name, category in WORK_TYPES
         ]
     )
@@ -453,7 +453,7 @@ async def ensure_test_farm_org(session) -> None:
         select(WorkType).where(WorkType.org_id == org.id).limit(1)
     )
     if wt.scalar_one_or_none() is None:
-        session.add(WorkType(org_id=org.id, name='Пахота', category='полевые', is_active=True))
+        session.add(WorkType(org_id=org.id, name='Пахота', category='полевые', is_field_work=True, is_active=True))
         await session.commit()
 
     await ensure_default_dictionaries(session, org.id)

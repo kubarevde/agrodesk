@@ -23,7 +23,12 @@ interface WorkTypeFormModalProps {
   onClose: () => void
 }
 
-const defaults: WorkTypeFormValues = { name: '', category: '', isActive: true }
+const defaults: WorkTypeFormValues = {
+  name: '',
+  category: '',
+  isFieldWork: false,
+  isActive: true,
+}
 
 export function WorkTypeFormModal({ open, workType, onClose }: WorkTypeFormModalProps) {
   const isEdit = Boolean(workType)
@@ -47,7 +52,12 @@ export function WorkTypeFormModal({ open, workType, onClose }: WorkTypeFormModal
     }
     reset(
       workType
-        ? { name: workType.name, category: workType.category ?? '', isActive: workType.isActive }
+        ? {
+            name: workType.name,
+            category: workType.category ?? '',
+            isFieldWork: workType.isFieldWork,
+            isActive: workType.isActive,
+          }
         : defaults,
     )
   }, [open, reset, workType?.id])
@@ -79,6 +89,21 @@ export function WorkTypeFormModal({ open, workType, onClose }: WorkTypeFormModal
             <Label htmlFor="work-type-category">Категория</Label>
             <Input id="work-type-category" {...register('category')} />
           </div>
+          <Controller
+            name="isFieldWork"
+            control={control}
+            render={({ field }) => (
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-primary"
+                  checked={field.value}
+                  onChange={(event) => field.onChange(event.target.checked)}
+                />
+                Полевая работа (попадает в агрокалендарь)
+              </label>
+            )}
+          />
           <Controller
             name="isActive"
             control={control}

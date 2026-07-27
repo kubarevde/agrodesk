@@ -1,6 +1,6 @@
 import calendar
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -9,14 +9,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.dependencies.auth import get_current_employee, require_manager
+from app.dependencies.auth import get_current_employee, require_admin, require_manager
 from app.middleware.org_context import get_org_id
 from app.models.agro_plan import AgroPlan, AgroPlanField
 from app.models.employee import Employee
 from app.models.implement import Implement
 from app.models.reference import Equipment, Location, WorkType
 from app.routers.fields import get_field_or_404
-from app.schemas.agro_plan import AgroPlanCreate, AgroPlanResponse, AgroPlanUpdate
+from app.schemas.agro_plan import (
+    AgroPlanCloseRequest,
+    AgroPlanCreate,
+    AgroPlanResponse,
+    AgroPlanUpdate,
+)
 from app.services.audit import log_change, model_snapshot
 
 logger = logging.getLogger(__name__)
@@ -31,7 +36,22 @@ def plan_load_options():
         selectinload(AgroPlan.equipment),
         selectinload(AgroPlan.implement),
         selectinload(AgroPlan.employee),
+        selectinload(AgroPlan.closed_by_user),
     )
+
+
+def mark_plan_closed(
+    plan: AgroPlan,
+    *,
+    closed_by: UUID,
+    status_value: str,
+    note: str | None = None,
+) -> None:
+    plan.status = status_value
+    plan.closed_by = closed_by
+    plan.closed_at = datetime.now(timezone.utc)
+    if note is not None:
+        plan.close_note = note.strip() or None
 
 
 def parse_month(month: str) -> tuple[date, date]:
@@ -61,6 +81,7 @@ def plan_to_response(plan: AgroPlan) -> AgroPlanResponse:
         field_ids = [plan.location_id]
         field_names = [plan.location.name if plan.location else '']
 
+    closed_by_user = plan.__dict__.get('closed_by_user')
     return AgroPlanResponse(
         id=plan.id,
         field_id=field_ids[0],
@@ -75,11 +96,16 @@ def plan_to_response(plan: AgroPlan) -> AgroPlanResponse:
         employee_id=plan.employee_id,
         notes=plan.notes,
         status=plan.status,
+        entry_kind=getattr(plan, 'entry_kind', None) or 'plan',
         work_type_name=plan.work_type.name if plan.work_type else '',
         equipment_name=plan.equipment.name if plan.equipment else None,
         implement_name=plan.implement.name if plan.implement else None,
         employee_name=plan.employee.full_name if plan.employee else None,
         actual_shift_id=plan.actual_shift_id,
+        closed_by=getattr(plan, 'closed_by', None),
+        closed_by_name=closed_by_user.full_name if closed_by_user else None,
+        closed_at=getattr(plan, 'closed_at', None),
+        close_note=getattr(plan, 'close_note', None),
     )
 
 
@@ -93,6 +119,8 @@ async def get_plan_or_404(db: AsyncSession, plan_id: UUID, org_id: UUID) -> Agro
     plan = result.scalar_one_or_none()
     if plan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='План не найден')
+    if plan.closed_by is not None and plan.__dict__.get('closed_by_user') is None:
+        plan.closed_by_user = await db.get(Employee, plan.closed_by)
     return plan
 
 
@@ -157,7 +185,11 @@ async def list_agro_plans_today(
         .options(*plan_load_options())
         .where(
             Location.org_id == org_id,
-            AgroPlan.employee_id == target_employee_id,
+            AgroPlan.entry_kind == 'plan',
+            or_(
+                AgroPlan.employee_id == target_employee_id,
+                AgroPlan.employee_id.is_(None),
+            ),
             AgroPlan.status.in_(['planned', 'in_progress']),
             AgroPlan.planned_date <= today,
             or_(
@@ -168,7 +200,15 @@ async def list_agro_plans_today(
         .order_by(AgroPlan.planned_date.asc())
     )
     result = await db.execute(query)
-    return [plan_to_response(item) for item in result.scalars().all()]
+    plans = list(result.scalars().all())
+    missing = [p.closed_by for p in plans if p.closed_by and p.__dict__.get('closed_by_user') is None]
+    if missing:
+        employees = await db.execute(select(Employee).where(Employee.id.in_(missing)))
+        by_id = {emp.id: emp for emp in employees.scalars().all()}
+        for plan in plans:
+            if plan.closed_by and plan.__dict__.get('closed_by_user') is None:
+                plan.closed_by_user = by_id.get(plan.closed_by)
+    return [plan_to_response(item) for item in plans]
 
 
 @router.get('', response_model=list[AgroPlanResponse])
@@ -230,7 +270,15 @@ async def list_agro_plans(
 
     query = query.order_by(AgroPlan.planned_date.asc())
     result = await db.execute(query)
-    return [plan_to_response(item) for item in result.scalars().unique().all()]
+    plans = list(result.scalars().unique().all())
+    missing = [p.closed_by for p in plans if p.closed_by and p.__dict__.get('closed_by_user') is None]
+    if missing:
+        employees = await db.execute(select(Employee).where(Employee.id.in_(missing)))
+        by_id = {emp.id: emp for emp in employees.scalars().all()}
+        for plan in plans:
+            if plan.closed_by and plan.__dict__.get('closed_by_user') is None:
+                plan.closed_by_user = by_id.get(plan.closed_by)
+    return [plan_to_response(item) for item in plans]
 
 
 @router.post('', response_model=AgroPlanResponse, status_code=status.HTTP_201_CREATED)
@@ -269,6 +317,7 @@ async def create_agro_plan(
         employee_id=payload.employee_id,
         notes=payload.notes,
         status='planned',
+        entry_kind='plan',
         created_by=current.id,
     )
     # Assign junction rows while plan is still transient — assigning
@@ -317,6 +366,11 @@ async def update_agro_plan(
 ) -> AgroPlanResponse:
     org_id = get_org_id(request)
     plan = await get_plan_or_404(db, plan_id, org_id)
+    if getattr(plan, 'entry_kind', 'plan') == 'fact':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Фактическую запись нельзя редактировать — она связана со сменой',
+        )
     before = model_snapshot(plan)
     update_data = payload.model_dump(exclude_unset=True)
 
@@ -340,8 +394,18 @@ async def update_agro_plan(
                 field_ids.append(field_id)
         set_plan_fields(plan, field_ids)
 
+    new_status = update_data.pop('status', None)
     for field, value in update_data.items():
         setattr(plan, field, value)
+
+    if new_status is not None:
+        if new_status in ('done', 'cancelled'):
+            mark_plan_closed(plan, closed_by=current.id, status_value=new_status)
+        else:
+            plan.status = new_status
+            plan.closed_by = None
+            plan.closed_at = None
+            plan.close_note = None
 
     db.add(plan)
     try:
@@ -367,6 +431,45 @@ async def update_agro_plan(
     return plan_to_response(await get_plan_or_404(db, plan.id, org_id))
 
 
+@router.post('/{plan_id}/close', response_model=AgroPlanResponse)
+async def close_agro_plan(
+    request: Request,
+    plan_id: UUID,
+    payload: AgroPlanCloseRequest,
+    db: AsyncSession = Depends(get_db),
+    current: Employee = Depends(require_admin),
+) -> AgroPlanResponse:
+    """Admin-only: close any plan (done/cancelled) without a linked shift."""
+    org_id = get_org_id(request)
+    plan = await get_plan_or_404(db, plan_id, org_id)
+    if getattr(plan, 'entry_kind', 'plan') == 'fact':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Фактическую запись нельзя закрыть вручную — она связана со сменой',
+        )
+
+    before = model_snapshot(plan)
+    mark_plan_closed(
+        plan,
+        closed_by=current.id,
+        status_value=payload.status,
+        note=payload.note,
+    )
+    db.add(plan)
+    await log_change(
+        db,
+        org_id=org_id,
+        entity_type='agro_plan',
+        entity_id=plan.id,
+        action='update',
+        changed_by=current.id,
+        before=before,
+        after=model_snapshot(plan),
+    )
+    await db.commit()
+    return plan_to_response(await get_plan_or_404(db, plan.id, org_id))
+
+
 @router.delete('/{plan_id}', status_code=status.HTTP_204_NO_CONTENT)
 async def delete_agro_plan(
     request: Request,
@@ -376,6 +479,11 @@ async def delete_agro_plan(
 ) -> None:
     org_id = get_org_id(request)
     plan = await get_plan_or_404(db, plan_id, org_id)
+    if getattr(plan, 'entry_kind', 'plan') == 'fact':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Фактическую запись нельзя удалить — она связана со сменой',
+        )
     before = model_snapshot(plan)
     await log_change(db, org_id=org_id, entity_type='agro_plan', entity_id=plan.id,
                      action='delete', changed_by=current.id, before=before)

@@ -51,6 +51,12 @@ def equipment_keyboard(equipment: list[dict]) -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 
+def fields_keyboard(fields: list[dict]) -> ReplyKeyboardMarkup:
+    rows = [[KeyboardButton(text=str(item.get('name', '')))] for item in fields if item.get('name')]
+    rows.append([KeyboardButton(text='❌ Отмена')])
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
+
+
 def find_by_name(items: list[dict], name: str) -> dict | None:
     needle = (name or '').strip()
     for item in items:
@@ -229,7 +235,6 @@ async def work_start_type(
         return
 
     tg_id = message.from_user.id
-    is_admin = await api.is_admin(tg_id)
     data = await state.get_data()
     work_types: list[dict] = data.get('_work_types') or []
     item = find_by_name(work_types, message.text or '')
@@ -240,12 +245,75 @@ async def work_start_type(
         )
         return
 
-    equipment_items = await api.get_equipment(tg_id)
+    is_field = bool(item.get('is_field_work'))
     await state.update_data(
         work_type_id=str(item['id']),
         work_type_name=str(item.get('name', '')),
-        _equipment=equipment_items,
+        is_field_work=is_field,
+        field_id=None,
+        field_name=None,
+        agro_plan_id=None,
     )
+
+    if is_field:
+        fields = await api.get_fields(tg_id)
+        if not fields:
+            await message.answer(
+                'Для полевой работы нужны поля в справочнике. Обратитесь к менеджеру.',
+                reply_markup=await menu_for_user_safe(api, tg_id),
+            )
+            await state.clear()
+            return
+        await state.update_data(_fields=fields)
+        await state.set_state(StartWork.field)
+        await message.answer(
+            '🌾 Выбери поле:',
+            reply_markup=fields_keyboard(fields),
+        )
+        return
+
+    equipment_items = await api.get_equipment(tg_id)
+    await state.update_data(_equipment=equipment_items)
+    await state.set_state(StartWork.equipment)
+    await message.answer(
+        '🚜 Выбери технику или нажми «Нет / пропустить»:',
+        reply_markup=equipment_keyboard(equipment_items),
+    )
+
+
+async def menu_for_user_safe(api: ApiClient, tg_id: int):
+    is_admin = await api.is_admin(tg_id)
+    return menu_for_user(is_admin)
+
+
+@router.message(StartWork.field)
+async def work_start_field(
+    message: Message,
+    state: FSMContext,
+    api: ApiClient,
+) -> None:
+    if message.text == '❌ Отмена':
+        await cancel_flow(message, state, api)
+        return
+
+    tg_id = message.from_user.id
+    data = await state.get_data()
+    fields: list[dict] = data.get('_fields') or []
+    item = find_by_name(fields, message.text or '')
+    if not item:
+        await message.answer(
+            'Выбери поле кнопкой из списка.',
+            reply_markup=fields_keyboard(fields),
+        )
+        return
+
+    await state.update_data(
+        field_id=str(item['id']),
+        field_name=str(item.get('name', '')),
+    )
+
+    equipment_items = await api.get_equipment(tg_id)
+    await state.update_data(_equipment=equipment_items)
     await state.set_state(StartWork.equipment)
     await message.answer(
         '🚜 Выбери технику или нажми «Нет / пропустить»:',
@@ -333,6 +401,8 @@ async def work_start_comment(
         lng=lng,
         employee=employee,
         start_time_str=str(data.get('start_time_str') or ''),
+        field_id=data.get('field_id'),
+        agro_plan_id=data.get('agro_plan_id'),
     )
 
     await state.clear()

@@ -26,6 +26,7 @@ export type PurchasePlannerItem = {
   maintenanceId: string | null
   maintenanceAssetLabel: string | null
   notes: string | null
+  images: string[]
   createdBy: string | null
   createdAt: string | null
   purchasedAt: string | null
@@ -52,6 +53,7 @@ export type PurchaseCreatePayload = {
   responsibleId?: string | null
   estimatedCost?: number | null
   notes?: string | null
+  images?: string[]
 }
 
 export type PurchaseUpdatePayload = {
@@ -67,6 +69,7 @@ export type PurchaseUpdatePayload = {
   estimatedCost?: number | null
   actualCost?: number | null
   notes?: string | null
+  images?: string[]
   createExpense?: boolean
   expenseCategory?: string
 }

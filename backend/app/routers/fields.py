@@ -15,9 +15,9 @@ from app.models.employee import Employee
 from app.models.reference import Location
 from app.schemas.field import FieldCreate, FieldResponse, FieldUpdate
 from app.services.audit import log_change, model_snapshot
-from app.services.permissions import require_manager_section
-
-router = APIRouter(dependencies=[Depends(require_manager_section('fields'))])
+# Read (list/get) is available to any authenticated employee — needed for open-shift
+# field selection (my-shift). Mutations stay manager-only below.
+router = APIRouter()
 
 
 def _num(value: Decimal | float | None) -> float | None:

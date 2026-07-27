@@ -78,7 +78,7 @@ export function InventoryPage() {
       <CategoryFilter value={category} onChange={setCategory} />
 
       {isLoading ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
           {Array.from({ length: 8 }).map((_, index) => (
             <Skeleton key={index} className="h-52 w-full rounded-xl" />
           ))}
@@ -108,7 +108,7 @@ export function InventoryPage() {
           action={{ label: 'Оформить приход', onClick: () => setIncomeOpen(true) }}
         />
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
           {filteredItems.map((item) => (
             <InventoryCard
               key={item.id}

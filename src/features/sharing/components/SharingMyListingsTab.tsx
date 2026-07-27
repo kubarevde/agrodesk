@@ -46,7 +46,7 @@ export function SharingMyListingsTab({ onDetails }: SharingMyListingsTabProps) {
           action={{ label: 'Разместить объявление', onClick: openCreate }}
         />
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(320px,1fr))]">
           {listings.map((listing) => (
             <SharingMyListingCard
               key={listing.id}

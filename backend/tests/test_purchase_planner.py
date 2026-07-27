@@ -187,3 +187,130 @@ def test_from_maintenance_checklist(
         headers=manager_headers,
     )
     assert dup.status_code == 409, dup.text
+
+
+def _employee_headers(client: httpx.Client, demo_org_id: str) -> dict[str, str]:
+    r = client.post(
+        '/api/auth/login',
+        json={'email': 'EMP001', 'password': '1234', 'org_id': demo_org_id},
+    )
+    assert r.status_code == 200, r.text
+    return {'Authorization': f"Bearer {r.json()['access_token']}"}
+
+
+def _grant_employee_purchase_planner(
+    client: httpx.Client, admin_headers: dict[str, str]
+) -> None:
+    current = client.get('/api/settings/role-permissions', headers=admin_headers)
+    assert current.status_code == 200, current.text
+    perms = dict(current.json()['permissions'])
+    employee_sections = list(perms.get('employee', []))
+    if 'purchase-planner' not in employee_sections:
+        employee_sections.append('purchase-planner')
+    perms['employee'] = employee_sections
+    updated = client.patch(
+        '/api/settings/role-permissions',
+        headers=admin_headers,
+        json={'permissions': perms},
+    )
+    assert updated.status_code == 200, updated.text
+
+
+def test_employee_with_grant_can_list_and_create(
+    client: httpx.Client,
+    admin_headers: dict[str, str],
+    demo_org_id: str,
+) -> None:
+    _grant_employee_purchase_planner(client, admin_headers)
+    emp_headers = _employee_headers(client, demo_org_id)
+
+    listed = client.get('/api/purchase-planner', headers=emp_headers)
+    assert listed.status_code == 200, listed.text
+
+    created = client.post(
+        '/api/purchase-planner',
+        headers=emp_headers,
+        json={'title': 'Перчатки', 'category': 'general', 'urgency': 'normal'},
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()['status'] == 'planned'
+
+    forbidden = client.delete(
+        f"/api/purchase-planner/{created.json()['id']}",
+        headers=emp_headers,
+    )
+    assert forbidden.status_code == 403, forbidden.text
+
+
+def test_employee_mark_purchased_without_expense(
+    client: httpx.Client,
+    admin_headers: dict[str, str],
+    demo_org_id: str,
+) -> None:
+    _grant_employee_purchase_planner(client, admin_headers)
+    emp_headers = _employee_headers(client, demo_org_id)
+
+    created = client.post(
+        '/api/purchase-planner',
+        headers=emp_headers,
+        json={'title': 'Скотч', 'category': 'general', 'estimated_cost': 250},
+    )
+    assert created.status_code == 201, created.text
+    item_id = created.json()['id']
+
+    patched = client.patch(
+        f'/api/purchase-planner/{item_id}',
+        headers=emp_headers,
+        json={
+            'status': 'purchased',
+            'actual_cost': 300,
+            'create_expense': True,
+            'images': ['/uploads/purchase-planner/demo.jpg'],
+        },
+    )
+    assert patched.status_code == 200, patched.text
+    body = patched.json()
+    assert body['status'] == 'purchased'
+    assert body['expense_id'] is None
+    assert body['images'] == ['/uploads/purchase-planner/demo.jpg']
+
+
+def test_revert_purchased_deletes_linked_expense(
+    client: httpx.Client, manager_headers: dict[str, str]
+) -> None:
+    created = client.post(
+        '/api/purchase-planner',
+        headers=manager_headers,
+        json={'title': 'Фильтр салона', 'category': 'general', 'estimated_cost': 900},
+    )
+    assert created.status_code == 201, created.text
+    item_id = created.json()['id']
+
+    purchased = client.patch(
+        f'/api/purchase-planner/{item_id}',
+        headers=manager_headers,
+        json={
+            'status': 'purchased',
+            'actual_cost': 950,
+            'create_expense': True,
+            'expense_category': 'parts',
+        },
+    )
+    assert purchased.status_code == 200, purchased.text
+    expense_id = purchased.json()['expense_id']
+    assert expense_id is not None
+
+    reverted = client.patch(
+        f'/api/purchase-planner/{item_id}',
+        headers=manager_headers,
+        json={'status': 'planned'},
+    )
+    assert reverted.status_code == 200, reverted.text
+    body = reverted.json()
+    assert body['status'] == 'planned'
+    assert body['expense_id'] is None
+    assert body['purchased_at'] is None
+    assert body['actual_cost'] is None
+
+    expense = client.get(f'/api/expenses/{expense_id}', headers=manager_headers)
+    assert expense.status_code == 404, expense.text

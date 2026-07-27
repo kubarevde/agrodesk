@@ -3,7 +3,12 @@ import type { QueryClient } from '@tanstack/react-query'
 import { redirect } from '@tanstack/react-router'
 import { api } from '@/lib/api'
 import { currentUserFromApi, type CurrentUser } from '@/lib/transformers'
-import { canAccessPath, SECTION_ROUTE_MAP } from '@/lib/permissions'
+import {
+  canAccessPath,
+  NO_ACCESS_ROUTE,
+  resolveHomeRoute,
+  SECTION_ROUTE_MAP,
+} from '@/lib/permissions'
 import { DEFAULT_EMPLOYEE_SECTIONS } from '@/lib/sectionRegistry'
 import {
   cacheCurrentUser,
@@ -23,6 +28,8 @@ export {
   readCachedCurrentUser,
 } from '@/features/auth/storage'
 
+export { resolveHomeRoute, NO_ACCESS_ROUTE } from '@/lib/permissions'
+
 export const AUTH_PERMISSIONS_QUERY_KEY = ['auth', 'permissions'] as const
 
 export type UserPermissionsData = {
@@ -30,8 +37,20 @@ export type UserPermissionsData = {
   allowedSections: string[]
 }
 
-export function getHomeRoute(role: CurrentUser['role']): '/dashboard' | '/my-shift' {
-  return role === 'employee' ? '/my-shift' : '/dashboard'
+/** Resolve home using role + current grants (async). */
+export async function resolveUserHomeRoute(queryClient: QueryClient): Promise<string> {
+  const user = await resolveCurrentUser(queryClient)
+  if (user.role === 'admin') return '/dashboard'
+  const sections = await fetchAllowedSections(queryClient)
+  return resolveHomeRoute(user.role, sections)
+}
+
+/**
+ * @deprecated Prefer resolveUserHomeRoute / resolveHomeRoute(role, sections).
+ * Kept for call sites that only know the role; uses safe role defaults.
+ */
+export function getHomeRoute(role: CurrentUser['role']): string {
+  return resolveHomeRoute(role, undefined)
 }
 
 /** True when the failure is offline / network / server — not an invalid session. */
@@ -94,7 +113,6 @@ export async function resolveCurrentUser(queryClient: QueryClient): Promise<Curr
     throw new Error('NO_TOKEN')
   }
 
-  // Avoid hanging on /me when the device is already offline
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     const cached = readCachedCurrentUser()
     if (cached) {
@@ -131,7 +149,6 @@ export async function fetchAllowedSections(queryClient: QueryClient): Promise<st
   const cachedUser = readCachedCurrentUser()
   const cachedRole = cachedUser?.role
 
-  // Offline: do not block boot flow on permissions network calls.
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     if (cachedRole === 'admin') {
       return Object.keys(SECTION_ROUTE_MAP)
@@ -156,7 +173,6 @@ export async function fetchAllowedSections(queryClient: QueryClient): Promise<st
 
   const sections = normalizePermissionsQueryData(data)
 
-  // Migrate legacy cache shape (bare string[]) if still present.
   if (Array.isArray(data) && cachedRole) {
     queryClient.setQueryData(AUTH_PERMISSIONS_QUERY_KEY, {
       role: cachedRole,
@@ -171,13 +187,18 @@ export async function fetchAllowedSections(queryClient: QueryClient): Promise<st
 export async function guardSectionAccess(
   queryClient: QueryClient,
   section: string,
-  fallback?: '/dashboard' | '/my-shift',
+  fallback?: string,
 ): Promise<CurrentUser> {
   const user = await resolveCurrentUser(queryClient)
   if (user.role === 'admin') return user
   const allowed = await fetchAllowedSections(queryClient)
   if (!allowed.includes(section)) {
-    throw redirect({ to: fallback ?? getHomeRoute(user.role) })
+    const home = fallback ?? resolveHomeRoute(user.role, allowed)
+    const homeSection = Object.entries(SECTION_ROUTE_MAP).find(([, route]) => route === home)?.[0]
+    if (!home || homeSection === section) {
+      throw redirect({ to: NO_ACCESS_ROUTE })
+    }
+    throw redirect({ to: home })
   }
   return user
 }

@@ -9,6 +9,7 @@ export const locationSchema = z.object({
 export const workTypeSchema = z.object({
   name: z.string().min(1, 'Укажите название'),
   category: z.string().optional(),
+  isFieldWork: z.boolean(),
   isActive: z.boolean(),
 })
 

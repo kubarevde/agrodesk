@@ -1,20 +1,39 @@
 import { z } from 'zod'
+import { parseApiDate } from '@/features/worktime/utils'
 
 const requiredNumber = (message: string) => z.number({ error: message })
 
-export const incomeSchema = z.object({
-  itemId: z.string().min(1, 'Выберите наименование'),
-  quantity: requiredNumber('Укажите количество').positive('Укажите количество больше 0'),
-  supplier: z.string().min(1, 'Укажите поставщика'),
-  cost: requiredNumber('Укажите стоимость').min(0, 'Стоимость не может быть отрицательной'),
-  date: z.string().min(1, 'Выберите дату'),
-})
+function dateNotInFuture(value: string) {
+  const selected = parseApiDate(value)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return selected <= today
+}
 
-export const expenseSchema = z.object({
-  itemId: z.string().min(1, 'Выберите наименование'),
-  quantity: requiredNumber('Укажите количество').positive('Укажите количество больше 0'),
-  reason: z.string().min(1, 'Укажите причину списания'),
-})
+export const incomeSchema = z
+  .object({
+    itemId: z.string().min(1, 'Выберите наименование'),
+    quantity: requiredNumber('Укажите количество').positive('Укажите количество больше 0'),
+    supplier: z.string().min(1, 'Укажите поставщика'),
+    cost: requiredNumber('Укажите стоимость').min(0, 'Стоимость не может быть отрицательной'),
+    date: z.string().min(1, 'Выберите дату'),
+  })
+  .refine((values) => dateNotInFuture(values.date), {
+    message: 'Дата не может быть в будущем',
+    path: ['date'],
+  })
+
+export const expenseSchema = z
+  .object({
+    itemId: z.string().min(1, 'Выберите наименование'),
+    quantity: requiredNumber('Укажите количество').positive('Укажите количество больше 0'),
+    reason: z.string().min(1, 'Укажите причину списания'),
+    date: z.string().min(1, 'Выберите дату'),
+  })
+  .refine((values) => dateNotInFuture(values.date), {
+    message: 'Дата не может быть в будущем',
+    path: ['date'],
+  })
 
 export const inventoryItemSchema = z.object({
   name: z.string().min(1, 'Укажите название'),

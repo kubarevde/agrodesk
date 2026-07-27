@@ -1,14 +1,17 @@
 import { useState } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { ShoppingCart } from 'lucide-react'
+import { Plus, ShoppingCart } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { SectionHelp } from '@/components/shared/SectionHelp'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { purchasePlannerHelp } from '@/features/help/modules'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { selectOptions } from '@/lib/selectOptions'
+import { accessLoadErrorDescription } from '@/lib/apiError'
 import { useEmployees } from '@/features/employees/hooks'
 import { usePurchaseItems } from '../hooks'
+import { usePurchaseCapabilities } from '../hooks/usePurchaseCapabilities'
 import { purchasePlannerSearch } from '../lib/plannerSearch'
 import { PurchaseChecklistView } from './PurchaseChecklistView'
 import { PurchaseFormDialog } from './PurchaseFormDialog'
@@ -40,19 +43,21 @@ const CATEGORY_FILTER = selectOptions([
 
 export function PurchasePlannerPage() {
   const navigate = useNavigate()
+  const caps = usePurchaseCapabilities()
   const search = useSearch({ strict: false }) as {
     mode?: PlannerMode
     equipmentId?: string
     implementId?: string
     maintenanceId?: string
   }
-  const mode: PlannerMode = search.mode === 'checklist' ? 'checklist' : 'manage'
+  const mode: PlannerMode =
+    !caps.showManageMode || search.mode === 'checklist' ? 'checklist' : 'manage'
   const [status, setStatus] = useState<PurchaseStatus>('planned')
   const [urgency, setUrgency] = useState('all')
   const [category, setCategory] = useState('all')
   const [responsibleId, setResponsibleId] = useState('all')
   const [createOpen, setCreateOpen] = useState(false)
-  const { data: employees = [] } = useEmployees()
+  const { data: employees = [] } = useEmployees({ enabled: caps.isManager })
 
   const assetFilters = {
     equipmentId: search.equipmentId,
@@ -60,7 +65,7 @@ export function PurchasePlannerPage() {
     maintenanceId: search.maintenanceId,
   }
 
-  const { data = [], isLoading, isError } = usePurchaseItems({
+  const { data = [], isLoading, isError, error } = usePurchaseItems({
     status,
     urgency: urgency === 'all' ? undefined : urgency,
     category: category === 'all' ? undefined : category,
@@ -82,11 +87,12 @@ export function PurchasePlannerPage() {
 
   if (isLoading && mode === 'manage') return <PageSkeleton />
   if (isError) {
+    const loadError = accessLoadErrorDescription(error, 'Не удалось загрузить планировщик')
     return (
       <EmptyState
         icon={ShoppingCart}
-        title="Не удалось загрузить планировщик"
-        description="Проверьте сеть и права доступа."
+        title={loadError.title}
+        description={loadError.description}
       />
     )
   }
@@ -94,21 +100,33 @@ export function PurchasePlannerPage() {
   return (
     <div className="space-y-4">
       <header className="space-y-1">
-        <h1 className="text-xl font-semibold text-foreground">Планировщик закупок</h1>
-        <p className="text-sm text-muted-foreground">
-          {mode === 'checklist'
-            ? 'Чеклист для похода в магазин — отмечайте купленное.'
-            : 'Учёт и фильтры по статусам закупок.'}
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">Планировщик закупок</h1>
+            <p className="text-sm text-muted-foreground">
+              {mode === 'checklist'
+                ? 'Чеклист для похода в магазин — отмечайте купленное.'
+                : 'Учёт и фильтры по статусам закупок.'}
+            </p>
+          </div>
+          {mode === 'checklist' ? (
+            <Button type="button" className="min-h-10 shrink-0" onClick={() => setCreateOpen(true)}>
+              <Plus className="mr-1.5 size-4" />
+              Новая заявка
+            </Button>
+          ) : null}
+        </div>
       </header>
 
-      <SegmentedControl
-        value={mode}
-        onChange={setMode}
-        options={MODE_OPTIONS}
-        size="lg"
-        ariaLabel="Режим планировщика"
-      />
+      {caps.showManageMode ? (
+        <SegmentedControl
+          value={mode}
+          onChange={setMode}
+          options={MODE_OPTIONS}
+          size="lg"
+          ariaLabel="Режим планировщика"
+        />
+      ) : null}
 
       <PurchasePlannerFilterBanner filters={assetFilters} mode={mode} />
 

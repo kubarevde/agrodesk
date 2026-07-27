@@ -58,7 +58,11 @@ SECTION_LABELS: dict[str, str] = {
 }
 
 DEFAULT_MANAGER_SECTIONS: list[str] = list(SECTION_KEYS)
+# Default grants for new orgs / missing employee key. Sharing is included by
+# default but is NOT locked — admins can revoke it in Settings → Доступы.
 DEFAULT_EMPLOYEE_SECTIONS: list[str] = ['my-shift', 'sharing']
+# Sole non-revocable employee section. Do not add sharing (or anything else) here.
+EMPLOYEE_LOCKED_SECTIONS: tuple[str, ...] = ('my-shift',)
 
 
 def _settings_dict(org: Organization) -> dict[str, Any]:
@@ -74,7 +78,11 @@ def default_role_permissions() -> dict[str, list[str]]:
 
 
 def normalize_role_permissions(raw: Any) -> dict[str, list[str]]:
-    """Merge stored permissions with defaults; ignore unknown section keys."""
+    """Merge stored permissions with defaults; ignore unknown section keys.
+
+    An explicitly empty list is preserved (admin can revoke all sections).
+    Missing role keys fall back to defaults.
+    """
     defaults = default_role_permissions()
     if not isinstance(raw, dict):
         return defaults
@@ -83,8 +91,18 @@ def normalize_role_permissions(raw: Any) -> dict[str, list[str]]:
     for role in ('manager', 'employee'):
         stored = raw.get(role)
         if isinstance(stored, list):
-            cleaned = [s for s in stored if isinstance(s, str) and s in valid]
-            result[role] = cleaned if cleaned else defaults[role]
+            # Preserve order, drop unknowns/duplicates
+            seen: set[str] = set()
+            cleaned: list[str] = []
+            for section in stored:
+                if (
+                    isinstance(section, str)
+                    and section in valid
+                    and section not in seen
+                ):
+                    seen.add(section)
+                    cleaned.append(section)
+            result[role] = cleaned
         else:
             result[role] = defaults[role]
     return result
@@ -104,6 +122,18 @@ async def get_org_permissions(
     return role_permissions_from_settings(_settings_dict(org))
 
 
+def _with_employee_baseline(sections: list[str]) -> list[str]:
+    """Force only locked employee sections (currently: my-shift).
+
+    Sharing and every other section remain fully controlled by Settings → Доступы.
+    """
+    merged = list(sections)
+    for key in EMPLOYEE_LOCKED_SECTIONS:
+        if key not in merged:
+            merged.insert(0, key)
+    return merged
+
+
 def allowed_sections_for_role(
     role: EmployeeRole | str,
     permissions: dict[str, list[str]],
@@ -112,9 +142,11 @@ def allowed_sections_for_role(
         return list(SECTION_KEYS)
     role_key = role.value if isinstance(role, EmployeeRole) else str(role)
     if role_key == 'manager':
-        return permissions.get('manager', DEFAULT_MANAGER_SECTIONS)
+        return list(permissions.get('manager', DEFAULT_MANAGER_SECTIONS))
     if role_key == 'employee':
-        return permissions.get('employee', DEFAULT_EMPLOYEE_SECTIONS)
+        return _with_employee_baseline(
+            list(permissions.get('employee', DEFAULT_EMPLOYEE_SECTIONS))
+        )
     return []
 
 

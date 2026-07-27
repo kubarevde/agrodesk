@@ -54,11 +54,17 @@ export function planFromApi(raw: ApiRecord): AgroPlan {
     employeeId: raw.employee_id != null ? String(raw.employee_id) : null,
     notes: raw.notes != null ? String(raw.notes) : null,
     status: (raw.status as AgroPlanStatus) ?? 'planned',
+    entryKind: raw.entry_kind === 'fact' ? 'fact' : 'plan',
     workTypeName: humanLabel(String(raw.work_type_name ?? ''), 'Работа'),
     equipmentName: raw.equipment_name != null ? humanLabel(String(raw.equipment_name), '') || null : null,
     implementName: raw.implement_name != null ? humanLabel(String(raw.implement_name), '') || null : null,
     employeeName: raw.employee_name != null ? humanLabel(String(raw.employee_name), '') || null : null,
     actualShiftId: raw.actual_shift_id != null ? String(raw.actual_shift_id) : null,
+    closedBy: raw.closed_by != null ? String(raw.closed_by) : null,
+    closedByName:
+      raw.closed_by_name != null ? humanLabel(String(raw.closed_by_name), '') || null : null,
+    closedAt: raw.closed_at != null ? String(raw.closed_at) : null,
+    closeNote: raw.close_note != null ? String(raw.close_note) : null,
   }
 }
 
@@ -75,6 +81,7 @@ export function planToStored(plan: AgroPlan): StoredAgroPlan {
     employee_id: plan.employeeId,
     notes: plan.notes,
     status: plan.status,
+    entry_kind: plan.entryKind,
     field_name: plan.fieldName,
     field_names: plan.fieldNames,
     work_type_name: plan.workTypeName,
@@ -82,6 +89,10 @@ export function planToStored(plan: AgroPlan): StoredAgroPlan {
     implement_name: plan.implementName,
     employee_name: plan.employeeName,
     actual_shift_id: plan.actualShiftId,
+    closed_by: plan.closedBy,
+    closed_by_name: plan.closedByName,
+    closed_at: plan.closedAt,
+    close_note: plan.closeNote,
   }
 }
 
@@ -113,11 +124,16 @@ export function planFromStored(plan: StoredAgroPlan): AgroPlan {
     employeeId: plan.employee_id,
     notes: plan.notes,
     status: plan.status,
+    entryKind: plan.entry_kind === 'fact' ? 'fact' : 'plan',
     workTypeName: plan.work_type_name,
     equipmentName: plan.equipment_name,
     implementName: plan.implement_name,
     employeeName: plan.employee_name,
     actualShiftId: plan.actual_shift_id,
+    closedBy: plan.closed_by ?? null,
+    closedByName: plan.closed_by_name ?? null,
+    closedAt: plan.closed_at ?? null,
+    closeNote: plan.close_note ?? null,
   }
 }
 

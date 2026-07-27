@@ -23,6 +23,7 @@ class PurchasePlannerCreate(BaseModel):
     responsible_id: UUID | None = None
     estimated_cost: float | None = Field(default=None, ge=0)
     notes: str | None = None
+    images: list[str] = Field(default_factory=list, max_length=5)
     maintenance_id: UUID | None = None
     maintenance_checklist_item_id: UUID | None = None
 
@@ -44,6 +45,7 @@ class PurchasePlannerUpdate(BaseModel):
     estimated_cost: float | None = Field(default=None, ge=0)
     actual_cost: float | None = Field(default=None, ge=0)
     notes: str | None = None
+    images: list[str] | None = Field(default=None, max_length=5)
     create_expense: bool = False
     expense_category: str | None = Field(default=None, max_length=80)
 
@@ -87,6 +89,7 @@ class PurchasePlannerResponse(BaseModel):
     maintenance_checklist_item_id: UUID | None = None
     maintenance_asset_label: str | None = None
     notes: str | None = None
+    images: list[str] = Field(default_factory=list)
     created_by: UUID | None = None
     created_at: datetime | None = None
     purchased_at: datetime | None = None

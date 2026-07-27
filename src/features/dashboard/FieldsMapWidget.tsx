@@ -75,7 +75,18 @@ export function FieldsMapWidget() {
           </CardContent>
         </Card>
       ) : (
-        <MapView height="280px" center={center} zoom={11} markers={markers} polygons={polygons} />
+        <MapView
+          height="280px"
+          center={center}
+          zoom={11}
+          markers={markers}
+          polygons={polygons.map((polygon) => ({
+            ...polygon,
+            color: '#F9F8F5',
+          }))}
+          defaultBasemap="satellite"
+          fitToData
+        />
       )}
     </section>
   )

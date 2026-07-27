@@ -12,7 +12,9 @@ export type SectionDefinition = {
   showInEmployeeHome: boolean
   /** Can be toggled for manager/employee in Settings → Доступы */
   employeeGrantable: boolean
-  /** Always available to employee even if missing from org grants */
+  /** Always available to employee even if missing from org grants.
+   * Only «Моя смена» should be true — other sections are toggled in Settings → Доступы.
+   */
   alwaysVisibleForEmployee: boolean
 }
 
@@ -60,7 +62,8 @@ export const SECTION_REGISTRY: readonly SectionDefinition[] = [
     showInSidebar: true,
     showInEmployeeHome: true,
     employeeGrantable: true,
-    alwaysVisibleForEmployee: true,
+    // Not locked: admin can revoke via Settings → Доступы. Only my-shift is mandatory.
+    alwaysVisibleForEmployee: false,
   },
   {
     key: 'fields',
@@ -185,9 +188,16 @@ export const SECTION_ROUTE_MAP: Record<string, string> = Object.fromEntries(
   SECTION_REGISTRY.map((s) => [s.key, s.route]),
 )
 
-export const DEFAULT_EMPLOYEE_SECTIONS: string[] = SECTION_REGISTRY.filter(
+/** Sections that cannot be revoked for employees (UI locked + backend baseline). Only my-shift. */
+export const EMPLOYEE_LOCKED_SECTIONS: string[] = SECTION_REGISTRY.filter(
   (s) => s.alwaysVisibleForEmployee,
 ).map((s) => s.key)
+
+/**
+ * Default employee grants when org has no custom role_permissions.employee.
+ * Includes sharing as a convenient default — still revocable in Settings.
+ */
+export const DEFAULT_EMPLOYEE_SECTIONS: string[] = ['my-shift', 'sharing']
 
 export function getSectionByKey(key: string): SectionDefinition | undefined {
   return SECTION_REGISTRY.find((s) => s.key === key)

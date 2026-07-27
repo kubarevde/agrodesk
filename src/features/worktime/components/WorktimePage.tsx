@@ -1,5 +1,5 @@
 import { Clock, Download, Play, Plus } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { SkeletonTable } from '@/components/shared/SkeletonTable'
@@ -8,14 +8,7 @@ import { useCurrentUser } from '@/features/auth/hooks'
 import { REPORT_DEFINITIONS } from '@/features/reports/reportDefinitions'
 import { buildReportFilename, downloadReport } from '@/features/reports/utils'
 import { displayDateToIso } from '@/lib/transformers'
-import {
-  useDeleteShift,
-  useShifts,
-} from '@/features/worktime/hooks'
-import { CloseShiftModal } from '@/features/worktime/CloseShiftModal'
-import { ShiftDetailModal } from '@/features/worktime/ShiftDetailModal'
-import { AddShiftModal } from '@/features/worktime/AddShiftModal'
-import { OpenShiftModal } from '@/features/worktime/OpenShiftModal'
+import { useShifts } from '@/features/worktime/hooks'
 import { useEmployees } from '@/features/worktime/referenceHooks'
 import { useWorktimeFilters } from '@/features/worktime/useWorktimeFilters'
 import { calcTotalHours } from '@/features/worktime/utils'
@@ -23,7 +16,8 @@ import type { Shift } from '@/types'
 import { ShiftsCardList } from './ShiftsCardList'
 import { ShiftsFilters } from './ShiftsFilters'
 import { ShiftsTable } from './ShiftsTable'
-import type { ShiftRowActions } from './shiftsColumns'
+import { useWorktimePageActions } from './useWorktimePageActions'
+import { WorktimeModals } from './WorktimeModals'
 
 const TIMESHEET_REPORT = REPORT_DEFINITIONS.find((report) => report.id === 'timesheet')
 
@@ -48,22 +42,38 @@ export function WorktimePage() {
   const { data: shifts = [], isLoading, isError } = useShifts(filters)
   const safeShifts = Array.isArray(shifts) ? shifts : []
   const { data: employees = [] } = useEmployees()
-  const deleteShift = useDeleteShift()
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null)
-  const [closeShiftTarget, setCloseShiftTarget] = useState<Shift | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [openShiftOpen, setOpenShiftOpen] = useState(false)
   const [addShiftOpen, setAddShiftOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
 
-  const handleOpenShift = () => setOpenShiftOpen(true)
-  const handleAddShift = () => setAddShiftOpen(true)
+  const openDetails = useCallback((shift: Shift) => {
+    setSelectedShift(shift)
+    setDetailOpen(true)
+  }, [])
+
+  const pageActions = useWorktimePageActions({
+    isAdmin,
+    isManager,
+    userId: user?.id,
+    onOpenDetails: openDetails,
+    onDetailClosedIfDeleted: (shiftId) => {
+      if (selectedShift?.id === shiftId) {
+        setDetailOpen(false)
+        setSelectedShift(null)
+      }
+    },
+  })
+
+  useEffect(() => {
+    if (isError) toast.error('Ошибка: Не удалось загрузить смены')
+  }, [isError])
 
   const handleExport = async () => {
     if (!TIMESHEET_REPORT) return
     setExporting(true)
     try {
-      const params = { from, to, month: '' }
       await downloadReport(
         TIMESHEET_REPORT.endpoint,
         {
@@ -71,9 +81,9 @@ export function WorktimePage() {
           to_date: displayDateToIso(to),
           ...(employeeId ? { employee_id: employeeId } : {}),
         },
-        buildReportFilename(TIMESHEET_REPORT, params),
+        buildReportFilename(TIMESHEET_REPORT, { from, to, month: '' }),
       )
-      toast.success('📥 Файл скачан')
+      toast.success('Файл скачан')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Не удалось скачать Excel'
       toast.error(`Ошибка: ${message}`)
@@ -81,28 +91,6 @@ export function WorktimePage() {
       setExporting(false)
     }
   }
-
-  useEffect(() => {
-    if (isError) {
-      toast.error('Ошибка: Не удалось загрузить смены')
-    }
-  }, [isError])
-
-  const openDetails = useCallback((shift: Shift) => {
-    setSelectedShift(shift)
-    setDetailOpen(true)
-  }, [])
-
-  const actions = useMemo<ShiftRowActions>(
-    () => ({
-      onDetails: openDetails,
-      onClose: (shift) => setCloseShiftTarget(shift),
-      onDelete: isAdmin ? (shift) => deleteShift.mutate(shift.id) : undefined,
-      canClose: (shift) =>
-        isManager || (Boolean(shift.employeeId) && shift.employeeId === user?.id),
-    }),
-    [deleteShift, isAdmin, isManager, openDetails, user?.id],
-  )
 
   const totalHours = calcTotalHours(safeShifts)
 
@@ -112,13 +100,13 @@ export function WorktimePage() {
         <h1 className="text-2xl font-semibold text-foreground">Рабочее время</h1>
         <div className="flex flex-wrap gap-2">
           {isManager ? (
-            <Button type="button" variant="outline" onClick={handleAddShift}>
+            <Button type="button" variant="outline" onClick={() => setAddShiftOpen(true)}>
               <Plus className="size-4" />
               Добавить смену
             </Button>
           ) : null}
           <Button
-            onClick={handleOpenShift}
+            onClick={() => setOpenShiftOpen(true)}
             className="bg-primary hover:bg-primary-hover text-primary-foreground"
           >
             <Play className="size-4" />
@@ -159,15 +147,19 @@ export function WorktimePage() {
           icon={Clock}
           title="Смен за период нет"
           description="Откройте первую смену или измените фильтры"
-          action={{ label: 'Открыть смену', onClick: handleOpenShift }}
+          action={{ label: 'Открыть смену', onClick: () => setOpenShiftOpen(true) }}
         />
       ) : (
         <>
           <div className="hidden md:block">
-            <ShiftsTable shifts={safeShifts} actions={actions} />
+            <ShiftsTable shifts={safeShifts} actions={pageActions.actions} />
           </div>
           <div className="md:hidden">
-            <ShiftsCardList shifts={safeShifts} onDetails={openDetails} />
+            <ShiftsCardList
+              shifts={safeShifts}
+              onDetails={openDetails}
+              onDelete={pageActions.canDelete ? pageActions.requestDelete : undefined}
+            />
           </div>
           <p className="text-sm text-muted-foreground">
             Итого: {safeShifts.length} смен / {totalHours} часов за период
@@ -175,28 +167,25 @@ export function WorktimePage() {
         </>
       )}
 
-      {selectedShift ? (
-        <ShiftDetailModal
-          shift={selectedShift}
-          open={detailOpen}
-          onClose={() => setDetailOpen(false)}
-        />
-      ) : null}
-
-      <OpenShiftModal open={openShiftOpen} onClose={() => setOpenShiftOpen(false)} />
-      {isManager ? (
-        <AddShiftModal open={addShiftOpen} onClose={() => setAddShiftOpen(false)} />
-      ) : null}
-      <CloseShiftModal
-        shiftId={closeShiftTarget?.id ?? ''}
-        employeeId={closeShiftTarget?.employeeId}
-        startTime={closeShiftTarget?.startTime ?? ''}
-        shiftDate={closeShiftTarget?.date}
-        equipmentName={closeShiftTarget?.equipment || undefined}
-        equipmentMeterType={closeShiftTarget?.equipmentMeterType}
-        open={Boolean(closeShiftTarget)}
-        onClose={() => setCloseShiftTarget(null)}
-        onSuccess={() => setCloseShiftTarget(null)}
+      <WorktimeModals
+        selectedShift={selectedShift}
+        detailOpen={detailOpen}
+        onDetailClose={() => setDetailOpen(false)}
+        canDelete={pageActions.canDelete}
+        onRequestDelete={pageActions.requestDelete}
+        openShiftOpen={openShiftOpen}
+        onOpenShiftClose={() => setOpenShiftOpen(false)}
+        addShiftOpen={addShiftOpen}
+        onAddShiftClose={() => setAddShiftOpen(false)}
+        isManager={isManager}
+        closeShiftTarget={pageActions.closeShiftTarget}
+        onCloseShiftClear={() => pageActions.setCloseShiftTarget(null)}
+        deleteTarget={pageActions.deleteTarget}
+        deletePending={pageActions.deletePending}
+        onDeleteOpenChange={(open) => {
+          if (!open) pageActions.setDeleteTarget(null)
+        }}
+        onConfirmDelete={() => void pageActions.confirmDelete()}
       />
     </div>
   )

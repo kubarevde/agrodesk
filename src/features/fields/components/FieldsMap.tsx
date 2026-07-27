@@ -22,7 +22,7 @@ export function FieldsMap({ fields }: FieldsMapProps) {
       polygons.push({
         id: field.id,
         coordinates: field.polygon,
-        color,
+        color: '#F9F8F5',
         fillColor: color,
         label: `${field.name}${sublabel ? ` — ${sublabel}` : ''}`,
       })
@@ -41,7 +41,6 @@ export function FieldsMap({ fields }: FieldsMapProps) {
     }
   }
 
-  // Prefer crop-colored div icons via polygon path color; for markers use green/yellow map colors roughly.
   const coloredMarkers: MapMarker[] = markers.map((marker) => {
     const field = fields.find((item) => item.id === marker.id)
     const crop = field?.crop_type
@@ -61,6 +60,15 @@ export function FieldsMap({ fields }: FieldsMapProps) {
         : [51.5, 36.5]
 
   return (
-    <MapView height="600px" center={center} zoom={11} markers={coloredMarkers} polygons={polygons} />
+    <MapView
+      height="min(70vh, 600px)"
+      className="min-h-[280px]"
+      center={center}
+      zoom={12}
+      markers={coloredMarkers}
+      polygons={polygons}
+      defaultBasemap="satellite"
+      fitToData
+    />
   )
 }

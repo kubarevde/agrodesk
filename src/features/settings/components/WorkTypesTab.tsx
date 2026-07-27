@@ -65,6 +65,7 @@ export function WorkTypesTab() {
               <TableRow>
                 <TableHead>Название</TableHead>
                 <TableHead>Категория</TableHead>
+                <TableHead>Полевая</TableHead>
                 <TableHead>Статус</TableHead>
                 <TableHead>Действия</TableHead>
               </TableRow>
@@ -74,6 +75,7 @@ export function WorkTypesTab() {
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">{item.name}</TableCell>
                   <TableCell>{item.category || '—'}</TableCell>
+                  <TableCell>{item.isFieldWork ? 'Да' : 'Нет'}</TableCell>
                   <TableCell>
                     <ActiveStatusBadge isActive={item.isActive} />
                   </TableCell>

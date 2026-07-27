@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { SectionHelp } from '@/components/shared/SectionHelp'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { useEmployees } from '@/features/employees/hooks'
-import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 import { useAuditLog } from '../hooks'
 import type { AuditLogEntry } from '../types'
 import { canViewAudit } from '../types'
@@ -18,7 +18,7 @@ import { auditLogHelp } from '@/features/help/modules'
 
 export function AuditLogPage() {
   const { data: user } = useCurrentUser()
-  const isMobile = useMediaQuery('(max-width: 767px)')
+  const isMobile = useIsMobile()
   const [entityType, setEntityType] = useState<string>()
   const [employeeId, setEmployeeId] = useState<string>()
   const [action, setAction] = useState<string>()

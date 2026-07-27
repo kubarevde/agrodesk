@@ -13,7 +13,7 @@ import {
 import { calcTotalHours, getDefaultMonthRange, parseApiDate } from '@/features/worktime/utils'
 import type { EmployeeFormValues } from './schemas'
 
-export function useEmployees() {
+export function useEmployees(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['employees'],
     queryFn: async (): Promise<Employee[]> => {
@@ -27,6 +27,7 @@ export function useEmployees() {
       await db.employees.bulkPut(employees)
       return employees
     },
+    enabled: options?.enabled ?? true,
   })
 }
 

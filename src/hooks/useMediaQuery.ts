@@ -14,3 +14,8 @@ export function useMediaQuery(query: string): boolean {
 
   return matches
 }
+
+/** Shared mobile breakpoint used by tables → card swaps (max-width: 767px). */
+export function useIsMobile(maxWidthPx = 767): boolean {
+  return useMediaQuery(`(max-width: ${maxWidthPx}px)`)
+}

@@ -5,9 +5,10 @@ import type { Shift } from '@/types'
 interface ShiftsCardListProps {
   shifts: Shift[]
   onDetails: (shift: Shift) => void
+  onDelete?: (shift: Shift) => void
 }
 
-export function ShiftsCardList({ shifts, onDetails }: ShiftsCardListProps) {
+export function ShiftsCardList({ shifts, onDetails, onDelete }: ShiftsCardListProps) {
   return (
     <div className="space-y-3">
       {shifts.map((shift) => (
@@ -32,15 +33,28 @@ export function ShiftsCardList({ shifts, onDetails }: ShiftsCardListProps) {
               {shift.status === 'open' ? 'Открыта' : 'Закрыта'}
             </Badge>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3 w-full"
-            onClick={() => onDetails(shift)}
-          >
-            Детали
-          </Button>
+          <div className="mt-3 flex flex-col gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => onDetails(shift)}
+            >
+              Детали
+            </Button>
+            {onDelete ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full text-destructive"
+                onClick={() => onDelete(shift)}
+              >
+                Удалить
+              </Button>
+            ) : null}
+          </div>
         </article>
       ))}
     </div>

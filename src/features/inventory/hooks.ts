@@ -13,7 +13,7 @@ import type {
   InventoryItemFormValues,
 } from './schemas'
 
-export function useInventory() {
+export function useInventory(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['inventory'],
     queryFn: async () => {
@@ -22,16 +22,33 @@ export function useInventory() {
       })
       return data.map(inventoryItemFromApi)
     },
+    enabled: options?.enabled ?? true,
   })
 }
 
-export function useInventoryOperations() {
+export function useInventoryOperations(limit = 10) {
   return useQuery({
-    queryKey: ['inventory', 'operations'],
+    queryKey: ['inventory', 'operations', { limit }],
     queryFn: async () => {
-      const { data } = await api.get<Record<string, unknown>[]>('/api/inventory/operations')
+      const { data } = await api.get<Record<string, unknown>[]>('/api/inventory/operations', {
+        params: { limit },
+      })
       return data.map(inventoryOperationFromApi)
     },
+  })
+}
+
+export function useInventoryItemOperations(itemId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ['inventory', 'operations', 'item', itemId],
+    queryFn: async () => {
+      const { data } = await api.get<Record<string, unknown>[]>(
+        `/api/inventory/${itemId}/operations`,
+        { params: { limit: 10 } },
+      )
+      return data.map(inventoryOperationFromApi)
+    },
+    enabled: Boolean(itemId) && enabled,
   })
 }
 
@@ -76,6 +93,7 @@ export function useCreateExpense() {
           type: 'expense',
           quantity: payload.quantity,
           reason: payload.reason,
+          date: payload.date,
         }),
       )
       return inventoryOperationFromApi(data)

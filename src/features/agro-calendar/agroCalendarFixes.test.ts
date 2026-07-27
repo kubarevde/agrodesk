@@ -4,7 +4,7 @@ import { apiErrorMessage } from '@/lib/apiError'
 import { shiftManualAddToApi } from '@/lib/transformers'
 import { planFromApi, planCreateToApi } from '@/features/agro-calendar/api'
 import { agroPlanFormSchema } from '@/features/agro-calendar/schemas'
-import { planFieldsLabel } from '@/features/agro-calendar/utils'
+import { isOpenPlan, planFieldsLabel, statusBadgeClass } from '@/features/agro-calendar/utils'
 import type { AgroPlan } from '@/features/agro-calendar/types'
 import axios from 'axios'
 
@@ -100,6 +100,23 @@ describe('agro plan multi-field mapping', () => {
     expect(multi.fieldIds).toEqual(['a', 'b'])
     expect(multi.fieldNames).toEqual(['Поле А', 'Поле Б'])
     expect(multi.notes).toBe('Культивация')
+    expect(multi.closedBy).toBeNull()
+
+    const withCloser = planFromApi({
+      id: '3',
+      field_id: 'a',
+      work_type_id: 'w',
+      work_type_name: 'Работа',
+      planned_date: '2026-07-17',
+      status: 'done',
+      closed_by: 'emp-1',
+      closed_by_name: 'Админ',
+      closed_at: '2026-07-17T12:00:00Z',
+      close_note: 'Вручную',
+    })
+    expect(withCloser.closedBy).toBe('emp-1')
+    expect(withCloser.closedByName).toBe('Админ')
+    expect(withCloser.closeNote).toBe('Вручную')
 
     const single = planFromApi({
       id: '2',
@@ -143,5 +160,22 @@ describe('agro plan multi-field mapping', () => {
     } as AgroPlan
     expect(planFieldsLabel(plan)).toContain('А')
     expect(planFieldsLabel(plan)).toContain('Б')
+  })
+
+  it('status badges and open-plan helper', () => {
+    expect(statusBadgeClass('done')).toContain('success')
+    expect(statusBadgeClass('planned')).toContain('amber')
+    expect(
+      isOpenPlan({
+        entryKind: 'plan',
+        status: 'planned',
+      } as AgroPlan),
+    ).toBe(true)
+    expect(
+      isOpenPlan({
+        entryKind: 'fact',
+        status: 'done',
+      } as AgroPlan),
+    ).toBe(false)
   })
 })

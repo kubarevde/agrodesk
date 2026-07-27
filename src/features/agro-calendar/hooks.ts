@@ -169,3 +169,46 @@ export function useDeleteAgroPlan() {
     onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось удалить план')),
   })
 }
+
+export function useCloseAgroPlan() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      status,
+      note,
+    }: {
+      id: string
+      status: 'done' | 'cancelled'
+      note?: string
+    }) => {
+      const { data } = await api.post<Record<string, unknown>>(`/api/agro-plan/${id}/close`, {
+        status,
+        note: note || undefined,
+      })
+      return planFromApi(data)
+    },
+    onSuccess: async (_plan, vars) => {
+      await queryClient.invalidateQueries({ queryKey: ['agro-plan'] })
+      toast.success(vars.status === 'done' ? 'Задача закрыта как выполненная' : 'Задача отменена')
+    },
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось закрыть задачу')),
+  })
+}
+
+export function useSetAgroPlanStatus() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: 'done' | 'cancelled' }) => {
+      const { data } = await api.patch<Record<string, unknown>>(`/api/agro-plan/${id}`, { status })
+      return planFromApi(data)
+    },
+    onSuccess: async (_plan, vars) => {
+      await queryClient.invalidateQueries({ queryKey: ['agro-plan'] })
+      toast.success(vars.status === 'done' ? 'Отмечено выполненным' : 'Задача отменена')
+    },
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось изменить статус')),
+  })
+}

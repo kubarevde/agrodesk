@@ -8,7 +8,7 @@ import { api } from '@/lib/api'
 import { mediaUrl } from '@/lib/media'
 import { cn } from '@/lib/utils'
 
-export type UploadFolder = 'equipment' | 'implements' | 'sharing' | 'profile'
+export type UploadFolder = 'equipment' | 'implements' | 'sharing' | 'profile' | 'purchase-planner'
 
 const MAX_BYTES = 5 * 1024 * 1024
 const ACCEPT = {

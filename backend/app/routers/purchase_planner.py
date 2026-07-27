@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
@@ -12,10 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.dependencies.auth import require_manager
+from app.dependencies.auth import get_current_employee, require_manager
 from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
-from app.models.equipment_log import EquipmentMaintenance, MaintenanceChecklistItem
+from app.models.equipment_log import EquipmentMaintenance
 from app.models.expense import Expense
 from app.models.implement import Implement
 from app.models.inventory import InventoryItem
@@ -29,6 +29,13 @@ from app.schemas.purchase_planner import (
 from app.services.audit import log_change, model_snapshot
 from app.services.dashboard import clear_dashboard_cache
 from app.services.permissions import require_manager_section
+from app.services.purchase_planner import (
+    apply_status_side_effects,
+    assert_employee_may_patch,
+    expense_amount_for_purchase,
+    is_manager,
+    normalize_images,
+)
 
 router = APIRouter(dependencies=[Depends(require_manager_section('purchase-planner'))])
 
@@ -83,6 +90,7 @@ def item_to_response(row: PurchasePlannerItem) -> PurchasePlannerResponse:
             maintenance_asset_label = row.maintenance.equipment.name
         elif row.maintenance.implement:
             maintenance_asset_label = row.maintenance.implement.name
+    raw_images = row.images if isinstance(row.images, list) else []
     return PurchasePlannerResponse(
         id=row.id,
         org_id=row.org_id,
@@ -107,6 +115,7 @@ def item_to_response(row: PurchasePlannerItem) -> PurchasePlannerResponse:
         maintenance_checklist_item_id=row.maintenance_checklist_item_id,
         maintenance_asset_label=maintenance_asset_label,
         notes=row.notes,
+        images=[str(url) for url in raw_images],
         created_by=row.created_by,
         created_at=row.created_at,
         purchased_at=row.purchased_at,
@@ -153,12 +162,11 @@ async def _assert_refs(
         if emp is None or emp.org_id != org_id:
             raise HTTPException(status_code=404, detail='Сотрудник не найден')
 
-
 @router.get('/urgent', response_model=list[PurchasePlannerResponse])
 async def list_urgent(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    _: Employee = Depends(get_current_employee),
 ) -> list[PurchasePlannerResponse]:
     org_id = get_org_id(request)
     result = await db.execute(
@@ -186,7 +194,7 @@ async def list_items(
     implement_id: UUID | None = None,
     maintenance_id: UUID | None = None,
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(require_manager),
+    _: Employee = Depends(get_current_employee),
 ) -> list[PurchasePlannerResponse]:
     org_id = get_org_id(request)
     query = (
@@ -218,7 +226,7 @@ async def create_item(
     request: Request,
     payload: PurchasePlannerCreate,
     db: AsyncSession = Depends(get_db),
-    current: Employee = Depends(require_manager),
+    current: Employee = Depends(get_current_employee),
 ) -> PurchasePlannerResponse:
     org_id = get_org_id(request)
     await _assert_refs(
@@ -237,13 +245,14 @@ async def create_item(
         implement_id=payload.implement_id,
         inventory_item_id=payload.inventory_item_id,
         urgency=payload.urgency,
-        status=payload.status,
+        status='planned' if not is_manager(current) else payload.status,
         purchase_place=payload.purchase_place,
         responsible_id=payload.responsible_id,
         estimated_cost=(
             Decimal(str(payload.estimated_cost)) if payload.estimated_cost is not None else None
         ),
         notes=payload.notes,
+        images=normalize_images(payload.images),
         maintenance_id=payload.maintenance_id,
         maintenance_checklist_item_id=payload.maintenance_checklist_item_id,
         created_by=current.id,
@@ -272,14 +281,32 @@ async def update_item(
     item_id: UUID,
     payload: PurchasePlannerUpdate,
     db: AsyncSession = Depends(get_db),
-    current: Employee = Depends(require_manager),
+    current: Employee = Depends(get_current_employee),
 ) -> PurchasePlannerResponse:
     org_id = get_org_id(request)
     row = await _get_item_or_404(db, item_id, org_id)
     before = model_snapshot(row)
+    previous_status = row.status
     updates = payload.model_dump(exclude_unset=True)
     create_expense = bool(updates.pop('create_expense', False))
     expense_category = updates.pop('expense_category', None) or 'parts'
+
+    manager = is_manager(current)
+    if not manager:
+        assert_employee_may_patch(row, updates)
+        create_expense = False
+
+    new_status = updates.get('status')
+    if new_status == 'planned' and row.status == 'purchased' and not manager:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Возврат статуса доступен только руководителю',
+        )
+    if new_status == 'cancelled' and not manager:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Отмена закупки доступна только руководителю',
+        )
 
     # Merge category refs for validation when category changes
     if 'category' in updates:
@@ -289,7 +316,6 @@ async def update_item(
             'implement_id': updates.get('implement_id', row.implement_id),
             'inventory_item_id': updates.get('inventory_item_id', row.inventory_item_id),
         }
-        # Clear non-matching refs when category switches
         cat = merged['category']
         if cat == 'equipment':
             updates.setdefault('implement_id', None)
@@ -314,26 +340,33 @@ async def update_item(
         responsible_id=updates.get('responsible_id', row.responsible_id),
     )
 
-    new_status = updates.get('status')
     for field, value in updates.items():
         if field in {'estimated_cost', 'actual_cost'} and value is not None:
             setattr(row, field, Decimal(str(value)))
         elif field == 'title' and value is not None:
             row.title = str(value).strip()
+        elif field == 'images':
+            row.images = normalize_images(value)
         else:
             setattr(row, field, value)
 
-    if new_status == 'purchased' and row.purchased_at is None:
-        row.purchased_at = datetime.now(timezone.utc)
+    await apply_status_side_effects(
+        db,
+        org_id=org_id,
+        row=row,
+        previous_status=previous_status,
+        new_status=new_status,
+        changed_by=current.id,
+    )
 
-    if create_expense and row.expense_id is None:
-        amount = row.actual_cost if row.actual_cost is not None else row.estimated_cost
-        if amount is not None and Decimal(str(amount)) > 0:
+    if create_expense and row.expense_id is None and manager:
+        amount = expense_amount_for_purchase(row)
+        if amount is not None:
             expense = Expense(
                 org_id=org_id,
                 date=date.today(),
                 category=expense_category or 'parts',
-                amount=Decimal(str(amount)),
+                amount=amount,
                 description=f'Закупка: {row.title}',
                 equipment_id=row.equipment_id,
                 created_by=current.id,
@@ -342,10 +375,15 @@ async def update_item(
             await db.flush()
             row.expense_id = expense.id
             if row.actual_cost is None:
-                row.actual_cost = Decimal(str(amount))
+                row.actual_cost = amount
 
     db.add(row)
-    summary_verb = 'Куплена' if new_status == 'purchased' else 'Обновлена'
+    if new_status == 'planned' and previous_status == 'purchased':
+        summary_verb = 'Возвращена в план'
+    elif new_status == 'purchased':
+        summary_verb = 'Куплена'
+    else:
+        summary_verb = 'Обновлена'
     await log_change(
         db,
         org_id=org_id,

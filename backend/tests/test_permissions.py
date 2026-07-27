@@ -44,6 +44,9 @@ def test_role_has_section_respects_custom():
     perms = {'manager': ['dashboard'], 'employee': ['sharing']}
     assert role_has_section('manager', 'dashboard', perms)
     assert not role_has_section('manager', 'maintenance', perms)
+    # Employee baseline still includes my-shift even if omitted in stored list
+    assert role_has_section('employee', 'my-shift', perms)
+    assert role_has_section('employee', 'sharing', perms)
 
 
 def test_employee_can_be_granted_extra_sections():
@@ -57,3 +60,29 @@ def test_employee_can_be_granted_extra_sections():
     assert 'reports' not in allowed
     assert role_has_section('employee', 'fields', perms)
     assert not role_has_section('employee', 'reports', perms)
+
+
+def test_normalize_allows_empty_manager_sections():
+    raw = {'manager': [], 'employee': ['my-shift', 'sharing', 'purchase-planner']}
+    normalized = normalize_role_permissions(raw)
+    assert normalized['manager'] == []
+    assert 'purchase-planner' in normalized['employee']
+
+
+def test_employee_baseline_only_forces_my_shift():
+    """Sharing is a default grant, not a locked baseline — admin can revoke it."""
+    perms = {
+        'manager': ['purchase-planner'],
+        'employee': ['purchase-planner'],
+    }
+    allowed = allowed_sections_for_role('employee', perms)
+    assert 'my-shift' in allowed
+    assert 'sharing' not in allowed
+    assert 'purchase-planner' in allowed
+
+
+def test_employee_sharing_revocable():
+    perms = {'manager': [], 'employee': ['my-shift']}
+    allowed = allowed_sections_for_role('employee', perms)
+    assert allowed == ['my-shift']
+    assert not role_has_section('employee', 'sharing', perms)

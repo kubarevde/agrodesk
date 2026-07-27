@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   canAccessPath,
   filterNavBySections,
+  NO_ACCESS_ROUTE,
+  resolveHomeRoute,
   sectionForPath,
   SECTION_ROUTE_MAP,
 } from '@/lib/permissions'
@@ -32,6 +34,28 @@ describe('permissions route coverage', () => {
   })
 })
 
+describe('resolveHomeRoute', () => {
+  it('sends admin to dashboard', () => {
+    expect(resolveHomeRoute('admin', [])).toBe('/dashboard')
+  })
+
+  it('does not force manager onto dashboard when it is revoked', () => {
+    expect(resolveHomeRoute('manager', ['purchase-planner', 'worktime'])).toBe(
+      '/purchase-planner',
+    )
+  })
+
+  it('uses my-shift for employee by default', () => {
+    expect(
+      resolveHomeRoute('employee', ['my-shift', 'sharing', 'purchase-planner']),
+    ).toBe('/my-shift')
+  })
+
+  it('falls back to no-access when nothing is granted', () => {
+    expect(resolveHomeRoute('manager', [])).toBe(NO_ACCESS_ROUTE)
+  })
+})
+
 describe('canAccessPath / filterNavBySections', () => {
   it('admin always allowed', () => {
     expect(canAccessPath('/employees', 'admin', [])).toBe(true)
@@ -44,10 +68,16 @@ describe('canAccessPath / filterNavBySections', () => {
   })
 
   it('employee with granted section can access it', () => {
-    const allowed = ['my-shift', 'sharing', 'fields', 'equipment']
+    const allowed = ['my-shift', 'sharing', 'fields', 'equipment', 'purchase-planner']
     expect(canAccessPath('/fields', 'employee', allowed)).toBe(true)
     expect(canAccessPath('/equipment', 'employee', allowed)).toBe(true)
+    expect(canAccessPath('/purchase-planner', 'employee', allowed)).toBe(true)
     expect(canAccessPath('/reports', 'employee', allowed)).toBe(false)
+  })
+
+  it('manager without dashboard cannot open dashboard path', () => {
+    expect(canAccessPath('/dashboard', 'manager', ['purchase-planner'])).toBe(false)
+    expect(canAccessPath('/purchase-planner', 'manager', ['purchase-planner'])).toBe(true)
   })
 
   it('filterNavBySections matches canAccessPath', () => {
@@ -111,5 +141,13 @@ describe('section key inventory', () => {
     const keys = SECTION_REGISTRY.map((s) => s.key)
     expect(new Set(keys).size).toBe(keys.length)
     expect(keys).toEqual(GUARDED_SECTIONS)
+  })
+
+  it('locks only my-shift for employees', () => {
+    const locked = SECTION_REGISTRY.filter((s) => s.alwaysVisibleForEmployee).map((s) => s.key)
+    expect(locked).toEqual(['my-shift'])
+    expect(SECTION_REGISTRY.find((s) => s.key === 'sharing')?.alwaysVisibleForEmployee).toBe(
+      false,
+    )
   })
 })

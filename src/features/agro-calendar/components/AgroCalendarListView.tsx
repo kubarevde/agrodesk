@@ -23,12 +23,13 @@ import { useFields } from '@/features/fields/hooks'
 import { humanLabel, joinLabels } from '@/lib/display'
 import { useAgroPlans } from '../hooks'
 import type { AgroPlan, AgroPlanStatus } from '../types'
-import { STATUS_LABELS } from '../types'
+import { STATUS_LABELS, ENTRY_KIND_LABELS } from '../types'
 import {
   displayFromIsoDate,
   isoFromDisplayDate,
   planFieldsLabel,
   statusBadgeClass,
+  entryKindBadgeClass,
 } from '../utils'
 
 type AgroCalendarListViewProps = {
@@ -126,48 +127,88 @@ export function AgroCalendarListView({
           action={onAddPlan ? { label: 'Запланировать работу', onClick: onAddPlan } : undefined}
         />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Дата</TableHead>
-                <TableHead>Поле</TableHead>
-                <TableHead>Тип работы</TableHead>
-                <TableHead>Техника + Приспособление</TableHead>
-                <TableHead>Комментарий</TableHead>
-                <TableHead>Сотрудник</TableHead>
-                <TableHead>Статус</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((plan) => (
-                <TableRow
-                  key={plan.id}
-                  className="cursor-pointer"
+        <>
+          <div className="hidden md:block overflow-x-auto rounded-lg border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Дата</TableHead>
+                  <TableHead>Поле</TableHead>
+                  <TableHead>Тип работы</TableHead>
+                  <TableHead>Техника + Приспособление</TableHead>
+                  <TableHead>Комментарий</TableHead>
+                  <TableHead>Сотрудник</TableHead>
+                  <TableHead>Статус</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((plan) => (
+                  <TableRow
+                    key={plan.id}
+                    className="cursor-pointer"
+                    onClick={() => onSelectPlan(plan)}
+                  >
+                    <TableCell>{displayFromIsoDate(plan.plannedDate)}</TableCell>
+                    <TableCell>{planFieldsLabel(plan)}</TableCell>
+                    <TableCell>{humanLabel(plan.workTypeName, 'Работа')}</TableCell>
+                    <TableCell>
+                      {joinLabels([plan.equipmentName, plan.implementName])}
+                    </TableCell>
+                    <TableCell className="max-w-48">
+                      <span className="block truncate text-muted-foreground">
+                        {plan.notes?.trim() || '—'}
+                      </span>
+                    </TableCell>
+                    <TableCell>{humanLabel(plan.employeeName, '—')}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant="outline" className={entryKindBadgeClass(plan.entryKind)}>
+                          {ENTRY_KIND_LABELS[plan.entryKind]}
+                        </Badge>
+                        <Badge variant="outline" className={statusBadgeClass(plan.status)}>
+                          {STATUS_LABELS[plan.status]}
+                        </Badge>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <ul className="space-y-3 md:hidden">
+            {filtered.map((plan) => (
+              <li key={plan.id}>
+                <button
+                  type="button"
+                  className="w-full rounded-lg border border-border bg-surface p-4 text-left hover:bg-muted/40"
                   onClick={() => onSelectPlan(plan)}
                 >
-                  <TableCell>{displayFromIsoDate(plan.plannedDate)}</TableCell>
-                  <TableCell>{planFieldsLabel(plan)}</TableCell>
-                  <TableCell>{humanLabel(plan.workTypeName, 'Работа')}</TableCell>
-                  <TableCell>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 flex-1 font-medium text-foreground">
+                      {humanLabel(plan.workTypeName, 'Работа')}
+                    </p>
+                    <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                      <Badge variant="outline" className={entryKindBadgeClass(plan.entryKind)}>
+                        {ENTRY_KIND_LABELS[plan.entryKind]}
+                      </Badge>
+                      <Badge variant="outline" className={statusBadgeClass(plan.status)}>
+                        {STATUS_LABELS[plan.status]}
+                      </Badge>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {displayFromIsoDate(plan.plannedDate)} · {planFieldsLabel(plan)}
+                  </p>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
                     {joinLabels([plan.equipmentName, plan.implementName])}
-                  </TableCell>
-                  <TableCell className="max-w-48">
-                    <span className="block truncate text-muted-foreground">
-                      {plan.notes?.trim() || '—'}
-                    </span>
-                  </TableCell>
-                  <TableCell>{humanLabel(plan.employeeName, '—')}</TableCell>
-                  <TableCell>
-                    <Badge className={statusBadgeClass(plan.status)}>
-                      {STATUS_LABELS[plan.status]}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+                    {plan.employeeName ? ` · ${plan.employeeName}` : ''}
+                  </p>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   )

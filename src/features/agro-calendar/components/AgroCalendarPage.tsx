@@ -1,9 +1,11 @@
 import { CalendarDays, LayoutList, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { addMonths, subMonths } from 'date-fns'
+import { SectionHelp } from '@/components/shared/SectionHelp'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { agroCalendarHelp } from '@/features/help/modules'
 import type { AgroPlan, AgroPlanStatus } from '../types'
 import { AgroCalendarDaySheet } from './AgroCalendarDaySheet'
 import { AgroCalendarListView } from './AgroCalendarListView'
@@ -14,6 +16,7 @@ import { AgroPlanFormDialog } from './AgroPlanFormDialog'
 export function AgroCalendarPage() {
   const { data: user } = useCurrentUser()
   const canManage = user?.role === 'admin' || user?.role === 'manager'
+  const isAdmin = user?.role === 'admin'
 
   const [view, setView] = useState<'month' | 'list'>('month')
   const [month, setMonth] = useState(() => new Date())
@@ -69,7 +72,7 @@ export function AgroCalendarPage() {
           </Button>
         ) : null}
       </div>
-
+      <SectionHelp title="Справка: агрокалендарь" items={agroCalendarHelp} />
       <Tabs value={view} onValueChange={(value) => setView(value as typeof view)}>
         <TabsList>
           <TabsTrigger value="month">
@@ -81,7 +84,6 @@ export function AgroCalendarPage() {
             Список
           </TabsTrigger>
         </TabsList>
-
         <TabsContent value="month" className="mt-4">
           <AgroCalendarMonthView
             month={month}
@@ -93,7 +95,6 @@ export function AgroCalendarPage() {
             onSelectDay={openDay}
           />
         </TabsContent>
-
         <TabsContent value="list" className="mt-4">
           <AgroCalendarListView
             fieldId={fieldId}
@@ -111,7 +112,6 @@ export function AgroCalendarPage() {
           />
         </TabsContent>
       </Tabs>
-
       <AgroCalendarDaySheet
         day={dayKey}
         fieldId={fieldId}
@@ -127,16 +127,16 @@ export function AgroCalendarPage() {
           openCreateForm(day)
         }}
       />
-
       <AgroPlanDetailSheet
         plan={selected}
         open={detailOpen}
         canManage={canManage}
+        isAdmin={isAdmin}
         onClose={() => setDetailOpen(false)}
         onDeleted={() => setSelected(null)}
         onEdit={openEditForm}
+        onPlanUpdated={(plan) => setSelected(plan)}
       />
-
       {canManage ? (
         <AgroPlanFormDialog
           open={formOpen}
