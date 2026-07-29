@@ -5,6 +5,8 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { SkeletonTable } from '@/components/shared/SkeletonTable'
 import { Button } from '@/components/ui/button'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
+import { worktimeHelp } from '@/features/help/modules'
 import { REPORT_DEFINITIONS } from '@/features/reports/reportDefinitions'
 import { buildReportFilename, downloadReport } from '@/features/reports/utils'
 import { displayDateToIso } from '@/lib/transformers'
@@ -125,6 +127,8 @@ export function WorktimePage() {
           ) : null}
         </div>
       </div>
+
+      <RoleSectionHelp section="смены" items={worktimeHelp} guideSection="worktime" />
 
       <ShiftsFilters
         from={from}

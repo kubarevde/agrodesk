@@ -89,6 +89,7 @@ export function useShifts(filters: ShiftFilters, options?: { enabled?: boolean }
     queryFn: () => fetchShifts(filters),
     placeholderData: undefined,
     enabled: options?.enabled ?? true,
+    networkMode: 'offlineFirst',
   })
 }
 
@@ -97,6 +98,7 @@ export function useShift(id: string) {
     queryKey: ['shifts', id],
     queryFn: () => fetchShift(id),
     enabled: Boolean(id),
+    networkMode: 'offlineFirst',
   })
 }
 
@@ -104,6 +106,8 @@ export function useCreateShift() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    // Default networkMode 'online' pauses mutations offline — Dexie path never runs.
+    networkMode: 'always',
     mutationFn: async (payload: ShiftCreateInput) => {
       if (!navigator.onLine) {
         const user = queryClient.getQueryData<CurrentUser>(['auth', 'me'])
@@ -141,6 +145,7 @@ export function useCloseShift() {
   const queryClient = useQueryClient()
 
   return useMutation({
+    networkMode: 'always',
     mutationFn: async ({ id, ...payload }: { id: string } & ShiftCloseInput) => {
       if (!navigator.onLine) {
         const existing = await enqueueCloseShiftOffline(id, payload)

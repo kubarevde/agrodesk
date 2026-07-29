@@ -46,8 +46,10 @@ for i in $(seq 1 40); do
   fi
 done
 
+echo "==> alembic upgrade head (required)"
+docker exec agrodesk_api alembic upgrade head
 echo "==> alembic current"
-docker exec agrodesk_api alembic current || true
+docker exec agrodesk_api alembic current
 
 echo "==> prune dangling images"
 docker image prune -f >/dev/null || true

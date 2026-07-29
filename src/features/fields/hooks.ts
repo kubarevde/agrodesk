@@ -7,19 +7,35 @@ import { db } from '@/lib/db'
 import type { FieldFormValues } from './schemas'
 
 function toPayload(values: FieldFormValues) {
+  const polygon =
+    values.polygon && values.polygon.length >= 3
+      ? values.polygon.map((pair) => [Number(pair[0]), Number(pair[1])])
+      : []
+
+  const lat = typeof values.latitude === 'number' && Number.isFinite(values.latitude)
+    ? values.latitude
+    : null
+  const lng = typeof values.longitude === 'number' && Number.isFinite(values.longitude)
+    ? values.longitude
+    : null
+  const area =
+    typeof values.area_ha === 'number' && Number.isFinite(values.area_ha) ? values.area_ha : null
+
   return {
     name: values.name.trim(),
     crop_type: values.crop_type || null,
-    area_ha: values.area_ha ?? null,
+    area_ha: area,
     description: values.description || null,
-    latitude: values.latitude ?? null,
-    longitude: values.longitude ?? null,
+    latitude: lat,
+    longitude: lng,
+    polygon,
   }
 }
 
 export function useFields() {
   return useQuery({
     queryKey: ['fields', { is_active: true }],
+    networkMode: 'offlineFirst',
     queryFn: async () => {
       if (!navigator.onLine) {
         const cached = await db.fields.toArray()

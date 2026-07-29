@@ -1,6 +1,7 @@
 import type { AgroPlan as StoredAgroPlan } from '@/types'
 import { humanLabel } from '@/lib/display'
-import type { AgroPlan, AgroPlanFormInput, AgroPlanStatus } from './types'
+import type { AgroPlan, AgroPlanFormInput, AgroPlanStatus, WeatherAdvisory } from './types'
+
 
 type ApiRecord = Record<string, unknown>
 
@@ -19,6 +20,20 @@ function parseNameList(value: unknown): string[] {
   return value
     .map((item) => humanLabel(String(item ?? ''), ''))
     .filter(Boolean)
+}
+
+function advisoryFromApi(raw: ApiRecord): WeatherAdvisory {
+  return {
+    code: String(raw.code ?? ''),
+    severity: raw.severity === 'warning' ? 'warning' : 'info',
+    title: String(raw.title ?? ''),
+    message: String(raw.message ?? ''),
+    date: toIsoDate(raw.date),
+    tempMin: raw.temp_min != null ? Number(raw.temp_min) : null,
+    tempMax: raw.temp_max != null ? Number(raw.temp_max) : null,
+    precipitationMm: raw.precipitation_mm != null ? Number(raw.precipitation_mm) : null,
+    windSpeedMs: raw.wind_speed_ms != null ? Number(raw.wind_speed_ms) : null,
+  }
 }
 
 export function planFromApi(raw: ApiRecord): AgroPlan {
@@ -65,6 +80,9 @@ export function planFromApi(raw: ApiRecord): AgroPlan {
       raw.closed_by_name != null ? humanLabel(String(raw.closed_by_name), '') || null : null,
     closedAt: raw.closed_at != null ? String(raw.closed_at) : null,
     closeNote: raw.close_note != null ? String(raw.close_note) : null,
+    advisories: Array.isArray(raw.advisories)
+      ? raw.advisories.map((item) => advisoryFromApi(item as ApiRecord))
+      : [],
   }
 }
 
@@ -134,6 +152,7 @@ export function planFromStored(plan: StoredAgroPlan): AgroPlan {
     closedByName: plan.closed_by_name ?? null,
     closedAt: plan.closed_at ?? null,
     closeNote: plan.close_note ?? null,
+    advisories: [],
   }
 }
 
@@ -142,12 +161,14 @@ export function planFiltersToApi(filters: {
   fieldId?: string
   employeeId?: string
   plannedDate?: string
+  includeAdvisories?: boolean
 }): ApiRecord {
   const params: ApiRecord = {}
   if (filters.month) params.month = filters.month
   if (filters.fieldId) params.field_id = filters.fieldId
   if (filters.employeeId) params.employee_id = filters.employeeId
   if (filters.plannedDate) params.planned_date = filters.plannedDate
+  if (filters.includeAdvisories) params.include_advisories = true
   return params
 }
 

@@ -37,6 +37,13 @@ export function FieldCard({
       <CardContent className="flex flex-1 flex-col gap-3">
         <div className="space-y-1 text-sm text-muted-foreground">
           {field.area_ha != null ? <p>{field.area_ha} га</p> : null}
+          {field.polygon && field.polygon.length >= 3 ? (
+            <p>Контур: {field.polygon.length} вершин</p>
+          ) : field.latitude != null && field.longitude != null ? (
+            <p>Только точка — контур ещё не нарисован</p>
+          ) : (
+            <p>Координаты не заданы</p>
+          )}
           {field.description ? <p className="line-clamp-2">{field.description}</p> : null}
         </div>
         <div className="mt-auto flex flex-wrap gap-2">

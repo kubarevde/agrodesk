@@ -43,6 +43,7 @@ ACTION_KEYS: tuple[str, ...] = (
     'inventory.manage_items',
     'purchase.create',
     'purchase.manage',
+    'support.view_org_tickets',
 )
 
 ACTION_LABELS: dict[str, str] = {
@@ -54,6 +55,7 @@ ACTION_LABELS: dict[str, str] = {
     'inventory.manage_items': 'Управление позициями склада',
     'purchase.create': 'Создавать заявки на закупку',
     'purchase.manage': 'Управлять закупками (удаление, затраты)',
+    'support.view_org_tickets': 'Видеть все обращения организации',
 }
 
 # Actions implied by having a section (employee-safe baselines only).

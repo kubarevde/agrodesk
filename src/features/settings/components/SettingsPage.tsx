@@ -1,6 +1,6 @@
 import { Tractor, Wrench, Package } from 'lucide-react'
 import { getRouteApi } from '@tanstack/react-router'
-import { SectionHelp } from '@/components/shared/SectionHelp'
+import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { DictionarySettingsTab } from '@/features/dictionaries/components/DictionarySettingsTab'
 import { settingsTimezoneHelp } from '@/features/help/content'
@@ -44,7 +44,11 @@ export function SettingsPage() {
         </p>
       </div>
 
-      <SectionHelp title="Справка: часовой пояс" items={settingsTimezoneHelp} />
+      <RoleSectionHelp
+        section="часовой пояс"
+        items={settingsTimezoneHelp}
+        guideSection="settings"
+      />
 
       <Tabs
         value={tab}
@@ -131,7 +135,7 @@ export function SettingsPage() {
           </p>
           <AccessGroupsTab />
           <RolePermissionsTab />
-          <SectionHelp title="Справка: доступы" items={settingsAccessHelp} />
+          <RoleSectionHelp section="доступы" items={settingsAccessHelp} guideSection="settings" />
         </TabsContent>
 
         <TabsContent value="notifications" className="mt-4 space-y-3">

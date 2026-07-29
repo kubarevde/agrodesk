@@ -4,7 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
-import { SectionHelp } from '@/components/shared/SectionHelp'
+import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCurrentUser } from '@/features/auth/hooks'
@@ -79,7 +79,7 @@ export function EquipmentPage() {
         ) : null}
       </div>
 
-      <SectionHelp title="Справка: техника" items={equipmentHelp} />
+      <RoleSectionHelp section="техника" items={equipmentHelp} guideSection="equipment" />
 
       <Tabs value={view} onValueChange={(value) => setView(value as 'list' | 'map')}>
         <TabsList>

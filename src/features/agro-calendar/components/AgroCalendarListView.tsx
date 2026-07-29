@@ -31,6 +31,7 @@ import {
   statusBadgeClass,
   entryKindBadgeClass,
 } from '../utils'
+import { PlanWeatherAdvisoryBadge } from './PlanWeatherAdvisoryBadge'
 
 type AgroCalendarListViewProps = {
   fieldId?: string
@@ -168,6 +169,7 @@ export function AgroCalendarListView({
                         <Badge variant="outline" className={statusBadgeClass(plan.status)}>
                           {STATUS_LABELS[plan.status]}
                         </Badge>
+                        <PlanWeatherAdvisoryBadge advisories={plan.advisories} />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -195,6 +197,7 @@ export function AgroCalendarListView({
                       <Badge variant="outline" className={statusBadgeClass(plan.status)}>
                         {STATUS_LABELS[plan.status]}
                       </Badge>
+                      <PlanWeatherAdvisoryBadge advisories={plan.advisories} />
                     </div>
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">

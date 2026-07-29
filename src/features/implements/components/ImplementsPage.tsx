@@ -82,7 +82,7 @@ export function ImplementsPage() {
         ) : null}
       </div>
 
-      <SectionHelp title="Справка: приспособления" items={implementsHelp} />
+      <SectionHelp section="приспособления" items={implementsHelp} />
 
       <div className="space-y-2 max-w-xs">
         <Label>Категория</Label>

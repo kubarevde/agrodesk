@@ -4,13 +4,18 @@ import { api } from '@/lib/api'
 import { db } from '@/lib/db'
 import {
   employeeFromApi,
-  equipmentFromApi,
   locationFromApi,
   workTypeFromApi,
 } from '@/lib/transformers'
+import { mapEquipmentFromApi } from '@/features/equipment/types'
 import { useCurrentUser } from '@/features/auth/hooks'
 
 const REFERENCE_STALE_TIME = Infinity
+/** Allow Dexie reads when offline (default RQ mode pauses queries offline). */
+const OFFLINE_QUERY = {
+  networkMode: 'offlineFirst' as const,
+  staleTime: REFERENCE_STALE_TIME,
+}
 
 async function fetchLocations(): Promise<Location[]> {
   if (!navigator.onLine) {
@@ -56,7 +61,17 @@ async function fetchEquipment(): Promise<Equipment[]> {
   const { data } = await api.get<Record<string, unknown>[]>('/api/equipment', {
     params: { is_active: true },
   })
-  return data.map(equipmentFromApi)
+  // Full rows into Dexie (same mapper as equipment page) so offline open-shift works.
+  const extended = data.map(mapEquipmentFromApi)
+  await db.equipment.bulkPut(extended)
+  return extended.map((item) => ({
+    id: item.id,
+    name: item.name,
+    type: item.type ?? undefined,
+    isActive: item.is_active,
+    latitude: item.latitude,
+    longitude: item.longitude,
+  }))
 }
 
 async function fetchEmployees(): Promise<Employee[]> {
@@ -77,7 +92,7 @@ export function useLocations() {
   return useQuery({
     queryKey: ['locations'],
     queryFn: fetchLocations,
-    staleTime: REFERENCE_STALE_TIME,
+    ...OFFLINE_QUERY,
   })
 }
 
@@ -85,7 +100,7 @@ export function useWorkTypes() {
   return useQuery({
     queryKey: ['work-types'],
     queryFn: fetchWorkTypes,
-    staleTime: REFERENCE_STALE_TIME,
+    ...OFFLINE_QUERY,
   })
 }
 
@@ -93,7 +108,7 @@ export function useEquipment() {
   return useQuery({
     queryKey: ['equipment'],
     queryFn: fetchEquipment,
-    staleTime: REFERENCE_STALE_TIME,
+    ...OFFLINE_QUERY,
   })
 }
 
@@ -104,7 +119,7 @@ export function useEmployees() {
   return useQuery({
     queryKey: ['employees', 'active'],
     queryFn: fetchEmployees,
-    staleTime: REFERENCE_STALE_TIME,
+    ...OFFLINE_QUERY,
     enabled: canManage,
   })
 }

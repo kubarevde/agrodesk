@@ -9,7 +9,7 @@ alwaysApply: true
 
 React 19, TypeScript 5, Vite 6, Tailwind CSS v4, shadcn/ui,
 TanStack Router v1, TanStack Query v5, Zustand, react-hook-form + zod,
-Dexie.js (IndexedDB), Workbox (PWA), MSW (`VITE_USE_MOCKS=true`), Recharts, date-fns, lucide-react
+Dexie.js (IndexedDB), Workbox (PWA), Recharts, date-fns, lucide-react
 
 ## Структура
 
@@ -17,7 +17,6 @@ Dexie.js (IndexedDB), Workbox (PWA), MSW (`VITE_USE_MOCKS=true`), Recharts, date
 - Бизнес-логика: `src/features/[module]/`
 - UI: `src/components/ui/` (shadcn), `src/components/shared/` (кастомные)
 - Типы: `src/types/`
-- Моки: `src/mocks/handlers/[module].ts`
 
 ## Цвета
 

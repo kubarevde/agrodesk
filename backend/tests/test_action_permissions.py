@@ -29,6 +29,7 @@ def test_actions_from_sections_manager_extras():
     assert 'inventory.operate' in actions
     assert 'inventory.manage_items' in actions
     assert 'purchase.manage' in actions
+    assert 'support.view_org_tickets' not in actions
 
 
 def test_worktime_does_not_imply_others_for_employee():

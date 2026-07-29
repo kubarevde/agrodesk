@@ -83,7 +83,7 @@ export function ExpensesPage() {
         ) : null}
       </div>
 
-      <SectionHelp title="Справка: затраты" items={expensesHelp} />
+      <SectionHelp section="затраты" items={expensesHelp} />
 
       {!isOnline ? (
         <OnlineOnlyNotice

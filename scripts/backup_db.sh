@@ -5,8 +5,9 @@
 #   chmod +x scripts/backup_db.sh
 #   ./scripts/backup_db.sh
 #
-# Cron (daily 03:15):
-#   15 3 * * * cd /opt/agrodesk && ./scripts/backup_db.sh >> /var/log/agrodesk-backup.log 2>&1
+# Prefer nightly wrapper (DB + uploads + optional offsite):
+#   sudo ./scripts/install_backup_cron.sh
+#   # or: 15 3 * * * /opt/agrodesk/scripts/run_nightly_backup.sh
 #
 # Env overrides:
 #   BACKUP_DIR=/backups POSTGRES_USER=agrodesk POSTGRES_DB=agrodesk ./scripts/backup_db.sh

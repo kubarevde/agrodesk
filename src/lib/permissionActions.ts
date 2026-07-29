@@ -16,6 +16,7 @@ export const ACTION_KEYS = [
   'inventory.manage_items',
   'purchase.create',
   'purchase.manage',
+  'support.view_org_tickets',
 ] as const
 
 export type PermissionAction = (typeof ACTION_KEYS)[number]
@@ -29,6 +30,7 @@ export const ACTION_LABELS: Record<PermissionAction, string> = {
   'inventory.manage_items': 'Управление позициями склада',
   'purchase.create': 'Создавать заявки на закупку',
   'purchase.manage': 'Управлять закупками (удаление, затраты)',
+  'support.view_org_tickets': 'Видеть все обращения организации',
 }
 
 /** Employee-safe baselines when a section is granted (matches backend SECTION_IMPLIED_ACTIONS). */

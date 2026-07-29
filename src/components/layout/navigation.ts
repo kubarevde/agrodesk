@@ -116,6 +116,10 @@ export function getPageTitle(pathname: string): string {
   if (normalized === '/notifications' || normalized.startsWith('/notifications/')) {
     return 'Уведомления'
   }
+  if (normalized === '/support' || normalized.startsWith('/support/')) {
+    if (normalized.includes('/guide')) return 'Как пользоваться системой'
+    return 'Поддержка'
+  }
   if (normalized === '/agro-calendar' || normalized.startsWith('/agro-calendar/')) {
     return 'Агрокалендарь'
   }

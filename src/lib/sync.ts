@@ -1,9 +1,10 @@
 import axios from 'axios'
 import { liveQuery } from 'dexie'
 import { useEffect, useState } from 'react'
-import type { SyncQueueItem } from '@/types'
+import type { InventoryQueueItem, SyncQueueItem } from '@/types'
 import { api } from './api'
 import { db } from './db'
+import { processInventoryQueueItem } from './inventorySyncProcess'
 import { shiftFromApi } from './transformers'
 
 const SUCCESS_STATUSES = new Set([200, 201, 204])
@@ -13,14 +14,14 @@ export interface FlushSyncResult {
   synced: number
   failed: number
   skipped: number
+  conflicts: number
 }
 
 export type FlushSyncOptions = {
-  /** Re-queue previously failed items (manual «Повторить»). */
+  /** Re-queue previously failed / conflict inventory + failed shift items. */
   includeFailed?: boolean
 }
 
-/** Serializes flushes (startup + online + manual retry) — no parallel queue races. */
 let flushChain: Promise<void> = Promise.resolve()
 
 async function remapQueuedCloseUrls(localId: string, serverId: string): Promise<void> {
@@ -68,90 +69,119 @@ async function processSyncItem(item: SyncQueueItem): Promise<'done' | 'retry' | 
     }
 
     if (response.status === 409) {
-      // Idempotent conflict — already applied on server
       await db.syncQueue.delete(item.id)
       return 'done'
     }
 
-    // Permanent client errors: already closed / not found → drop from queue
     if (response.status === 400 || response.status === 404) {
       const detail =
         response.data && typeof response.data === 'object' && 'detail' in response.data
           ? String((response.data as { detail?: unknown }).detail ?? '')
           : ''
       const alreadyDone =
-        response.status === 404 ||
-        /уже закрыта|не найдена|не найден/i.test(detail)
+        response.status === 404 || /уже закрыта|не найдена|не найден/i.test(detail)
       if (alreadyDone) {
         await db.syncQueue.delete(item.id)
         return 'done'
       }
-      const retries = (item.retries ?? 0) + 1
       await db.syncQueue.update(item.id, {
-        retries,
+        retries: (item.retries ?? 0) + 1,
         status: 'failed',
       })
       return 'retry'
     }
 
-    if (import.meta.env.DEV) {
-      console.warn('[sync] skip client error', item.url, response.status)
-    }
     return 'skip'
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 409) {
       await db.syncQueue.delete(item.id)
       return 'done'
     }
-
     const retries = (item.retries ?? 0) + 1
     await db.syncQueue.update(item.id, {
       retries,
       status: retries > MAX_RETRIES ? 'failed' : 'pending',
     })
-    if (import.meta.env.DEV) {
-      console.warn('[sync] retry', item.url, retries, error)
-    }
     return 'retry'
   }
 }
 
+export { processInventoryQueueItem }
+
 async function runFlush(options: FlushSyncOptions = {}): Promise<FlushSyncResult> {
   if (!navigator.onLine) {
-    return { synced: 0, failed: 0, skipped: 0 }
+    return { synced: 0, failed: 0, skipped: 0, conflicts: 0 }
   }
 
   if (options.includeFailed) {
-    const failedItems = await db.syncQueue
-      .filter((item) => item.status === 'failed')
+    const failedShifts = await db.syncQueue.filter((item) => item.status === 'failed').toArray()
+    await Promise.all(
+      failedShifts.map((item) => db.syncQueue.update(item.id, { status: 'pending', retries: 0 })),
+    )
+    const stuckInventory = await db.inventoryQueue
+      .filter((item) => item.status === 'error' || item.status === 'conflict')
       .toArray()
     await Promise.all(
-      failedItems.map((item) =>
-        db.syncQueue.update(item.id, { status: 'pending', retries: 0 }),
+      stuckInventory.map((item) =>
+        db.inventoryQueue.update(item.id, {
+          status: 'pending',
+          retries: 0,
+          lastError: undefined,
+          updatedAt: Date.now(),
+        }),
       ),
     )
   }
 
-  const items = await db.syncQueue
+  const shiftItems = await db.syncQueue
     .orderBy('createdAt')
     .filter((item) => (item.status ?? 'pending') === 'pending')
     .toArray()
+  const inventoryItems = await db.inventoryQueue
+    .orderBy('createdAt')
+    .filter((item) => item.status === 'pending')
+    .toArray()
+
+  type Job =
+    | { kind: 'shift'; createdAt: number; item: SyncQueueItem }
+    | { kind: 'inventory'; createdAt: number; item: InventoryQueueItem }
+
+  const jobs: Job[] = [
+    ...shiftItems.map((item) => ({ kind: 'shift' as const, createdAt: item.createdAt, item })),
+    ...inventoryItems.map((item) => ({
+      kind: 'inventory' as const,
+      createdAt: item.createdAt,
+      item,
+    })),
+  ].sort((a, b) => a.createdAt - b.createdAt)
 
   let synced = 0
   let failed = 0
   let skipped = 0
+  let conflicts = 0
 
-  for (const item of items) {
-    const result = await processSyncItem(item)
+  for (const job of jobs) {
+    if (job.kind === 'shift') {
+      const result = await processSyncItem(job.item)
+      if (result === 'done') synced += 1
+      if (result === 'skip') skipped += 1
+      if (result === 'retry') {
+        const updated = await db.syncQueue.get(job.item.id)
+        if (updated?.status === 'failed') failed += 1
+      }
+      continue
+    }
+    const result = await processInventoryQueueItem(job.item)
     if (result === 'done') synced += 1
     if (result === 'skip') skipped += 1
+    if (result === 'conflict') conflicts += 1
     if (result === 'retry') {
-      const updated = await db.syncQueue.get(item.id)
-      if (updated?.status === 'failed') failed += 1
+      const updated = await db.inventoryQueue.get(job.item.id)
+      if (updated?.status === 'error') failed += 1
     }
   }
 
-  return { synced, failed, skipped }
+  return { synced, failed, skipped, conflicts }
 }
 
 export async function flushSyncQueue(options: FlushSyncOptions = {}): Promise<FlushSyncResult> {
@@ -171,27 +201,37 @@ export function __resetFlushLockForTests(): void {
 export function useSyncQueue() {
   const [pendingCount, setPendingCount] = useState(0)
   const [failedCount, setFailedCount] = useState(0)
+  const [conflictCount, setConflictCount] = useState(0)
 
   useEffect(() => {
     const subscription = liveQuery(async () => {
-      const items = await db.syncQueue.toArray()
+      const [shifts, inventory] = await Promise.all([
+        db.syncQueue.toArray(),
+        db.inventoryQueue.toArray(),
+      ])
       return {
-        pendingCount: items.filter((item) => (item.status ?? 'pending') === 'pending').length,
-        failedCount: items.filter((item) => item.status === 'failed').length,
+        pendingCount:
+          shifts.filter((item) => (item.status ?? 'pending') === 'pending').length +
+          inventory.filter((item) => item.status === 'pending').length,
+        failedCount:
+          shifts.filter((item) => item.status === 'failed').length +
+          inventory.filter((item) => item.status === 'error').length,
+        conflictCount: inventory.filter((item) => item.status === 'conflict').length,
       }
     }).subscribe({
-      next: ({ pendingCount: pending, failedCount: failed }) => {
-        setPendingCount(pending)
-        setFailedCount(failed)
+      next: (counts) => {
+        setPendingCount(counts.pendingCount)
+        setFailedCount(counts.failedCount)
+        setConflictCount(counts.conflictCount)
       },
       error: () => {
         setPendingCount(0)
         setFailedCount(0)
+        setConflictCount(0)
       },
     })
-
     return () => subscription.unsubscribe()
   }, [])
 
-  return { pendingCount, failedCount }
+  return { pendingCount, failedCount, conflictCount }
 }

@@ -1,29 +1,81 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { liveQuery } from 'dexie'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { apiErrorMessage } from '@/lib/apiError'
-import {
-  inventoryItemFromApi,
-  inventoryOperationFromApi,
-  inventoryOperationToApi,
-} from '@/lib/transformers'
-import type {
-  AdjustmentFormValues,
-  ExpenseFormValues,
-  IncomeFormValues,
-  InventoryItemFormValues,
-} from './schemas'
+import { db } from '@/lib/db'
+import { flushSyncQueue } from '@/lib/sync'
+import { inventoryItemFromApi, inventoryOperationFromApi } from '@/lib/transformers'
+import type { InventoryItem, InventoryQueueItem } from '@/types'
+import { requeueInventoryItem } from './offlineInventory'
+import type { InventoryItemFormValues } from './schemas'
+
+async function fetchInventoryOnline(): Promise<InventoryItem[]> {
+  const { data } = await api.get<Record<string, unknown>[]>('/api/inventory', {
+    params: { is_active: true },
+  })
+  const items = data.map(inventoryItemFromApi)
+  await db.inventory.clear()
+  await db.inventory.bulkPut(items)
+  return items
+}
 
 export function useInventory(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['inventory'],
     queryFn: async () => {
-      const { data } = await api.get<Record<string, unknown>[]>('/api/inventory', {
-        params: { is_active: true },
-      })
-      return data.map(inventoryItemFromApi)
+      if (!navigator.onLine) {
+        const cached = await db.inventory.toArray()
+        if (cached.length > 0) return cached.filter((item) => item.isActive !== false)
+        throw new Error('Нет локального кэша склада. Откройте раздел онлайн один раз.')
+      }
+      try {
+        return await fetchInventoryOnline()
+      } catch (error) {
+        const cached = await db.inventory.toArray()
+        if (cached.length > 0) return cached.filter((item) => item.isActive !== false)
+        throw error
+      }
     },
     enabled: options?.enabled ?? true,
+    networkMode: 'offlineFirst',
+  })
+}
+
+export function useInventoryQueueIssues() {
+  const [items, setItems] = useState<InventoryQueueItem[]>([])
+
+  useEffect(() => {
+    const sub = liveQuery(() =>
+      db.inventoryQueue
+        .filter((row) => row.status === 'error' || row.status === 'conflict')
+        .toArray(),
+    ).subscribe({
+      next: (rows) => setItems(rows.sort((a, b) => b.updatedAt - a.updatedAt)),
+      error: () => setItems([]),
+    })
+    return () => sub.unsubscribe()
+  }, [])
+
+  return items
+}
+
+export function useRetryInventoryQueueItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    networkMode: 'always',
+    mutationFn: async (id: string) => {
+      await requeueInventoryItem(id)
+      return flushSyncQueue()
+    },
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ['inventory'] })
+      if (result.synced > 0) toast.success('Операция склада синхронизирована')
+      else if (result.conflicts > 0) toast.message('Конфликт остатка — проверьте позицию')
+      else if (result.failed > 0) toast.error('Не удалось синхронизировать операцию')
+    },
+    onError: (error) => toast.error(apiErrorMessage(error, 'Повтор не выполнен')),
   })
 }
 
@@ -50,93 +102,6 @@ export function useInventoryItemOperations(itemId: string | null, enabled = true
       return data.map(inventoryOperationFromApi)
     },
     enabled: Boolean(itemId) && enabled,
-  })
-}
-
-export function useCreateIncome() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async (payload: IncomeFormValues) => {
-      const { data } = await api.post<Record<string, unknown>>(
-        '/api/inventory/operations',
-        inventoryOperationToApi({
-          itemId: payload.itemId,
-          type: 'income',
-          quantity: payload.quantity,
-          supplier: payload.supplier,
-          cost: payload.cost,
-          date: payload.date,
-        }),
-      )
-      return inventoryOperationFromApi(data)
-    },
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['inventory'] }),
-        queryClient.invalidateQueries({ queryKey: ['inventory', 'operations'] }),
-      ])
-      toast.success('Приход оформлен')
-    },
-    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось оформить приход')),
-  })
-}
-
-export function useCreateExpense() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async (payload: ExpenseFormValues) => {
-      const { data } = await api.post<Record<string, unknown>>(
-        '/api/inventory/operations',
-        inventoryOperationToApi({
-          itemId: payload.itemId,
-          type: 'expense',
-          quantity: payload.quantity,
-          reason: payload.reason,
-          date: payload.date,
-        }),
-      )
-      return inventoryOperationFromApi(data)
-    },
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['inventory'] }),
-        queryClient.invalidateQueries({ queryKey: ['inventory', 'operations'] }),
-      ])
-      toast.success('Расход оформлен')
-    },
-    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось оформить расход')),
-  })
-}
-
-export function useCreateAdjustment() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async (payload: AdjustmentFormValues) => {
-      const { data } = await api.post<Record<string, unknown>>(
-        '/api/inventory/operations',
-        inventoryOperationToApi({
-          itemId: payload.itemId,
-          type: payload.direction === 'increase' ? 'income' : 'expense',
-          quantity: payload.quantity,
-          reason: payload.reason,
-          date: payload.date,
-          purpose: 'adjustment',
-        }),
-      )
-      return inventoryOperationFromApi(data)
-    },
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['inventory'] }),
-        queryClient.invalidateQueries({ queryKey: ['inventory', 'operations'] }),
-      ])
-      toast.success('Корректировка остатка оформлена')
-    },
-    onError: (error) =>
-      toast.error(apiErrorMessage(error, 'Не удалось оформить корректировку')),
   })
 }
 
@@ -202,3 +167,9 @@ export function useUpdateInventoryItem() {
     onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось обновить позицию')),
   })
 }
+
+export {
+  useCreateIncome,
+  useCreateExpense,
+  useCreateAdjustment,
+} from './operationHooks'

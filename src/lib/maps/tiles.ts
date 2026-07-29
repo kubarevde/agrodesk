@@ -15,19 +15,14 @@ function normalizeTileUrl(url: string): string {
   return url
 }
 
-const OSM_DEFAULT_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-const OSM_DEFAULT_ATTR =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-
-/**
- * Esri World Imagery — Leaflet-compatible satellite tiles without a client API key.
- * Attribution is required. For high-volume commercial production, prefer a
- * contracted provider via VITE_MAP_SATELLITE_URL (e.g. MapTiler Satellite).
- */
 const ESRI_SATELLITE_URL =
   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-const ESRI_SATELLITE_ATTR =
-  'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+/** Compact required credit — no Leaflet brand prefix (set separately on AttributionControl). */
+const ESRI_SATELLITE_ATTR = '&copy; <a href="https://www.esri.com/" rel="noopener noreferrer">Esri</a>'
+
+const OSM_DEFAULT_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+const OSM_DEFAULT_ATTR =
+  '&copy; <a href="https://www.openstreetmap.org/copyright" rel="noopener noreferrer">OpenStreetMap</a>'
 
 function envString(key: string): string | undefined {
   const value = import.meta.env[key] as string | undefined

@@ -1,8 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { MapPin } from 'lucide-react'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
+import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -22,9 +23,14 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useDictionary } from '@/features/dictionaries/hooks'
-import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
+import {
+  formatCoord,
+  isValidLatLng,
+  parseCoord,
+} from '../geometry'
 import { fieldFormSchema, type FieldFormValues } from '../schemas'
 import type { FieldResponse } from '../types'
+import { FieldContourEditor } from './FieldContourEditor'
 
 type FieldFormDialogProps = {
   open: boolean
@@ -41,6 +47,7 @@ const defaults: FieldFormValues = {
   description: '',
   latitude: undefined,
   longitude: undefined,
+  polygon: null,
 }
 
 export function FieldFormDialog({
@@ -54,23 +61,33 @@ export function FieldFormDialog({
   const form = useForm<FieldFormValues>({
     resolver: zodResolver(fieldFormSchema),
     defaultValues: defaults,
+    mode: 'onBlur',
   })
 
-  // Reset only on open / entity id — never put query arrays or unstable `form` in deps
+  /** Text mirrors for coords — never feed NaN into react-hook-form / Leaflet mid-typing. */
+  const [latText, setLatText] = useState('')
+  const [lngText, setLngText] = useState('')
+  const [areaText, setAreaText] = useState('')
+  const [mapEpoch, setMapEpoch] = useState(0)
+
   useEffect(() => {
     if (!open) return
-    form.reset(
-      field
-        ? {
-            name: field.name,
-            crop_type: field.crop_type ?? undefined,
-            area_ha: field.area_ha ?? undefined,
-            description: field.description ?? '',
-            latitude: field.latitude ?? undefined,
-            longitude: field.longitude ?? undefined,
-          }
-        : defaults,
-    )
+    const next = field
+      ? {
+          name: field.name,
+          crop_type: field.crop_type ?? undefined,
+          area_ha: field.area_ha ?? undefined,
+          description: field.description ?? '',
+          latitude: field.latitude ?? undefined,
+          longitude: field.longitude ?? undefined,
+          polygon: (field.polygon ?? null) as FieldFormValues['polygon'],
+        }
+      : defaults
+    form.reset(next)
+    setLatText(formatCoord(next.latitude))
+    setLngText(formatCoord(next.longitude))
+    setAreaText(formatCoord(next.area_ha))
+    setMapEpoch((n) => n + 1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [field?.id, open])
 
@@ -81,9 +98,13 @@ export function FieldFormDialog({
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        form.setValue('latitude', Number(pos.coords.latitude.toFixed(6)))
-        form.setValue('longitude', Number(pos.coords.longitude.toFixed(6)))
-        toast.success('Координаты подставлены')
+        const lat = Number(pos.coords.latitude.toFixed(6))
+        const lng = Number(pos.coords.longitude.toFixed(6))
+        setLatText(String(lat))
+        setLngText(String(lng))
+        form.setValue('latitude', lat, { shouldDirty: true, shouldValidate: true })
+        form.setValue('longitude', lng, { shouldDirty: true, shouldValidate: true })
+        toast.success('Погодная точка подставлена')
       },
       () => toast.error('Не удалось получить координаты'),
     )
@@ -97,101 +118,175 @@ export function FieldFormDialog({
     return rows
   }, [crops, field?.crop_type])
 
+  const watchPolygon = form.watch('polygon')
+  const parsedLat = parseCoord(latText)
+  const parsedLng = parseCoord(lngText)
+  const mapWeatherLat = isValidLatLng(parsedLat, parsedLng) ? parsedLat : undefined
+  const mapWeatherLng = isValidLatLng(parsedLat, parsedLng) ? parsedLng : undefined
+
+  const syncCoordField = (axis: 'latitude' | 'longitude', text: string) => {
+    if (axis === 'latitude') setLatText(text)
+    else setLngText(text)
+    const value = parseCoord(text)
+    form.setValue(axis, value, { shouldDirty: true, shouldValidate: true })
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{field ? 'Редактировать поле' : 'Добавить поле'}</DialogTitle>
         </DialogHeader>
         <form
           className="space-y-4"
-          onSubmit={form.handleSubmit(async (values) => {
-            await onSubmit(values)
+          onSubmit={form.handleSubmit(async (values: FieldFormValues) => {
+            await onSubmit({
+              ...values,
+              latitude: parseCoord(latText),
+              longitude: parseCoord(lngText),
+              area_ha: parseCoord(areaText),
+            })
             onOpenChange(false)
           })}
         >
-          <div className="space-y-2">
-            <Label htmlFor="field-name">Название поля</Label>
-            <Input
-              id="field-name"
-              placeholder="Например: 1815 компост"
-              {...form.register('name')}
-            />
-            {form.formState.errors.name ? (
-              <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
-            ) : null}
-          </div>
+          <section className="space-y-3">
+            <p className="text-sm font-medium text-foreground">Основные данные</p>
+            <div className="space-y-2">
+              <Label htmlFor="field-name">Название поля</Label>
+              <Input
+                id="field-name"
+                placeholder="Например: 1815 компост"
+                {...form.register('name')}
+              />
+              {form.formState.errors.name ? (
+                <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
+              ) : null}
+            </div>
 
-          <div className="space-y-2">
-            <Label>Культура</Label>
-            <Controller
-              name="crop_type"
-              control={form.control}
-              render={({ field: f }) => (
-                <Select
-                  value={f.value ?? undefined}
-                  onValueChange={(value) => f.onChange(value ?? undefined)}
-                  items={cropItems}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Выберите культуру" />
-                  </SelectTrigger>
-                  <SelectContent alignItemWithTrigger={false}>
-                    {cropItems.map((crop) => (
-                      <SelectItem key={crop.value} value={crop.value}>
-                        {crop.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="space-y-2">
+              <Label>Культура</Label>
+              <Controller
+                name="crop_type"
+                control={form.control}
+                render={({ field: f }) => (
+                  <Select
+                    value={f.value ?? undefined}
+                    onValueChange={(value) => f.onChange(value ?? undefined)}
+                    items={cropItems}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Выберите культуру" />
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      {cropItems.map((crop) => (
+                        <SelectItem key={crop.value} value={crop.value}>
+                          {crop.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              <ManageInSettingsLink tab="crops" tabHint="культуры" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="field-area">Площадь (га)</Label>
+              <Input
+                id="field-area"
+                inputMode="decimal"
+                placeholder="Например: 12,5"
+                value={areaText}
+                onChange={(e) => {
+                  setAreaText(e.target.value)
+                  form.setValue('area_ha', parseCoord(e.target.value), {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }}
+              />
+              {form.formState.errors.area_ha ? (
+                <p className="text-xs text-destructive">{form.formState.errors.area_ha.message}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Можно ввести вручную или получить из контура на карте.
+                </p>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="field-description">Описание</Label>
+              <Textarea id="field-description" rows={2} {...form.register('description')} />
+            </div>
+          </section>
+
+          {open ? (
+            <FieldContourEditor
+              key={mapEpoch}
+              polygon={watchPolygon}
+              weatherLat={mapWeatherLat}
+              weatherLng={mapWeatherLng}
+              onChange={({ polygon, syncWeatherPoint, latitude, longitude, areaHa }) => {
+                form.setValue('polygon', polygon, { shouldDirty: true })
+                if (syncWeatherPoint) {
+                  if (latitude != null && longitude != null) {
+                    setLatText(String(latitude))
+                    setLngText(String(longitude))
+                    form.setValue('latitude', latitude, { shouldDirty: true })
+                    form.setValue('longitude', longitude, { shouldDirty: true })
+                  }
+                }
+                if (areaHa != null) {
+                  setAreaText(String(areaHa))
+                  form.setValue('area_ha', areaHa, { shouldDirty: true })
+                }
+              }}
             />
+          ) : null}
+
+          <section className="space-y-3">
+            <p className="text-sm font-medium text-foreground">Погодная точка</p>
             <p className="text-xs text-muted-foreground">
-              Список культур редактируется в Настройки → Культуры
+              Одна точка для прогноза погоды. Заполняется из контура автоматически или вручную.
+              Допустима запятая в дробной части.
             </p>
-            <ManageInSettingsLink tab="crops" tabHint="культуры" />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="field-area">Площадь (га)</Label>
-            <Input
-              id="field-area"
-              type="number"
-              step="0.01"
-              {...form.register('area_ha', { valueAsNumber: true })}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="field-description">Описание</Label>
-            <Textarea id="field-description" rows={3} {...form.register('description')} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="field-lat">Широта</Label>
-              <Input
-                id="field-lat"
-                type="number"
-                step="any"
-                {...form.register('latitude', { valueAsNumber: true })}
-              />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="field-lat">Широта</Label>
+                <Input
+                  id="field-lat"
+                  inputMode="decimal"
+                  placeholder="51,5"
+                  value={latText}
+                  onChange={(e) => syncCoordField('latitude', e.target.value)}
+                />
+                {form.formState.errors.latitude ? (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.latitude.message}
+                  </p>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="field-lng">Долгота</Label>
+                <Input
+                  id="field-lng"
+                  inputMode="decimal"
+                  placeholder="36,5"
+                  value={lngText}
+                  onChange={(e) => syncCoordField('longitude', e.target.value)}
+                />
+                {form.formState.errors.longitude ? (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.longitude.message}
+                  </p>
+                ) : null}
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="field-lng">Долгота</Label>
-              <Input
-                id="field-lng"
-                type="number"
-                step="any"
-                {...form.register('longitude', { valueAsNumber: true })}
-              />
-            </div>
-          </div>
-
-          <Button type="button" variant="outline" onClick={fillGeolocation}>
-            <MapPin className="size-4" />
-            Мои координаты
-          </Button>
+            <Button type="button" variant="outline" onClick={fillGeolocation}>
+              <MapPin className="size-4" />
+              Мои координаты
+            </Button>
+          </section>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

@@ -7,6 +7,10 @@ import {
   fetchUserPermissions,
   type UserPermissionsData,
 } from '@/features/auth/utils'
+import {
+  readCachedCurrentUser,
+  readCachedUserPermissions,
+} from '@/features/auth/storage'
 
 export type SectionInfo = { key: string; label: string }
 
@@ -54,10 +58,26 @@ export function useUpdateRolePermissions() {
 export function useUserPermissions(enabled = true) {
   return useQuery({
     queryKey: AUTH_PERMISSIONS_QUERY_KEY,
-    queryFn: fetchUserPermissions,
+    queryFn: async (): Promise<UserPermissionsData> => {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        const user = readCachedCurrentUser()
+        const cached = user?.role ? readCachedUserPermissions(user.role) : null
+        if (user && cached) {
+          return {
+            role: user.role,
+            allowedSections: cached.allowedSections,
+            actions: cached.actions,
+            accessGroupId: null,
+            accessGroupName: null,
+          }
+        }
+      }
+      return fetchUserPermissions()
+    },
     enabled,
     staleTime: 10_000,
     refetchOnWindowFocus: true,
+    networkMode: 'offlineFirst',
   })
 }
 

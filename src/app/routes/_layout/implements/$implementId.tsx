@@ -67,7 +67,7 @@ function ImplementDetailRoute() {
         </Link>
       ) : null}
       <RepairHistorySection implementId={item.id} canManage={canManage} />
-      <SectionHelp title="Справка: приспособление" items={implementsHelp} />
+      <SectionHelp section="приспособление" items={implementsHelp} />
     </div>
   )
 }

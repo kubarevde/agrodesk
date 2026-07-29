@@ -1,7 +1,7 @@
 import { CalendarDays, LayoutList, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { addMonths, subMonths } from 'date-fns'
-import { SectionHelp } from '@/components/shared/SectionHelp'
+import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCurrentUser } from '@/features/auth/hooks'
@@ -72,7 +72,11 @@ export function AgroCalendarPage() {
           </Button>
         ) : null}
       </div>
-      <SectionHelp title="Справка: агрокалендарь" items={agroCalendarHelp} />
+      <RoleSectionHelp
+        section="агрокалендарь"
+        items={agroCalendarHelp}
+        guideSection="agro-calendar"
+      />
       <Tabs value={view} onValueChange={(value) => setView(value as typeof view)}>
         <TabsList>
           <TabsTrigger value="month">

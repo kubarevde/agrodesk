@@ -14,6 +14,12 @@ from app.models.reference import Equipment, Location, WorkType
 from app.models.sharing import SharingListing, SharingRequest
 from app.models.shift import Shift
 from app.models.shipment import Shipment
+from app.models.support_ticket import (
+    SupportReplyTemplate,
+    SupportTicket,
+    SupportTicketAttachment,
+    SupportTicketMessage,
+)
 
 __all__ = [
     'AccessGroup',
@@ -39,6 +45,10 @@ __all__ = [
     'SharingRequest',
     'Shift',
     'Shipment',
+    'SupportTicket',
+    'SupportTicketAttachment',
+    'SupportTicketMessage',
+    'SupportReplyTemplate',
     'SuperAdminUser',
     'WorkType',
 ]

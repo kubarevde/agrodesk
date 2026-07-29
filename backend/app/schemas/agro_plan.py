@@ -56,6 +56,18 @@ class AgroPlanCloseRequest(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
 
 
+class WeatherAdvisoryOut(BaseModel):
+    code: str
+    severity: Literal['info', 'warning']
+    title: str
+    message: str
+    date: date_type
+    temp_min: float | None = None
+    temp_max: float | None = None
+    precipitation_mm: float | None = None
+    wind_speed_ms: float | None = None
+
+
 class AgroPlanResponse(BaseModel):
     id: UUID
     field_id: UUID
@@ -80,5 +92,11 @@ class AgroPlanResponse(BaseModel):
     closed_by_name: str | None = None
     closed_at: datetime | None = None
     close_note: str | None = None
+    advisories: list[WeatherAdvisoryOut] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AgroPlanWeatherAdvisoryResponse(BaseModel):
+    plan_id: UUID
+    advisories: list[WeatherAdvisoryOut] = Field(default_factory=list)

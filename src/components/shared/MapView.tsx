@@ -87,11 +87,18 @@ function FitToData({
   useEffect(() => {
     const points: L.LatLngExpression[] = []
     for (const marker of markers) {
+      if (!Number.isFinite(marker.lat) || !Number.isFinite(marker.lng)) continue
       points.push([marker.lat, marker.lng])
     }
     for (const polygon of polygons) {
       for (const pair of polygon.coordinates) {
-        if (pair.length >= 2) points.push([pair[0], pair[1]])
+        if (
+          pair.length >= 2 &&
+          Number.isFinite(pair[0]) &&
+          Number.isFinite(pair[1])
+        ) {
+          points.push([pair[0], pair[1]])
+        }
       }
     }
     if (points.length === 0) return
@@ -99,7 +106,9 @@ function FitToData({
       map.setView(points[0], Math.max(map.getZoom(), 14))
       return
     }
-    map.fitBounds(L.latLngBounds(points), { padding: [28, 28], maxZoom: 16 })
+    const bounds = L.latLngBounds(points)
+    if (!bounds.isValid()) return
+    map.fitBounds(bounds, { padding: [28, 28], maxZoom: 16 })
   }, [map, markers, polygons])
 
   return null
@@ -180,7 +189,9 @@ export function MapView({
 
         {fitToData ? <FitToData markers={markers} polygons={polygons} /> : null}
 
-        {markers.map((marker) => (
+        {markers
+          .filter((marker) => Number.isFinite(marker.lat) && Number.isFinite(marker.lng))
+          .map((marker) => (
           <Marker
             key={marker.id}
             position={[marker.lat, marker.lng]}
@@ -203,7 +214,16 @@ export function MapView({
           </Marker>
         ))}
 
-        {polygons.map((polygon) => (
+        {polygons
+          .filter(
+            (polygon) =>
+              polygon.coordinates.length >= 3 &&
+              polygon.coordinates.every(
+                (pair) =>
+                  pair.length >= 2 && Number.isFinite(pair[0]) && Number.isFinite(pair[1]),
+              ),
+          )
+          .map((polygon) => (
           <Polygon
             key={polygon.id}
             positions={polygon.coordinates as [number, number][]}

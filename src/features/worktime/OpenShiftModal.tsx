@@ -71,6 +71,13 @@ export function OpenShiftModal({
     selectEmployee ??
     hasAction(perms?.actions, 'shift.open_for_others', user?.role)
   const [geoError, setGeoError] = useState<string | null>(null)
+  const offlineMissingRefs =
+    typeof navigator !== 'undefined' &&
+    !navigator.onLine &&
+    !locationsLoading &&
+    !workTypesLoading &&
+    locations.length === 0 &&
+    workTypes.length === 0
 
   const form = useForm<OpenShiftFormValues>({
     resolver: zodResolver(canSelectEmployee ? openShiftForEmployeeSchema : openShiftSchema),
@@ -232,6 +239,13 @@ export function OpenShiftModal({
         </DialogHeader>
 
         <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+          {offlineMissingRefs ? (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              Нет сохранённых справочников (объекты / типы работ) для офлайн-режима.
+              Откройте «Моя смена» один раз с интернетом — списки сохранятся на устройство —
+              затем снова попробуйте без сети.
+            </div>
+          ) : null}
           {canSelectEmployee ? (
             <div className="space-y-2">
               <Label>Сотрудник</Label>
@@ -393,7 +407,13 @@ export function OpenShiftModal({
           <DialogFooter className="sm:justify-stretch">
             <Button
               type="submit"
-              disabled={isSubmitting || createShift.isPending}
+              disabled={
+                isSubmitting ||
+                createShift.isPending ||
+                offlineMissingRefs ||
+                locations.length === 0 ||
+                workTypes.length === 0
+              }
               className="w-full bg-primary hover:bg-primary-hover text-primary-foreground"
             >
               {isSubmitting || createShift.isPending ? (

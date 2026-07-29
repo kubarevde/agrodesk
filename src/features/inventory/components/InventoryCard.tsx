@@ -12,9 +12,11 @@ interface InventoryCardProps {
   item: InventoryItem
   onClick?: (item: InventoryItem) => void
   onEdit?: (item: InventoryItem) => void
+  /** Offline sync conflict / error for this item */
+  hasSyncIssue?: boolean
 }
 
-export function InventoryCard({ item, onClick, onEdit }: InventoryCardProps) {
+export function InventoryCard({ item, onClick, onEdit, hasSyncIssue }: InventoryCardProps) {
   const critical = isCriticalStock(item)
   const { data: categories = [] } = useDictionary('inventory_category')
   const categoryLabel =
@@ -43,6 +45,16 @@ export function InventoryCard({ item, onClick, onEdit }: InventoryCardProps) {
             {humanLabel(item.name, 'Товар')}
           </h3>
           <div className="flex shrink-0 items-center gap-1">
+            {hasSyncIssue ? (
+              <Badge
+                variant="outline"
+                className="gap-1 border-amber-600/40 text-amber-800"
+                title="Офлайн-операция требует проверки"
+              >
+                <AlertTriangle className="size-3" />
+                Проверка
+              </Badge>
+            ) : null}
             {critical ? (
               <Badge variant="destructive" className="gap-1">
                 <AlertTriangle className="size-3" />

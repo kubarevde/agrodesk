@@ -15,9 +15,9 @@ import { cn } from '@/lib/utils'
 
 export function SyncStatusIndicator() {
   const isOnline = useOnlineStatus()
-  const { pendingCount, failedCount } = useSyncQueue()
+  const { pendingCount, failedCount, conflictCount } = useSyncQueue()
   const [isSyncing, setIsSyncing] = useState(false)
-  const isSynced = pendingCount === 0 && failedCount === 0
+  const isSynced = pendingCount === 0 && failedCount === 0 && conflictCount === 0
 
   const handleRetry = async () => {
     if (!isOnline || isSyncing) return
@@ -27,9 +27,11 @@ export function SyncStatusIndicator() {
       await queryClient.invalidateQueries()
       if (result.synced > 0) {
         toast.success(`Синхронизировано: ${result.synced}`)
+      } else if (result.conflicts > 0) {
+        toast.message(`Конфликтов склада: ${result.conflicts}. Проверьте раздел «Склад».`)
       } else if (result.failed > 0) {
         toast.error(`Ошибок синхронизации: ${result.failed}. Проверьте данные и повторите.`)
-      } else if (pendingCount === 0 && failedCount === 0) {
+      } else if (pendingCount === 0 && failedCount === 0 && conflictCount === 0) {
         toast.message('Очередь пуста')
       } else {
         toast.message('Синхронизация выполнена')
@@ -50,7 +52,7 @@ export function SyncStatusIndicator() {
         <TooltipContent>
           {isOnline
             ? 'Есть связь с сервером'
-            : 'Нет сети. Изменения смен сохраняются локально и синхронизируются позже.'}
+            : 'Нет сети. Смены и операции склада сохраняются локально и синхронизируются позже.'}
         </TooltipContent>
       </Tooltip>
 
@@ -80,7 +82,19 @@ export function SyncStatusIndicator() {
         </Tooltip>
       ) : null}
 
-      {(pendingCount > 0 || failedCount > 0) && isOnline ? (
+      {conflictCount > 0 ? (
+        <Tooltip>
+          <TooltipTrigger className="inline-flex cursor-help">
+            <Badge className="gap-1 border-transparent bg-amber-500/15 text-amber-700 hover:bg-amber-500/20">
+              <AlertCircle className="size-3" aria-hidden />
+              {conflictCount}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>Конфликты склада — откройте «Склад» или нажмите «Повторить»</TooltipContent>
+        </Tooltip>
+      ) : null}
+
+      {(pendingCount > 0 || failedCount > 0 || conflictCount > 0) && isOnline ? (
         <Button
           type="button"
           variant="ghost"

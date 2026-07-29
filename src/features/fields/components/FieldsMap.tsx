@@ -26,6 +26,15 @@ export function FieldsMap({ fields }: FieldsMapProps) {
         fillColor: color,
         label: `${field.name}${sublabel ? ` — ${sublabel}` : ''}`,
       })
+      if (field.latitude != null && field.longitude != null) {
+        markers.push({
+          id: `${field.id}-weather`,
+          lat: field.latitude,
+          lng: field.longitude,
+          label: `${field.name} · погода`,
+          color: 'blue',
+        })
+      }
       continue
     }
 
@@ -42,6 +51,7 @@ export function FieldsMap({ fields }: FieldsMapProps) {
   }
 
   const coloredMarkers: MapMarker[] = markers.map((marker) => {
+    if (marker.id.endsWith('-weather')) return marker
     const field = fields.find((item) => item.id === marker.id)
     const crop = field?.crop_type
     let color: MapMarker['color'] = 'blue'
