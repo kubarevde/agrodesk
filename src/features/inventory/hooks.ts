@@ -8,6 +8,7 @@ import {
   inventoryOperationToApi,
 } from '@/lib/transformers'
 import type {
+  AdjustmentFormValues,
   ExpenseFormValues,
   IncomeFormValues,
   InventoryItemFormValues,
@@ -44,7 +45,7 @@ export function useInventoryItemOperations(itemId: string | null, enabled = true
     queryFn: async () => {
       const { data } = await api.get<Record<string, unknown>[]>(
         `/api/inventory/${itemId}/operations`,
-        { params: { limit: 10 } },
+        { params: { limit: 20, exclude_opening: false } },
       )
       return data.map(inventoryOperationFromApi)
     },
@@ -109,6 +110,36 @@ export function useCreateExpense() {
   })
 }
 
+export function useCreateAdjustment() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: AdjustmentFormValues) => {
+      const { data } = await api.post<Record<string, unknown>>(
+        '/api/inventory/operations',
+        inventoryOperationToApi({
+          itemId: payload.itemId,
+          type: payload.direction === 'increase' ? 'income' : 'expense',
+          quantity: payload.quantity,
+          reason: payload.reason,
+          date: payload.date,
+          purpose: 'adjustment',
+        }),
+      )
+      return inventoryOperationFromApi(data)
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['inventory'] }),
+        queryClient.invalidateQueries({ queryKey: ['inventory', 'operations'] }),
+      ])
+      toast.success('Корректировка остатка оформлена')
+    },
+    onError: (error) =>
+      toast.error(apiErrorMessage(error, 'Не удалось оформить корректировку')),
+  })
+}
+
 export function useCreateInventoryItem() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -164,8 +195,8 @@ export function useUpdateInventoryItem() {
         queryClient.invalidateQueries({ queryKey: ['inventory'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       ])
-      if (variables.isActive === false) toast.success('Позиция деактивирована')
-      else if (variables.isActive === true) toast.success('Позиция активирована')
+      if (variables.isActive === false) toast.success('Позиция архивирована (история сохранена)')
+      else if (variables.isActive === true) toast.success('Позиция восстановлена из архива')
       else toast.success('Позиция обновлена')
     },
     onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось обновить позицию')),

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table'
 import type { InventoryOperation } from '@/types'
 import { cn } from '@/lib/utils'
+import { getInventoryOperationLabel } from '../utils'
 
 interface InventoryOperationsTableProps {
   operations: InventoryOperation[]
@@ -46,45 +47,45 @@ export function InventoryOperationsTable({ operations, isLoading }: InventoryOpe
           <EmptyState
             icon={ClipboardList}
             title="Операций пока нет"
-            description="Здесь появятся приходы и расходы ТМЦ"
+            description="Здесь появятся приходы, расходы и корректировки ТМЦ"
           />
         ) : (
           <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Дата</TableHead>
-              <TableHead>Тип</TableHead>
-              <TableHead>Наименование</TableHead>
-              <TableHead>Кол-во</TableHead>
-              <TableHead>Остаток после</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {operations.map((operation) => (
-              <TableRow key={operation.id}>
-                <TableCell>{operation.date}</TableCell>
-                <TableCell>
-                  <span
-                    className={cn(
-                      'inline-flex items-center gap-1 font-medium',
-                      operation.type === 'income' ? 'text-success' : 'text-destructive',
-                    )}
-                  >
-                    {operation.type === 'income' ? (
-                      <Plus className="size-3.5" />
-                    ) : (
-                      <Minus className="size-3.5" />
-                    )}
-                    {operation.type === 'income' ? 'Приход' : 'Расход'}
-                  </span>
-                </TableCell>
-                <TableCell>{operation.itemName}</TableCell>
-                <TableCell>{operation.quantity.toLocaleString('ru-RU')}</TableCell>
-                <TableCell>{operation.stockAfter.toLocaleString('ru-RU')}</TableCell>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Дата</TableHead>
+                <TableHead>Тип</TableHead>
+                <TableHead>Наименование</TableHead>
+                <TableHead>Кол-во</TableHead>
+                <TableHead>Остаток после</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {operations.map((operation) => (
+                <TableRow key={operation.id}>
+                  <TableCell>{operation.date}</TableCell>
+                  <TableCell>
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1 font-medium',
+                        operation.type === 'income' ? 'text-success' : 'text-destructive',
+                      )}
+                    >
+                      {operation.type === 'income' ? (
+                        <Plus className="size-3.5" />
+                      ) : (
+                        <Minus className="size-3.5" />
+                      )}
+                      {getInventoryOperationLabel(operation)}
+                    </span>
+                  </TableCell>
+                  <TableCell>{operation.itemName}</TableCell>
+                  <TableCell>{operation.quantity.toLocaleString('ru-RU')}</TableCell>
+                  <TableCell>{operation.stockAfter.toLocaleString('ru-RU')}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </CardContent>
     </Card>

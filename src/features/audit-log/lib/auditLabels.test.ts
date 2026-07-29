@@ -19,9 +19,14 @@ describe('auditLabels', () => {
     expect(getAuditActionLabel('deleted')).toBe('Удаление')
   })
 
-  it('humanizes unknown codes', () => {
-    expect(humanizeAuditValue('foo_bar')).toBe('Foo Bar')
-    expect(getAuditSectionLabel('custom_module')).toBe('Custom Module')
+  it('humanizes unknown codes in sentence case', () => {
+    expect(humanizeAuditValue('foo_bar')).toBe('Foo bar')
+    expect(humanizeAuditValue('start_time')).toBe('Start time')
+    expect(getAuditSectionLabel('custom_module')).toBe('Custom module')
+  })
+
+  it('maps access_group section', () => {
+    expect(getAuditSectionLabel('access_group')).toBe('Группы доступа')
   })
 
   it('never shows raw uuid as actor name', () => {

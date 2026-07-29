@@ -4,7 +4,7 @@ import { dashboardStatsFromApi } from '@/lib/transformers'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 
-export function useDashboardStats() {
+export function useDashboardStats(options?: { enabled?: boolean }) {
   const isOnline = useOnlineStatus()
   return useQuery({
     queryKey: ['dashboard', 'stats'],
@@ -12,6 +12,7 @@ export function useDashboardStats() {
       const { data } = await api.get<Record<string, unknown>>('/api/dashboard/stats')
       return dashboardStatsFromApi(data)
     },
+    enabled: options?.enabled ?? true,
     refetchInterval: isOnline ? 60_000 : false,
     networkMode: 'offlineFirst',
     retry: isOnline ? 1 : 0,

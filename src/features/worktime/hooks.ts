@@ -18,6 +18,8 @@ import {
   type ShiftUpdateInput,
 } from '@/lib/transformers'
 import { enqueueCloseShiftOffline, enqueueCreateShiftOffline } from './offlineShifts'
+import { AUTH_PERMISSIONS_QUERY_KEY, type UserPermissionsData } from '@/features/auth/utils'
+import { readCachedUserPermissions } from '@/features/auth/storage'
 import { parseApiDate } from './utils'
 
 async function getShiftsFromDexie(filters: ShiftFilters): Promise<Shift[]> {
@@ -104,12 +106,18 @@ export function useCreateShift() {
   return useMutation({
     mutationFn: async (payload: ShiftCreateInput) => {
       if (!navigator.onLine) {
+        const user = queryClient.getQueryData<CurrentUser>(['auth', 'me'])
+        const perms = queryClient.getQueryData<UserPermissionsData>(AUTH_PERMISSIONS_QUERY_KEY)
+        const cachedActions =
+          perms?.actions ??
+          (user?.role ? readCachedUserPermissions(user.role)?.actions : undefined)
         const localShift = await enqueueCreateShiftOffline(
           payload,
-          queryClient.getQueryData<CurrentUser>(['auth', 'me']),
+          user,
           queryClient.getQueryData<Location[]>(['locations']) ?? [],
           queryClient.getQueryData<WorkType[]>(['work-types']) ?? [],
           queryClient.getQueryData<Equipment[]>(['equipment']) ?? [],
+          cachedActions,
         )
         toast.info('Сохранено офлайн — синхронизируется при появлении сети')
         await queryClient.invalidateQueries({ queryKey: ['shifts'] })

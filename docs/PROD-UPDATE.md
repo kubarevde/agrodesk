@@ -346,7 +346,35 @@ docker compose --env-file .env.production down
 
 ---
 
-## 10. Чеклист релиза (скопировать в задачу)
+## 10. Миграции 025 / 026 (права + ремонт остатков ТМЦ)
+
+Прод до этого релиза: `024_shift_delete_fk`. После деплоя API применит:
+
+| Ревизия | Что делает | Удаляет данные? |
+|---------|------------|-----------------|
+| `025_access_groups` | Таблица `access_groups`, `employees.access_group_id`, seed группы «Снабженец» | **Нет** (только additive) |
+| `026_inventory_stock_repair` | Для позиций без `purpose=opening` вставляет недостающий opening и **пересчитывает** `stock_after` / `current_stock` | **Нет** пользовательских операций; только ремонт ledger |
+
+`026` — **ремонт**, не wipe: история приходов/расходов сохраняется. Может измениться отображаемый остаток, если раньше он расходился с журналом.
+
+**Обязательно перед upgrade на проде:**
+
+```bash
+cd /opt/agrodesk
+./scripts/backup_db.sh   # дамп в каталог бэкапов скрипта (см. scripts/backup_db.sh)
+```
+
+После деплоя:
+
+```bash
+curl -s http://127.0.0.1:3010/api/health   # db_revision → 026_inventory_stock_repair
+docker exec agrodesk_api alembic current
+# Смоук: ТМЦ список + одна позиция (история операций на месте), закупки, настройки → Доступы
+```
+
+---
+
+## 11. Чеклист релиза (скопировать в задачу)
 
 ```
 === 1. GitHub (локально) ===
@@ -356,16 +384,19 @@ docker compose --env-file .env.production down
 
 === 2. Прод (VPS) ===
 [ ] ssh → cd /opt/agrodesk
-[ ] (крупный релиз) ./scripts/backup_db.sh
+[ ] (обязательно для 025/026) ./scripts/backup_db.sh
 [ ] ./deploy.sh   ИЛИ точечный build api/nginx/bot
-[ ] curl /api/health + alembic current
+[ ] curl /api/health → db_revision = 026_inventory_stock_repair
+[ ] alembic current
 
 === 3. Бот (если bothost) ===
 [ ] push в репо бота (если отдельный)
 [ ] Redeploy на bothost + логи OK
 
 === 4. Смоук ===
-[ ] логин, календарь create/edit, смена, бот /start
+[ ] логин admin/manager/employee/снабженец
+[ ] смены (свои), закупки (без ложных 403), ТМЦ приход/расход/корректировка
+[ ] календарь + погода, настройки/доступы (mobile 375), история
 ```
 
 Готово. Порядок на каждый день: **push на GitHub → `./deploy.sh` на VPS** (+ Redeploy бота на bothost при необходимости).

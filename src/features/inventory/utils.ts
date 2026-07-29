@@ -1,4 +1,4 @@
-import type { InventoryItem } from '@/types'
+import type { InventoryItem, InventoryOperation } from '@/types'
 
 /** Temporary offline fallback labels; UI filters use useDictionary('inventory_category'). */
 const CATEGORY_LABELS: Record<string, string> = {
@@ -12,6 +12,20 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export function getCategoryLabel(category: string): string {
   return CATEGORY_LABELS[category] ?? category
+}
+
+/** Human-readable operation type for tables, history, and exports. */
+export function getInventoryOperationLabel(
+  operation: Pick<InventoryOperation, 'type' | 'purpose'>,
+): string {
+  const purpose = operation.purpose ?? 'general'
+  if (purpose === 'opening') return 'Начальный остаток'
+  if (purpose === 'adjustment') {
+    return operation.type === 'income' ? 'Корректировка (+)' : 'Корректировка (−)'
+  }
+  if (purpose === 'refuel') return 'Заправка'
+  if (purpose === 'install') return 'Установка'
+  return operation.type === 'income' ? 'Приход' : 'Расход'
 }
 
 export function getStockPercent(item: InventoryItem): number {

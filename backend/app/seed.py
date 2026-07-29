@@ -521,23 +521,27 @@ async def seed_inventory_items(session, org_id) -> None:
         print('inventory_items: skip (already seeded)')
         return
 
-    session.add_all(
-        [
-            InventoryItem(
-                org_id=org_id,
-                name=name,
-                category=category,
-                unit=unit,
-                current_stock=current_stock,
-                min_stock=min_stock,
-                total_capacity=total_capacity,
-                is_active=True,
-            )
-            for name, category, unit, current_stock, min_stock, total_capacity in INVENTORY_ITEMS
-        ]
-    )
+    from app.services.inventory import create_opening_balance_operation
+
+    items = [
+        InventoryItem(
+            org_id=org_id,
+            name=name,
+            category=category,
+            unit=unit,
+            current_stock=current_stock,
+            min_stock=min_stock,
+            total_capacity=total_capacity,
+            is_active=True,
+        )
+        for name, category, unit, current_stock, min_stock, total_capacity in INVENTORY_ITEMS
+    ]
+    session.add_all(items)
+    await session.flush()
+    for item in items:
+        await create_opening_balance_operation(session, item=item, created_by=None)
     await session.commit()
-    print(f'inventory_items: seeded {len(INVENTORY_ITEMS)} rows')
+    print(f'inventory_items: seeded {len(INVENTORY_ITEMS)} rows with opening balances')
 
 
 async def seed_implements(session, org_id) -> None:

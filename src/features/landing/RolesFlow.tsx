@@ -28,10 +28,10 @@ export function RolesFlow() {
       <div className="mx-auto max-w-6xl px-4 py-14 sm:py-20">
         <div className="max-w-2xl">
           <p className="landing-kicker text-[11px] text-primary">Роли</p>
-          <h2 className="landing-display mt-3 text-3xl font-semibold text-foreground sm:text-4xl">
+          <h2 className="landing-display mt-3 text-balance text-3xl font-semibold text-foreground sm:text-4xl">
             Три роли — один поток данных
           </h2>
-          <p className="mt-4 text-muted-foreground">
+          <p className="mt-4 text-base leading-relaxed text-muted-foreground">
             Права задаются по ролям организации. Сотрудник не видит лишнего; менеджер ведёт
             операции; администратор управляет доступами.
           </p>
@@ -43,14 +43,16 @@ export function RolesFlow() {
               key={item.role}
               className="border-b border-border py-8 lg:border-b-0 lg:border-r lg:px-8 lg:py-10 lg:first:pl-0 lg:last:border-r-0 lg:last:pr-0"
             >
-              <p className="font-mono text-xs text-primary">0{index + 1}</p>
-              <h3 className="landing-display mt-4 text-2xl font-semibold text-foreground">
+              <p className="landing-display text-3xl font-semibold tabular-nums tracking-tight text-primary">
+                0{index + 1}
+              </p>
+              <h3 className="landing-display mt-5 text-2xl font-semibold text-foreground">
                 {item.title}
               </h3>
-              <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+              <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
                 {item.role}
               </p>
-              <p className="mt-5 text-base font-medium text-foreground">{item.action}</p>
+              <p className="mt-6 text-base font-semibold text-foreground">{item.action}</p>
               <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{item.detail}</p>
             </article>
           ))}

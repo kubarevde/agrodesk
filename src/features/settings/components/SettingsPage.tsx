@@ -1,23 +1,41 @@
 import { Tractor, Wrench, Package } from 'lucide-react'
+import { getRouteApi } from '@tanstack/react-router'
 import { SectionHelp } from '@/components/shared/SectionHelp'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { DictionarySettingsTab } from '@/features/dictionaries/components/DictionarySettingsTab'
 import { settingsTimezoneHelp } from '@/features/help/content'
 import { settingsAccessHelp } from '@/features/help/modules'
+import { useIsMobile } from '@/hooks/useMediaQuery'
+import type { SettingsTabId } from '../settingsSections'
+import { AccessGroupsTab } from './AccessGroupsTab'
 import { LocationsTab } from './LocationsTab'
 import { NotificationPrefsTab } from './NotificationPrefsTab'
 import { RolePermissionsTab } from './RolePermissionsTab'
 import { SectionMovedNotice } from './SectionMovedNotice'
+import { SettingsSectionNav } from './SettingsSectionNav'
 import { TimezoneTab } from './TimezoneTab'
 import { WorkTypesTab } from './WorkTypesTab'
 
+const settingsRoute = getRouteApi('/_layout/settings/')
+
 /**
  * Settings = org parameters + system dictionaries used across the app.
- * Operational CRUD (equipment, implements, fields, inventory items) lives in domain pages.
+ * Operational CRUD lives in domain pages. Mobile nav: Select; desktop: wrapping tabs.
  */
 export function SettingsPage() {
+  const { tab } = settingsRoute.useSearch()
+  const navigate = settingsRoute.useNavigate()
+  const isMobile = useIsMobile(639)
+
+  const setTab = (next: SettingsTabId) => {
+    void navigate({
+      search: (prev) => ({ ...prev, tab: next }),
+      replace: true,
+    })
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="w-full min-w-0 space-y-6">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold text-foreground">Настройки</h1>
         <p className="text-sm text-muted-foreground">
@@ -28,36 +46,12 @@ export function SettingsPage() {
 
       <SectionHelp title="Справка: часовой пояс" items={settingsTimezoneHelp} />
 
-      <Tabs defaultValue="crops">
-        <TabsList className="flex h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto overscroll-x-contain sm:w-fit sm:flex-wrap">
-          <TabsTrigger value="crops" className="shrink-0 flex-none">
-            Культуры
-          </TabsTrigger>
-          <TabsTrigger value="implement-cats" className="shrink-0 flex-none">
-            Категории приспособлений
-          </TabsTrigger>
-          <TabsTrigger value="inventory-cats" className="shrink-0 flex-none">
-            Категории ТМЦ
-          </TabsTrigger>
-          <TabsTrigger value="expense-cats" className="shrink-0 flex-none">
-            Категории затрат
-          </TabsTrigger>
-          <TabsTrigger value="locations" className="shrink-0 flex-none">
-            Места работы
-          </TabsTrigger>
-          <TabsTrigger value="work-types" className="shrink-0 flex-none">
-            Типы работ
-          </TabsTrigger>
-          <TabsTrigger value="timezone" className="shrink-0 flex-none">
-            Часовой пояс
-          </TabsTrigger>
-          <TabsTrigger value="access" className="shrink-0 flex-none">
-            Доступы
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="shrink-0 flex-none">
-            Мои уведомления
-          </TabsTrigger>
-        </TabsList>
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setTab(value as SettingsTabId)}
+        className="w-full min-w-0"
+      >
+        <SettingsSectionNav value={tab} onChange={setTab} isMobile={isMobile} />
 
         <TabsContent value="crops" className="mt-4 space-y-3">
           <p className="text-sm text-muted-foreground">
@@ -130,10 +124,12 @@ export function SettingsPage() {
           <TimezoneTab />
         </TabsContent>
 
-        <TabsContent value="access" className="mt-4 space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Какие разделы видят менеджеры и сотрудники. Администратор всегда имеет полный доступ.
+        <TabsContent value="access" className="mt-4 w-full min-w-0 max-w-full space-y-6 overflow-x-hidden">
+          <p className="text-sm text-muted-foreground break-words">
+            Роли задают базовые разделы. Группа доступа персонально заменяет базовый набор для
+            сотрудника (в т.ч. предустановка «Снабженец»). Администратор всегда имеет полный доступ.
           </p>
+          <AccessGroupsTab />
           <RolePermissionsTab />
           <SectionHelp title="Справка: доступы" items={settingsAccessHelp} />
         </TabsContent>

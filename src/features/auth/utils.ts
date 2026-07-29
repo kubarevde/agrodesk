@@ -12,10 +12,11 @@ import {
 import { DEFAULT_EMPLOYEE_SECTIONS } from '@/lib/sectionRegistry'
 import {
   cacheCurrentUser,
-  cacheAllowedSections,
+  cacheUserPermissions,
   clearAuthStorage,
   readCachedAllowedSections,
   readCachedCurrentUser,
+  readCachedUserPermissions,
   TOKEN_KEY,
 } from '@/features/auth/storage'
 
@@ -35,6 +36,9 @@ export const AUTH_PERMISSIONS_QUERY_KEY = ['auth', 'permissions'] as const
 export type UserPermissionsData = {
   role: CurrentUser['role']
   allowedSections: string[]
+  actions: string[]
+  accessGroupId: string | null
+  accessGroupName: string | null
 }
 
 /** Resolve home using role + current grants (async). */
@@ -88,15 +92,22 @@ export async function fetchCurrentUser(): Promise<CurrentUser> {
  * across route guards and SidebarNav.
  */
 export async function fetchUserPermissions(): Promise<UserPermissionsData> {
-  const { data } = await api.get<{ role: string; allowed_sections: string[] }>(
-    '/api/auth/permissions',
-  )
+  const { data } = await api.get<{
+    role: string
+    allowed_sections: string[]
+    actions?: string[]
+    access_group_id?: string | null
+    access_group_name?: string | null
+  }>('/api/auth/permissions')
   const result: UserPermissionsData = {
     role: data.role as CurrentUser['role'],
     allowedSections: data.allowed_sections ?? [],
+    actions: data.actions ?? [],
+    accessGroupId: data.access_group_id ?? null,
+    accessGroupName: data.access_group_name ?? null,
   }
-  if (result.role === 'manager' || result.role === 'employee') {
-    cacheAllowedSections(result.role, result.allowedSections)
+  if (result.role === 'manager' || result.role === 'employee' || result.role === 'admin') {
+    cacheUserPermissions(result.role, result.allowedSections, result.actions)
   }
   return result
 }
@@ -154,6 +165,18 @@ export async function fetchAllowedSections(queryClient: QueryClient): Promise<st
       return Object.keys(SECTION_ROUTE_MAP)
     }
 
+    const cachedPerms = cachedRole ? readCachedUserPermissions(cachedRole) : null
+    if (cachedRole && cachedPerms) {
+      queryClient.setQueryData(AUTH_PERMISSIONS_QUERY_KEY, {
+        role: cachedRole,
+        allowedSections: cachedPerms.allowedSections,
+        actions: cachedPerms.actions,
+        accessGroupId: null,
+        accessGroupName: null,
+      } satisfies UserPermissionsData)
+      return cachedPerms.allowedSections
+    }
+
     if (cachedRole === 'employee') {
       return readCachedAllowedSections('employee') ?? [...DEFAULT_EMPLOYEE_SECTIONS]
     }
@@ -172,13 +195,6 @@ export async function fetchAllowedSections(queryClient: QueryClient): Promise<st
   })
 
   const sections = normalizePermissionsQueryData(data)
-
-  if (Array.isArray(data) && cachedRole) {
-    queryClient.setQueryData(AUTH_PERMISSIONS_QUERY_KEY, {
-      role: cachedRole,
-      allowedSections: sections,
-    } satisfies UserPermissionsData)
-  }
 
   return sections
 }

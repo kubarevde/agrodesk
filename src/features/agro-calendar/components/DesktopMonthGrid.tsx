@@ -1,4 +1,6 @@
 import { format, isSameMonth, isToday } from 'date-fns'
+import { DayWeatherBadge } from '@/features/weather/components/DayWeatherBadge'
+import type { WeatherDay } from '@/features/weather/types'
 import { humanLabel } from '@/lib/display'
 import { cn } from '@/lib/utils'
 import type { AgroPlan } from '../types'
@@ -14,6 +16,7 @@ type DesktopMonthGridProps = {
   days: Date[]
   month: Date
   plansByDay: Map<string, AgroPlan[]>
+  weatherByDay: Map<string, WeatherDay>
   onSelectDay: (dayKey: string) => void
   onSelectPlan: (plan: AgroPlan) => void
 }
@@ -23,6 +26,7 @@ export function DesktopMonthGrid({
   days,
   month,
   plansByDay,
+  weatherByDay,
   onSelectDay,
   onSelectPlan,
 }: DesktopMonthGridProps) {
@@ -39,6 +43,7 @@ export function DesktopMonthGrid({
         {days.map((day) => {
           const key = format(day, 'yyyy-MM-dd')
           const dayPlans = plansByDay.get(key) ?? []
+          const weather = weatherByDay.get(key)
           const inMonth = isSameMonth(day, month)
 
           return (
@@ -59,14 +64,17 @@ export function DesktopMonthGrid({
                 }
               }}
             >
-              <p
-                className={cn(
-                  'mb-1 text-xs font-medium',
-                  inMonth ? 'text-foreground' : 'text-muted-foreground',
-                )}
-              >
-                {format(day, 'd')}
-              </p>
+              <div className="mb-1 flex items-center justify-between gap-1">
+                <p
+                  className={cn(
+                    'text-xs font-medium',
+                    inMonth ? 'text-foreground' : 'text-muted-foreground',
+                  )}
+                >
+                  {format(day, 'd')}
+                </p>
+                {inMonth ? <DayWeatherBadge day={weather} /> : null}
+              </div>
               <div className="space-y-1">
                 {dayPlans.slice(0, 2).map((plan) => {
                   const fact = isCalendarFact(plan)

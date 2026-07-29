@@ -2,14 +2,14 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import case, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.dependencies.auth import get_current_employee, require_manager
+from app.dependencies.auth import get_current_employee
 from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
 from app.models.inventory import (
@@ -26,6 +26,7 @@ from app.schemas.inventory import (
     InventoryOperationResponse,
 )
 from app.services.audit import log_change, model_snapshot
+from app.services.action_permissions import require_action
 from app.services.inventory import create_inventory_operation, create_opening_balance_operation
 from app.services.permissions import require_manager_section
 
@@ -173,11 +174,23 @@ async def create_operation(
     request: Request,
     payload: InventoryOperationCreate,
     db: AsyncSession = Depends(get_db),
-    current: Employee = Depends(require_manager),
+    current: Employee = Depends(require_action('inventory.operate')),
 ) -> InventoryOperationResponse:
     item = await get_item_or_404(db, payload.item_id, get_org_id(request))
     if not item.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Позиция неактивна')
+
+    purpose = payload.purpose or 'general'
+    if purpose == 'opening':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Начальный остаток задаётся при создании позиции, не через операции',
+        )
+    if purpose == 'adjustment' and not (payload.reason or '').strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Для корректировки укажите причину',
+        )
 
     operation = await create_inventory_operation(
         db,
@@ -190,7 +203,7 @@ async def create_operation(
         supplier=payload.supplier,
         cost=Decimal(str(payload.cost)) if payload.cost is not None else None,
         equipment_id=payload.equipment_id,
-        purpose=payload.purpose or 'general',
+        purpose=purpose,
     )
     await log_change(
         db,
@@ -265,7 +278,7 @@ async def refuel_equipment(
     equipment_id: UUID,
     payload: EquipmentStockAction,
     db: AsyncSession = Depends(get_db),
-    current: Employee = Depends(require_manager),
+    current: Employee = Depends(require_action('inventory.operate')),
 ) -> InventoryOperationResponse:
     return await _stock_to_equipment(
         db=db,
@@ -288,7 +301,7 @@ async def install_on_equipment(
     equipment_id: UUID,
     payload: EquipmentStockAction,
     db: AsyncSession = Depends(get_db),
-    current: Employee = Depends(require_manager),
+    current: Employee = Depends(require_action('inventory.operate')),
 ) -> InventoryOperationResponse:
     return await _stock_to_equipment(
         db=db,
@@ -344,7 +357,7 @@ async def create_inventory_item(
     request: Request,
     payload: InventoryItemCreate,
     db: AsyncSession = Depends(get_db),
-    current: Employee = Depends(require_manager),
+    current: Employee = Depends(require_action('inventory.manage_items')),
 ) -> InventoryItemResponse:
     item = InventoryItem(
         org_id=get_org_id(request),
@@ -386,7 +399,7 @@ async def update_inventory_item(
     item_id: UUID,
     payload: InventoryItemUpdate,
     db: AsyncSession = Depends(get_db),
-    current: Employee = Depends(require_manager),
+    current: Employee = Depends(require_action('inventory.manage_items')),
 ) -> InventoryItemResponse:
     item = await get_item_or_404(db, item_id, get_org_id(request))
     before = model_snapshot(item)
@@ -417,13 +430,14 @@ async def update_inventory_item(
     return item_to_response(item)
 
 
-@router.delete('/{item_id}', status_code=status.HTTP_204_NO_CONTENT)
+@router.delete('/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 async def delete_inventory_item(
     request: Request,
     item_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current: Employee = Depends(require_manager),
-) -> None:
+    current: Employee = Depends(require_action('inventory.manage_items')),
+) -> Response:
+    """Archive item (soft delete). History of operations is always preserved."""
     item = await get_item_or_404(db, item_id, get_org_id(request))
     before = model_snapshot(item)
     item.is_active = False
@@ -437,5 +451,7 @@ async def delete_inventory_item(
         changed_by=current.id,
         before=before,
         after=model_snapshot(item),
+        summary=f'Позиция ТМЦ «{item.name}» архивирована (история операций сохранена)',
     )
     await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

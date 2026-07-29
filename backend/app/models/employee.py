@@ -31,8 +31,16 @@ class Employee(Base):
     password_hash = Column(String(200), nullable=True)
     telegram_id = Column(BigInteger, unique=True, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
+    # Nullable: without a group, org role_permissions apply (no data loss on migrate).
+    access_group_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('access_groups.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True,
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
+    access_group = relationship('AccessGroup', back_populates='members')
     shifts = relationship('Shift', back_populates='employee')
     inventory_operations = relationship('InventoryOperation', back_populates='created_by_user')
     shipments = relationship('Shipment', back_populates='created_by_user')

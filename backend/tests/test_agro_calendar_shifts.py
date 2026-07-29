@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 import httpx
 
@@ -266,12 +266,13 @@ def test_manual_field_shift_creates_fact(
     assert employees.status_code == 200, employees.text
     employee_id = str(employees.json()[0]['id'])
 
+    shift_day = date.today() + timedelta(days=17)
     created = client.post(
         '/api/shifts/manual',
         headers=manager_headers,
         json={
             'employee_id': employee_id,
-            'date': date.today().isoformat(),
+            'date': shift_day.isoformat(),
             'start_time': '08:00:00',
             'end_time': '12:00:00',
             'location_id': location_id,
@@ -286,7 +287,7 @@ def test_manual_field_shift_creates_fact(
     plans = client.get(
         '/api/agro-plan',
         headers=manager_headers,
-        params={'month': date.today().strftime('%Y-%m')},
+        params={'month': shift_day.strftime('%Y-%m')},
     )
     facts = [
         row

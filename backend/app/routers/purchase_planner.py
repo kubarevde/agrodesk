@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.dependencies.auth import get_current_employee, require_manager
+from app.dependencies.auth import get_current_employee
 from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
 from app.models.equipment_log import EquipmentMaintenance
@@ -26,14 +26,15 @@ from app.schemas.purchase_planner import (
     PurchasePlannerResponse,
     PurchasePlannerUpdate,
 )
+from app.services.action_permissions import require_action, resolve_effective_permissions
 from app.services.audit import log_change, model_snapshot
 from app.services.dashboard import clear_dashboard_cache
 from app.services.permissions import require_manager_section
 from app.services.purchase_planner import (
     apply_status_side_effects,
     assert_employee_may_patch,
+    can_manage_purchases,
     expense_amount_for_purchase,
-    is_manager,
     normalize_images,
 )
 
@@ -229,6 +230,8 @@ async def create_item(
     current: Employee = Depends(get_current_employee),
 ) -> PurchasePlannerResponse:
     org_id = get_org_id(request)
+    effective = await resolve_effective_permissions(db, current)
+    manage = can_manage_purchases(effective, current)
     await _assert_refs(
         db,
         org_id,
@@ -245,7 +248,7 @@ async def create_item(
         implement_id=payload.implement_id,
         inventory_item_id=payload.inventory_item_id,
         urgency=payload.urgency,
-        status='planned' if not is_manager(current) else payload.status,
+        status='planned' if not manage else payload.status,
         purchase_place=payload.purchase_place,
         responsible_id=payload.responsible_id,
         estimated_cost=(
@@ -291,21 +294,22 @@ async def update_item(
     create_expense = bool(updates.pop('create_expense', False))
     expense_category = updates.pop('expense_category', None) or 'parts'
 
-    manager = is_manager(current)
-    if not manager:
+    effective = await resolve_effective_permissions(db, current)
+    manage = can_manage_purchases(effective, current)
+    if not manage:
         assert_employee_may_patch(row, updates)
         create_expense = False
 
     new_status = updates.get('status')
-    if new_status == 'planned' and row.status == 'purchased' and not manager:
+    if new_status == 'planned' and row.status == 'purchased' and not manage:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail='Возврат статуса доступен только руководителю',
+            detail='Возврат статуса доступен только с правом управления закупками',
         )
-    if new_status == 'cancelled' and not manager:
+    if new_status == 'cancelled' and not manage:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail='Отмена закупки доступна только руководителю',
+            detail='Отмена закупки доступна только с правом управления закупками',
         )
 
     # Merge category refs for validation when category changes
@@ -359,7 +363,7 @@ async def update_item(
         changed_by=current.id,
     )
 
-    if create_expense and row.expense_id is None and manager:
+    if create_expense and row.expense_id is None and manage:
         amount = expense_amount_for_purchase(row)
         if amount is not None:
             expense = Expense(
@@ -405,7 +409,7 @@ async def delete_item(
     request: Request,
     item_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current: Employee = Depends(require_manager),
+    current: Employee = Depends(require_action('purchase.manage')),
 ) -> Response:
     org_id = get_org_id(request)
     row = await _get_item_or_404(db, item_id, org_id)

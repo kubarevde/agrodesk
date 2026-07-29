@@ -195,7 +195,7 @@ export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModal
             {errors.cropType ? (
               <p className="text-xs text-destructive">{errors.cropType.message}</p>
             ) : (
-              <ManageInSettingsLink tabHint="культуры" />
+              <ManageInSettingsLink tab="crops" tabHint="культуры" />
             )}
           </div>
 

@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = 'INFO'
     RUN_SEED_ON_START: bool = True
     UPLOADS_DIR: str = './uploads'
+    # Weather: Open-Meteo + MET Norway (no API keys). Cache TTL seconds (30–60 min).
+    WEATHER_CACHE_TTL_SECONDS: int = 2700
+    WEATHER_PROVIDER_TIMEOUT_SECONDS: float = 8.0
 
     @property
     def bot_internal_secret(self) -> str:

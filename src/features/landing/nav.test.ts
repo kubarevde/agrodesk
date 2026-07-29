@@ -13,8 +13,11 @@ describe('landing nav', () => {
 
   it('resolves public image URLs under /landing/', () => {
     expect(LANDING_IMAGES.hero).toContain('landing/hero-field.webp')
+    expect(LANDING_IMAGES.day).toContain('landing/day-field.webp')
     expect(LANDING_IMAGES.shifts).toContain('landing/module-shifts.webp')
     expect(LANDING_IMAGES.warehouse).toContain('landing/module-warehouse.webp')
     expect(LANDING_IMAGES.calendar).toContain('landing/module-calendar.webp')
+    const paths = Object.values(LANDING_IMAGES)
+    expect(new Set(paths).size).toBe(paths.length)
   })
 })

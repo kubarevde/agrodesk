@@ -1,4 +1,4 @@
-import { Minus, Package, Plus } from 'lucide-react'
+import { Minus, Package, Plus, SlidersHorizontal } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
@@ -9,7 +9,10 @@ import type { InventoryItem } from '@/types'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { inventoryHelp } from '@/features/help/content'
 import { useInventory, useInventoryOperations } from '@/features/inventory/hooks'
+import { useUserPermissions } from '@/features/settings/permissionsHooks'
+import { hasAction } from '@/lib/permissionActions'
 import { CategoryFilter } from './CategoryFilter'
+import { AdjustmentModal } from './AdjustmentModal'
 import { ExpenseModal } from './ExpenseModal'
 import { IncomeModal } from './IncomeModal'
 import { InventoryCard } from './InventoryCard'
@@ -19,12 +22,15 @@ import { InventoryOperationsTable } from './InventoryOperationsTable'
 
 export function InventoryPage() {
   const { data: user } = useCurrentUser()
-  const canManage = user?.role === 'admin' || user?.role === 'manager'
+  const { data: perms } = useUserPermissions()
+  const canManage = hasAction(perms?.actions, 'inventory.manage_items', user?.role)
+  const canOperate = hasAction(perms?.actions, 'inventory.operate', user?.role)
   const { data: items = [], isLoading } = useInventory()
   const { data: operations = [], isLoading: operationsLoading } = useInventoryOperations()
   const [category, setCategory] = useState<string>('all')
   const [incomeOpen, setIncomeOpen] = useState(false)
   const [expenseOpen, setExpenseOpen] = useState(false)
+  const [adjustOpen, setAdjustOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<InventoryItem | null>(null)
@@ -52,28 +58,38 @@ export function InventoryPage() {
               Позиция
             </Button>
           ) : null}
-          <Button
-            type="button"
-            className="bg-primary hover:bg-primary-hover text-primary-foreground"
-            onClick={() => setIncomeOpen(true)}
-          >
-            <Plus className="size-4" />
-            Приход
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="border-destructive text-destructive hover:bg-destructive/10"
-            onClick={() => setExpenseOpen(true)}
-          >
-            <Minus className="size-4" />
-            Расход
-          </Button>
+          {canOperate ? (
+            <Button
+              type="button"
+              className="bg-primary hover:bg-primary-hover text-primary-foreground"
+              onClick={() => setIncomeOpen(true)}
+            >
+              <Plus className="size-4" />
+              Приход
+            </Button>
+          ) : null}
+          {canOperate ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="border-destructive text-destructive hover:bg-destructive/10"
+              onClick={() => setExpenseOpen(true)}
+            >
+              <Minus className="size-4" />
+              Расход
+            </Button>
+          ) : null}
+          {canOperate ? (
+            <Button type="button" variant="outline" onClick={() => setAdjustOpen(true)}>
+              <SlidersHorizontal className="size-4" />
+              Корректировка
+            </Button>
+          ) : null}
         </div>
       </div>
 
       <SectionHelp title="Справка: склад" items={inventoryHelp} />
-      <ManageInSettingsLink tabHint="категории ТМЦ" />
+      <ManageInSettingsLink tab="inventory-cats" tabHint="категории ТМЦ" />
 
       <CategoryFilter value={category} onChange={setCategory} />
 
@@ -131,6 +147,7 @@ export function InventoryPage() {
 
       <IncomeModal open={incomeOpen} items={items} onClose={() => setIncomeOpen(false)} />
       <ExpenseModal open={expenseOpen} items={items} onClose={() => setExpenseOpen(false)} />
+      <AdjustmentModal open={adjustOpen} items={items} onClose={() => setAdjustOpen(false)} />
       <InventoryDetailSheet
         item={selectedItem}
         open={Boolean(selectedItem)}

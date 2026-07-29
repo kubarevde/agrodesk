@@ -18,7 +18,9 @@ import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { useAgroPlansToday } from '@/features/agro-calendar/hooks'
 import { planFieldsLabel } from '@/features/agro-calendar/utils'
+import { useUserPermissions } from '@/features/settings/permissionsHooks'
 import { apiErrorMessage } from '@/lib/apiError'
+import { hasAction } from '@/lib/permissionActions'
 import { entityOptions } from '@/lib/selectOptions'
 import { useCreateShift } from './hooks'
 import {
@@ -64,8 +66,10 @@ export function OpenShiftModal({
   const { data: equipment = [], isLoading: equipmentLoading } = useEquipment()
   const { data: employees = [], isLoading: employeesLoading } = useEmployees()
   const { data: user } = useCurrentUser()
+  const { data: perms } = useUserPermissions()
   const canSelectEmployee =
-    selectEmployee ?? (user?.role === 'admin' || user?.role === 'manager')
+    selectEmployee ??
+    hasAction(perms?.actions, 'shift.open_for_others', user?.role)
   const [geoError, setGeoError] = useState<string | null>(null)
 
   const form = useForm<OpenShiftFormValues>({
@@ -299,7 +303,7 @@ export function OpenShiftModal({
             {errors.location ? (
               <p className="text-xs text-destructive">{errors.location.message}</p>
             ) : (
-              <ManageInSettingsLink tabHint="места работы" />
+              <ManageInSettingsLink tab="locations" tabHint="места работы" />
             )}
           </div>
 
@@ -327,7 +331,7 @@ export function OpenShiftModal({
             {errors.workType ? (
               <p className="text-xs text-destructive">{errors.workType.message}</p>
             ) : (
-              <ManageInSettingsLink tabHint="типы работ" />
+              <ManageInSettingsLink tab="work-types" tabHint="типы работ" />
             )}
           </div>
 

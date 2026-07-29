@@ -243,6 +243,7 @@ export interface InventoryOperation {
   supplier?: string
   cost?: number
   createdByName?: string
+  purpose?: string
 }
 
 export interface Shipment {

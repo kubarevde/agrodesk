@@ -1,3 +1,4 @@
+from app.models.access_group import AccessGroup
 from app.models.agro_plan import AgroPlan, AgroPlanField
 from app.models.audit_log import AuditLog
 from app.models.employee import Employee
@@ -15,6 +16,7 @@ from app.models.shift import Shift
 from app.models.shipment import Shipment
 
 __all__ = [
+    'AccessGroup',
     'AgroPlan',
     'AgroPlanField',
     'AuditLog',

@@ -10,7 +10,7 @@ export const SECTION_DESCRIPTIONS: Record<string, string> = {
   implements: 'Приспособления и их обслуживание.',
   maintenance: 'Журнал ремонта с чек-листами.',
   'purchase-planner': 'Список покупок и режим «На закупку».',
-  inventory: 'Склад ТМЦ и остатки.',
+  inventory: 'Склад ТМЦ: остатки, приход, расход и корректировка.',
   shipments: 'Учёт отгрузок урожая.',
   expenses: 'Затраты хозяйства.',
   analytics: 'Прогноз доходов и затрат.',

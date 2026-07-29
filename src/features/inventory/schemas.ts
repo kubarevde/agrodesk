@@ -45,6 +45,21 @@ export const inventoryItemSchema = z.object({
   isActive: z.boolean(),
 })
 
+export const adjustmentSchema = z
+  .object({
+    itemId: z.string().min(1, 'Выберите позицию'),
+    /** User-facing direction — mapped to income/expense only at API boundary. */
+    direction: z.enum(['increase', 'decrease']),
+    quantity: requiredNumber('Укажите количество').positive('Укажите количество больше 0'),
+    reason: z.string().min(3, 'Укажите причину корректировки (мин. 3 символа)'),
+    date: z.string().min(1, 'Выберите дату'),
+  })
+  .refine((values) => dateNotInFuture(values.date), {
+    message: 'Дата не может быть в будущем',
+    path: ['date'],
+  })
+
 export type IncomeFormValues = z.infer<typeof incomeSchema>
 export type ExpenseFormValues = z.infer<typeof expenseSchema>
+export type AdjustmentFormValues = z.infer<typeof adjustmentSchema>
 export type InventoryItemFormValues = z.infer<typeof inventoryItemSchema>

@@ -15,11 +15,12 @@ from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
 from app.models.organization import Organization
 from app.schemas.permissions import (
+    ActionInfo,
     RolePermissionsResponse,
     RolePermissionsUpdate,
     SectionInfo,
-    UserPermissionsResponse,
 )
+from app.services.action_permissions import ACTION_KEYS, ACTION_LABELS
 from app.services.audit import log_change, model_snapshot
 from app.services.org_timezone import DEFAULT_TIMEZONE, timezone_from_settings
 from app.services.permissions import (
@@ -117,6 +118,7 @@ async def get_role_permissions(
     org = await _get_org(db, get_org_id(request))
     return RolePermissionsResponse(
         sections=[SectionInfo(key=key, label=SECTION_LABELS[key]) for key in SECTION_KEYS],
+        actions=[ActionInfo(key=key, label=ACTION_LABELS[key]) for key in ACTION_KEYS],
         permissions=role_permissions_from_settings(_settings_dict(org)),
     )
 
@@ -150,5 +152,6 @@ async def update_role_permissions(
     await db.refresh(org)
     return RolePermissionsResponse(
         sections=[SectionInfo(key=key, label=SECTION_LABELS[key]) for key in SECTION_KEYS],
+        actions=[ActionInfo(key=key, label=ACTION_LABELS[key]) for key in ACTION_KEYS],
         permissions=role_permissions_from_settings(_settings_dict(org)),
     )
