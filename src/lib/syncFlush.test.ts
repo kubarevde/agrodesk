@@ -29,8 +29,25 @@ vi.mock('@/lib/db', () => {
         get: async () => undefined,
         delete: async () => undefined,
       },
+      inventoryQueue: {
+        filter: () => ({
+          toArray: async () => [],
+        }),
+        orderBy: () => ({
+          filter: () => ({
+            toArray: async () => [],
+          }),
+        }),
+        update: async () => undefined,
+        get: async () => undefined,
+        delete: async () => undefined,
+      },
       shifts: {
         delete: async () => undefined,
+        put: async () => undefined,
+      },
+      inventory: {
+        get: async () => undefined,
         put: async () => undefined,
       },
     },

@@ -56,7 +56,7 @@ export function SalaryCalcTab() {
 
   return (
     <div className="space-y-4">
-      <SectionHelp title="Справка: расчёт ЗП" items={salaryHelp} />
+      <SectionHelp section="расчёт зарплаты" items={salaryHelp} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-2">
           <Label htmlFor="salary-month">Месяц</Label>

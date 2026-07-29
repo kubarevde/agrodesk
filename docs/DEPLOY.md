@@ -3,6 +3,9 @@
 > **Обновление прода (фронт / бэк / бот) — короткая шпаргалка:**  
 > **[docs/PROD-UPDATE.md](PROD-UPDATE.md)** — обычный апдейт, точечные rebuild, bothost, чеклист.
 
+**Единственный канал доставки:** репозиторий → GitHub (`main`) → зелёный CI → ручной `./deploy.sh` на VPS.  
+Нет Object Storage / S3 / Yandex Cloud sync для фронта. Нет SSH-деплоя из GitHub Actions.
+
 Целевой сервер: **http://213.183.104.142:3010**  
 Стек: Docker Compose — `db` (PostgreSQL 16), `api` (FastAPI), `bot` (Telegram), `nginx` (фронт + proxy `/api`).
 
@@ -123,7 +126,8 @@ cd /opt/agrodesk
 Скрипт: `git pull` → build → `up -d` (без удаления volumes) → проверка health → **`alembic upgrade head`** (обязательно) → `alembic current`.
 
 Миграции также выполняются при старте контейнера `api` (`alembic upgrade head` в `docker-compose.yml`).  
-Единственная точка доставки фронта и бэка — **эта VPS** (образ nginx + API). Отдельного Object Storage / S3-канала нет.
+Единственная точка доставки фронта и бэка — **эта VPS** (образ nginx + API).  
+Отдельного Object Storage / S3 / Yandex Cloud канала **нет и не будет** без явного решения сменить архитектуру.
 
 ---
 
@@ -147,7 +151,8 @@ CI **не** деплоит на прод и **не** ходит на VPS по SS
 
 Прод-миграции по-прежнему применяются на VPS при старте `api` / в `./deploy.sh`, не из GitHub Actions.
 
-Секреты `YC_*`, `VPS_*` для CI-деплоя и флаг `RUN_BACKEND_MIGRATIONS` не используются.
+Секреты облачного деплоя (`YC_*`, bucket sync) и SSH auto-deploy из CI **не используются**.  
+После зелёного CI оператор сам заходит на VPS и запускает `./deploy.sh`.
 
 ---
 

@@ -92,7 +92,7 @@ export function ShipmentsPage() {
         ) : null}
       </div>
 
-      <SectionHelp title="Справка: отгрузки" items={shipmentsHelp} />
+      <SectionHelp section="отгрузки" items={shipmentsHelp} />
 
       {!isOnline ? (
         <OnlineOnlyNotice

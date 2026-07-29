@@ -294,6 +294,21 @@ export interface SyncQueueItem {
   status: 'pending' | 'failed'
 }
 
+/** Offline inventory ops (income / expense / adjustment) awaiting sync. */
+export interface InventoryQueueItem {
+  id: string
+  type: 'income' | 'expense' | 'adjustment'
+  itemId: string
+  payload: Record<string, unknown>
+  status: 'pending' | 'synced' | 'error' | 'conflict'
+  createdAt: number
+  updatedAt: number
+  retries: number
+  /** Expected stock after optimistic apply — used to detect server drift. */
+  expectedStockAfter: number
+  lastError?: string
+}
+
 export interface ShiftFilters {
   from?: string
   to?: string

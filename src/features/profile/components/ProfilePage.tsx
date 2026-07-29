@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { useCurrentUser, useLogout } from '@/features/auth/hooks'
 import { MyEarningsSection } from '@/features/auth/MyEarningsSection'
 import { ChangePasswordForm } from './ChangePasswordForm'
+import { OfflineVersionSection } from './OfflineVersionSection'
 import { ProfileInfoSection } from './ProfileInfoSection'
 
 export function ProfilePage() {
@@ -23,6 +24,7 @@ export function ProfilePage() {
     <div className="mx-auto w-full max-w-2xl space-y-6">
       <h1 className="text-2xl font-semibold text-foreground">Профиль</h1>
       <ProfileInfoSection user={user} />
+      <OfflineVersionSection />
       <ChangePasswordForm />
       {user.role === 'employee' ? <MyEarningsSection /> : null}
       <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={logout}>

@@ -17,6 +17,7 @@ const BACKEND_ACTION_KEYS = [
   'inventory.manage_items',
   'purchase.create',
   'purchase.manage',
+  'support.view_org_tickets',
 ] as const
 
 describe('permissionActions', () => {

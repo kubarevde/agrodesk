@@ -48,6 +48,7 @@ function filterImplements(
 export function useImplements(filters?: ImplementFilters) {
   return useQuery({
     queryKey: ['implements', filters?.category ?? 'all', filters?.equipmentId ?? 'all'],
+    networkMode: 'offlineFirst',
     queryFn: async (): Promise<ImplementResponse[]> => {
       if (!navigator.onLine) {
         const cached = await db.implements.toArray()

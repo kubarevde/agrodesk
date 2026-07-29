@@ -37,7 +37,8 @@
 6. `BOT_INTERNAL_SECRET` на VPS (`.env.production`) и на bothost **должен совпадать**.
 7. Перед рискованным релизом — бэкап БД и uploads: `./scripts/backup_db.sh` и `./scripts/backup_uploads.sh` (или `./scripts/run_nightly_backup.sh`).
 8. В Git **не** коммитьте: `.env`, `.env.production`, секреты, `node_modules`, дампы БД, архивы `backups/`.
-9. Фронт отдаётся только с VPS (nginx). Object Storage / S3 для статики и uploads не используется — файлы в volume `uploads_data`.
+9. Фронт отдаётся только с VPS (nginx). **Object Storage / S3 / Yandex Cloud для статики не используются.** Uploads — volume `uploads_data` на диске VPS (`/api/uploads`).
+10. CI (GitHub Actions) только валидирует PR/push; на прод **не** деплоит. После зелёного CI: `ssh` → `/opt/agrodesk` → `./deploy.sh`.
 
 
 ---

@@ -115,8 +115,7 @@ PYTHONPATH=. python scripts/backfill_shift_salary.py
 
 | Переменная | Описание |
 |------------|----------|
-| `VITE_API_URL` | `http://localhost:8000` |
-| `VITE_USE_MOCKS` | `false` |
+| `VITE_API_URL` | `http://localhost:8000` или пусто (Vite proxy) |
 | `VITE_APP_NAME` | АгроДеск |
 
 ### Bot (`bot/.env`)

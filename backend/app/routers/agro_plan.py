@@ -21,8 +21,12 @@ from app.schemas.agro_plan import (
     AgroPlanCreate,
     AgroPlanResponse,
     AgroPlanUpdate,
+    AgroPlanWeatherAdvisoryResponse,
+    WeatherAdvisoryOut,
 )
 from app.services.audit import log_change, model_snapshot
+from app.services.weather.advisories import WeatherAdvisory
+from app.services.weather.plan_advisories import advisories_for_plans, compute_plan_advisories
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -71,7 +75,24 @@ def parse_month(month: str) -> tuple[date, date]:
         ) from exc
 
 
-def plan_to_response(plan: AgroPlan) -> AgroPlanResponse:
+def advisory_to_out(item: WeatherAdvisory) -> WeatherAdvisoryOut:
+    return WeatherAdvisoryOut(
+        code=item.code,
+        severity=item.severity,
+        title=item.title,
+        message=item.message,
+        date=date.fromisoformat(item.date),
+        temp_min=item.temp_min,
+        temp_max=item.temp_max,
+        precipitation_mm=item.precipitation_mm,
+        wind_speed_ms=item.wind_speed_ms,
+    )
+
+
+def plan_to_response(
+    plan: AgroPlan,
+    advisories: list[WeatherAdvisory] | None = None,
+) -> AgroPlanResponse:
     field_ids = [item.location_id for item in plan.fields]
     field_names = [
         item.location.name if item.location else ''
@@ -106,7 +127,19 @@ def plan_to_response(plan: AgroPlan) -> AgroPlanResponse:
         closed_by_name=closed_by_user.full_name if closed_by_user else None,
         closed_at=getattr(plan, 'closed_at', None),
         close_note=getattr(plan, 'close_note', None),
+        advisories=[advisory_to_out(a) for a in (advisories or [])],
     )
+
+
+async def plans_to_responses(
+    plans: list[AgroPlan],
+    *,
+    include_advisories: bool = False,
+) -> list[AgroPlanResponse]:
+    if not include_advisories:
+        return [plan_to_response(plan) for plan in plans]
+    by_id = await advisories_for_plans(plans)
+    return [plan_to_response(plan, by_id.get(plan.id)) for plan in plans]
 
 
 async def get_plan_or_404(db: AsyncSession, plan_id: UUID, org_id: UUID) -> AgroPlan:
@@ -173,6 +206,7 @@ def set_plan_fields(plan: AgroPlan, field_ids: list[UUID]) -> None:
 async def list_agro_plans_today(
     request: Request,
     employee_id: UUID | None = Query(None),
+    include_advisories: bool = Query(False),
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(get_current_employee),
 ) -> list[AgroPlanResponse]:
@@ -208,7 +242,7 @@ async def list_agro_plans_today(
         for plan in plans:
             if plan.closed_by and plan.__dict__.get('closed_by_user') is None:
                 plan.closed_by_user = by_id.get(plan.closed_by)
-    return [plan_to_response(item) for item in plans]
+    return await plans_to_responses(plans, include_advisories=include_advisories)
 
 
 @router.get('', response_model=list[AgroPlanResponse])
@@ -218,8 +252,9 @@ async def list_agro_plans(
     field_id: UUID | None = Query(None),
     employee_id: UUID | None = Query(None),
     planned_date: date | None = Query(None),
+    include_advisories: bool = Query(False),
     db: AsyncSession = Depends(get_db),
-    _: Employee = Depends(get_current_employee),
+    current: Employee = Depends(get_current_employee),
 ) -> list[AgroPlanResponse]:
     org_id = get_org_id(request)
     query = (
@@ -278,7 +313,7 @@ async def list_agro_plans(
         for plan in plans:
             if plan.closed_by and plan.__dict__.get('closed_by_user') is None:
                 plan.closed_by_user = by_id.get(plan.closed_by)
-    return [plan_to_response(item) for item in plans]
+    return await plans_to_responses(plans, include_advisories=include_advisories)
 
 
 @router.post('', response_model=AgroPlanResponse, status_code=status.HTTP_201_CREATED)
@@ -468,6 +503,22 @@ async def close_agro_plan(
     )
     await db.commit()
     return plan_to_response(await get_plan_or_404(db, plan.id, org_id))
+
+
+@router.get('/{plan_id}/weather-advisory', response_model=AgroPlanWeatherAdvisoryResponse)
+async def get_plan_weather_advisory(
+    request: Request,
+    plan_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current: Employee = Depends(get_current_employee),
+) -> AgroPlanWeatherAdvisoryResponse:
+    org_id = get_org_id(request)
+    plan = await get_plan_or_404(db, plan_id, org_id)
+    items = await compute_plan_advisories(plan)
+    return AgroPlanWeatherAdvisoryResponse(
+        plan_id=plan.id,
+        advisories=[advisory_to_out(a) for a in items],
+    )
 
 
 @router.delete('/{plan_id}', status_code=status.HTTP_204_NO_CONTENT)

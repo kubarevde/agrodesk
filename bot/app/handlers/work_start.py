@@ -418,7 +418,19 @@ async def work_start_comment(
             reply_markup=menu_for_user(is_admin),
         )
     else:
-        await message.answer(
-            '❌ Не удалось открыть смену. Проверьте API.',
-            reply_markup=menu_for_user(is_admin),
-        )
+        ok, detail = await api.health_check()
+        if not ok:
+            await message.answer(
+                '❌ Нет связи с API АгроДеск.\n'
+                f'Диагностика: {detail}\n'
+                'Сообщите администратору (проверьте API_BASE_URL и логи бота).',
+                reply_markup=menu_for_user(is_admin),
+            )
+        else:
+            await message.answer(
+                '❌ Не удалось открыть смену.\n'
+                'Связь с API есть, но сервер отклонил запрос '
+                '(права, уже открытая смена, валидация).\n'
+                'Повторите позже или откройте смену в веб-приложении.',
+                reply_markup=menu_for_user(is_admin),
+            )

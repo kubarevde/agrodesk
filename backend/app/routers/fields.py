@@ -15,6 +15,8 @@ from app.models.employee import Employee
 from app.models.reference import Location
 from app.schemas.field import FieldCreate, FieldResponse, FieldUpdate
 from app.services.audit import log_change, model_snapshot
+from app.services.field_geometry import apply_geometry_on_write
+
 # Read (list/get) is available to any authenticated employee — needed for open-shift
 # field selection (my-shift). Mutations stay manager-only below.
 router = APIRouter()
@@ -50,7 +52,6 @@ def location_to_field(location: Location) -> FieldResponse:
         name=location.name,
         crop_type=location.crop_type,
         area_ha=_num(location.area_ha),
-        # soil_type kept in DB as legacy — not exposed for create/update UX
         soil_type=None,
         description=location.description,
         latitude=_num(location.latitude),
@@ -134,25 +135,40 @@ async def create_field(
     if not name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Укажите название поля')
 
+    clear_polygon = payload.polygon is not None and len(payload.polygon) == 0
+    lat, lon, polygon, area_ha = apply_geometry_on_write(
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        polygon=None if clear_polygon else payload.polygon,
+        area_ha=payload.area_ha,
+        clear_polygon=clear_polygon,
+    )
+
     location = Location(
         org_id=org_id,
         name=name,
         kind='field',
         crop_type=normalize_name(payload.crop_type) if payload.crop_type else None,
-        area_ha=Decimal(str(payload.area_ha)) if payload.area_ha is not None else None,
-        # soil_type ignored (legacy column)
+        area_ha=Decimal(str(area_ha)) if area_ha is not None else None,
         soil_type=None,
         description=payload.description,
-        latitude=Decimal(str(payload.latitude)) if payload.latitude is not None else None,
-        longitude=Decimal(str(payload.longitude)) if payload.longitude is not None else None,
-        polygon=payload.polygon,
+        latitude=Decimal(str(lat)) if lat is not None else None,
+        longitude=Decimal(str(lon)) if lon is not None else None,
+        polygon=polygon,
         is_active=True,
     )
     db.add(location)
     try:
         await db.flush()
-        await log_change(db, org_id=org_id, entity_type='location', entity_id=location.id,
-                         action='create', changed_by=current.id, after=model_snapshot(location))
+        await log_change(
+            db,
+            org_id=org_id,
+            entity_type='location',
+            entity_id=location.id,
+            action='create',
+            changed_by=current.id,
+            after=model_snapshot(location),
+        )
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -180,7 +196,7 @@ async def update_field(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Поле не найдено')
 
     updates = payload.model_dump(exclude_unset=True)
-    updates.pop('soil_type', None)  # deprecated — ignore if client still sends
+    updates.pop('soil_type', None)
 
     if 'name' in updates and updates['name'] is not None:
         updates['name'] = normalize_name(updates['name'])
@@ -192,17 +208,50 @@ async def update_field(
     if 'crop_type' in updates and updates['crop_type'] is not None:
         updates['crop_type'] = normalize_name(updates['crop_type']) or None
 
+    polygon_in_payload = 'polygon' in updates
+    raw_polygon = updates.pop('polygon', None) if polygon_in_payload else None
+    clear_polygon = polygon_in_payload and (
+        raw_polygon is None or (isinstance(raw_polygon, list) and len(raw_polygon) == 0)
+    )
+
+    lat_src = updates.pop('latitude') if 'latitude' in updates else _num(location.latitude)
+    lon_src = updates.pop('longitude') if 'longitude' in updates else _num(location.longitude)
+    area_src = updates.pop('area_ha') if 'area_ha' in updates else _num(location.area_ha)
+
+    geometry_polygon = location.polygon
+    if polygon_in_payload:
+        geometry_polygon = None if clear_polygon else raw_polygon
+
+    lat, lon, polygon, area_ha = apply_geometry_on_write(
+        latitude=lat_src,
+        longitude=lon_src,
+        polygon=geometry_polygon,
+        area_ha=area_src,
+        clear_polygon=clear_polygon,
+    )
+
     location.kind = 'field'
+    location.latitude = Decimal(str(lat)) if lat is not None else None
+    location.longitude = Decimal(str(lon)) if lon is not None else None
+    location.area_ha = Decimal(str(area_ha)) if area_ha is not None else None
+    if polygon_in_payload:
+        location.polygon = polygon
+
     for field, value in updates.items():
-        if field in {'area_ha', 'latitude', 'longitude'} and value is not None:
-            setattr(location, field, Decimal(str(value)))
-        else:
-            setattr(location, field, value)
+        setattr(location, field, value)
 
     db.add(location)
     try:
-        await log_change(db, org_id=org_id, entity_type='location', entity_id=location.id,
-                         action='update', changed_by=current.id, before=before, after=model_snapshot(location))
+        await log_change(
+            db,
+            org_id=org_id,
+            entity_type='location',
+            entity_id=location.id,
+            action='update',
+            changed_by=current.id,
+            before=before,
+            after=model_snapshot(location),
+        )
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -226,6 +275,14 @@ async def delete_field(
     before = model_snapshot(location)
     location.is_active = False
     db.add(location)
-    await log_change(db, org_id=location.org_id, entity_type='location', entity_id=location.id,
-                     action='delete', changed_by=current.id, before=before, after=model_snapshot(location))
+    await log_change(
+        db,
+        org_id=location.org_id,
+        entity_type='location',
+        entity_id=location.id,
+        action='delete',
+        changed_by=current.id,
+        before=before,
+        after=model_snapshot(location),
+    )
     await db.commit()

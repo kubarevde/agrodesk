@@ -16,6 +16,7 @@ import { useDeleteAgroPlan } from '../hooks'
 import type { AgroPlan } from '../types'
 import { ENTRY_KIND_LABELS, STATUS_LABELS } from '../types'
 import { entryKindBadgeClass, isCalendarFact, statusBadgeClass } from '../utils'
+import { PlanWeatherAdvisoryBadge } from './PlanWeatherAdvisoryBadge'
 import { AgroPlanActions } from './AgroPlanActions'
 import { AgroPlanDeleteDialog } from './AgroPlanDeleteDialog'
 import { AgroPlanDetailFields } from './AgroPlanDetailFields'
@@ -72,6 +73,7 @@ export function AgroPlanDetailSheet({
               <Badge variant="outline" className={statusBadgeClass(plan.status)}>
                 {STATUS_LABELS[plan.status]}
               </Badge>
+              <PlanWeatherAdvisoryBadge advisories={plan.advisories} />
             </SheetDescription>
           </SheetHeader>
 

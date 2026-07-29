@@ -77,7 +77,7 @@ export function LoginPage() {
             </p>
           ) : null}
           <div className="mt-6">
-            <SectionHelp title="Справка по входу" items={loginHelp} />
+            <SectionHelp section="вход" items={loginHelp} guideSection="login" />
           </div>
         </CardContent>
       </Card>

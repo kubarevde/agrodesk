@@ -2,13 +2,13 @@ import { Minus, Package, Plus, SlidersHorizontal } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
-import { SectionHelp } from '@/components/shared/SectionHelp'
+import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { InventoryItem } from '@/types'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { inventoryHelp } from '@/features/help/content'
-import { useInventory, useInventoryOperations } from '@/features/inventory/hooks'
+import { useInventory, useInventoryOperations, useInventoryQueueIssues } from '@/features/inventory/hooks'
 import { useUserPermissions } from '@/features/settings/permissionsHooks'
 import { hasAction } from '@/lib/permissionActions'
 import { CategoryFilter } from './CategoryFilter'
@@ -18,6 +18,7 @@ import { IncomeModal } from './IncomeModal'
 import { InventoryCard } from './InventoryCard'
 import { InventoryDetailSheet } from './InventoryDetailSheet'
 import { InventoryItemFormModal } from './InventoryItemFormModal'
+import { InventoryOfflinePanel } from './InventoryOfflinePanel'
 import { InventoryOperationsTable } from './InventoryOperationsTable'
 
 export function InventoryPage() {
@@ -27,6 +28,11 @@ export function InventoryPage() {
   const canOperate = hasAction(perms?.actions, 'inventory.operate', user?.role)
   const { data: items = [], isLoading } = useInventory()
   const { data: operations = [], isLoading: operationsLoading } = useInventoryOperations()
+  const queueIssues = useInventoryQueueIssues()
+  const issueItemIds = useMemo(
+    () => new Set(queueIssues.map((row) => row.itemId)),
+    [queueIssues],
+  )
   const [category, setCategory] = useState<string>('all')
   const [incomeOpen, setIncomeOpen] = useState(false)
   const [expenseOpen, setExpenseOpen] = useState(false)
@@ -88,8 +94,10 @@ export function InventoryPage() {
         </div>
       </div>
 
-      <SectionHelp title="Справка: склад" items={inventoryHelp} />
+      <RoleSectionHelp section="склад" items={inventoryHelp} guideSection="inventory" />
       <ManageInSettingsLink tab="inventory-cats" tabHint="категории ТМЦ" />
+
+      <InventoryOfflinePanel />
 
       <CategoryFilter value={category} onChange={setCategory} />
 
@@ -129,6 +137,7 @@ export function InventoryPage() {
             <InventoryCard
               key={item.id}
               item={item}
+              hasSyncIssue={issueItemIds.has(item.id)}
               onClick={setSelectedItem}
               onEdit={
                 canManage

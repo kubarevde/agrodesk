@@ -5,8 +5,15 @@ import { CloseShiftModal } from '@/features/worktime/CloseShiftModal'
 import { OpenShiftModal } from '@/features/worktime/OpenShiftModal'
 import { ShiftDetailModal } from '@/features/worktime/ShiftDetailModal'
 import { useShifts } from '@/features/worktime/hooks'
+import {
+  useEquipment,
+  useLocations,
+  useWorkTypes,
+} from '@/features/worktime/referenceHooks'
+import { useFields } from '@/features/fields/hooks'
 import { getDefaultMonthRange } from '@/features/worktime/utils'
-import { SectionHelp } from '@/components/shared/SectionHelp'
+import { GuideNudgeBanner } from '@/features/help/components/GuideNudgeBanner'
+import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
 import { myShiftHelp } from '@/features/help/content'
 import { CurrentShiftCard } from './CurrentShiftCard'
 import { EmployeeAgroTodaySection } from './EmployeeAgroTodaySection'
@@ -33,6 +40,12 @@ export function EmployeeMyShiftView({ user }: EmployeeMyShiftViewProps) {
     [monthRange.from, monthRange.to, user.id],
   )
 
+  // Prefetch/warm Dexie while online so open-shift works later without network.
+  useLocations()
+  useWorkTypes()
+  useEquipment()
+  useFields()
+
   const { data: openShifts = [], isLoading: openLoading } = useShifts(openFilters)
   const { data: monthShifts = [], isLoading: monthLoading } = useShifts(monthFilters)
 
@@ -48,7 +61,9 @@ export function EmployeeMyShiftView({ user }: EmployeeMyShiftViewProps) {
         <p className="text-sm text-muted-foreground">{user.fullName}</p>
       </div>
 
-      <SectionHelp title="Справка: мои смены и начисления" items={myShiftHelp} />
+      <GuideNudgeBanner />
+
+      <RoleSectionHelp section="моя смена" items={myShiftHelp} guideSection="my-shift" />
 
       <CurrentShiftCard
         shift={activeShift}

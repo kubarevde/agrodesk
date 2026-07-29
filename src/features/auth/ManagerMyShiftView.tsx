@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { ActiveShiftLiveDuration } from '@/features/dashboard/components/ActiveShiftLiveDuration'
 import { useDashboardStats } from '@/features/dashboard/hooks'
+import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
+import { myShiftHelp } from '@/features/help/content'
 import { useUserPermissions } from '@/features/settings/permissionsHooks'
 import { OpenShiftModal } from '@/features/worktime/OpenShiftModal'
 import { formatShiftTime } from '@/features/worktime/utils'
@@ -53,6 +55,8 @@ export function ManagerMyShiftView() {
             : 'Открытие и закрытие собственной смены'}
         </p>
       </div>
+
+      <RoleSectionHelp section="моя смена" items={myShiftHelp} guideSection="my-shift" />
 
       <div className="flex flex-col gap-2 sm:flex-row">
         {canOpenOwn ? (

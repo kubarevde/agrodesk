@@ -52,7 +52,7 @@ export function EmployeeRatesSection({ employeeId }: EmployeeRatesSectionProps) 
         </Button>
       </div>
 
-      <SectionHelp title="Как настроить ставки" items={employeesHelp} />
+      <SectionHelp section="ставки оплаты" items={employeesHelp} />
 
       {isLoading ? (
         <div className="space-y-2">

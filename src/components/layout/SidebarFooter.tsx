@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { ChevronLeft, ChevronRight, UserRound } from 'lucide-react'
+import { ChevronLeft, ChevronRight, LifeBuoy, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -7,6 +7,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { useSupportUnreadCount } from '@/features/support/hooks'
 import { cn } from '@/lib/utils'
 import { useLayoutStore } from '@/stores/layoutStore'
 
@@ -23,6 +24,31 @@ export function SidebarFooter({
 }: SidebarFooterProps) {
   const { data: user } = useCurrentUser()
   const toggleSidebar = useLayoutStore((state) => state.toggleSidebar)
+  const { data: unread = 0 } = useSupportUnreadCount()
+
+  const supportLink = (
+    <Link
+      to="/support"
+      onClick={onNavigate}
+      className={cn(
+        'relative flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
+        collapsed && 'justify-center px-2',
+      )}
+    >
+      <LifeBuoy className="size-5 shrink-0" />
+      {!collapsed ? <span className="min-w-0 flex-1 truncate font-medium">Поддержка</span> : null}
+      {unread > 0 ? (
+        <span
+          className={cn(
+            'inline-flex min-w-5 items-center justify-center rounded-md bg-destructive px-1.5 text-xs font-medium text-destructive-foreground',
+            collapsed && 'absolute -right-0.5 -top-0.5 min-w-4 px-1',
+          )}
+        >
+          {unread > 99 ? '99+' : unread}
+        </span>
+      ) : null}
+    </Link>
+  )
 
   const profileLink = (
     <Link
@@ -44,6 +70,17 @@ export function SidebarFooter({
 
   return (
     <div className="mt-auto space-y-1 border-t border-header-border p-2">
+      {collapsed ? (
+        <Tooltip>
+          <TooltipTrigger className="w-full">{supportLink}</TooltipTrigger>
+          <TooltipContent side="right">
+            Поддержка{unread > 0 ? ` (${unread})` : ''}
+          </TooltipContent>
+        </Tooltip>
+      ) : (
+        supportLink
+      )}
+
       {collapsed ? (
         <Tooltip>
           <TooltipTrigger className="w-full">{profileLink}</TooltipTrigger>

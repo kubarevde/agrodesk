@@ -6,6 +6,8 @@ import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
+import { fieldsHelp } from '@/features/help/content'
 import {
   useCreateField,
   useDeleteField,
@@ -68,6 +70,8 @@ export function FieldsPage() {
           </Button>
         ) : null}
       </div>
+
+      <RoleSectionHelp section="поля" items={fieldsHelp} guideSection="fields" />
 
       <Tabs value={view} onValueChange={(value) => setView(value as 'list' | 'map')}>
         <TabsList>

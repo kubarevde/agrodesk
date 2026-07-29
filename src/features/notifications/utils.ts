@@ -13,6 +13,7 @@ export function notificationTimeAgo(createdAt: string, timezone?: string): strin
 }
 
 export function notificationTypeLabel(type: string): string {
+  if (type === 'support_reply') return 'Поддержка'
   if (NOTIFICATION_TYPE_GROUPS.maintenance.includes(type as never)) return 'ТО'
   if (NOTIFICATION_TYPE_GROUPS.sharing.includes(type as never)) return 'Шеринг'
   return 'Система'

@@ -66,9 +66,12 @@ services:
     container_name: agrodesk_bot
     environment:
       BOT_TOKEN: ${BOT_TOKEN:?Set BOT_TOKEN for the Telegram bot}
-      API_BASE_URL: http://api:8000
-      BOT_INTERNAL_SECRET: ${BOT_INTERNAL_SECRET}
+      # Internal Docker DNS — do NOT use localhost or bothost-style public URL here.
+      API_BASE_URL: ${BOT_API_BASE_URL:-http://api:8000}
+      BOT_INTERNAL_SECRET: ${BOT_INTERNAL_SECRET:?Set BOT_INTERNAL_SECRET}
       SHEETS_MIRROR_ENABLED: ${SHEETS_MIRROR_ENABLED:-false}
+      AGRODESK_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
       api:
         condition: service_healthy

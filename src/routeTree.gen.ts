@@ -18,6 +18,7 @@ import { Route as SuperadminLoginRouteImport } from './app/routes/superadmin/log
 import { Route as SuperadminAuthenticatedRouteImport } from './app/routes/superadmin/_authenticated'
 import { Route as LayoutDashboardRouteImport } from './app/routes/_layout/dashboard'
 import { Route as LayoutWorktimeIndexRouteImport } from './app/routes/_layout/worktime/index'
+import { Route as LayoutSupportIndexRouteImport } from './app/routes/_layout/support/index'
 import { Route as LayoutShipmentsIndexRouteImport } from './app/routes/_layout/shipments/index'
 import { Route as LayoutSharingIndexRouteImport } from './app/routes/_layout/sharing/index'
 import { Route as LayoutSettingsIndexRouteImport } from './app/routes/_layout/settings/index'
@@ -37,9 +38,14 @@ import { Route as LayoutEmployeesIndexRouteImport } from './app/routes/_layout/e
 import { Route as LayoutAuditLogIndexRouteImport } from './app/routes/_layout/audit-log/index'
 import { Route as LayoutAgroCalendarIndexRouteImport } from './app/routes/_layout/agro-calendar/index'
 import { Route as SuperadminAuthenticatedDashboardRouteImport } from './app/routes/superadmin/_authenticated/dashboard'
+import { Route as LayoutSupportNewRouteImport } from './app/routes/_layout/support/new'
+import { Route as LayoutSupportGuideRouteImport } from './app/routes/_layout/support/guide'
+import { Route as LayoutSupportTicketIdRouteImport } from './app/routes/_layout/support/$ticketId'
 import { Route as LayoutImplementsImplementIdRouteImport } from './app/routes/_layout/implements/$implementId'
 import { Route as LayoutEquipmentEquipmentIdRouteImport } from './app/routes/_layout/equipment/$equipmentId'
+import { Route as SuperadminAuthenticatedSupportIndexRouteImport } from './app/routes/superadmin/_authenticated/support/index'
 import { Route as LayoutAnalyticsForecastIndexRouteImport } from './app/routes/_layout/analytics/forecast/index'
+import { Route as SuperadminAuthenticatedSupportTicketIdRouteImport } from './app/routes/superadmin/_authenticated/support/$ticketId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -82,6 +88,11 @@ const LayoutDashboardRoute = LayoutDashboardRouteImport.update({
 const LayoutWorktimeIndexRoute = LayoutWorktimeIndexRouteImport.update({
   id: '/worktime/',
   path: '/worktime/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutSupportIndexRoute = LayoutSupportIndexRouteImport.update({
+  id: '/support/',
+  path: '/support/',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutShipmentsIndexRoute = LayoutShipmentsIndexRouteImport.update({
@@ -182,6 +193,21 @@ const SuperadminAuthenticatedDashboardRoute =
     path: '/dashboard',
     getParentRoute: () => SuperadminAuthenticatedRoute,
   } as any)
+const LayoutSupportNewRoute = LayoutSupportNewRouteImport.update({
+  id: '/support/new',
+  path: '/support/new',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutSupportGuideRoute = LayoutSupportGuideRouteImport.update({
+  id: '/support/guide',
+  path: '/support/guide',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutSupportTicketIdRoute = LayoutSupportTicketIdRouteImport.update({
+  id: '/support/$ticketId',
+  path: '/support/$ticketId',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutImplementsImplementIdRoute =
   LayoutImplementsImplementIdRouteImport.update({
     id: '/implements/$implementId',
@@ -194,11 +220,23 @@ const LayoutEquipmentEquipmentIdRoute =
     path: '/equipment/$equipmentId',
     getParentRoute: () => LayoutRoute,
   } as any)
+const SuperadminAuthenticatedSupportIndexRoute =
+  SuperadminAuthenticatedSupportIndexRouteImport.update({
+    id: '/support/',
+    path: '/support/',
+    getParentRoute: () => SuperadminAuthenticatedRoute,
+  } as any)
 const LayoutAnalyticsForecastIndexRoute =
   LayoutAnalyticsForecastIndexRouteImport.update({
     id: '/analytics/forecast/',
     path: '/analytics/forecast/',
     getParentRoute: () => LayoutRoute,
+  } as any)
+const SuperadminAuthenticatedSupportTicketIdRoute =
+  SuperadminAuthenticatedSupportTicketIdRouteImport.update({
+    id: '/support/$ticketId',
+    path: '/support/$ticketId',
+    getParentRoute: () => SuperadminAuthenticatedRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -210,6 +248,9 @@ export interface FileRoutesByFullPath {
   '/landing/': typeof LandingIndexRoute
   '/equipment/$equipmentId': typeof LayoutEquipmentEquipmentIdRoute
   '/implements/$implementId': typeof LayoutImplementsImplementIdRoute
+  '/support/$ticketId': typeof LayoutSupportTicketIdRoute
+  '/support/guide': typeof LayoutSupportGuideRoute
+  '/support/new': typeof LayoutSupportNewRoute
   '/superadmin/dashboard': typeof SuperadminAuthenticatedDashboardRoute
   '/agro-calendar/': typeof LayoutAgroCalendarIndexRoute
   '/audit-log/': typeof LayoutAuditLogIndexRoute
@@ -229,8 +270,11 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof LayoutSettingsIndexRoute
   '/sharing/': typeof LayoutSharingIndexRoute
   '/shipments/': typeof LayoutShipmentsIndexRoute
+  '/support/': typeof LayoutSupportIndexRoute
   '/worktime/': typeof LayoutWorktimeIndexRoute
+  '/superadmin/support/$ticketId': typeof SuperadminAuthenticatedSupportTicketIdRoute
   '/analytics/forecast/': typeof LayoutAnalyticsForecastIndexRoute
+  '/superadmin/support/': typeof SuperadminAuthenticatedSupportIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -241,6 +285,9 @@ export interface FileRoutesByTo {
   '/landing': typeof LandingIndexRoute
   '/equipment/$equipmentId': typeof LayoutEquipmentEquipmentIdRoute
   '/implements/$implementId': typeof LayoutImplementsImplementIdRoute
+  '/support/$ticketId': typeof LayoutSupportTicketIdRoute
+  '/support/guide': typeof LayoutSupportGuideRoute
+  '/support/new': typeof LayoutSupportNewRoute
   '/superadmin/dashboard': typeof SuperadminAuthenticatedDashboardRoute
   '/agro-calendar': typeof LayoutAgroCalendarIndexRoute
   '/audit-log': typeof LayoutAuditLogIndexRoute
@@ -260,8 +307,11 @@ export interface FileRoutesByTo {
   '/settings': typeof LayoutSettingsIndexRoute
   '/sharing': typeof LayoutSharingIndexRoute
   '/shipments': typeof LayoutShipmentsIndexRoute
+  '/support': typeof LayoutSupportIndexRoute
   '/worktime': typeof LayoutWorktimeIndexRoute
+  '/superadmin/support/$ticketId': typeof SuperadminAuthenticatedSupportTicketIdRoute
   '/analytics/forecast': typeof LayoutAnalyticsForecastIndexRoute
+  '/superadmin/support': typeof SuperadminAuthenticatedSupportIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -275,6 +325,9 @@ export interface FileRoutesById {
   '/landing/': typeof LandingIndexRoute
   '/_layout/equipment/$equipmentId': typeof LayoutEquipmentEquipmentIdRoute
   '/_layout/implements/$implementId': typeof LayoutImplementsImplementIdRoute
+  '/_layout/support/$ticketId': typeof LayoutSupportTicketIdRoute
+  '/_layout/support/guide': typeof LayoutSupportGuideRoute
+  '/_layout/support/new': typeof LayoutSupportNewRoute
   '/superadmin/_authenticated/dashboard': typeof SuperadminAuthenticatedDashboardRoute
   '/_layout/agro-calendar/': typeof LayoutAgroCalendarIndexRoute
   '/_layout/audit-log/': typeof LayoutAuditLogIndexRoute
@@ -294,8 +347,11 @@ export interface FileRoutesById {
   '/_layout/settings/': typeof LayoutSettingsIndexRoute
   '/_layout/sharing/': typeof LayoutSharingIndexRoute
   '/_layout/shipments/': typeof LayoutShipmentsIndexRoute
+  '/_layout/support/': typeof LayoutSupportIndexRoute
   '/_layout/worktime/': typeof LayoutWorktimeIndexRoute
+  '/superadmin/_authenticated/support/$ticketId': typeof SuperadminAuthenticatedSupportTicketIdRoute
   '/_layout/analytics/forecast/': typeof LayoutAnalyticsForecastIndexRoute
+  '/superadmin/_authenticated/support/': typeof SuperadminAuthenticatedSupportIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -308,6 +364,9 @@ export interface FileRouteTypes {
     | '/landing/'
     | '/equipment/$equipmentId'
     | '/implements/$implementId'
+    | '/support/$ticketId'
+    | '/support/guide'
+    | '/support/new'
     | '/superadmin/dashboard'
     | '/agro-calendar/'
     | '/audit-log/'
@@ -327,8 +386,11 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/sharing/'
     | '/shipments/'
+    | '/support/'
     | '/worktime/'
+    | '/superadmin/support/$ticketId'
     | '/analytics/forecast/'
+    | '/superadmin/support/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -339,6 +401,9 @@ export interface FileRouteTypes {
     | '/landing'
     | '/equipment/$equipmentId'
     | '/implements/$implementId'
+    | '/support/$ticketId'
+    | '/support/guide'
+    | '/support/new'
     | '/superadmin/dashboard'
     | '/agro-calendar'
     | '/audit-log'
@@ -358,8 +423,11 @@ export interface FileRouteTypes {
     | '/settings'
     | '/sharing'
     | '/shipments'
+    | '/support'
     | '/worktime'
+    | '/superadmin/support/$ticketId'
     | '/analytics/forecast'
+    | '/superadmin/support'
   id:
     | '__root__'
     | '/'
@@ -372,6 +440,9 @@ export interface FileRouteTypes {
     | '/landing/'
     | '/_layout/equipment/$equipmentId'
     | '/_layout/implements/$implementId'
+    | '/_layout/support/$ticketId'
+    | '/_layout/support/guide'
+    | '/_layout/support/new'
     | '/superadmin/_authenticated/dashboard'
     | '/_layout/agro-calendar/'
     | '/_layout/audit-log/'
@@ -391,8 +462,11 @@ export interface FileRouteTypes {
     | '/_layout/settings/'
     | '/_layout/sharing/'
     | '/_layout/shipments/'
+    | '/_layout/support/'
     | '/_layout/worktime/'
+    | '/superadmin/_authenticated/support/$ticketId'
     | '/_layout/analytics/forecast/'
+    | '/superadmin/_authenticated/support/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -466,6 +540,13 @@ declare module '@tanstack/react-router' {
       path: '/worktime'
       fullPath: '/worktime/'
       preLoaderRoute: typeof LayoutWorktimeIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/support/': {
+      id: '/_layout/support/'
+      path: '/support'
+      fullPath: '/support/'
+      preLoaderRoute: typeof LayoutSupportIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/shipments/': {
@@ -601,6 +682,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SuperadminAuthenticatedDashboardRouteImport
       parentRoute: typeof SuperadminAuthenticatedRoute
     }
+    '/_layout/support/new': {
+      id: '/_layout/support/new'
+      path: '/support/new'
+      fullPath: '/support/new'
+      preLoaderRoute: typeof LayoutSupportNewRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/support/guide': {
+      id: '/_layout/support/guide'
+      path: '/support/guide'
+      fullPath: '/support/guide'
+      preLoaderRoute: typeof LayoutSupportGuideRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/support/$ticketId': {
+      id: '/_layout/support/$ticketId'
+      path: '/support/$ticketId'
+      fullPath: '/support/$ticketId'
+      preLoaderRoute: typeof LayoutSupportTicketIdRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/implements/$implementId': {
       id: '/_layout/implements/$implementId'
       path: '/implements/$implementId'
@@ -615,6 +717,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutEquipmentEquipmentIdRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/superadmin/_authenticated/support/': {
+      id: '/superadmin/_authenticated/support/'
+      path: '/support'
+      fullPath: '/superadmin/support/'
+      preLoaderRoute: typeof SuperadminAuthenticatedSupportIndexRouteImport
+      parentRoute: typeof SuperadminAuthenticatedRoute
+    }
     '/_layout/analytics/forecast/': {
       id: '/_layout/analytics/forecast/'
       path: '/analytics/forecast'
@@ -622,17 +731,30 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutAnalyticsForecastIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/superadmin/_authenticated/support/$ticketId': {
+      id: '/superadmin/_authenticated/support/$ticketId'
+      path: '/support/$ticketId'
+      fullPath: '/superadmin/support/$ticketId'
+      preLoaderRoute: typeof SuperadminAuthenticatedSupportTicketIdRouteImport
+      parentRoute: typeof SuperadminAuthenticatedRoute
+    }
   }
 }
 
 interface SuperadminAuthenticatedRouteChildren {
   SuperadminAuthenticatedDashboardRoute: typeof SuperadminAuthenticatedDashboardRoute
+  SuperadminAuthenticatedSupportTicketIdRoute: typeof SuperadminAuthenticatedSupportTicketIdRoute
+  SuperadminAuthenticatedSupportIndexRoute: typeof SuperadminAuthenticatedSupportIndexRoute
 }
 
 const SuperadminAuthenticatedRouteChildren: SuperadminAuthenticatedRouteChildren =
   {
     SuperadminAuthenticatedDashboardRoute:
       SuperadminAuthenticatedDashboardRoute,
+    SuperadminAuthenticatedSupportTicketIdRoute:
+      SuperadminAuthenticatedSupportTicketIdRoute,
+    SuperadminAuthenticatedSupportIndexRoute:
+      SuperadminAuthenticatedSupportIndexRoute,
   }
 
 const SuperadminAuthenticatedRouteWithChildren =
@@ -658,6 +780,9 @@ interface LayoutRouteChildren {
   LayoutDashboardRoute: typeof LayoutDashboardRoute
   LayoutEquipmentEquipmentIdRoute: typeof LayoutEquipmentEquipmentIdRoute
   LayoutImplementsImplementIdRoute: typeof LayoutImplementsImplementIdRoute
+  LayoutSupportTicketIdRoute: typeof LayoutSupportTicketIdRoute
+  LayoutSupportGuideRoute: typeof LayoutSupportGuideRoute
+  LayoutSupportNewRoute: typeof LayoutSupportNewRoute
   LayoutAgroCalendarIndexRoute: typeof LayoutAgroCalendarIndexRoute
   LayoutAuditLogIndexRoute: typeof LayoutAuditLogIndexRoute
   LayoutEmployeesIndexRoute: typeof LayoutEmployeesIndexRoute
@@ -676,6 +801,7 @@ interface LayoutRouteChildren {
   LayoutSettingsIndexRoute: typeof LayoutSettingsIndexRoute
   LayoutSharingIndexRoute: typeof LayoutSharingIndexRoute
   LayoutShipmentsIndexRoute: typeof LayoutShipmentsIndexRoute
+  LayoutSupportIndexRoute: typeof LayoutSupportIndexRoute
   LayoutWorktimeIndexRoute: typeof LayoutWorktimeIndexRoute
   LayoutAnalyticsForecastIndexRoute: typeof LayoutAnalyticsForecastIndexRoute
 }
@@ -684,6 +810,9 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutDashboardRoute: LayoutDashboardRoute,
   LayoutEquipmentEquipmentIdRoute: LayoutEquipmentEquipmentIdRoute,
   LayoutImplementsImplementIdRoute: LayoutImplementsImplementIdRoute,
+  LayoutSupportTicketIdRoute: LayoutSupportTicketIdRoute,
+  LayoutSupportGuideRoute: LayoutSupportGuideRoute,
+  LayoutSupportNewRoute: LayoutSupportNewRoute,
   LayoutAgroCalendarIndexRoute: LayoutAgroCalendarIndexRoute,
   LayoutAuditLogIndexRoute: LayoutAuditLogIndexRoute,
   LayoutEmployeesIndexRoute: LayoutEmployeesIndexRoute,
@@ -702,6 +831,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutSettingsIndexRoute: LayoutSettingsIndexRoute,
   LayoutSharingIndexRoute: LayoutSharingIndexRoute,
   LayoutShipmentsIndexRoute: LayoutShipmentsIndexRoute,
+  LayoutSupportIndexRoute: LayoutSupportIndexRoute,
   LayoutWorktimeIndexRoute: LayoutWorktimeIndexRoute,
   LayoutAnalyticsForecastIndexRoute: LayoutAnalyticsForecastIndexRoute,
 }

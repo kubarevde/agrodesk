@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SectionHelp } from '@/components/shared/SectionHelp'
+import { sharingHelp } from '@/features/help/content'
 import type { SharingListing } from '../types'
 import { SharingAllListingsTab } from './SharingAllListingsTab'
 import { SharingDetailSheet } from './SharingDetailSheet'
@@ -21,6 +23,7 @@ export function SharingPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold text-foreground">Шеринг</h1>
+      <SectionHelp section="шеринг" items={sharingHelp} />
 
       <Tabs
         value={mainTab}

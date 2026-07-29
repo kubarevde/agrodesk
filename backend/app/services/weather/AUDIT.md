@@ -21,7 +21,12 @@ Coordinates come from `locations.latitude` / `locations.longitude` (Field entity
 - **MET Norway honesty:** out-of-horizon / past dates return a clear message (not fake empty cards pretending the API failed). Month aggregation uses only overlapping days.
 - **Month aggregation:** temps averaged across successful sources for that day; weather codes majority-voted.
 - **Day detail:** sources stay separate; slots **Утро≈08 / День≈12 / Вечер≈20**; `dailySummary` is separate from «День».
-- **Agronomic recommendations:** **not implemented**.
+- **Field coordinates:** `locations.latitude` / `longitude` (weather point). If missing but `polygon` (≥3 verts) exists, weather uses vertex-average **centroid**. Contour editing is manual on the satellite map (no cadastral API).
+- **Agronomic recommendations:** **not implemented** (culture/region/phase handbook).
+- **Weather risk advisories (agro calendar):** implemented in `advisories.py` /
+  `plan_advisories.py` — frost / heavy rain / spray wind warnings attached to
+  `/api/agro-plan` responses. Uses the same Open-Meteo + MET Norway fetches and
+  TTL cache; does **not** change `/api/weather` contract.
 
 ## Units / codes
 

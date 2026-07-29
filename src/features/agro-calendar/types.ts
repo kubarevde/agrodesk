@@ -1,5 +1,18 @@
 export type AgroPlanStatus = 'planned' | 'in_progress' | 'done' | 'cancelled'
 export type AgroPlanEntryKind = 'plan' | 'fact'
+export type WeatherAdvisorySeverity = 'info' | 'warning'
+
+export type WeatherAdvisory = {
+  code: string
+  severity: WeatherAdvisorySeverity
+  title: string
+  message: string
+  date: string
+  tempMin: number | null
+  tempMax: number | null
+  precipitationMm: number | null
+  windSpeedMs: number | null
+}
 
 export type AgroPlan = {
   id: string
@@ -25,6 +38,7 @@ export type AgroPlan = {
   closedByName: string | null
   closedAt: string | null
   closeNote: string | null
+  advisories: WeatherAdvisory[]
 }
 
 export type AgroPlanFilters = {

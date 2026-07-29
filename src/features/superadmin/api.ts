@@ -1,4 +1,6 @@
 import axios from 'axios'
+import { ticketFromApi } from '@/features/support/api'
+import type { SupportTicket } from '@/features/support/types'
 import { SUPERADMIN_TOKEN_KEY, type Organization, type OrganizationCreatePayload, type OrganizationCreateResult, type OrganizationUpdatePayload, type SuperAdminStats } from './types'
 
 type ApiOrg = {
@@ -132,4 +134,134 @@ export async function updateOrganization(
 
 export async function deleteOrganization(id: string): Promise<void> {
   await superadminApi.delete(`/superadmin/api/organizations/${id}`)
+}
+
+type ApiRecord = Record<string, unknown>
+
+export type SuperadminSupportFilters = {
+  status?: string
+  orgId?: string
+  authorRole?: string
+  category?: string
+  priority?: string
+  unreadOnly?: boolean
+  assignedToMe?: boolean
+}
+
+export type SuperadminSupportTicket = SupportTicket
+
+export type SuperadminSupportUpdate = {
+  status?: string
+  priority?: string
+  assignToMe?: boolean
+  clearAssignee?: boolean
+}
+
+export async function fetchSupportTickets(
+  filters: SuperadminSupportFilters = {},
+): Promise<SuperadminSupportTicket[]> {
+  const { data } = await superadminApi.get<ApiRecord[]>('/superadmin/api/support/tickets', {
+    params: {
+      status: filters.status || undefined,
+      org_id: filters.orgId || undefined,
+      author_role: filters.authorRole || undefined,
+      category: filters.category || undefined,
+      priority: filters.priority || undefined,
+      unread_only: filters.unreadOnly || undefined,
+      assigned_to_me: filters.assignedToMe || undefined,
+    },
+  })
+  return data.map(ticketFromApi)
+}
+
+export async function fetchSupportTicket(id: string): Promise<SuperadminSupportTicket> {
+  const { data } = await superadminApi.get<ApiRecord>(`/superadmin/api/support/tickets/${id}`)
+  return ticketFromApi(data)
+}
+
+export async function replySupportTicket(
+  id: string,
+  body: string,
+  attachments?: { fileUrl: string; filename: string }[],
+): Promise<SuperadminSupportTicket> {
+  const { data } = await superadminApi.post<ApiRecord>(
+    `/superadmin/api/support/tickets/${id}/messages`,
+    {
+      body,
+      attachments: (attachments ?? []).map((item) => ({
+        file_url: item.fileUrl,
+        filename: item.filename,
+      })),
+    },
+  )
+  return ticketFromApi(data)
+}
+
+export type SupportReplyTemplate = {
+  id: string
+  category: string
+  title: string
+  body: string
+}
+
+export async function fetchSupportReplyTemplates(
+  category?: string,
+): Promise<SupportReplyTemplate[]> {
+  const { data } = await superadminApi.get<ApiRecord[]>('/superadmin/api/support/templates', {
+    params: category ? { category } : undefined,
+  })
+  return data.map((raw) => ({
+    id: String(raw.id),
+    category: String(raw.category ?? 'other'),
+    title: String(raw.title ?? ''),
+    body: String(raw.body ?? ''),
+  }))
+}
+
+export async function createSupportReplyTemplate(payload: {
+  category: string
+  title: string
+  body: string
+}): Promise<SupportReplyTemplate> {
+  const { data } = await superadminApi.post<ApiRecord>(
+    '/superadmin/api/support/templates',
+    payload,
+  )
+  return {
+    id: String(data.id),
+    category: String(data.category ?? 'other'),
+    title: String(data.title ?? ''),
+    body: String(data.body ?? ''),
+  }
+}
+
+export async function updateSupportTicket(
+  id: string,
+  payload: SuperadminSupportUpdate,
+): Promise<SuperadminSupportTicket> {
+  const { data } = await superadminApi.patch<ApiRecord>(
+    `/superadmin/api/support/tickets/${id}`,
+    {
+      status: payload.status,
+      priority: payload.priority,
+      assign_to_me: payload.assignToMe || undefined,
+      clear_assignee: payload.clearAssignee || undefined,
+    },
+  )
+  return ticketFromApi(data)
+}
+
+export async function updateSupportTicketStatus(
+  id: string,
+  status: string,
+  priority?: string,
+): Promise<SuperadminSupportTicket> {
+  return updateSupportTicket(id, { status, priority })
+}
+
+export async function fetchSupportStaffUnreadCount(): Promise<number> {
+  const { data } = await superadminApi.get<{ count: number }>(
+    '/superadmin/api/support/unread-count',
+  )
+  return data.count
 }

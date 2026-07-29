@@ -19,6 +19,7 @@ import { useAgroPlans } from '../hooks'
 import type { AgroPlan } from '../types'
 import { STATUS_LABELS, ENTRY_KIND_LABELS } from '../types'
 import { entryKindBadgeClass, planFieldsLabel, statusBadgeClass, workTypeBadgeClass } from '../utils'
+import { PlanWeatherAdvisoryBadge } from './PlanWeatherAdvisoryBadge'
 
 type AgroCalendarDaySheetProps = {
   day: string | null
@@ -117,6 +118,7 @@ export function AgroCalendarDaySheet({
                   <Badge variant="outline" className={statusBadgeClass(plan.status)}>
                     {STATUS_LABELS[plan.status]}
                   </Badge>
+                  <PlanWeatherAdvisoryBadge advisories={plan.advisories} />
                 </div>
                 <p className="font-medium text-foreground">{planFieldsLabel(plan)}</p>
                 {plan.fieldNames.length > 1 ? (

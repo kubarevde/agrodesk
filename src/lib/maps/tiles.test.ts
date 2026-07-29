@@ -22,6 +22,7 @@ describe('map tiles config', () => {
     expect(satellite.id).toBe('satellite')
     expect(satellite.url).toContain('World_Imagery')
     expect(satellite.attribution.toLowerCase()).toContain('esri')
+    expect(satellite.attribution.toLowerCase()).not.toContain('leaflet')
   })
 
   it('defaults OSM layer to openstreetmap tiles', () => {

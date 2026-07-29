@@ -39,6 +39,8 @@ from app.routers import (
     shipments,
     shifts,
     superadmin,
+    superadmin_support,
+    support,
     uploads,
     weather,
 )
@@ -151,7 +153,9 @@ async def api_health() -> dict[str, object]:
 
 
 app.include_router(superadmin.router, prefix='/superadmin/api', tags=['superadmin'])
+app.include_router(superadmin_support.router, prefix='/superadmin/api', tags=['superadmin-support'])
 app.include_router(auth.router, prefix='/api/auth', tags=['auth'])
+app.include_router(support.router, prefix='/api/support', tags=['support'])
 app.include_router(agro_plan.router, prefix='/api/agro-plan', tags=['agro-plan'])
 app.include_router(audit_log.router, prefix='/api/audit-log', tags=['audit-log'])
 app.include_router(analytics.router, prefix='/api/analytics', tags=['analytics'])

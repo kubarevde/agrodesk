@@ -1,0 +1,24 @@
+# Optional systemd timer (alternative to cron).
+# On VPS:
+#   sudo cp scripts/systemd/agrodesk-backup.* /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now agrodesk-backup.timer
+#   systemctl list-timers | grep agrodesk
+#   journalctl -u agrodesk-backup.service -n 50
+
+[Unit]
+Description=AgroDesk nightly DB + uploads backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/agrodesk
+# Uncomment for a second disk / remote host:
+# Environment=BACKUP_OFFSITE_TARGET=/mnt/usb-backups/agrodesk
+# Environment=BACKUP_OFFSITE_TARGET=backup@other-host:/var/backups/agrodesk
+ExecStart=/opt/agrodesk/scripts/run_nightly_backup.sh
+User=root
+
+[Install]
+WantedBy=multi-user.target

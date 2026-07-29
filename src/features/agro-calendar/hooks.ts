@@ -44,6 +44,7 @@ export function useAgroPlans(
   return useQuery({
     queryKey: ['agro-plan', filters],
     enabled: options?.enabled ?? true,
+    networkMode: 'offlineFirst',
     queryFn: async () => {
       if (!navigator.onLine) {
         const cached = await db.agroPlan.toArray()
@@ -51,7 +52,7 @@ export function useAgroPlans(
       }
 
       const { data } = await api.get<Record<string, unknown>[]>('/api/agro-plan', {
-        params: planFiltersToApi(filters),
+        params: planFiltersToApi({ ...filters, includeAdvisories: true }),
       })
       const plans = data.map(planFromApi)
       await db.agroPlan.bulkPut(plans.map(planToStored))
@@ -63,6 +64,7 @@ export function useAgroPlans(
 export function useAgroPlansToday(employeeId?: string) {
   return useQuery({
     queryKey: ['agro-plan', 'today', employeeId ?? 'me'],
+    networkMode: 'offlineFirst',
     queryFn: async () => {
       if (!navigator.onLine) {
         const today = new Date().toISOString().slice(0, 10)
@@ -74,9 +76,15 @@ export function useAgroPlansToday(employeeId?: string) {
       }
 
       const { data } = await api.get<Record<string, unknown>[]>('/api/agro-plan/today', {
-        params: employeeId ? { employee_id: employeeId } : undefined,
+        params: {
+          ...(employeeId ? { employee_id: employeeId } : {}),
+          include_advisories: true,
+        },
       })
-      return data.map(planFromApi)
+      const plans = data.map(planFromApi)
+      // Warm Dexie so offline my-shift can show / pick today's plans.
+      await db.agroPlan.bulkPut(plans.map(planToStored))
+      return plans
     },
   })
 }

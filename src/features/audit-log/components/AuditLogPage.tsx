@@ -131,7 +131,7 @@ export function AuditLogPage() {
         </div>
       ) : null}
 
-      <SectionHelp title="Справка: история изменений" items={auditLogHelp} />
+      <SectionHelp section="история изменений" items={auditLogHelp} />
 
       <AuditDiffDialog entry={selected} open={Boolean(selected)} onClose={() => setSelected(null)} />
     </div>

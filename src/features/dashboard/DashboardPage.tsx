@@ -1,12 +1,13 @@
 import { RefreshCw } from 'lucide-react'
 import { OnlineOnlyNotice } from '@/components/shared/OnlineOnlyNotice'
-import { SectionHelp } from '@/components/shared/SectionHelp'
 import { SystemStatus } from '@/components/shared/SystemStatus'
 import { Button } from '@/components/ui/button'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { ForecastDashboardWidget } from '@/features/analytics/components/ForecastDashboardWidget'
-import { ActiveRepairsWidget } from '@/features/repair-journal/components/ActiveRepairsWidget'
+import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
+import { GuideNudgeBanner } from '@/features/help/components/GuideNudgeBanner'
 import { dashboardHelp } from '@/features/help/content'
+import { ActiveRepairsWidget } from '@/features/repair-journal/components/ActiveRepairsWidget'
 import { useOrgTimezone } from '@/features/settings/useOrgTimezone'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { formatInOrgTimezone } from '@/lib/timezone'
@@ -47,7 +48,7 @@ export function DashboardPage() {
           title="Дашборд доступен только онлайн"
           description="KPI и финансы считаются на сервере. Без сети откройте «Рабочее время» — смены можно вести офлайн; данные подтянутся после подключения."
         />
-        <SectionHelp title="Справка по дашборду" items={dashboardHelp} />
+        <RoleSectionHelp section="дашборд" items={dashboardHelp} guideSection="dashboard" />
       </div>
     )
   }
@@ -70,6 +71,8 @@ export function DashboardPage() {
           </Button>
         </div>
       </div>
+
+      <GuideNudgeBanner />
 
       {!isOnline ? (
         <OnlineOnlyNotice
@@ -128,7 +131,7 @@ export function DashboardPage() {
 
       {isAdmin ? <SystemStatus /> : null}
 
-      <SectionHelp title="Справка по дашборду" items={dashboardHelp} />
+      <RoleSectionHelp section="дашборд" items={dashboardHelp} guideSection="dashboard" />
 
       <FieldsMapWidget />
     </div>

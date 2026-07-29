@@ -115,7 +115,7 @@ export function MaintenancePage() {
         onClose={() => setSelected(null)}
       />
 
-      <SectionHelp title="Справка: ремонт и обслуживание" items={maintenanceHelp} />
+      <SectionHelp section="ремонт" items={maintenanceHelp} />
     </div>
   )
 }

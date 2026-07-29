@@ -30,6 +30,8 @@ from app.services.weather.providers import (
     fetch_met_no,
     fetch_open_meteo,
 )
+from app.services.field_geometry import weather_point_from_location
+
 
 SOURCE_CATALOG = (
     {'id': OPEN_METEO_ID, 'name': OPEN_METEO_NAME},
@@ -265,6 +267,21 @@ async def fetch_day_forecast(
     return payload
 
 
+def _weather_coords(location: Location) -> tuple[float, float]:
+    """Explicit lat/lon, else polygon centroid — keeps weather working for contours."""
+    point = weather_point_from_location(
+        latitude=float(location.latitude) if location.latitude is not None else None,
+        longitude=float(location.longitude) if location.longitude is not None else None,
+        polygon=location.polygon,
+    )
+    if point is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail='У выбранного поля нет координат (широта/долгота или контур)',
+        )
+    return point
+
+
 async def get_field_day_weather(
     db: AsyncSession,
     org_id: UUID,
@@ -274,14 +291,10 @@ async def get_field_day_weather(
     force_refresh: bool = False,
 ) -> dict[str, Any]:
     location = await resolve_field(db, org_id, field_id)
-    if location.latitude is None or location.longitude is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail='У выбранного поля нет координат (широта/долгота)',
-        )
+    lat, lon = _weather_coords(location)
     forecast = await fetch_day_forecast(
-        lat=float(location.latitude),
-        lon=float(location.longitude),
+        lat=lat,
+        lon=lon,
         day=day,
         force_refresh=force_refresh,
     )
@@ -302,13 +315,7 @@ async def get_field_month_weather(
     force_refresh: bool = False,
 ) -> dict[str, Any]:
     location = await resolve_field(db, org_id, field_id)
-    if location.latitude is None or location.longitude is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail='У выбранного поля нет координат (широта/долгота)',
-        )
-    lat = float(location.latitude)
-    lon = float(location.longitude)
+    lat, lon = _weather_coords(location)
     forecast = await fetch_month_forecast(
         lat=lat,
         lon=lon,

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { OnlineOnlyNotice } from '@/components/shared/OnlineOnlyNotice'
-import { SectionHelp } from '@/components/shared/SectionHelp'
+import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
 import { reportsHelp } from '@/features/help/modules'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import type { ReportDefinition } from '@/features/reports/reportDefinitions'
@@ -48,7 +48,7 @@ export function ReportsPage() {
         }}
       />
 
-      <SectionHelp title="Справка: отчёты" items={reportsHelp} />
+      <RoleSectionHelp section="отчёты" items={reportsHelp} guideSection="reports" />
     </div>
   )
 }

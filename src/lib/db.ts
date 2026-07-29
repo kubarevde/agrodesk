@@ -7,6 +7,7 @@ import type {
   Field,
   Implement,
   InventoryItem,
+  InventoryQueueItem,
   Location,
   Notification,
   SharingListing,
@@ -14,6 +15,22 @@ import type {
   SyncQueueItem,
   WorkType,
 } from '@/types'
+
+const V2_STORES = {
+  shifts: 'id, date, status, employeeCode, fieldId',
+  employees: 'id, employeeCode, role',
+  locations: 'id, name',
+  workTypes: 'id, name',
+  equipment: 'id, name, meter_type, to_status',
+  inventory: 'id, category',
+  syncQueue: 'id, createdAt, status',
+  fields: 'id, name, crop_type, is_active',
+  implements: 'id, name, category, is_active',
+  sharingListings: 'id, type, status',
+  notifications: 'id, is_read, created_at',
+  agroPlan: 'id, planned_date, field_id, status',
+  equipmentMeterLogs: 'id, equipment_id, date',
+} as const
 
 export class AgroDeskDB extends Dexie {
   shifts!: Table<Shift>
@@ -29,6 +46,7 @@ export class AgroDeskDB extends Dexie {
   notifications!: Table<Notification>
   agroPlan!: Table<AgroPlan>
   equipmentMeterLogs!: Table<EquipmentMeterLog>
+  inventoryQueue!: Table<InventoryQueueItem>
 
   constructor() {
     super('agrodesk')
@@ -41,20 +59,10 @@ export class AgroDeskDB extends Dexie {
       inventory: 'id, category',
       syncQueue: 'id, createdAt',
     })
-    this.version(2).stores({
-      shifts: 'id, date, status, employeeCode, fieldId',
-      employees: 'id, employeeCode, role',
-      locations: 'id, name',
-      workTypes: 'id, name',
-      equipment: 'id, name, meter_type, to_status',
-      inventory: 'id, category',
-      syncQueue: 'id, createdAt, status',
-      fields: 'id, name, crop_type, is_active',
-      implements: 'id, name, category, is_active',
-      sharingListings: 'id, type, status',
-      notifications: 'id, is_read, created_at',
-      agroPlan: 'id, planned_date, field_id, status',
-      equipmentMeterLogs: 'id, equipment_id, date',
+    this.version(2).stores({ ...V2_STORES })
+    this.version(3).stores({
+      ...V2_STORES,
+      inventoryQueue: 'id, itemId, status, createdAt',
     })
   }
 }

@@ -153,7 +153,7 @@ export function PurchasePlannerPage() {
         />
       )}
 
-      <SectionHelp title="Справка: планировщик закупок" items={purchasePlannerHelp} />
+      <SectionHelp section="закупки" items={purchasePlannerHelp} />
       <PurchaseFormDialog open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
   )

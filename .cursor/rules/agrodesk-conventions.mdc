@@ -22,7 +22,7 @@ alwaysApply: true
 
 - Запросы: TanStack Query в `features/*/hooks.ts` — никаких прямых `fetch()`
 - Формы: `react-hook-form` + zod-валидация
-- Офлайн: при `!navigator.onLine` писать в Dexie `syncQueue`
+- Офлайн: при `!navigator.onLine` — Dexie (`syncQueue` для смен, `inventoryQueue` для склада)
 
 ## Запрещено
 
