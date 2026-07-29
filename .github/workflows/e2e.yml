@@ -1,0 +1,89 @@
+# Playwright e2e (PR only). Uses e2e/shifts.spec.ts against CI Postgres + Vite.
+# No production VPS access.
+
+name: E2E
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  playwright:
+    name: Playwright shifts
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: agrodesk
+          POSTGRES_PASSWORD: agrodesk
+          POSTGRES_DB: agrodesk_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U agrodesk -d agrodesk_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://agrodesk:agrodesk@localhost:5432/agrodesk_e2e
+      SECRET_KEY: ci-e2e-secret-key
+      BOT_INTERNAL_SECRET: ci-e2e-bot-secret
+      JWT_EXPIRE_MINUTES: '1440'
+      LOG_LEVEL: INFO
+      ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      API_URL: http://127.0.0.1:8000
+      API_BASE_URL: http://127.0.0.1:8000
+      UPLOADS_DIR: ./uploads
+      SUPERADMIN_EMAIL: admin@agrodesk.local
+      SUPERADMIN_PASSWORD: ChangeMe123!
+      RUN_SEED_ON_START: 'false'
+      VITE_API_URL: http://127.0.0.1:8000
+      VITE_USE_MOCKS: 'false'
+      CI: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install backend deps + migrate + seed
+        working-directory: backend
+        run: |
+          pip install -r requirements.txt
+          alembic upgrade head
+          python -m app.seed
+
+      - name: Start uvicorn
+        working-directory: backend
+        run: |
+          nohup uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/uvicorn-e2e.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8000/health >/dev/null; then
+              echo "API ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "API failed to start"; cat /tmp/uvicorn-e2e.log; exit 1
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run shifts e2e
+        run: npx playwright test e2e/shifts.spec.ts --project=chromium

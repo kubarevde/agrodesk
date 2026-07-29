@@ -1,0 +1,35 @@
+# Frontend CI: oxlint + Vitest (required gate for main / PRs).
+# Deploy to VPS is manual via ./deploy.sh after this workflow is green.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint_and_unit_tests:
+    name: Lint & Vitest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: oxlint
+        run: npm run lint
+
+      - name: Vitest
+        run: npm test
