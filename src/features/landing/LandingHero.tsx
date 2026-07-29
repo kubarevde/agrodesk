@@ -11,33 +11,37 @@ export function LandingHero() {
       <img
         src={LANDING_IMAGES.hero}
         alt=""
-        className="absolute inset-0 size-full object-cover"
+        className="absolute inset-0 size-full object-cover object-[center_45%]"
         fetchPriority="high"
+        decoding="async"
       />
       <div
-        className="absolute inset-0 bg-gradient-to-r from-foreground/88 via-foreground/55 to-foreground/20 dark:from-background/90 dark:via-background/60 dark:to-background/25"
+        className="absolute inset-0 bg-gradient-to-r from-foreground/90 via-foreground/58 to-foreground/25 dark:from-background/92 dark:via-background/62 dark:to-background/28"
         aria-hidden
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-foreground/50 via-transparent to-transparent dark:from-background/60" aria-hidden />
+      <div
+        className="absolute inset-0 bg-gradient-to-t from-foreground/55 via-transparent to-foreground/10 dark:from-background/65"
+        aria-hidden
+      />
 
-      <div className="relative mx-auto flex min-h-[min(92vh,52rem)] max-w-6xl flex-col justify-end px-4 pb-12 pt-28 sm:pb-16 sm:pt-32 lg:justify-center lg:pb-20">
+      <div className="relative mx-auto flex min-h-[min(92vh,52rem)] max-w-6xl flex-col justify-end px-4 pb-12 pt-28 sm:pb-16 sm:pt-32 lg:justify-center lg:pb-24">
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-          className="max-w-xl space-y-5 sm:max-w-2xl"
+          className="max-w-xl space-y-5 sm:max-w-2xl sm:space-y-6"
         >
-          <p className="landing-display text-4xl font-semibold text-primary sm:text-5xl lg:text-6xl">
+          <p className="landing-display text-4xl font-semibold tracking-tight text-primary sm:text-5xl lg:text-6xl">
             АгроДеск
           </p>
-          <h1 className="landing-display text-balance text-2xl font-semibold leading-[1.15] text-primary-foreground sm:text-4xl lg:text-[2.75rem]">
+          <h1 className="landing-display text-balance text-2xl font-semibold leading-[1.12] text-primary-foreground sm:text-4xl lg:text-[2.75rem] lg:leading-[1.1]">
             Учёт смен, склада и закупок для КФХ — без таблиц в чатах
           </h1>
-          <p className="max-w-lg text-base leading-relaxed text-primary-foreground/80 sm:text-lg">
+          <p className="max-w-lg text-base leading-relaxed text-primary-foreground/85 sm:text-lg">
             Сотрудник отмечает работу в приложении или Telegram. Менеджер видит день
             хозяйства. Администратор держит доступы и историю изменений.
           </p>
-          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:pt-2">
             <Link
               to="/login"
               className={cn(
@@ -51,7 +55,7 @@ export function LandingHero() {
               type="button"
               className={cn(
                 buttonVariants({ variant: 'outline', size: 'lg' }),
-                'w-full justify-center border-primary-foreground/35 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground sm:w-auto',
+                'w-full justify-center border-primary-foreground/40 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground sm:w-auto',
               )}
               onClick={() => scrollToSection('day')}
             >

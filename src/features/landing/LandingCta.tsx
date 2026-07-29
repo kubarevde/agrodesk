@@ -13,10 +13,10 @@ export function LandingCta() {
         transition={{ duration: 0.45 }}
         className="mx-auto max-w-6xl px-4 py-16 sm:py-20"
       >
-        <h2 className="landing-display max-w-2xl text-3xl font-semibold sm:text-4xl">
+        <h2 className="landing-display max-w-2xl text-balance text-3xl font-semibold leading-tight sm:text-4xl">
           Войдите в АгроДеск под своей организацией
         </h2>
-        <p className="mt-4 max-w-xl text-primary-foreground/80">
+        <p className="mt-4 max-w-xl text-base leading-relaxed text-primary-foreground/85 sm:text-lg">
           После входа откроется первый доступный вам раздел по роли и правам: сотруднику —
           «Моя смена», менеджеру — рабочий контур без обязательного дашборда.
         </p>

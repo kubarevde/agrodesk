@@ -9,9 +9,12 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from typing import Any
+
 from app.models.employee import Employee, EmployeeRole
 from app.models.expense import Expense
 from app.models.purchase_planner import PurchasePlannerItem
+from app.services.action_permissions import employee_has_action
 from app.services.audit import log_change, model_snapshot
 
 MANAGER_ROLES = frozenset({EmployeeRole.manager, EmployeeRole.admin})
@@ -26,7 +29,20 @@ EMPLOYEE_PATCH_FIELDS = frozenset({
 
 
 def is_manager(employee: Employee) -> bool:
+    """Role-based manager check (legacy). Prefer can_manage_purchases for API guards."""
     return employee.role in MANAGER_ROLES
+
+
+def can_manage_purchases(effective: dict[str, Any] | None, employee: Employee | None = None) -> bool:
+    """True when Level-2 purchase.manage is granted (admin always).
+
+    Used for cancel / revert / expense / free edit — must match FE purchase.manage.
+    """
+    if employee is not None and employee.role == EmployeeRole.admin:
+        return True
+    if effective is not None and employee_has_action(effective, 'purchase.manage'):
+        return True
+    return False
 
 
 def assert_employee_may_patch(row: PurchasePlannerItem, updates: dict) -> None:
@@ -41,12 +57,12 @@ def assert_employee_may_patch(row: PurchasePlannerItem, updates: dict) -> None:
     if new_status == 'cancelled':
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail='Отмена закупки доступна только руководителю',
+            detail='Отмена закупки доступна только с правом управления закупками',
         )
     if new_status == 'planned' and row.status == 'purchased':
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail='Возврат статуса доступен только руководителю',
+            detail='Возврат статуса доступен только с правом управления закупками',
         )
     if new_status is not None and new_status != 'purchased':
         raise HTTPException(

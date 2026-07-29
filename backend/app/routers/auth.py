@@ -19,7 +19,6 @@ from app.schemas.auth import (
 )
 from app.schemas.permissions import UserPermissionsResponse
 from app.services.auth import create_access_token, hash_password, verify_password
-from app.services.permissions import allowed_sections_for_role, get_org_permissions
 from app.services.rate_limit import bot_token_limiter
 
 router = APIRouter()
@@ -190,10 +189,15 @@ async def user_permissions(
     employee: Employee = Depends(get_current_employee),
     db: AsyncSession = Depends(get_db),
 ) -> UserPermissionsResponse:
-    perms = await get_org_permissions(db, employee.org_id)
+    from app.services.action_permissions import resolve_effective_permissions
+
+    effective = await resolve_effective_permissions(db, employee)
     return UserPermissionsResponse(
-        role=employee.role.value,
-        allowed_sections=allowed_sections_for_role(employee.role, perms),
+        role=effective['role'],
+        allowed_sections=effective['allowed_sections'],
+        actions=effective['actions'],
+        access_group_id=effective.get('access_group_id'),
+        access_group_name=effective.get('access_group_name'),
     )
 
 

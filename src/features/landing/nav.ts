@@ -7,6 +7,8 @@ export const LANDING_NAV = [
 
 export const LANDING_IMAGES = {
   hero: `${import.meta.env.BASE_URL}landing/hero-field.webp`,
+  /** Field-day narrative photo — must stay distinct from module cards. */
+  day: `${import.meta.env.BASE_URL}landing/day-field.webp`,
   shifts: `${import.meta.env.BASE_URL}landing/module-shifts.webp`,
   warehouse: `${import.meta.env.BASE_URL}landing/module-warehouse.webp`,
   calendar: `${import.meta.env.BASE_URL}landing/module-calendar.webp`,

@@ -1,6 +1,9 @@
 import { selectOptions, type SelectOption } from '@/lib/selectOptions'
 
-/** Humanize snake_case / kebab-case / camelCase codes for unknown values. */
+/**
+ * Humanize snake_case / kebab-case / camelCase for unknown codes/values.
+ * Sentence case: "start_time" → "Start time" (not Title Case per word).
+ */
 export function humanizeAuditValue(value: string): string {
   const trimmed = value.trim()
   if (!trimmed) return 'Неизвестно'
@@ -8,19 +11,19 @@ export function humanizeAuditValue(value: string): string {
 
   const spaced = trimmed
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
+    .replace(/[._-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 
   if (!spaced) return 'Неизвестно'
 
-  return spaced
-    .split(' ')
-    .map((part) => {
-      const lower = part.toLowerCase()
-      return lower.charAt(0).toUpperCase() + lower.slice(1)
-    })
-    .join(' ')
+  const lower = spaced.toLowerCase()
+  return lower.charAt(0).toUpperCase() + lower.slice(1)
+}
+
+/** Alias used for unknown field names in the label map. */
+export function humanizeAuditFieldName(field: string): string {
+  return humanizeAuditValue(field)
 }
 
 export const AUDIT_SECTION_LABELS = {
@@ -47,6 +50,7 @@ export const AUDIT_SECTION_LABELS = {
   organization: 'Организация',
   purchase_planner: 'Планировщик закупок',
   maintenance_checklist_item: 'Чек-лист ремонта',
+  access_group: 'Группы доступа',
 } as const satisfies Record<string, string>
 
 export const AUDIT_ACTION_LABELS = {
@@ -80,6 +84,8 @@ export const AUDIT_SECTION_FILTER_VALUES = [
   'work_type',
   'dictionary_item',
   'organization',
+  'purchase_planner',
+  'access_group',
 ] as const
 
 export function getAuditSectionLabel(value: string | null | undefined): string {

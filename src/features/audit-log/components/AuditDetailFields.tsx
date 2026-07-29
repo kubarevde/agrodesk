@@ -14,11 +14,14 @@ type AuditDetailFieldsProps = {
 function DetailRow({ row, mode }: { row: AuditChangeRow; mode: AuditDetailFieldsProps['mode'] }) {
   const isCreate = mode === 'create'
   const isDelete = mode === 'delete'
+  const fieldTitle = `Техническое имя: ${row.rawField}`
 
   if (isCreate) {
     return (
       <div className="rounded-lg border border-border bg-card px-3 py-2.5">
-        <p className="text-xs text-muted-foreground">{row.label}</p>
+        <p className="text-xs text-muted-foreground" title={fieldTitle}>
+          {row.label}
+        </p>
         <p className="mt-0.5 text-sm font-medium text-foreground break-words">{row.to ?? '—'}</p>
       </div>
     )
@@ -27,7 +30,9 @@ function DetailRow({ row, mode }: { row: AuditChangeRow; mode: AuditDetailFields
   if (isDelete) {
     return (
       <div className="rounded-lg border border-border bg-card px-3 py-2.5">
-        <p className="text-xs text-muted-foreground">{row.label}</p>
+        <p className="text-xs text-muted-foreground" title={fieldTitle}>
+          {row.label}
+        </p>
         <p className="mt-0.5 text-sm text-foreground line-through opacity-80 break-words">
           {row.from ?? '—'}
         </p>
@@ -37,13 +42,15 @@ function DetailRow({ row, mode }: { row: AuditChangeRow; mode: AuditDetailFields
 
   return (
     <div className="rounded-lg border border-border bg-card px-3 py-2.5">
-      <p className="text-xs font-medium text-muted-foreground">{row.label}</p>
+      <p className="text-xs font-medium text-muted-foreground" title={fieldTitle}>
+        {row.label}
+      </p>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
-        <div className="rounded-md bg-muted/40 px-2.5 py-2">
+        <div className="min-w-0 rounded-md bg-muted/40 px-2.5 py-2">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Было</p>
           <p className="mt-0.5 text-sm text-foreground break-words">{row.from ?? '—'}</p>
         </div>
-        <div className="rounded-md bg-primary/5 px-2.5 py-2 ring-1 ring-primary/10">
+        <div className="min-w-0 rounded-md bg-primary/5 px-2.5 py-2 ring-1 ring-primary/10">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Стало</p>
           <p className="mt-0.5 text-sm font-medium text-foreground break-words">{row.to ?? '—'}</p>
         </div>
@@ -91,9 +98,18 @@ export function AuditDetailFields({ title, rows, mode, technicalRows = [] }: Aud
             <div className="mt-2 space-y-1.5 rounded-lg border border-dashed border-border bg-muted/20 p-2">
               {technicalRows.map((row) => (
                 <div key={row.field} className="flex flex-col gap-0.5 text-xs sm:flex-row sm:gap-2">
-                  <span className="shrink-0 text-muted-foreground">{row.label}</span>
-                  <span className="break-all text-foreground/70">
-                    {mode === 'create' ? row.to : mode === 'delete' ? row.from : `${row.from ?? '—'} → ${row.to ?? '—'}`}
+                  <span className="shrink-0 text-muted-foreground" title={row.rawField}>
+                    {row.label}
+                    <span className="ml-1 font-mono text-[10px] text-muted-foreground/70">
+                      ({row.rawField})
+                    </span>
+                  </span>
+                  <span className="min-w-0 break-all text-foreground/70">
+                    {mode === 'create'
+                      ? row.to
+                      : mode === 'delete'
+                        ? row.from
+                        : `${row.from ?? '—'} → ${row.to ?? '—'}`}
                   </span>
                 </div>
               ))}

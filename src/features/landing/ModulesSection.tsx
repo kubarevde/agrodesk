@@ -5,19 +5,19 @@ const FEATURED = [
     name: 'Смены и рабочее время',
     text: 'Открытие и закрытие смен, объекты, типы работ, техника, длительность и начисления.',
     image: LANDING_IMAGES.shifts,
-    alt: 'Полевые работы и техника',
+    alt: 'Уборка урожая комбайном в поле',
   },
   {
     name: 'Склад ТМЦ и закупки',
     text: 'Остатки, приход и расход, заявки на закупку и закрытие потребности без потери контекста.',
     image: LANDING_IMAGES.warehouse,
-    alt: 'Склад сельскохозяйственных материалов',
+    alt: 'Склад сельскохозяйственных материалов и запчастей',
   },
   {
     name: 'Агрокалендарь',
     text: 'Планы по полям и датам, связь с фактическими сменами — план и факт в одном месте.',
     image: LANDING_IMAGES.calendar,
-    alt: 'Планирование полевых работ',
+    alt: 'Планирование полевых работ на карте и в календаре',
   },
 ] as const
 
@@ -35,20 +35,20 @@ export function ModulesSection() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-xl">
             <p className="landing-kicker text-[11px] text-primary">Модули</p>
-            <h2 className="landing-display mt-3 text-3xl font-semibold text-foreground sm:text-4xl">
+            <h2 className="landing-display mt-3 text-balance text-3xl font-semibold text-foreground sm:text-4xl">
               То, чем хозяйство пользуется каждый день
             </h2>
           </div>
-          <p className="max-w-sm text-sm text-muted-foreground lg:text-right">
+          <p className="max-w-sm text-sm leading-relaxed text-muted-foreground lg:pb-1 lg:text-right">
             Не абстрактные «преимущества» — рабочие контуры учёта.
           </p>
         </div>
 
-        <div className="mt-12 space-y-14">
+        <div className="mt-12 space-y-14 sm:mt-14 sm:space-y-16">
           {FEATURED.map((mod, index) => (
             <article
               key={mod.name}
-              className={`grid items-center gap-8 lg:grid-cols-2 lg:gap-12 ${
+              className={`grid items-center gap-7 lg:grid-cols-2 lg:gap-12 ${
                 index % 2 === 1 ? 'lg:[&>div:first-child]:order-2' : ''
               }`}
             >
@@ -56,11 +56,12 @@ export function ModulesSection() {
                 <img
                   src={mod.image}
                   alt={mod.alt}
-                  className="size-full object-cover"
+                  className="size-full object-cover transition-transform duration-500 ease-out hover:scale-[1.02]"
                   loading="lazy"
+                  decoding="async"
                 />
               </div>
-              <div>
+              <div className={index % 2 === 1 ? 'lg:pr-4' : 'lg:pl-2'}>
                 <h3 className="landing-display text-2xl font-semibold text-foreground sm:text-3xl">
                   {mod.name}
                 </h3>
@@ -74,8 +75,8 @@ export function ModulesSection() {
 
         <ul className="mt-16 grid gap-x-10 gap-y-8 border-t border-border pt-10 sm:grid-cols-2">
           {MORE.map((mod) => (
-            <li key={mod.name}>
-              <h3 className="font-semibold text-foreground">{mod.name}</h3>
+            <li key={mod.name} className="min-w-0">
+              <h3 className="text-base font-semibold text-foreground">{mod.name}</h3>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{mod.text}</p>
             </li>
           ))}

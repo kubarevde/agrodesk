@@ -14,6 +14,7 @@ from app.database import AsyncSessionLocal, engine
 from app.middleware.org_context import OrgContextMiddleware
 from app.models.organization import SuperAdminUser
 from app.routers import (
+    access_groups,
     agro_plan,
     analytics,
     audit_log,
@@ -39,6 +40,7 @@ from app.routers import (
     shifts,
     superadmin,
     uploads,
+    weather,
 )
 from app.seed import ensure_demo_data
 from app.services.auth import hash_password
@@ -172,10 +174,12 @@ app.include_router(expenses.router, prefix='/api/expenses', tags=['expenses'])
 app.include_router(dashboard.router, prefix='/api/dashboard', tags=['dashboard'])
 app.include_router(reports.router, prefix='/api/reports', tags=['reports'])
 app.include_router(settings_router.router, prefix='/api/settings', tags=['settings'])
+app.include_router(access_groups.router, prefix='/api/settings', tags=['access-groups'])
 app.include_router(dictionaries.router, prefix='/api/dictionaries', tags=['dictionaries'])
 app.include_router(sharing.router, prefix='/api/sharing', tags=['sharing'])
 app.include_router(notifications.router, prefix='/api/notifications', tags=['notifications'])
 app.include_router(uploads.router, prefix='/api/uploads', tags=['uploads'])
+app.include_router(weather.router, prefix='/api/weather', tags=['weather'])
 
 uploads_dir = Path(settings.UPLOADS_DIR)
 uploads_dir.mkdir(parents=True, exist_ok=True)

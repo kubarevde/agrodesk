@@ -329,6 +329,7 @@ export function inventoryOperationFromApi(raw: ApiRecord): InventoryOperation {
     cost: raw.cost != null ? toNumber(raw.cost) : undefined,
     createdByName:
       raw.created_by_name != null ? String(raw.created_by_name) : undefined,
+    purpose: raw.purpose != null ? String(raw.purpose) : 'general',
   }
 }
 
@@ -340,6 +341,7 @@ export function inventoryOperationToApi(payload: {
   supplier?: string
   cost?: number
   date?: string
+  purpose?: string
 }): ApiRecord {
   return {
     item_id: payload.itemId,
@@ -349,6 +351,7 @@ export function inventoryOperationToApi(payload: {
     supplier: payload.supplier,
     cost: payload.cost,
     date: payload.date ? displayDateToIso(payload.date) : undefined,
+    purpose: payload.purpose,
   }
 }
 

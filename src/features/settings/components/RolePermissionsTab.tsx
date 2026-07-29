@@ -8,6 +8,7 @@ import {
 } from '@/features/settings/permissionsHooks'
 import { SECTION_DESCRIPTIONS } from '@/features/help/modules'
 import { EMPLOYEE_LOCKED_SECTIONS } from '@/lib/sectionRegistry'
+import { cn } from '@/lib/utils'
 
 const ROLES: Array<{ key: 'manager' | 'employee'; label: string }> = [
   { key: 'manager', label: 'Менеджер' },
@@ -49,8 +50,8 @@ export function RolePermissionsTab() {
   }
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
+    <div className="w-full min-w-0 max-w-full space-y-4 overflow-x-hidden">
+      <p className="text-sm text-muted-foreground break-words">
         Администратор всегда видит все разделы. Здесь настраивается, какие разделы доступны
         менеджерам и сотрудникам как ролям (не персонально одному человеку). У сотрудника
         обязателен только пункт «Моя смена» — его нельзя снять. Остальные разделы, включая
@@ -59,33 +60,45 @@ export function RolePermissionsTab() {
       </p>
 
       {ROLES.map((role) => (
-        <section key={role.key} className="space-y-2 rounded-lg border border-border p-3">
+        <section
+          key={role.key}
+          className="min-w-0 space-y-3 rounded-lg border border-border bg-surface p-3"
+        >
           <h3 className="text-sm font-semibold text-foreground">{role.label}</h3>
-          <ul className="grid gap-2 sm:grid-cols-2">
+          {/* Mobile: stacked cards; sm+: two columns without forcing page h-scroll */}
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {data.sections.map((section) => {
               const locked =
                 role.key === 'employee' && LOCKED_EMPLOYEE_SECTIONS.has(section.key)
               const checked =
                 locked || (draft[role.key] ?? []).includes(section.key)
               return (
-                <li key={`${role.key}-${section.key}`}>
-                  <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-2 py-2 text-sm hover:bg-muted/30">
+                <li key={`${role.key}-${section.key}`} className="min-w-0">
+                  <label
+                    className={cn(
+                      'flex min-h-11 w-full min-w-0 cursor-pointer items-start gap-3 rounded-md border border-border bg-background px-3 py-2.5 text-sm',
+                      'hover:bg-muted/30',
+                      locked && 'cursor-default opacity-90',
+                    )}
+                  >
                     <input
                       type="checkbox"
-                      className="size-4 accent-primary"
+                      className="mt-0.5 size-5 shrink-0 accent-primary"
                       checked={checked}
                       disabled={locked}
                       onChange={() => toggle(role.key, section.key)}
                     />
-                    <span className="flex flex-col">
-                      <span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium text-foreground break-words">
                         {section.label}
                         {locked ? (
-                          <span className="ml-1 text-xs text-muted-foreground">(всегда)</span>
+                          <span className="ml-1 text-xs font-normal text-muted-foreground">
+                            (всегда)
+                          </span>
                         ) : null}
                       </span>
                       {SECTION_DESCRIPTIONS[section.key] ? (
-                        <span className="text-xs font-normal text-muted-foreground">
+                        <span className="mt-0.5 block text-xs font-normal text-muted-foreground break-words">
                           {SECTION_DESCRIPTIONS[section.key]}
                         </span>
                       ) : null}
@@ -100,6 +113,7 @@ export function RolePermissionsTab() {
 
       <Button
         type="button"
+        className="h-11 w-full sm:w-auto"
         disabled={update.isPending}
         onClick={() => void update.mutateAsync(draft)}
       >

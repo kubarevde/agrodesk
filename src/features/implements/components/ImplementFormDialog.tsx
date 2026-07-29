@@ -139,7 +139,7 @@ export function ImplementFormDialog({
             <p className="text-xs text-muted-foreground">
               Категории — в Настройки → Категории приспособлений
             </p>
-            <ManageInSettingsLink tabHint="категории приспособлений" />
+            <ManageInSettingsLink tab="implement-cats" tabHint="категории приспособлений" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

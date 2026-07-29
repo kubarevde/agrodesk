@@ -56,6 +56,15 @@ class InventoryOperationCreate(BaseModel):
             raise ValueError('Дата не может быть в будущем')
         return value
 
+    @field_validator('purpose')
+    @classmethod
+    def validate_purpose(cls, value: str) -> str:
+        allowed = {'general', 'opening', 'adjustment', 'refuel', 'install'}
+        normalized = (value or 'general').strip() or 'general'
+        if normalized not in allowed:
+            raise ValueError('Недопустимый тип операции (purpose)')
+        return normalized
+
 
 class EquipmentStockAction(BaseModel):
     """Refuel or install material from stock onto equipment."""

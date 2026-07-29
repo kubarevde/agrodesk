@@ -24,3 +24,8 @@
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
+
+/* Keep timeline times from collapsing into body text on narrow screens. */
+.landing-root .tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

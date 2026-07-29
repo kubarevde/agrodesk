@@ -149,7 +149,7 @@ export function FieldFormDialog({
             <p className="text-xs text-muted-foreground">
               Список культур редактируется в Настройки → Культуры
             </p>
-            <ManageInSettingsLink tabHint="культуры" />
+            <ManageInSettingsLink tab="crops" tabHint="культуры" />
           </div>
 
           <div className="space-y-2">

@@ -24,8 +24,12 @@ from app.schemas.shift import (
 from app.services.agro_calendar_facts import apply_shift_to_agro_calendar, get_selectable_plan
 from app.services.dashboard import clear_dashboard_cache
 from app.services.audit import log_change, model_snapshot
+from app.services.action_permissions import (
+    employee_has_action,
+    employee_has_section,
+    resolve_effective_permissions,
+)
 from app.services.equipment_meters import add_equipment_meter_log, calc_meter_label
-from app.services.permissions import get_org_permissions, role_has_section
 from app.services.org_timezone import now_in_org
 from app.services.salary import apply_salary_to_shift
 from app.services.shifts import (
@@ -111,16 +115,50 @@ async def ensure_shift_section_access(
     org_id: UUID,
     current: Employee,
 ) -> None:
-    """Real enforcement for section permissions (checkboxes)."""
+    """Enforce section + action grants for shift APIs (role defaults or access group)."""
     if current.role == EmployeeRole.admin:
         return
 
-    perms = await get_org_permissions(db, org_id)
-    required_section = 'my-shift' if current.role == EmployeeRole.employee else 'worktime'
-    if not role_has_section(current.role, required_section, perms):
+    effective = await resolve_effective_permissions(db, current)
+    if current.role == EmployeeRole.employee:
+        if not employee_has_section(effective, 'my-shift'):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail='Раздел недоступен для вашей роли',
+            )
+        return
+
+    # Managers: worktime OR my-shift (own shift) — do not force worktime-only.
+    if employee_has_section(effective, 'worktime'):
+        return
+    if employee_has_section(effective, 'my-shift'):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail='Раздел недоступен для вашей роли',
+    )
+
+
+async def ensure_can_open_for_target(
+    db: AsyncSession,
+    current: Employee,
+    target_employee_id: UUID,
+) -> None:
+    if current.role == EmployeeRole.admin:
+        return
+    if target_employee_id == current.id:
+        effective = await resolve_effective_permissions(db, current)
+        if not employee_has_action(effective, 'shift.open_own'):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail='Недостаточно прав для открытия своей смены',
+            )
+        return
+    effective = await resolve_effective_permissions(db, current)
+    if not employee_has_action(effective, 'shift.open_for_others'):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail='Раздел недоступен для вашей роли',
+            detail='Недостаточно прав для открытия смены за другого сотрудника',
         )
 
 
@@ -319,6 +357,7 @@ async def open_shift(
     org_id = get_org_id(request)
     await ensure_shift_section_access(db, org_id, current)
     target_employee_id = resolve_target_employee_id(payload, current)
+    await ensure_can_open_for_target(db, current, target_employee_id)
     await get_employee_or_400(db, target_employee_id, org_id)
     await validate_reference_ids(
         db,
@@ -545,11 +584,18 @@ async def close_shift(
     if shift.status != ShiftStatus.open:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Смена уже закрыта')
 
-    if shift.employee_id != current.id and current.role not in (
-        EmployeeRole.manager,
-        EmployeeRole.admin,
-    ):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Недостаточно прав')
+    if shift.employee_id == current.id:
+        effective = await resolve_effective_permissions(db, current)
+        if current.role != EmployeeRole.admin and not employee_has_action(
+            effective, 'shift.close_own'
+        ):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Недостаточно прав')
+    else:
+        effective = await resolve_effective_permissions(db, current)
+        if current.role != EmployeeRole.admin and not employee_has_action(
+            effective, 'shift.close_others'
+        ):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Недостаточно прав')
 
     try:
         now = await now_in_org(db, org_id)

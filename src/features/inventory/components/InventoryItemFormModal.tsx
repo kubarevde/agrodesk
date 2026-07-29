@@ -164,7 +164,7 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
             <p className="text-xs text-muted-foreground">
               Категории задаются в Настройках → Категории ТМЦ
             </p>
-            <ManageInSettingsLink tabHint="категории ТМЦ" />
+            <ManageInSettingsLink tab="inventory-cats" tabHint="категории ТМЦ" />
           </div>
 
           <div className="space-y-2">
@@ -186,7 +186,12 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
                 {...register('currentStock', numberInputRegister)}
               />
             </div>
-          ) : null}
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Остаток меняется приходами, расходами или «Корректировкой» — не через эту форму,
+              чтобы не потерять историю операций.
+            </p>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="inv-min">Мин. запас</Label>

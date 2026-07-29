@@ -11,6 +11,8 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
+import { DayDetailWeatherBlock } from '@/features/weather/components/DayDetailWeatherBlock'
+import { useFieldDayWeather } from '@/features/weather/hooks'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { humanLabel, joinLabels } from '@/lib/display'
 import { useAgroPlans } from '../hooks'
@@ -43,6 +45,11 @@ export function AgroCalendarDaySheet({
     day && monthKey ? { month: monthKey, fieldId, plannedDate: day } : {},
     { enabled: open && Boolean(day && monthKey) },
   )
+  const {
+    data: dayWeather,
+    isLoading: weatherLoading,
+    isError: weatherError,
+  } = useFieldDayWeather(day, fieldId, { enabled: open && Boolean(day) })
 
   const titleDate = day
     ? format(parseISO(day), 'd MMMM yyyy', { locale: ru })
@@ -64,6 +71,17 @@ export function AgroCalendarDaySheet({
         </SheetHeader>
 
         <div className="space-y-3 px-4 pb-6">
+          {day ? (
+            <DayDetailWeatherBlock
+              sources={dayWeather?.sources}
+              fieldName={dayWeather?.fieldName}
+              isLoading={weatherLoading}
+              isError={weatherError}
+              unavailable={dayWeather?.unavailable}
+              message={dayWeather?.message}
+            />
+          ) : null}
+
           {canManage && day && onAddPlan ? (
             <Button type="button" variant="outline" className="w-full" onClick={() => onAddPlan(day)}>
               <Plus className="size-4" />

@@ -9,6 +9,21 @@ describe('auditFieldLabels', () => {
     expect(getAuditFieldLabel('hourly_rate')).toBe('Ставка в час')
   })
 
+  it('maps shift time fields in Russian', () => {
+    expect(getAuditFieldLabel('start_time')).toBe('Время начала')
+    expect(getAuditFieldLabel('end_time')).toBe('Время окончания')
+    expect(getAuditFieldLabel('status', 'shift')).toBe('Статус смены')
+  })
+
+  it('maps access group fields', () => {
+    expect(getAuditFieldLabel('sections', 'access_group')).toBe('Доступные разделы')
+    expect(getAuditFieldLabel('actions', 'access_group')).toBe('Разрешённые действия')
+  })
+
+  it('falls back to sentence-case humanize', () => {
+    expect(getAuditFieldLabel('weird_new_field')).toBe('Weird new field')
+  })
+
   it('marks technical ids', () => {
     expect(isTechnicalAuditField('org_id')).toBe(true)
     expect(isTechnicalAuditField('full_name')).toBe(false)
@@ -19,6 +34,18 @@ describe('formatAuditValue', () => {
   it('formats booleans and roles', () => {
     expect(formatAuditValue('is_active', true)).toBe('Да')
     expect(formatAuditValue('role', 'employee')).toBe('Сотрудник')
+  })
+
+  it('formats shift and inventory enums', () => {
+    expect(formatAuditValue('status', 'open', 'shift')).toBe('Открыта')
+    expect(formatAuditValue('type', 'income', 'inventory_operation')).toBe('Приход')
+    expect(formatAuditValue('type', 'expense', 'inventory_operation')).toBe('Расход')
+  })
+
+  it('formats section/action lists for access groups', () => {
+    const out = formatAuditValue('sections', ['my-shift', 'inventory'], 'access_group')
+    expect(out).toContain('Моя смена')
+    expect(out).toContain('ТМЦ')
   })
 
   it('formats iso datetime', () => {
@@ -70,5 +97,17 @@ describe('buildAuditDetailSections', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]?.from).toBe('Механик')
     expect(rows[0]?.to).toBe('Бригадир')
+    expect(rows[0]?.rawField).toBe('position')
+  })
+
+  it('labels shift start_time in Russian', () => {
+    const rows = buildAuditChangeRows(
+      { start_time: '08:00:00' },
+      { start_time: '09:15:00' },
+      'shift',
+    )
+    expect(rows[0]?.label).toBe('Время начала')
+    expect(rows[0]?.from).toBe('08:00:00')
+    expect(rows[0]?.to).toBe('09:15:00')
   })
 })

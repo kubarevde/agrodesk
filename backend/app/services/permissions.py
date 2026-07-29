@@ -169,32 +169,11 @@ def role_has_section(
     return section in allowed_sections_for_role(role, permissions)
 
 
-def require_section_dep(section: str):
-    """FastAPI dependency: enforce section access for non-admin roles."""
-
-    async def _checker(
-        employee: Employee = Depends(get_current_employee),
-        db: AsyncSession = Depends(get_db),
-    ) -> Employee:
-        if employee.role == EmployeeRole.admin:
-            return employee
-        perms = await get_org_permissions(db, employee.org_id)
-        if not role_has_section(employee.role, section, perms):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail='Раздел недоступен для вашей роли',
-            )
-        return employee
-
-    return _checker
-
-
 def require_manager_section(section: str):
-    """Section access for any role that was granted the section (incl. employee).
+    """Section access using effective permissions (role defaults or access group).
 
     Historically named for manager-facing APIs; employees with an explicit
-    org grant in role_permissions must also pass, otherwise Settings → Доступы
-    can show a section that the API then rejects with 403.
+    org grant or access group must also pass.
     """
 
     async def _checker(
@@ -203,8 +182,13 @@ def require_manager_section(section: str):
     ) -> Employee:
         if employee.role == EmployeeRole.admin:
             return employee
-        perms = await get_org_permissions(db, employee.org_id)
-        if not role_has_section(employee.role, section, perms):
+        from app.services.action_permissions import (
+            employee_has_section,
+            resolve_effective_permissions,
+        )
+
+        effective = await resolve_effective_permissions(db, employee)
+        if not employee_has_section(effective, section):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail='Раздел недоступен для вашей роли',
@@ -212,3 +196,8 @@ def require_manager_section(section: str):
         return employee
 
     return _checker
+
+
+def require_section_dep(section: str):
+    """Alias — same effective-section check as require_manager_section."""
+    return require_manager_section(section)

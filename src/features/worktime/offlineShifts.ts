@@ -2,6 +2,8 @@ import { format } from 'date-fns'
 import type { Equipment, EquipmentExtended, Location, Shift, WorkType } from '@/types'
 import type { CurrentUser } from '@/lib/transformers'
 import { db } from '@/lib/db'
+import { hasAction } from '@/lib/permissionActions'
+import { readCachedUserPermissions } from '@/features/auth/storage'
 import {
   shiftCloseToApi,
   shiftCreateToApi,
@@ -62,13 +64,38 @@ function toReferenceEquipment(items: Array<Equipment | EquipmentExtended>): Equi
   }))
 }
 
+function resolveOfflineActions(
+  actions: string[] | undefined,
+  user: CurrentUser | undefined,
+): string[] | undefined {
+  if (actions != null) return actions
+  if (!user?.role) return undefined
+  return readCachedUserPermissions(user.role)?.actions
+}
+
 export async function enqueueCreateShiftOffline(
   payload: ShiftCreateInput,
   user: CurrentUser | undefined,
   locations: Location[],
   workTypes: WorkType[],
   equipment: Equipment[],
+  actions?: string[],
 ): Promise<Shift> {
+  const openingForOther =
+    Boolean(payload.employeeId) && payload.employeeId !== user?.id
+  const resolvedActions = resolveOfflineActions(actions, user)
+  if (resolvedActions == null && user?.role !== 'admin') {
+    throw new Error(
+      'Нет сохранённых прав для офлайн-открытия смены. Откройте приложение онлайн один раз.',
+    )
+  }
+  const allowed = openingForOther
+    ? hasAction(resolvedActions, 'shift.open_for_others', user?.role)
+    : hasAction(resolvedActions, 'shift.open_own', user?.role)
+  if (!allowed) {
+    throw new Error('Недостаточно прав для открытия смены офлайн')
+  }
+
   const idempotencyKey = crypto.randomUUID()
   const body = shiftCreateToApi(payload)
   const resolvedLocations = locations.length > 0 ? locations : await db.locations.toArray()

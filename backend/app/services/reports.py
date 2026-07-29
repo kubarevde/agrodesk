@@ -86,6 +86,20 @@ OPERATION_TYPE_LABELS = {
     'expense': 'Расход',
 }
 
+
+def inventory_operation_label(op_type: str, purpose: str | None = None) -> str:
+    """Human-readable inventory operation label for Excel and APIs."""
+    purpose_norm = (purpose or 'general').strip() or 'general'
+    if purpose_norm == 'opening':
+        return 'Начальный остаток'
+    if purpose_norm == 'adjustment':
+        return 'Корректировка (+)' if op_type == 'income' else 'Корректировка (−)'
+    if purpose_norm == 'refuel':
+        return 'Заправка'
+    if purpose_norm == 'install':
+        return 'Установка'
+    return OPERATION_TYPE_LABELS.get(op_type, op_type)
+
 SHIFT_STATUS_LABELS = {
     'open': 'Открыта',
     'closed': 'Закрыта',
@@ -584,7 +598,10 @@ async def build_inventory_workbook(
         [
             fmt_date(operation.date),
             operation.item.name,
-            OPERATION_TYPE_LABELS.get(operation.type.value, operation.type.value),
+            inventory_operation_label(
+                operation.type.value,
+                getattr(operation, 'purpose', None),
+            ),
             to_number(operation.quantity),
             to_number(operation.stock_after),
             operation.reason or '',

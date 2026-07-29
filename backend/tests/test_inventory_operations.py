@@ -17,6 +17,9 @@ def test_operation_delta_signs() -> None:
     assert _operation_delta(InventoryOperationType.expense, Decimal('4')) == Decimal('-4')
 
 
+# Keep live API scenarios below; pure delta covered also in test_inventory_stock_repair.py
+
+
 def _create_item(client: httpx.Client, headers: dict[str, str], *, stock: float = 0) -> str:
     from uuid import uuid4
 
@@ -44,6 +47,8 @@ def _create_operation(
     op_type: str,
     quantity: float,
     op_date: str | None = None,
+    purpose: str | None = None,
+    reason: str | None = None,
 ) -> dict:
     payload: dict = {
         'item_id': item_id,
@@ -52,6 +57,10 @@ def _create_operation(
     }
     if op_date is not None:
         payload['date'] = op_date
+    if purpose is not None:
+        payload['purpose'] = purpose
+    if reason is not None:
+        payload['reason'] = reason
     response = client.post('/api/inventory/operations', headers=headers, json=payload)
     assert response.status_code == 201, response.text
     return response.json()
@@ -142,3 +151,85 @@ def test_item_operations_endpoint_limits_results(
     )
     assert limited.status_code == 200, limited.text
     assert len(limited.json()) == 3
+
+
+def test_adjustment_requires_reason(
+    client: httpx.Client, manager_headers: dict[str, str]
+) -> None:
+    item_id = _create_item(client, manager_headers, stock=40)
+    response = client.post(
+        '/api/inventory/operations',
+        headers=manager_headers,
+        json={
+            'item_id': item_id,
+            'type': 'income',
+            'quantity': 5,
+            'purpose': 'adjustment',
+        },
+    )
+    assert response.status_code == 400, response.text
+
+
+def test_adjustment_up_and_down_updates_stock(
+    client: httpx.Client, manager_headers: dict[str, str]
+) -> None:
+    item_id = _create_item(client, manager_headers, stock=100)
+
+    up = _create_operation(
+        client,
+        manager_headers,
+        item_id=item_id,
+        op_type='income',
+        quantity=7,
+        purpose='adjustment',
+        reason='Инвентаризация: нашли лишнее',
+    )
+    assert float(up['stock_after']) == 107
+    assert up['purpose'] == 'adjustment'
+
+    down = _create_operation(
+        client,
+        manager_headers,
+        item_id=item_id,
+        op_type='expense',
+        quantity=12,
+        purpose='adjustment',
+        reason='Инвентаризация: недостача',
+    )
+    assert float(down['stock_after']) == 95
+
+    item = client.get(f'/api/inventory/{item_id}', headers=manager_headers)
+    assert item.status_code == 200, item.text
+    assert float(item.json()['current_stock']) == 95
+
+    history = client.get(
+        f'/api/inventory/{item_id}/operations',
+        headers=manager_headers,
+        params={'limit': 20, 'exclude_opening': False},
+    )
+    assert history.status_code == 200, history.text
+    purposes = {row['purpose'] for row in history.json()}
+    assert 'opening' in purposes
+    assert 'adjustment' in purposes
+
+
+def test_adjustment_down_blocked_when_insufficient(
+    client: httpx.Client, manager_headers: dict[str, str]
+) -> None:
+    item_id = _create_item(client, manager_headers, stock=5)
+    response = client.post(
+        '/api/inventory/operations',
+        headers=manager_headers,
+        json={
+            'item_id': item_id,
+            'type': 'expense',
+            'quantity': 10,
+            'purpose': 'adjustment',
+            'reason': 'Попытка уйти в минус',
+        },
+    )
+    assert response.status_code == 400, response.text
+
+    item = client.get(f'/api/inventory/{item_id}', headers=manager_headers)
+    assert item.status_code == 200, item.text
+    assert float(item.json()['current_stock']) == 5

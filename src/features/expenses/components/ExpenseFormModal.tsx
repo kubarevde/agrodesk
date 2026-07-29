@@ -204,7 +204,7 @@ export function ExpenseFormModal({
             {errors.category ? (
               <p className="text-xs text-destructive">{errors.category.message}</p>
             ) : (
-              <ManageInSettingsLink tabHint="категории затрат" />
+              <ManageInSettingsLink tab="expense-cats" tabHint="категории затрат" />
             )}
           </div>
 

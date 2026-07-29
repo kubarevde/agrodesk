@@ -3,6 +3,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { InventoryOperation } from '@/types'
 import { cn } from '@/lib/utils'
+import { getInventoryOperationLabel } from '../utils'
 
 type InventoryItemOperationsHistoryProps = {
   operations: InventoryOperation[]
@@ -56,7 +57,7 @@ export function InventoryItemOperationsHistory({
                     ) : (
                       <Minus className="size-3.5" />
                     )}
-                    {operation.type === 'income' ? 'Приход' : 'Расход'}
+                    {getInventoryOperationLabel(operation)}
                   </p>
                 </div>
                 <div className="text-right text-xs text-muted-foreground">
