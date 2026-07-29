@@ -1,7 +1,31 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
+/** Demo org admin — requires seeded API (EMP000 / 1234). */
+export async function loginDemoAdmin(page: Page) {
+  await page.goto('/login')
+  // Already authenticated → redirected away from login
+  if (!page.url().includes('/login')) {
+    return
+  }
+
+  await page.waitForTimeout(500)
+  if (!(await page.locator('#email').isVisible().catch(() => false))) {
+    const demo = page.getByRole('option', { name: /Demo AgroDesk/i })
+    await expect(demo).toBeVisible({ timeout: 20_000 })
+    await demo.click()
+    await page.getByRole('button', { name: 'Продолжить' }).click()
+  }
+
+  await page.locator('#email').waitFor({ timeout: 10_000 })
+  await page.locator('#email').fill('EMP000')
+  await page.locator('#password').fill('1234')
+  await page.getByRole('button', { name: /Войти/i }).click()
+  await expect(page).not.toHaveURL(/\/login/, { timeout: 20_000 })
+}
+
 export async function waitForShiftsTable(page: Page) {
+  await loginDemoAdmin(page)
   await page.goto('/worktime')
   await page.getByRole('heading', { name: 'Рабочее время' }).waitFor()
   await page.locator('table tbody tr').first().waitFor({ timeout: 15_000 })

@@ -22,20 +22,23 @@
 | Секреты VPS | `/opt/agrodesk/.env.production` (не в Git) |
 | Бот | либо контейнер `agrodesk_bot` на VPS, либо **bothost.ru** |
 
-Подробности первого деплоя: [DEPLOY.md](DEPLOY.md). Бот на bothost: [bot-bothost.md](bot-bothost.md).
+Подробности первого деплоя: [DEPLOY.md](DEPLOY.md). Бот на bothost: [bot-bothost.md](bot-bothost.md).  
+Если бот пишет про связь с API: [bot-api-diagnostics.md](bot-api-diagnostics.md).
 
 ---
 
 ## 0. Железобетонные правила
 
-1. Сначала **push на GitHub**, потом деплой на VPS — никогда наоборот «только на сервере править».
+1. Сначала **push на GitHub** и дождитесь зелёного CI, потом деплой на VPS — никогда наоборот «только на сервере править».
 2. **Никогда** не запускайте `docker compose down -v` на проде — сотрёте БД и uploads.
 3. Обновление на VPS = `git pull` → **пересборка образов** → `up -d`. Без rebuild фронт/API останутся старыми.
-4. Миграции БД применяются **сами** при старте контейнера `api` (`alembic upgrade head`). После деплоя всегда проверяйте `alembic current`.
+4. Миграции БД **обязательны**: `./deploy.sh` вызывает `alembic upgrade head`; то же при старте `api`. После деплоя проверяйте `alembic current`.
 5. **Один** процесс Telegram polling на один `BOT_TOKEN`. Не держите бота и в Docker на VPS, и на bothost одновременно.
 6. `BOT_INTERNAL_SECRET` на VPS (`.env.production`) и на bothost **должен совпадать**.
-7. Перед рискованным релизом — бэкап: `./scripts/backup_db.sh`.
-8. В Git **не** коммитьте: `.env`, `.env.production`, секреты, `node_modules`, дампы БД.
+7. Перед рискованным релизом — бэкап БД и uploads: `./scripts/backup_db.sh` и `./scripts/backup_uploads.sh` (или `./scripts/run_nightly_backup.sh`).
+8. В Git **не** коммитьте: `.env`, `.env.production`, секреты, `node_modules`, дампы БД, архивы `backups/`.
+9. Фронт отдаётся только с VPS (nginx). Object Storage / S3 для статики и uploads не используется — файлы в volume `uploads_data`.
+
 
 ---
 
@@ -112,13 +115,15 @@ bot → HTTP → API  (БД боту не нужна)
 | `db` | `agrodesk_db` | PostgreSQL |
 | `bot` | `agrodesk_bot` | Telegram-бот (если не на bothost) |
 
-Фронт отдельно на VPS не деплоится: он **собирается в образ nginx** при `docker compose build`.
+Фронт отдельно никуда не выгружается: он **собирается в образ nginx** при `docker compose build` на этой VPS.
+
+После push в `main` дождитесь **зелёного CI** в GitHub (lint + Vitest; backend-тесты — если меняли API), затем деплой вручную ниже. CI на VPS не ходит.
 
 ---
 
 ## 3. Шаг 2 — залить на прод (фронт + бэк (+ бот на VPS))
 
-Сначала должен быть выполнен **§1 (push на GitHub)**. Иначе `git pull` на сервере ничего нового не подтянет.
+Сначала должен быть выполнен **§1 (push на GitHub)** и зелёный CI. Иначе `git pull` на сервере ничего нового не подтянет / выкатите непроверенный код.
 
 Делайте **на сервере**, из каталога репозитория:
 
@@ -128,6 +133,7 @@ cd /opt/agrodesk
 
 # (опционально, перед крупным релизом)
 ./scripts/backup_db.sh
+./scripts/backup_uploads.sh
 
 # Главная команда
 ./deploy.sh
@@ -139,7 +145,8 @@ cd /opt/agrodesk
 2. `docker compose … build` — пересобирает **api**, **nginx (фронт)**, **bot**
 3. `up -d` — пересоздаёт контейнеры, **volumes не трогает**
 4. Ждёт `/health` у API
-5. Печатает `alembic current`
+5. `alembic upgrade head` (обязательно; при ошибке деплой падает)
+6. Печатает `alembic current`
 
 Эквивалент вручную:
 
@@ -181,7 +188,7 @@ docker exec agrodesk_api alembic current
 docker logs --tail=80 agrodesk_api
 ```
 
-После старта API сам сделает `alembic upgrade head`.  
+После старта API сам сделает `alembic upgrade head` (и `./deploy.sh` тоже вызывает его явно).
 Если в логах ошибка про таблицу (например `agro_plan_fields`) — миграции не применились; смотрите `alembic history` / `alembic current`.
 
 ### Только фронтенд (UI)
@@ -306,14 +313,74 @@ chmod +x deploy.sh scripts/*.sh
 | Бот: 403 secret mismatch | разные секреты VPS ↔ bothost |
 | Бот молчит | второй polling (VPS+bothost), или API недоступен с bothost: `curl $API_BASE_URL/api/health` |
 | Белый экран | `docker logs agrodesk_nginx`, пересобрать `nginx` |
-| «Пропали данные» | почти всегда был `down -v` — восстанавливайте из `./backups/` |
+| «Пропали данные» | почти всегда был `down -v` — восстанавливайте из `./backups/` (БД + uploads) |
 
-Восстановление БД:
+---
+
+## 8a. Бэкапы и восстановление (БД + uploads)
+
+Файлы (фото техники, чеки) лежат в Docker volume `uploads_data` → `/app/uploads` в `agrodesk_api`. Облако не используется.
+
+### Разовый бэкап
 
 ```bash
-./scripts/restore_db.sh                  # последний дамп
-./scripts/restore_db.sh backups/….sql    # конкретный; подтверждение: YES
+cd /opt/agrodesk
+./scripts/backup_db.sh          # backups/agrodesk_YYYYMMDD_HHMMSS.sql
+./scripts/backup_uploads.sh     # backups/uploads_YYYYMMDD_HHMMSS.tar.gz
 ```
+
+### Расписание (ежедневно 03:15)
+
+```bash
+chmod +x scripts/*.sh
+sudo ./scripts/install_backup_cron.sh
+tail -f /var/log/agrodesk-backup.log
+```
+
+Или systemd: скопировать `scripts/systemd/agrodesk-backup.*` → `systemctl enable --now agrodesk-backup.timer`.
+
+### Объём и частота
+
+```bash
+docker exec agrodesk_api du -sh /app/uploads
+docker exec agrodesk_api find /app/uploads -type f | wc -l
+```
+
+Типичный прирост — единицы–десятки МБ в неделю (фото 0.2–2 МБ). **Ежедневный** бэкап достаточен; при росте каталога до сотен МБ добавьте второй носитель.
+
+### Копия на второй диск / другой сервер
+
+В `.env.production`:
+
+```bash
+BACKUP_OFFSITE_TARGET=/mnt/usb-backups/agrodesk
+# или: BACKUP_OFFSITE_TARGET=user@other-host:/var/backups/agrodesk
+```
+
+`run_nightly_backup.sh` сам вызовет `sync_backups_offsite.sh` (rsync). Без переменной шаг пропускается.
+
+### Восстановление БД
+
+```bash
+cd /opt/agrodesk
+./scripts/restore_db.sh                       # последний .sql
+./scripts/restore_db.sh backups/agrodesk_….sql
+# введите YES
+```
+
+### Восстановление uploads
+
+```bash
+cd /opt/agrodesk
+./scripts/restore_uploads.sh                            # последний .tar.gz
+./scripts/restore_uploads.sh backups/uploads_….tar.gz
+# введите YES
+docker compose --env-file .env.production restart api
+```
+
+Порядок после `down -v` / потери volume: поднять стек → restore БД (если нужно) → restore uploads → `restart api` → проверить фото в UI.
+
+Подробности также в [DEPLOY.md](DEPLOY.md#бэкап-и-восстановление).
 
 ---
 
@@ -342,6 +409,9 @@ docker compose --env-file .env.production down
 
 # Бэкап
 ./scripts/backup_db.sh
+./scripts/backup_uploads.sh
+# или всё сразу (+ offsite, если задан BACKUP_OFFSITE_TARGET):
+./scripts/run_nightly_backup.sh
 ```
 
 ---

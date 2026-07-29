@@ -132,18 +132,24 @@ PYTHONPATH=. python scripts/backfill_shift_salary.py
 
 ## Деплой (production)
 
-Подробный мануал: **[docs/DEPLOY.md](docs/DEPLOY.md)**  
+Единственный канал: **одна VPS** (Docker Compose). Фронт — образ nginx, бэк — API + Postgres, файлы — volume `uploads_data`.  
+Обновление прода: [docs/PROD-UPDATE.md](docs/PROD-UPDATE.md). Первый деплой: [docs/DEPLOY.md](docs/DEPLOY.md).  
 Прод: http://213.183.104.142:3010
 
 ```bash
 cp .env.production.example .env.production   # заполните секреты
 chmod +x deploy.sh scripts/*.sh
-./deploy.sh
+./deploy.sh   # git pull → build → up → alembic upgrade head
 
 # Бэкап / восстановление БД
 ./scripts/backup_db.sh
 ./scripts/restore_db.sh
+./scripts/backup_uploads.sh
+./scripts/restore_uploads.sh
 ```
+
+CI (валидация, без деплоя на VPS): push/PR в `main` → `.github/workflows/ci.yml` (oxlint + Vitest); изменения в `backend/**` → `.github/workflows/backend.yml` (Postgres в CI + Alembic + pytest); PR → Playwright e2e.  
+Деплой на прод **только вручную** после зелёного CI: `ssh` → `cd /opt/agrodesk` → `./deploy.sh` (см. [docs/DEPLOY.md](docs/DEPLOY.md), [docs/PROD-UPDATE.md](docs/PROD-UPDATE.md)).
 
 Compose: PostgreSQL + API (+ alembic) + Telegram-бот + Nginx (порт **3010**).  
 Volumes: `postgres_data`, `uploads_data` — данные живут между пересборками.

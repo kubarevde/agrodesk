@@ -267,21 +267,32 @@ def test_manual_field_shift_creates_fact(
     employee_id = str(employees.json()[0]['id'])
 
     shift_day = date.today() + timedelta(days=17)
-    created = client.post(
-        '/api/shifts/manual',
-        headers=manager_headers,
-        json={
-            'employee_id': employee_id,
-            'date': shift_day.isoformat(),
-            'start_time': '08:00:00',
-            'end_time': '12:00:00',
-            'location_id': location_id,
-            'work_type_id': work_type['id'],
-            'field_id': field_id,
-            'description': 'Ручная полевая смена',
-        },
+    created = None
+    for offset in range(17, 45):
+        day = date.today() + timedelta(days=offset)
+        created = client.post(
+            '/api/shifts/manual',
+            headers=manager_headers,
+            json={
+                'employee_id': employee_id,
+                'date': day.isoformat(),
+                'start_time': '08:00:00',
+                'end_time': '12:00:00',
+                'location_id': location_id,
+                'work_type_id': work_type['id'],
+                'field_id': field_id,
+                'description': 'Ручная полевая смена',
+            },
+        )
+        if created.status_code == 201:
+            shift_day = day
+            break
+        if created.status_code == 409:
+            continue
+        break
+    assert created is not None and created.status_code == 201, (
+        created.text if created is not None else 'no attempt'
     )
-    assert created.status_code == 201, created.text
     shift_id = created.json()['id']
 
     plans = client.get(
