@@ -9,6 +9,7 @@ import {
   isCalendarFact,
   planFieldsLabel,
 } from '../utils'
+import { PlanWeatherAdvisoryBadge } from './PlanWeatherAdvisoryBadge'
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
@@ -103,6 +104,14 @@ export function DesktopMonthGrid({
                       <p className="truncate text-[9px] text-muted-foreground">
                         {planFieldsLabel(plan)}
                       </p>
+                      {plan.advisories.length > 0 ? (
+                        <div className="mt-0.5">
+                          <PlanWeatherAdvisoryBadge
+                            advisories={plan.advisories}
+                            compact
+                          />
+                        </div>
+                      ) : null}
                     </button>
                   )
                 })}

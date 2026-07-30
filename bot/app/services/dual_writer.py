@@ -9,6 +9,7 @@ from datetime import date
 from typing import TYPE_CHECKING, Any
 
 from app.config import settings
+from app.services.api_client import ShiftOpResult
 
 if TYPE_CHECKING:
     from app.services.api_client import ApiClient
@@ -40,7 +41,7 @@ class DualWriter:
         start_time_str: str,
         field_id: str | None = None,
         agro_plan_id: str | None = None,
-    ) -> dict | None:
+    ) -> ShiftOpResult:
         result = await self.api.open_shift(
             tg_id,
             location_id,
@@ -51,8 +52,8 @@ class DualWriter:
             field_id=field_id,
             agro_plan_id=agro_plan_id,
         )
-        if result is None:
-            return None
+        if not result.ok or result.data is None:
+            return result
 
         if self.enabled and self.sheets is not None:
             try:
@@ -87,10 +88,10 @@ class DualWriter:
         description: str,
         employee: dict[str, Any],
         end_time_str: str,
-    ) -> dict | None:
+    ) -> ShiftOpResult:
         result = await self.api.close_shift(tg_id, description)
-        if result is None:
-            return None
+        if not result.ok or result.data is None:
+            return result
 
         if self.enabled and self.sheets is not None:
             try:
@@ -105,8 +106,8 @@ class DualWriter:
                         end_time=end_time_str,
                         description=description,
                         comment='',
-                        duration_raw=int(result.get('duration_raw', 0)),
-                        duration_rounded=float(result.get('duration_rounded', 0)),
+                        duration_raw=int(result.data.get('duration_raw', 0)),
+                        duration_rounded=float(result.data.get('duration_rounded', 0)),
                     )
             except Exception as e:
                 logger.warning('[SheetsMirror] close_shift failed: %s', e)
@@ -127,7 +128,7 @@ class DualWriter:
         start_time: str,
         end_time: str,
         description: str,
-    ) -> dict | None:
+    ) -> ShiftOpResult:
         result = await self.api.open_shift_for_employee(
             admin_tg_id,
             employee_id,
@@ -138,8 +139,8 @@ class DualWriter:
             end_time,
             description,
         )
-        if result is None:
-            return None
+        if not result.ok or result.data is None:
+            return result
 
         if self.enabled and self.sheets is not None:
             try:
@@ -175,10 +176,10 @@ class DualWriter:
         description: str,
         employee: dict[str, Any],
         end_time_str: str,
-    ) -> dict | None:
+    ) -> ShiftOpResult:
         result = await self.api.close_shift_for_employee(admin_tg_id, shift_id, description)
-        if result is None:
-            return None
+        if not result.ok or result.data is None:
+            return result
 
         if self.enabled and self.sheets is not None:
             try:
@@ -197,8 +198,8 @@ class DualWriter:
                         end_time=end_time_str,
                         description=description,
                         comment='',
-                        duration_raw=int(result.get('duration_raw', 0)),
-                        duration_rounded=float(result.get('duration_rounded', 0)),
+                        duration_raw=int(result.data.get('duration_raw', 0)),
+                        duration_rounded=float(result.data.get('duration_rounded', 0)),
                     )
             except Exception as e:
                 logger.warning('[SheetsMirror] close_shift_for_employee failed: %s', e)

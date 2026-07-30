@@ -8,12 +8,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { ActiveShiftLiveDuration } from '@/features/dashboard/components/ActiveShiftLiveDuration'
 import { useDashboardStats } from '@/features/dashboard/hooks'
+import { useFields } from '@/features/fields/hooks'
 import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
 import { myShiftHelp } from '@/features/help/content'
 import { useUserPermissions } from '@/features/settings/permissionsHooks'
 import { OpenShiftModal } from '@/features/worktime/OpenShiftModal'
-import { formatShiftTime } from '@/features/worktime/utils'
+import { useShifts } from '@/features/worktime/hooks'
+import {
+  useEmployees,
+  useEquipment,
+  useLocations,
+  useWorkTypes,
+} from '@/features/worktime/referenceHooks'
+import { formatShiftTime, getDefaultMonthRange } from '@/features/worktime/utils'
 import { hasAction, hasSection } from '@/lib/permissionActions'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
+import type { DashboardActiveShift } from '@/types'
 
 const QUICK_LINK_DEFS = [
   { to: '/dashboard', section: 'dashboard', label: 'Дашборд', icon: LayoutDashboard },
@@ -24,6 +34,7 @@ const QUICK_LINK_DEFS = [
 export function ManagerMyShiftView() {
   const { data: user } = useCurrentUser()
   const { data: perms } = useUserPermissions()
+  const isOnline = useOnlineStatus()
   const sections = perms?.allowedSections
   const actions = perms?.actions
   const role = user?.role
@@ -32,12 +43,35 @@ export function ManagerMyShiftView() {
   const canOpenOwn = hasAction(actions, 'shift.open_own', role)
   const canOpenOthers = hasAction(actions, 'shift.open_for_others', role)
 
+  // Warm Dexie while online so offline open-shift + team list work later.
+  useLocations()
+  useWorkTypes()
+  useEquipment()
+  useEmployees()
+  useFields()
+  const monthRange = useMemo(() => getDefaultMonthRange(), [])
+  const { data: cachedOpenShifts = [] } = useShifts(
+    { from: monthRange.from, to: monthRange.to, status: 'open' },
+    { enabled: Boolean(user) },
+  )
+
   const { data: stats, isLoading } = useDashboardStats({
-    enabled: Boolean(canSeeTeamBoard),
+    enabled: Boolean(canSeeTeamBoard) && isOnline,
   })
   const [openOwnOpen, setOpenOwnOpen] = useState(false)
   const [openOtherOpen, setOpenOtherOpen] = useState(false)
-  const activeShifts = stats?.activeShifts ?? []
+
+  const activeShifts: DashboardActiveShift[] = useMemo(() => {
+    if (stats?.activeShifts?.length) return stats.activeShifts
+    return cachedOpenShifts.map((shift) => ({
+      id: shift.id,
+      employeeName: shift.employeeName,
+      location: shift.location,
+      startTime: shift.startTime,
+      date: shift.date,
+      durationMinutes: shift.durationRounded ?? shift.durationRaw ?? 0,
+    }))
+  }, [stats?.activeShifts, cachedOpenShifts])
 
   const quickLinks = useMemo(
     () =>
@@ -53,6 +87,7 @@ export function ManagerMyShiftView() {
           {canSeeTeamBoard
             ? 'Смена и быстрые действия'
             : 'Открытие и закрытие собственной смены'}
+          {user?.employeeCode ? ` · ${user.employeeCode}` : ''}
         </p>
       </div>
 
@@ -88,16 +123,18 @@ export function ManagerMyShiftView() {
             <CardTitle className="text-base font-semibold">Кто сейчас работает</CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {isLoading && isOnline ? (
               <SkeletonTable rows={3} columns={3} />
             ) : activeShifts.length === 0 ? (
               <EmptyState
                 icon={Users}
                 title="Сейчас никто не работает"
                 description={
-                  canOpenOthers
-                    ? 'Откройте смену за сотрудника'
-                    : 'Откройте свою смену, когда начнёте работу'
+                  !isOnline
+                    ? 'Офлайн: список из кэша пуст. Откройте приложение онлайн, чтобы обновить.'
+                    : canOpenOthers
+                      ? 'Откройте смену за сотрудника'
+                      : 'Откройте свою смену, когда начнёте работу'
                 }
                 action={
                   canOpenOthers

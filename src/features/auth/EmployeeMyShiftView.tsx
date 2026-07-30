@@ -58,7 +58,10 @@ export function EmployeeMyShiftView({ user }: EmployeeMyShiftViewProps) {
     <div className="mx-auto w-full max-w-lg space-y-8">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Моя смена</h1>
-        <p className="text-sm text-muted-foreground">{user.fullName}</p>
+        <p className="text-sm text-muted-foreground">
+          {user.fullName}
+          {user.employeeCode ? ` · ${user.employeeCode}` : ''}
+        </p>
       </div>
 
       <GuideNudgeBanner />

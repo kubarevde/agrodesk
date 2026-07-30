@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { api } from '@/lib/api'
+import { resetLocalDatabase } from '@/lib/db'
 import { currentUserFromApi } from '@/lib/transformers'
 import {
   AUTH_PERMISSIONS_QUERY_KEY,
@@ -82,6 +83,13 @@ export function useLogin() {
       return data
     },
     onSuccess: async (data) => {
+      // Drop previous account IndexedDB (EMP001 → EMP000) before caching the new session.
+      try {
+        await resetLocalDatabase()
+      } catch {
+        // Dexie wipe is best-effort; token/user cache still overwrites below.
+      }
+      queryClient.clear()
       localStorage.setItem(TOKEN_KEY, data.access_token)
       const user = currentUserFromApi(data.employee)
       cacheCurrentUser(user)
@@ -103,7 +111,9 @@ export function useLogout() {
   return () => {
     clearAuthStorage()
     queryClient.clear()
-    void navigate({ to: '/login' })
+    void resetLocalDatabase().finally(() => {
+      void navigate({ to: '/login' })
+    })
   }
 }
 

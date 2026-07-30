@@ -15,7 +15,7 @@ from aiogram.types import (
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.keyboards.main_menu import admin_menu_keyboard, cancel_keyboard
-from app.services.api_client import ApiClient
+from app.services.api_client import ApiClient, shift_op_user_message
 from app.services.dual_writer import DualWriter
 from app.states.workday import AdminAddShift, AdminBroadcast, AdminCloseShift
 
@@ -870,7 +870,7 @@ async def admin_add_shift_comment(
 
     await state.clear()
 
-    if result:
+    if result.ok:
         await message.answer(
             f"✅ Смена добавлена\n\n"
             f"👤 {employee_display_name(employee)}\n"
@@ -880,11 +880,12 @@ async def admin_add_shift_comment(
             f"🕐 {human_dt(start_iso)} → {human_dt(end_iso)}",
             reply_markup=admin_menu_keyboard(),
         )
-    else:
-        await message.answer(
-            "❌ Не удалось добавить смену. Проверьте данные и попробуйте снова.",
-            reply_markup=admin_menu_keyboard(),
-        )
+        return
+
+    await message.answer(
+        shift_op_user_message(result, action='добавить'),
+        reply_markup=admin_menu_keyboard(),
+    )
 
 
 @router.message(F.text == "✅ Закрыть смену за сотрудника")
@@ -1103,7 +1104,7 @@ async def admin_close_shift_comment(
     )
     await state.clear()
 
-    if result:
+    if result.ok:
         end_display = human_dt(data.get("end_time_iso") or data.get("end_time") or "")
         await message.answer(
             f"✅ Смена закрыта\n\n"
@@ -1111,8 +1112,9 @@ async def admin_close_shift_comment(
             f"🕐 Конец: {end_display}",
             reply_markup=admin_menu_keyboard(),
         )
-    else:
-        await message.answer(
-            "❌ Не удалось закрыть смену. Попробуйте снова.",
-            reply_markup=admin_menu_keyboard(),
-        )
+        return
+
+    await message.answer(
+        shift_op_user_message(result, action='закрыть'),
+        reply_markup=admin_menu_keyboard(),
+    )

@@ -6,11 +6,14 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
+import { primaryAdvisoryCode, worstAdvisorySeverity } from '../advisoryUi'
 import type { WeatherAdvisory } from '../types'
 
 type PlanWeatherAdvisoryBadgeProps = {
   advisories: WeatherAdvisory[]
   className?: string
+  /** Shorter label for month-grid chips. */
+  compact?: boolean
 }
 
 function advisoryIcon(code: string) {
@@ -22,31 +25,39 @@ function advisoryIcon(code: string) {
 export function PlanWeatherAdvisoryBadge({
   advisories,
   className,
+  compact = false,
 }: PlanWeatherAdvisoryBadgeProps) {
   if (!advisories.length) return null
 
-  const worst = advisories.some((a) => a.severity === 'warning') ? 'warning' : 'info'
-  const Icon = advisoryIcon(advisories[0]?.code ?? '')
+  const worst = worstAdvisorySeverity(advisories) ?? 'info'
+  const Icon = advisoryIcon(primaryAdvisoryCode(advisories) ?? '')
+  const label = compact
+    ? worst === 'warning'
+      ? 'Риск'
+      : 'Погода'
+    : 'Погодное предупреждение'
 
   return (
     <Popover>
       <PopoverTrigger
-        className={cn('inline-flex', className)}
+        className={cn('inline-flex max-w-full', className)}
         onClick={(e) => e.stopPropagation()}
-        aria-label="Погодные предупреждения"
+        aria-label="Погодное предупреждение"
+        title="Погодное предупреждение"
       >
         <Badge
           variant="outline"
           className={cn(
-            'gap-1 font-normal',
+            'max-w-full gap-1 font-medium',
+            compact ? 'px-1.5 py-0 text-[10px]' : 'text-xs',
             worst === 'warning'
-              ? 'border-destructive/40 bg-destructive/10 text-destructive'
-              : 'border-primary/30 bg-primary/10 text-primary',
+              ? 'border-destructive/50 bg-destructive/15 text-destructive'
+              : 'border-primary/40 bg-primary/10 text-primary',
           )}
         >
-          <Icon className="size-3.5 shrink-0" />
-          Погода
-          {advisories.length > 1 ? ` · ${advisories.length}` : ''}
+          <Icon className={cn('shrink-0', compact ? 'size-3' : 'size-3.5')} />
+          <span className="truncate">{label}</span>
+          {!compact && advisories.length > 1 ? ` · ${advisories.length}` : null}
         </Badge>
       </PopoverTrigger>
       <PopoverContent
@@ -54,18 +65,31 @@ export function PlanWeatherAdvisoryBadge({
         className="w-80 gap-3 p-3"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="text-sm font-medium text-foreground">Погодные риски</p>
+        <p className="text-sm font-medium text-foreground">Погодное предупреждение</p>
+        <p className="text-xs text-muted-foreground">
+          По прогнозу на даты плана (заморозки, осадки, ветер при опрыскивании).
+        </p>
         <ul className="space-y-2">
           {advisories.map((item) => {
             const ItemIcon = advisoryIcon(item.code)
             return (
               <li
                 key={`${item.code}-${item.date}-${item.message}`}
-                className="space-y-1"
+                className="space-y-1 rounded-md border border-border/60 bg-muted/20 p-2"
               >
-                <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-foreground">
                   <ItemIcon className="size-3.5 shrink-0 text-muted-foreground" />
                   {item.title}
+                  <span
+                    className={cn(
+                      'rounded px-1 text-[10px] font-medium uppercase',
+                      item.severity === 'warning'
+                        ? 'bg-destructive/15 text-destructive'
+                        : 'bg-primary/10 text-primary',
+                    )}
+                  >
+                    {item.severity === 'warning' ? 'важно' : 'сведения'}
+                  </span>
                   <span className="text-xs font-normal text-muted-foreground">
                     {item.date}
                   </span>

@@ -26,6 +26,7 @@ export {
   cacheCurrentUser,
   clearAuthStorage,
   getLoginHref,
+  readAccessTokenSubject,
   readCachedCurrentUser,
 } from '@/features/auth/storage'
 
@@ -106,8 +107,12 @@ export async function fetchUserPermissions(): Promise<UserPermissionsData> {
     accessGroupId: data.access_group_id ?? null,
     accessGroupName: data.access_group_name ?? null,
   }
-  if (result.role === 'manager' || result.role === 'employee' || result.role === 'admin') {
-    cacheUserPermissions(result.role, result.allowedSections, result.actions)
+  const userId = readCachedCurrentUser()?.id
+  if (
+    userId &&
+    (result.role === 'manager' || result.role === 'employee' || result.role === 'admin')
+  ) {
+    cacheUserPermissions(userId, result.role, result.allowedSections, result.actions)
   }
   return result
 }
@@ -165,7 +170,9 @@ export async function fetchAllowedSections(queryClient: QueryClient): Promise<st
       return Object.keys(SECTION_ROUTE_MAP)
     }
 
-    const cachedPerms = cachedRole ? readCachedUserPermissions(cachedRole) : null
+    const userId = cachedUser?.id
+    const cachedPerms =
+      userId && cachedRole ? readCachedUserPermissions(userId, cachedRole) : null
     if (cachedRole && cachedPerms) {
       queryClient.setQueryData(AUTH_PERMISSIONS_QUERY_KEY, {
         role: cachedRole,
@@ -177,12 +184,12 @@ export async function fetchAllowedSections(queryClient: QueryClient): Promise<st
       return cachedPerms.allowedSections
     }
 
-    if (cachedRole === 'employee') {
-      return readCachedAllowedSections('employee') ?? [...DEFAULT_EMPLOYEE_SECTIONS]
+    if (cachedRole === 'employee' && userId) {
+      return readCachedAllowedSections(userId, 'employee') ?? [...DEFAULT_EMPLOYEE_SECTIONS]
     }
 
-    if (cachedRole === 'manager') {
-      return readCachedAllowedSections('manager') ?? Object.keys(SECTION_ROUTE_MAP)
+    if (cachedRole === 'manager' && userId) {
+      return readCachedAllowedSections(userId, 'manager') ?? Object.keys(SECTION_ROUTE_MAP)
     }
 
     return []

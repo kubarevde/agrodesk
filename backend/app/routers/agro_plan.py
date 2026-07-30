@@ -142,6 +142,12 @@ async def plans_to_responses(
     return [plan_to_response(plan, by_id.get(plan.id)) for plan in plans]
 
 
+async def plan_to_response_with_advisories(plan: AgroPlan) -> AgroPlanResponse:
+    """Single-plan response including weather advisories (additive, online weather)."""
+    items = await compute_plan_advisories(plan)
+    return plan_to_response(plan, advisories=items)
+
+
 async def get_plan_or_404(db: AsyncSession, plan_id: UUID, org_id: UUID) -> AgroPlan:
     result = await db.execute(
         select(AgroPlan)
@@ -386,7 +392,7 @@ async def create_agro_plan(
             ) from exc
         raise
 
-    response = plan_to_response(await get_plan_or_404(db, plan.id, org_id))
+    response = await plan_to_response_with_advisories(await get_plan_or_404(db, plan.id, org_id))
     logger.info('POST /api/agro-plan created id=%s fields=%s', plan.id, response.field_ids)
     return response
 
@@ -463,7 +469,7 @@ async def update_agro_plan(
             ) from exc
         raise
 
-    return plan_to_response(await get_plan_or_404(db, plan.id, org_id))
+    return await plan_to_response_with_advisories(await get_plan_or_404(db, plan.id, org_id))
 
 
 @router.post('/{plan_id}/close', response_model=AgroPlanResponse)

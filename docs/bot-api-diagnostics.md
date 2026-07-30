@@ -67,7 +67,10 @@ docker logs --tail=200 agrodesk_api | grep -E 'bot-token|/api/shifts|403|500'
 | `bot-token network error` / `ConnectError` | Нет сети / неверный URL | «Не удалось связаться…» / теперь «Нет связи с API» |
 | `bot-token forbidden` / 403 | Секрет не совпал | «Ошибка конфигурации бота (секрет…)» |
 | `404` на bot-token | Telegram ID не привязан | «Вы не привязаны…» |
-| `open_shift status=4xx` | API доступен, отказ бизнес-логики | после фикса — «связь есть, сервер отклонил» |
+| `open_shift status=4xx` / `kind=validation` | API доступен, отказ бизнес-логики | текст с `detail` API (поле, права, конфликт) |
+| `kind=unreachable` | Нет ответа HTTP | «Нет связи с API» |
+| `kind=forbidden` | 401/403 | «Нет прав…» + detail |
+| `kind=server` | 5xx | «Сервер временно недоступен» |
 
 ---
 
@@ -124,10 +127,10 @@ docker exec agrodesk_bot python -c "import os,urllib.request; t=os.environ['BOT_
 
 1. `bot/Dockerfile` — установлен `curl` для `docker exec … curl http://api:8000/api/health`.
 2. `docker-compose.yml` — `BOT_INTERNAL_SECRET` обязателен; `API_BASE_URL` через `BOT_API_BASE_URL` с дефолтом `http://api:8000`.
-3. `bot/app/handlers/work_start.py` — при неудачном `open_shift` сначала `health_check`: явное **«Нет связи с API»** vs **«связь есть, сервер отклонил»**.
-4. `scripts/diagnose_bot_api.sh` — однокомандная диагностика на VPS.
-
-Модель/рефакторинг бота не делались.
+3. `bot/app/services/api_client.py` — `ShiftOpResult` + классификация 401/403/409/4xx/5xx/сети; payload `POST /api/shifts` без лишних `null`; `get_active_shift` фильтрует **свою** смену (`employee_id`).
+4. Сообщения пользователю различают **нет связи / 5xx** и **ошибку данных/прав** (больше нет общего «Проверьте API»).
+5. `scripts/diagnose_bot_api.sh` — однокомандная диагностика на VPS.
+6. Unit-тесты: `bot/tests/test_api_client.py`.
 
 ---
 

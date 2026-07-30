@@ -11,14 +11,14 @@ import {
   type ShiftCreateInput,
 } from '@/lib/transformers'
 
-export function buildLocalOpenShift(
+export async function buildLocalOpenShift(
   payload: ShiftCreateInput,
   user: CurrentUser | undefined,
   locations: Location[],
   workTypes: WorkType[],
   equipment: Equipment[],
   idempotencyKey: string,
-): Shift {
+): Promise<Shift> {
   const now = new Date()
   const locationName =
     locations.find((item) => item.id === payload.locationId)?.name ?? payload.locationId
@@ -28,14 +28,25 @@ export function buildLocalOpenShift(
     ? (equipment.find((item) => item.id === payload.equipmentId)?.name ?? '')
     : ''
 
+  const targetId = payload.employeeId ?? user?.id
+  let employeeCode = user?.employeeCode ?? ''
+  let employeeName = user?.fullName ?? ''
+  if (targetId && targetId !== user?.id) {
+    const roster = await db.employees.get(targetId)
+    if (roster) {
+      employeeCode = roster.employeeCode || employeeCode
+      employeeName = roster.employeeName || employeeName
+    }
+  }
+
   return {
     id: idempotencyKey,
     date: format(now, 'dd.MM.yyyy'),
     startTime: format(now, 'HH:mm:ss'),
     endTime: null,
-    employeeId: payload.employeeId ?? user?.id,
-    employeeCode: user?.employeeCode ?? '',
-    employeeName: user?.fullName ?? '',
+    employeeId: targetId,
+    employeeCode,
+    employeeName,
     telegramId: '',
     location: locationName,
     workType: workTypeName,
@@ -69,8 +80,8 @@ function resolveOfflineActions(
   user: CurrentUser | undefined,
 ): string[] | undefined {
   if (actions != null) return actions
-  if (!user?.role) return undefined
-  return readCachedUserPermissions(user.role)?.actions
+  if (!user?.role || !user.id) return undefined
+  return readCachedUserPermissions(user.id, user.role)?.actions
 }
 
 export async function enqueueCreateShiftOffline(
@@ -103,7 +114,7 @@ export async function enqueueCreateShiftOffline(
   const resolvedEquipment = toReferenceEquipment(
     equipment.length > 0 ? equipment : await db.equipment.toArray(),
   )
-  const localShift = buildLocalOpenShift(
+  const localShift = await buildLocalOpenShift(
     payload,
     user,
     resolvedLocations,

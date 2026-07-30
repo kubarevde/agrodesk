@@ -212,3 +212,149 @@ def test_missing_forecast_day_yields_empty():
         forecast_by_date={},
     )
     assert items == []
+
+
+def test_advisory_titles_match_ui_copy():
+    """Titles shown in PlanWeatherAdvisoryBadge must stay stable for UX."""
+    frost = build_advisories_for_plan(
+        planned_date=date(2026, 7, 22),
+        planned_end_date=None,
+        work_type_name='Посев',
+        forecast_by_date={
+            '2026-07-22': ForecastDayMetrics(
+                date='2026-07-22',
+                temp_min=-0.1,
+                temp_max=5.0,
+                precipitation_mm=0.0,
+            )
+        },
+    )
+    assert frost[0].title == 'Заморозки'
+    assert frost[0].severity == 'warning'
+
+    rain_warn = build_advisories_for_plan(
+        planned_date=date(2026, 7, 22),
+        planned_end_date=None,
+        work_type_name='Посев',
+        forecast_by_date={
+            '2026-07-22': ForecastDayMetrics(
+                date='2026-07-22',
+                temp_min=10.0,
+                temp_max=16.0,
+                precipitation_mm=10.0,
+            )
+        },
+    )
+    assert any(a.title == 'Сильные осадки' and a.severity == 'warning' for a in rain_warn)
+
+    rain_info = build_advisories_for_plan(
+        planned_date=date(2026, 7, 22),
+        planned_end_date=None,
+        work_type_name='Посев',
+        forecast_by_date={
+            '2026-07-22': ForecastDayMetrics(
+                date='2026-07-22',
+                temp_min=10.0,
+                temp_max=16.0,
+                precipitation_mm=5.0,
+            )
+        },
+    )
+    assert any(a.title == 'Осадки' and a.severity == 'info' for a in rain_info)
+
+    wind = build_advisories_for_plan(
+        planned_date=date(2026, 7, 22),
+        planned_end_date=None,
+        work_type_name='Опрыскивание',
+        forecast_by_date={
+            '2026-07-22': ForecastDayMetrics(
+                date='2026-07-22',
+                temp_min=12.0,
+                temp_max=20.0,
+                precipitation_mm=0.0,
+                wind_speed_ms=7.0,
+            )
+        },
+    )
+    assert any(a.title == 'Сильный ветер' and a.severity == 'warning' for a in wind)
+
+
+def test_threshold_boundaries_exact():
+    """Boundary values must match documented thresholds used by the calendar UI."""
+    from app.services.weather.advisories import (
+        FROST_TEMP_C,
+        HEAVY_RAIN_MM,
+        MODERATE_RAIN_MM,
+        MODERATE_WIND_MS,
+        STRONG_WIND_MS,
+    )
+
+    assert FROST_TEMP_C == 0.0
+    assert HEAVY_RAIN_MM == 10.0
+    assert MODERATE_RAIN_MM == 5.0
+    assert STRONG_WIND_MS == 7.0
+    assert MODERATE_WIND_MS == 5.0
+
+    # Exactly 0°C — no frost
+    assert (
+        build_advisories_for_plan(
+            planned_date=date(2026, 7, 23),
+            planned_end_date=None,
+            work_type_name='Посев',
+            forecast_by_date={
+                '2026-07-23': ForecastDayMetrics(
+                    date='2026-07-23',
+                    temp_min=0.0,
+                    precipitation_mm=0.0,
+                )
+            },
+        )
+        == []
+    )
+
+    # Just below rain info threshold — empty
+    assert (
+        build_advisories_for_plan(
+            planned_date=date(2026, 7, 23),
+            planned_end_date=None,
+            work_type_name='Посев',
+            forecast_by_date={
+                '2026-07-23': ForecastDayMetrics(
+                    date='2026-07-23',
+                    temp_min=8.0,
+                    precipitation_mm=4.9,
+                )
+            },
+        )
+        == []
+    )
+
+    # Just below spray wind info — empty
+    assert (
+        build_advisories_for_plan(
+            planned_date=date(2026, 7, 23),
+            planned_end_date=None,
+            work_type_name='Опрыскивание',
+            forecast_by_date={
+                '2026-07-23': ForecastDayMetrics(
+                    date='2026-07-23',
+                    temp_min=12.0,
+                    precipitation_mm=0.0,
+                    wind_speed_ms=4.9,
+                )
+            },
+        )
+        == []
+    )
+
+
+def test_should_compute_advisories_gates():
+    from types import SimpleNamespace
+
+    from app.services.weather.plan_advisories import should_compute_advisories
+
+    assert should_compute_advisories(SimpleNamespace(entry_kind='plan', status='planned'))
+    assert should_compute_advisories(SimpleNamespace(entry_kind='plan', status='in_progress'))
+    assert not should_compute_advisories(SimpleNamespace(entry_kind='fact', status='planned'))
+    assert not should_compute_advisories(SimpleNamespace(entry_kind='plan', status='done'))
+    assert not should_compute_advisories(SimpleNamespace(entry_kind='plan', status='cancelled'))
