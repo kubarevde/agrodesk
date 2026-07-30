@@ -114,7 +114,9 @@ export function useCreateShift() {
         const perms = queryClient.getQueryData<UserPermissionsData>(AUTH_PERMISSIONS_QUERY_KEY)
         const cachedActions =
           perms?.actions ??
-          (user?.role ? readCachedUserPermissions(user.role)?.actions : undefined)
+          (user?.id && user?.role
+            ? readCachedUserPermissions(user.id, user.role)?.actions
+            : undefined)
         const localShift = await enqueueCreateShiftOffline(
           payload,
           user,

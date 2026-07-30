@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { MapView, type MapMarker, type MapPolygon } from '@/components/shared/MapView'
+import { MapLocationSearch, type MapFlyTarget } from './MapLocationSearch'
 import { cropMapColor } from '../types'
 import type { FieldResponse } from '../types'
 
@@ -7,6 +9,7 @@ type FieldsMapProps = {
 }
 
 export function FieldsMap({ fields }: FieldsMapProps) {
+  const [flyTo, setFlyTo] = useState<MapFlyTarget | null>(null)
   const markers: MapMarker[] = []
   const polygons: MapPolygon[] = []
 
@@ -70,15 +73,23 @@ export function FieldsMap({ fields }: FieldsMapProps) {
         : [51.5, 36.5]
 
   return (
-    <MapView
-      height="min(70vh, 600px)"
-      className="min-h-[280px]"
-      center={center}
-      zoom={12}
-      markers={coloredMarkers}
-      polygons={polygons}
-      defaultBasemap="satellite"
-      fitToData
-    />
+    <div className="space-y-3">
+      <MapLocationSearch
+        className="max-w-xl"
+        onSelect={setFlyTo}
+        hint="Начните с поиска ближайшего населённого пункта — карта переместится туда"
+      />
+      <MapView
+        height="min(70vh, 600px)"
+        className="min-h-[280px]"
+        center={center}
+        zoom={12}
+        markers={coloredMarkers}
+        polygons={polygons}
+        defaultBasemap="satellite"
+        fitToData
+        flyTo={flyTo}
+      />
+    </div>
   )
 }

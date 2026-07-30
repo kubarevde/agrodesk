@@ -3,6 +3,7 @@ import { format, isSameMonth, isToday } from 'date-fns'
 import { DayWeatherBadge } from '@/features/weather/components/DayWeatherBadge'
 import type { WeatherDay } from '@/features/weather/types'
 import { cn } from '@/lib/utils'
+import { dayAdvisorySeverity } from '../advisoryUi'
 import type { AgroPlan } from '../types'
 import { isCalendarFact } from '../utils'
 
@@ -73,18 +74,20 @@ export function MobileMonthGrid({
           const inMonth = isSameMonth(day, month)
           const hasFact = dayPlans.some((plan) => isCalendarFact(plan))
           const hasPlan = dayPlans.some((plan) => !isCalendarFact(plan))
+          const advisorySeverity = inMonth ? dayAdvisorySeverity(dayPlans) : null
 
           return (
             <button
               key={key}
               type="button"
-              aria-label={`${format(day, 'd MMMM')}${count ? `, задач: ${count}` : ''}${weather ? `, ${weather.weatherLabel} ${Math.round(weather.tempMax)}°` : ''}`}
+              aria-label={`${format(day, 'd MMMM')}${count ? `, задач: ${count}` : ''}${weather ? `, ${weather.weatherLabel} ${Math.round(weather.tempMax)}°` : ''}${advisorySeverity ? ', погодное предупреждение' : ''}`}
               className={cn(
                 'flex aspect-square min-h-0 flex-col items-center justify-start gap-0 border-b border-r border-border p-0.5',
                 'focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 !inMonth && 'bg-muted/25',
                 isToday(day) && 'bg-primary/10',
                 count > 0 && inMonth && 'bg-surface',
+                advisorySeverity === 'warning' && inMonth && 'ring-1 ring-inset ring-destructive/40',
               )}
               onClick={() => onSelectDay(key)}
             >
@@ -101,13 +104,23 @@ export function MobileMonthGrid({
 
               {inMonth ? <DayWeatherBadge day={weather} compact className="mt-0.5" /> : null}
 
-              {count > 0 ? (
+              {count > 0 || advisorySeverity ? (
                 <span className="mt-0.5 flex items-center gap-0.5">
                   {hasPlan ? (
                     <span className="size-1.5 rounded-full bg-primary" aria-hidden />
                   ) : null}
                   {hasFact ? (
                     <span className="size-1.5 rounded-full bg-success" aria-hidden />
+                  ) : null}
+                  {advisorySeverity ? (
+                    <span
+                      className={cn(
+                        'size-1.5 rounded-full',
+                        advisorySeverity === 'warning' ? 'bg-destructive' : 'bg-primary',
+                      )}
+                      title="Погодное предупреждение"
+                      aria-hidden
+                    />
                   ) : null}
                   {count > 1 ? (
                     <span className="text-[9px] font-medium tabular-nums text-muted-foreground">

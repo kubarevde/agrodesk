@@ -5,7 +5,7 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
 
-from app.services.api_client import AccessError, ApiClient, access_message
+from app.services.api_client import AccessError, ApiClient, access_message, shift_op_user_message
 from app.services.dual_writer import DualWriter
 from app.states.workday import StartWork
 from app.utils.menu import menu_for_user
@@ -407,30 +407,23 @@ async def work_start_comment(
 
     await state.clear()
 
-    if result:
+    if result.ok:
         geo_info = 'есть' if lat is not None and lng is not None else 'нет'
+        field_line = ''
+        field_name = data.get('field_name')
+        if field_name:
+            field_line = f'\n🌾 {field_name}'
         await message.answer(
             f'✅ Начало работы зафиксировано!\n'
             f'📍 {location_name}\n'
-            f'🔧 {work_type_name}\n'
+            f'🔧 {work_type_name}{field_line}\n'
             f'🚜 {equipment_name or "—"}\n'
             f'📌 Геометка: {geo_info}',
             reply_markup=menu_for_user(is_admin),
         )
-    else:
-        ok, detail = await api.health_check()
-        if not ok:
-            await message.answer(
-                '❌ Нет связи с API АгроДеск.\n'
-                f'Диагностика: {detail}\n'
-                'Сообщите администратору (проверьте API_BASE_URL и логи бота).',
-                reply_markup=menu_for_user(is_admin),
-            )
-        else:
-            await message.answer(
-                '❌ Не удалось открыть смену.\n'
-                'Связь с API есть, но сервер отклонил запрос '
-                '(права, уже открытая смена, валидация).\n'
-                'Повторите позже или откройте смену в веб-приложении.',
-                reply_markup=menu_for_user(is_admin),
-            )
+        return
+
+    await message.answer(
+        shift_op_user_message(result, action='открыть'),
+        reply_markup=menu_for_user(is_admin),
+    )

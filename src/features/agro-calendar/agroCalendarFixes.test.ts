@@ -130,6 +130,43 @@ describe('agro plan multi-field mapping', () => {
     expect(single.fieldIds).toEqual(['c'])
   })
 
+  it('maps weather advisories from API and defaults to empty offline-safe list', () => {
+    const withItems = planFromApi({
+      id: 'adv-1',
+      field_id: 'a',
+      work_type_id: 'w',
+      work_type_name: 'Опрыскивание',
+      planned_date: '2026-07-17',
+      status: 'planned',
+      advisories: [
+        {
+          code: 'frost',
+          severity: 'warning',
+          title: 'Заморозки',
+          message: 'Ниже 0°C',
+          date: '2026-07-17',
+          temp_min: -2,
+          temp_max: 3,
+          precipitation_mm: 0,
+          wind_speed_ms: null,
+        },
+      ],
+    })
+    expect(withItems.advisories).toHaveLength(1)
+    expect(withItems.advisories[0]?.title).toBe('Заморозки')
+    expect(withItems.advisories[0]?.tempMin).toBe(-2)
+
+    const missing = planFromApi({
+      id: 'adv-2',
+      field_id: 'a',
+      work_type_id: 'w',
+      work_type_name: 'Работа',
+      planned_date: '2026-07-17',
+      status: 'planned',
+    })
+    expect(missing.advisories).toEqual([])
+  })
+
   it('create payload sends field_ids', () => {
     const body = planCreateToApi({
       fieldIds: ['a', 'b'],

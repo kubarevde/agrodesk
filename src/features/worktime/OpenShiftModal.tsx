@@ -245,6 +245,11 @@ export function OpenShiftModal({
               Откройте «Моя смена» один раз с интернетом — списки сохранятся на устройство —
               затем снова попробуйте без сети.
             </div>
+          ) : typeof navigator !== 'undefined' && !navigator.onLine ? (
+            <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
+              Нет сети — смена сохранится на устройстве и отправится при появлении связи
+              (жёлтый счётчик в шапке).
+            </div>
           ) : null}
           {canSelectEmployee ? (
             <div className="space-y-2">

@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
 import {
   AttributionControl,
@@ -54,6 +54,13 @@ type MapViewProps = {
   fitToData?: boolean
   /** Show schema/satellite layer switcher (default true). */
   showBasemapControl?: boolean
+  /** Optional one-shot fly/fit from place search. */
+  flyTo?: {
+    lat: number
+    lng: number
+    zoom: number
+    bbox?: [number, number, number, number]
+  } | null
 }
 
 const MARKER_COLORS: Record<MapMarkerColor, string> = {
@@ -114,6 +121,36 @@ function FitToData({
   return null
 }
 
+function FlyToPlace({
+  target,
+}: {
+  target: NonNullable<MapViewProps['flyTo']> | null | undefined
+}) {
+  const map = useMap()
+  const lastKey = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!target) return
+    const key = `${target.lat},${target.lng},${target.zoom},${target.bbox?.join(',') ?? ''}`
+    if (lastKey.current === key) return
+    lastKey.current = key
+    if (target.bbox) {
+      const [south, north, west, east] = target.bbox
+      map.fitBounds(
+        [
+          [south, west],
+          [north, east],
+        ],
+        { padding: [28, 28], maxZoom: 16 },
+      )
+      return
+    }
+    map.flyTo([target.lat, target.lng], target.zoom, { duration: 0.55 })
+  }, [map, target])
+
+  return null
+}
+
 export function MapView({
   center = [51.5, 36.5],
   zoom = 10,
@@ -124,6 +161,7 @@ export function MapView({
   defaultBasemap,
   fitToData = false,
   showBasemapControl = true,
+  flyTo = null,
 }: MapViewProps) {
   const [tileError, setTileError] = useState(false)
   const basemaps = useMemo(() => getBasemaps(), [])
@@ -188,6 +226,7 @@ export function MapView({
         )}
 
         {fitToData ? <FitToData markers={markers} polygons={polygons} /> : null}
+        {flyTo ? <FlyToPlace target={flyTo} /> : null}
 
         {markers
           .filter((marker) => Number.isFinite(marker.lat) && Number.isFinite(marker.lng))

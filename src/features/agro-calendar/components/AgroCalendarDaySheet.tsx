@@ -15,6 +15,7 @@ import { DayDetailWeatherBlock } from '@/features/weather/components/DayDetailWe
 import { useFieldDayWeather } from '@/features/weather/hooks'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { humanLabel, joinLabels } from '@/lib/display'
+import { plansHaveAdvisories } from '../advisoryUi'
 import { useAgroPlans } from '../hooks'
 import type { AgroPlan } from '../types'
 import { STATUS_LABELS, ENTRY_KIND_LABELS } from '../types'
@@ -88,6 +89,18 @@ export function AgroCalendarDaySheet({
               <Plus className="size-4" />
               Добавить задачу на эту дату
             </Button>
+          ) : null}
+
+          {!isLoading && plansHaveAdvisories(plans) ? (
+            <div
+              className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm"
+              role="status"
+            >
+              <p className="font-medium text-destructive">Погодное предупреждение</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Нажмите метку на карточке плана, чтобы увидеть заморозки, осадки или ветер.
+              </p>
+            </div>
           ) : null}
 
           {isLoading ? (

@@ -61,7 +61,8 @@ export function useUserPermissions(enabled = true) {
     queryFn: async (): Promise<UserPermissionsData> => {
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
         const user = readCachedCurrentUser()
-        const cached = user?.role ? readCachedUserPermissions(user.role) : null
+        const cached =
+          user?.id && user.role ? readCachedUserPermissions(user.id, user.role) : null
         if (user && cached) {
           return {
             role: user.role,

@@ -208,16 +208,32 @@ docker compose --env-file .env.production up -d db api nginx
 
 ## 8. Ограничения и риски
 
+- **Только online** — Telegram-бот не пишет в локальную очередь. При плохой связи используйте веб-PWA (см. `docs/offline.md`) или дождитесь сети.
 - **Один процесс polling** на токен — не запускайте бот одновременно на bothost и в docker-compose.
 - **FSM в памяти** — при рестарте незавершённые диалоги сбрасываются.
 - **HTTP без TLS** — работает, но трафик bot↔API не шифруется; для prod желателен HTTPS.
 - **Rate limit bot-token** — 30 попыток/мин с IP; при массовых тестах возможен 429.
 - **bothost free tier** — «спящий режим»; для 24/7 нужен платный тариф.
 - **Webhook** — не реализован; при необходимости — отдельная задача.
+- **Активная смена** — бот запрашивает `/api/shifts?status=open&employee_id=<свой>` (важно для manager/admin, иначе можно «увидеть» чужую смену).
 
 ---
 
-## 9. Почему бот не ходит в БД напрямую
+## 9. Локальный чек-лист (dev)
+
+1. Backend: `DATABASE_URL`, `BOT_INTERNAL_SECRET=agrodesk-bot-secret-change-me`, `RUN_SEED_ON_START=true`.
+2. `curl http://localhost:8000/api/health` → `status: ok`.
+3. `bot/.env`: `API_BASE_URL=http://localhost:8000`, тот же секрет, реальный `BOT_TOKEN`.
+4. `cd bot && python scripts/self_check.py --telegram-id 111111111 --with-shifts`
+5. Ожидание: bot-token 200, open+close смены без ошибки.
+6. Unit: `cd bot && python -m pytest tests -q`
+7. В Telegram под ID `111111111` (или привяжите свой ID к EMP001) откройте/закройте смену.
+
+Демо: org **Demo AgroDesk**, сотрудник **EMP001** / пароль `1234`, `telegram_id=111111111` (см. `docs/seed-users.md`).
+
+---
+
+## 10. Почему бот не ходит в БД напрямую
 
 - Единая бизнес-логика на backend (смены, роли, расчёт часов)
 - Безопасность: бот не получает `DATABASE_URL`

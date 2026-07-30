@@ -1,5 +1,5 @@
 import L from 'leaflet'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AttributionControl,
   FeatureGroup,
@@ -19,10 +19,15 @@ import {
   polygonCentroid,
   type LatLngPair,
 } from '../geometry'
+import {
+  ContourDrawEngine,
+  ContourDrawToolbar,
+  type ContourDrawApi,
+} from './ContourDrawControls'
+import { MapLocationSearch, type MapFlyTarget } from './MapLocationSearch'
 
 type ContourChange = {
   polygon: LatLngPair[] | null
-  /** When true, also update weather lat/lng from centroid (or clear). */
   syncWeatherPoint: boolean
   latitude?: number
   longitude?: number
@@ -55,93 +60,28 @@ function FitBounds({ polygon }: { polygon: LatLngPair[] | null }) {
   return null
 }
 
-function layerToPairs(layer: L.Layer): LatLngPair[] | null {
-  if (!(layer instanceof L.Polygon)) return null
-  const raw = layer.getLatLngs()
-  const ring = (Array.isArray(raw[0]) ? raw[0] : raw) as L.LatLng[]
-  return normalizePolygon(ring.map((ll) => [ll.lat, ll.lng]))
-}
-
-function LeafletDrawTools({
-  featureGroupRef,
-  onChange,
-}: {
-  featureGroupRef: React.MutableRefObject<L.FeatureGroup | null>
-  onChange: FieldContourEditorProps['onChange']
-}) {
+function FlyToPlace({ target }: { target: MapFlyTarget | null }) {
   const map = useMap()
+  const lastKey = useRef<string | null>(null)
 
   useEffect(() => {
-    const group = featureGroupRef.current
-    if (!group) return
-
-    const control = new L.Control.Draw({
-      position: 'topright',
-      draw: {
-        polygon: {
-          allowIntersection: false,
-          showArea: false,
-          shapeOptions: {
-            color: '#01696F',
-            fillColor: '#01696F',
-            fillOpacity: 0.25,
-            weight: 2,
-          },
-        },
-        polyline: false,
-        rectangle: false,
-        circle: false,
-        circlemarker: false,
-        marker: false,
-      },
-      edit: {
-        featureGroup: group,
-        remove: true,
-      },
-    })
-    map.addControl(control)
-
-    const emit = (pairs: LatLngPair[] | null) => {
-      if (!pairs) {
-        onChange({ polygon: null, syncWeatherPoint: false })
-        return
-      }
-      const [lat, lng] = polygonCentroid(pairs)
-      onChange({
-        polygon: pairs,
-        syncWeatherPoint: true,
-        latitude: lat,
-        longitude: lng,
-        areaHa: polygonAreaHa(pairs),
-      })
+    if (!target) return
+    const key = `${target.lat},${target.lng},${target.zoom},${target.bbox?.join(',') ?? ''}`
+    if (lastKey.current === key) return
+    lastKey.current = key
+    if (target.bbox) {
+      const [south, north, west, east] = target.bbox
+      map.fitBounds(
+        [
+          [south, west],
+          [north, east],
+        ],
+        { padding: [28, 28], maxZoom: 16 },
+      )
+      return
     }
-
-    const onCreated = (event: L.LeafletEvent) => {
-      const created = event as L.DrawEvents.Created
-      group.clearLayers()
-      group.addLayer(created.layer)
-      emit(layerToPairs(created.layer))
-    }
-    const onEdited = () => {
-      let found: LatLngPair[] | null = null
-      group.eachLayer((layer) => {
-        if (!found) found = layerToPairs(layer)
-      })
-      emit(found)
-    }
-    const onDeleted = () => emit(null)
-
-    map.on(L.Draw.Event.CREATED, onCreated)
-    map.on(L.Draw.Event.EDITED, onEdited)
-    map.on(L.Draw.Event.DELETED, onDeleted)
-
-    return () => {
-      map.off(L.Draw.Event.CREATED, onCreated)
-      map.off(L.Draw.Event.EDITED, onEdited)
-      map.off(L.Draw.Event.DELETED, onDeleted)
-      map.removeControl(control)
-    }
-  }, [map, featureGroupRef, onChange])
+    map.flyTo([target.lat, target.lng], target.zoom, { duration: 0.55 })
+  }, [map, target])
 
   return null
 }
@@ -153,8 +93,11 @@ export function FieldContourEditor({
   onChange,
 }: FieldContourEditorProps) {
   const featureGroupRef = useRef<L.FeatureGroup | null>(null)
+  const drawApiRef = useRef<ContourDrawApi | null>(null)
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
+  const [flyTarget, setFlyTarget] = useState<MapFlyTarget | null>(null)
+  const [drawing, setDrawing] = useState(false)
 
   const normalized = useMemo(() => normalizePolygon(polygon ?? null), [polygon])
   const basemap = useMemo(() => {
@@ -166,12 +109,10 @@ export function FieldContourEditor({
     ? ([weatherLat, weatherLng] as [number, number])
     : null
 
-  /** Stable initial center — do not remount MapContainer on each keystroke. */
   const initialCenter = useMemo((): [number, number] => {
     if (normalized) return polygonCentroid(normalized)
     if (safeWeather) return safeWeather
     return DEFAULT_CENTER
-    // intentionally only on first mount of this editor instance
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -189,35 +130,42 @@ export function FieldContourEditor({
       : 'Контур не задан'
 
   return (
-    <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0 space-y-1">
-          <p className="text-sm font-medium text-foreground">Контур на карте</p>
-          <p className="text-xs text-muted-foreground">
-            Выберите инструмент многоугольника и поставьте точки по краю участка (не меньше 3).
-            Контур замыкается по первой точке.
-          </p>
-        </div>
+    <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-foreground">Контур на карте</p>
+        <p className="text-xs text-muted-foreground">
+          Сначала найдите населённый пункт, приблизьте карту, затем ставьте точки по меже
+          (не меньше 3). На телефоне — «Начать рисовать» и тап по карте; замкните контур
+          кнопкой «Завершить» или тапом по первой точке.
+        </p>
+      </div>
+
+      <MapLocationSearch onSelect={setFlyTarget} />
+
+      <ContourDrawToolbar
+        apiRef={drawApiRef}
+        drawing={drawing}
+        hasContour={Boolean(normalized)}
+      />
+
+      <div className="hidden justify-end sm:flex">
         {normalized ? (
           <Button
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => {
-              featureGroupRef.current?.clearLayers()
-              stableOnChange({ polygon: null, syncWeatherPoint: false })
-            }}
+            onClick={() => drawApiRef.current?.clear()}
           >
             Очистить контур
           </Button>
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-md border border-border bg-card">
+      <div className="agrodesk-contour-map overflow-hidden rounded-md border border-border bg-card">
         <MapContainer
           center={initialCenter}
           zoom={normalized || safeWeather ? 14 : 11}
-          className="z-0 h-[240px] w-full touch-pan-y sm:h-[300px]"
+          className="z-0 h-[280px] w-full touch-pan-y sm:h-[320px]"
           scrollWheelZoom
           attributionControl={false}
         >
@@ -227,13 +175,19 @@ export function FieldContourEditor({
             attribution={basemap.attribution}
             maxZoom={basemap.maxZoom}
           />
+          <FlyToPlace target={flyTarget} />
           <FitBounds polygon={normalized} />
           <FeatureGroup
             ref={(instance) => {
               featureGroupRef.current = instance
             }}
           >
-            <LeafletDrawTools featureGroupRef={featureGroupRef} onChange={stableOnChange} />
+            <ContourDrawEngine
+              featureGroupRef={featureGroupRef}
+              apiRef={drawApiRef}
+              onChange={stableOnChange}
+              onDrawingChange={setDrawing}
+            />
             {normalized ? (
               <Polygon
                 positions={normalized}

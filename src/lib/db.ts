@@ -68,3 +68,17 @@ export class AgroDeskDB extends Dexie {
 }
 
 export const db = new AgroDeskDB()
+
+/**
+ * Wipe IndexedDB on login/logout so EMP001 shifts/employees cannot leak into EMP000 offline.
+ * Re-opens the same `agrodesk` database for subsequent warm/sync.
+ */
+export async function resetLocalDatabase(): Promise<void> {
+  try {
+    await db.close()
+  } catch {
+    // already closed
+  }
+  await Dexie.delete('agrodesk')
+  await db.open()
+}
