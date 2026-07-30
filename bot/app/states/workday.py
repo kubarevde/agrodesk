@@ -23,6 +23,7 @@ class AdminAddShift(StatesGroup):
     end_time = State()
     location = State()
     work_type = State()
+    field = State()
     equipment = State()
     description = State()
     comment = State()

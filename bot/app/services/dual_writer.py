@@ -128,6 +128,7 @@ class DualWriter:
         start_time: str,
         end_time: str,
         description: str,
+        field_id: str | None = None,
     ) -> ShiftOpResult:
         result = await self.api.open_shift_for_employee(
             admin_tg_id,
@@ -138,6 +139,7 @@ class DualWriter:
             start_time,
             end_time,
             description,
+            field_id=field_id,
         )
         if not result.ok or result.data is None:
             return result

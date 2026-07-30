@@ -191,6 +191,20 @@ async def test_bot_token_bad_secret():
     _ = original
 
 
+@pytest.mark.asyncio
+async def test_open_shift_sends_field_id():
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode())
+        assert body['field_id'] == 'field-9'
+        return _json_response(201, {'id': 'shift-2', 'status': 'open'})
+
+    api = _make_client(handler)
+    result = await api.open_shift(
+        TG_ID, 'loc-1', 'wt-1', None, None, None, field_id='field-9'
+    )
+    assert result.ok
+
+
 def test_parse_and_classify_helpers():
     resp = _json_response(400, {'detail': 'Для полевой работы укажите поле'})
     assert parse_api_detail(resp) == 'Для полевой работы укажите поле'
