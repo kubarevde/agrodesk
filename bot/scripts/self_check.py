@@ -180,14 +180,16 @@ async def check_shift_cycle(results: CheckResult, telegram_id: int | None) -> No
         return
 
     # Prefer non-field work type so open doesn't require field_id
-    wt = next((item for item in work_types if not item.get('is_field_work')), None)
+    from app.utils.references import is_field_work_type
+
+    wt = next((item for item in work_types if not is_field_work_type(item)), None)
     if wt is None:
         wt = work_types[0]
     loc = locations[0]
     loc_id = str(loc['id'])
     wt_id = str(wt['id'])
     field_id = None
-    if wt.get('is_field_work'):
+    if is_field_work_type(wt):
         fields = await api.get_fields(telegram_id)
         if not fields:
             results.fail('Cannot test shift: field work type but no fields')

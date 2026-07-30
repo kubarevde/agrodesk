@@ -1,4 +1,5 @@
 from datetime import datetime
+import logging
 from typing import Any
 
 from aiogram import F, Router
@@ -10,8 +11,10 @@ from app.services.dual_writer import DualWriter
 from app.states.workday import StartWork
 from app.utils.menu import menu_for_user
 from app.utils.org_time import now_in_org
+from app.utils.references import find_by_name, is_field_work_type
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 SKIP_EQUIPMENT = 'Нет / пропустить'
 
@@ -57,12 +60,14 @@ def fields_keyboard(fields: list[dict]) -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 
-def find_by_name(items: list[dict], name: str) -> dict | None:
-    needle = (name or '').strip()
-    for item in items:
-        if str(item.get('name', '')).strip() == needle:
-            return item
-    return None
+def normalize_work_types(work_types: list[dict]) -> list[dict]:
+    """Ensure each work type has a reliable boolean is_field_work for FSM/UI."""
+    normalized: list[dict] = []
+    for item in work_types:
+        row = dict(item)
+        row['is_field_work'] = is_field_work_type(row)
+        normalized.append(row)
+    return normalized
 
 
 async def cancel_flow(message: Message, state: FSMContext, api: ApiClient) -> None:
@@ -170,6 +175,7 @@ async def work_start_geo_location(
         )
         return
 
+    work_types = normalize_work_types(work_types)
     await state.update_data(
         lat=float(message.location.latitude),
         lng=float(message.location.longitude),
@@ -199,6 +205,7 @@ async def work_start_geo_skip(
         )
         return
 
+    work_types = normalize_work_types(work_types)
     await state.update_data(lat=None, lng=None, _work_types=work_types)
     await state.set_state(StartWork.work_type)
     await message.answer(
@@ -245,7 +252,15 @@ async def work_start_type(
         )
         return
 
-    is_field = bool(item.get('is_field_work'))
+    is_field = is_field_work_type(item)
+    logger.info(
+        'work_start type chosen tg_id=%s work_type_id=%s name=%s is_field_work=%s raw_flag=%r',
+        tg_id,
+        item.get('id'),
+        item.get('name'),
+        is_field,
+        item.get('is_field_work', item.get('isFieldWork')),
+    )
     await state.update_data(
         work_type_id=str(item['id']),
         work_type_name=str(item.get('name', '')),
@@ -256,22 +271,45 @@ async def work_start_type(
     )
 
     if is_field:
-        fields = await api.get_fields(tg_id)
-        if not fields:
-            await message.answer(
-                'Для полевой работы нужны поля в справочнике. Обратитесь к менеджеру.',
-                reply_markup=await menu_for_user_safe(api, tg_id),
-            )
-            await state.clear()
-            return
-        await state.update_data(_fields=fields)
-        await state.set_state(StartWork.field)
-        await message.answer(
-            '🌾 Выбери поле:',
-            reply_markup=fields_keyboard(fields),
-        )
+        await prompt_field_or_fail(message, state, api, tg_id)
         return
 
+    await prompt_equipment(message, state, api, tg_id)
+
+
+async def menu_for_user_safe(api: ApiClient, tg_id: int):
+    is_admin = await api.is_admin(tg_id)
+    return menu_for_user(is_admin)
+
+
+async def prompt_field_or_fail(
+    message: Message,
+    state: FSMContext,
+    api: ApiClient,
+    tg_id: int,
+) -> None:
+    fields = await api.get_fields(tg_id)
+    if not fields:
+        await message.answer(
+            'Для полевой работы нужны поля в справочнике. Обратитесь к менеджеру.',
+            reply_markup=await menu_for_user_safe(api, tg_id),
+        )
+        await state.clear()
+        return
+    await state.update_data(_fields=fields)
+    await state.set_state(StartWork.field)
+    await message.answer(
+        '🌾 Выбери поле:',
+        reply_markup=fields_keyboard(fields),
+    )
+
+
+async def prompt_equipment(
+    message: Message,
+    state: FSMContext,
+    api: ApiClient,
+    tg_id: int,
+) -> None:
     equipment_items = await api.get_equipment(tg_id)
     await state.update_data(_equipment=equipment_items)
     await state.set_state(StartWork.equipment)
@@ -281,16 +319,12 @@ async def work_start_type(
     )
 
 
-async def menu_for_user_safe(api: ApiClient, tg_id: int):
-    is_admin = await api.is_admin(tg_id)
-    return menu_for_user(is_admin)
-
-
 @router.message(StartWork.field)
 async def work_start_field(
     message: Message,
     state: FSMContext,
     api: ApiClient,
+    dual: DualWriter,
 ) -> None:
     if message.text == '❌ Отмена':
         await cancel_flow(message, state, api)
@@ -310,15 +344,15 @@ async def work_start_field(
     await state.update_data(
         field_id=str(item['id']),
         field_name=str(item.get('name', '')),
+        _resume_open=False,
     )
 
-    equipment_items = await api.get_equipment(tg_id)
-    await state.update_data(_equipment=equipment_items)
-    await state.set_state(StartWork.equipment)
-    await message.answer(
-        '🚜 Выбери технику или нажми «Нет / пропустить»:',
-        reply_markup=equipment_keyboard(equipment_items),
-    )
+    # Recovery after missed field: open with already chosen equipment/comment
+    if data.get('_resume_open'):
+        await finish_open_shift(message, state, api, dual)
+        return
+
+    await prompt_equipment(message, state, api, tg_id)
 
 
 @router.message(StartWork.equipment)
@@ -364,17 +398,12 @@ async def work_start_equipment(
     )
 
 
-@router.message(StartWork.comment)
-async def work_start_comment(
+async def finish_open_shift(
     message: Message,
     state: FSMContext,
     api: ApiClient,
     dual: DualWriter,
 ) -> None:
-    if message.text == '❌ Отмена':
-        await cancel_flow(message, state, api)
-        return
-
     tg_id = message.from_user.id
     is_admin = await api.is_admin(tg_id)
     data = await state.get_data()
@@ -388,6 +417,18 @@ async def work_start_comment(
     equipment_name = data.get('equipment_name')
     lat = data.get('lat')
     lng = data.get('lng')
+    field_id = data.get('field_id')
+    needs_field = bool(data.get('is_field_work'))
+
+    if needs_field and not field_id:
+        logger.warning(
+            'work_start missing field_id for field work tg_id=%s work_type=%s — re-prompt field',
+            tg_id,
+            data.get('work_type_id'),
+        )
+        await state.update_data(_resume_open=True)
+        await prompt_field_or_fail(message, state, api, tg_id)
+        return
 
     result = await dual.open_shift(
         tg_id=tg_id,
@@ -401,9 +442,27 @@ async def work_start_comment(
         lng=lng,
         employee=employee,
         start_time_str=str(data.get('start_time_str') or ''),
-        field_id=data.get('field_id'),
+        field_id=field_id,
         agro_plan_id=data.get('agro_plan_id'),
     )
+
+    if (
+        not result.ok
+        and result.detail
+        and 'укажите поле' in result.detail.lower()
+    ):
+        logger.warning(
+            'API requires field for work_type=%s — prompting field step',
+            data.get('work_type_id'),
+        )
+        await state.update_data(
+            is_field_work=True,
+            field_id=None,
+            field_name=None,
+            _resume_open=True,
+        )
+        await prompt_field_or_fail(message, state, api, tg_id)
+        return
 
     await state.clear()
 
@@ -427,3 +486,17 @@ async def work_start_comment(
         shift_op_user_message(result, action='открыть'),
         reply_markup=menu_for_user(is_admin),
     )
+
+
+@router.message(StartWork.comment)
+async def work_start_comment(
+    message: Message,
+    state: FSMContext,
+    api: ApiClient,
+    dual: DualWriter,
+) -> None:
+    if message.text == '❌ Отмена':
+        await cancel_flow(message, state, api)
+        return
+
+    await finish_open_shift(message, state, api, dual)
