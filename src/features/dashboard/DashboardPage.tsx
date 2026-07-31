@@ -19,6 +19,7 @@ import { EquipmentWarningsSection } from './components/EquipmentWarningsSection'
 import { FinanceCards, FinanceCardsSkeleton } from './components/FinanceCards'
 import { KpiCards, KpiCardsSkeleton } from './components/KpiCards'
 import { SharingDashboardSection } from './components/SharingDashboardSection'
+import { ShipmentRequestsSummarySection } from './components/ShipmentRequestsSummarySection'
 import { UrgentPurchasesSection } from './components/UrgentPurchasesSection'
 import { WeeklyHoursChart, WeeklyHoursChartSkeleton } from './components/WeeklyHoursChart'
 import { useDashboardStats } from './hooks'
@@ -127,6 +128,19 @@ export function DashboardPage() {
           newRequests={stats?.sharingNewRequests ?? 0}
           isLoadingStats={isLoading}
         />
+        {canForecast ? (
+          <ShipmentRequestsSummarySection
+            summary={
+              stats?.shipmentRequestsSummary ?? {
+                today: 0,
+                upcoming: 0,
+                overdue: 0,
+                urgent: 0,
+              }
+            }
+            isLoading={isLoading}
+          />
+        ) : null}
       </div>
 
       {isAdmin ? <SystemStatus /> : null}

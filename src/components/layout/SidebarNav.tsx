@@ -6,6 +6,9 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { UnreadBadge } from '@/features/messenger/components/UnreadBadge'
+import { useMessengerUnreadCount } from '@/features/messenger/hooks'
+import { useOrganizationSettings } from '@/features/settings/hooks'
 import { useUserPermissions } from '@/features/settings/permissionsHooks'
 import { getNavGroups } from './navigation'
 
@@ -34,12 +37,16 @@ export function SidebarNav({ collapsed, onNavigate }: SidebarNavProps) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const { data: user } = useCurrentUser()
   const { data: perms, isPending } = useUserPermissions(Boolean(user))
+  const { data: orgSettings } = useOrganizationSettings()
+  const messengerUnread = useMessengerUnreadCount()
 
   if (user && isPending && !perms) {
     return <NavSkeleton collapsed={collapsed} />
   }
 
-  const navGroups = getNavGroups(user?.role, perms?.allowedSections)
+  const navGroups = getNavGroups(user?.role, perms?.allowedSections, perms?.actions, {
+    shipmentRequestsEnabled: orgSettings?.shipmentRequestsEnabled !== false,
+  })
 
   return (
     <nav className="flex flex-1 flex-col gap-4 overflow-y-auto px-2 py-1">
@@ -55,20 +62,28 @@ export function SidebarNav({ collapsed, onNavigate }: SidebarNavProps) {
               pathname === to ||
               pathname === `${to}/` ||
               pathname.startsWith(`${to}/`)
+            const showMessengerBadge = to === '/messenger' && messengerUnread > 0
 
             const link = (
               <Link
                 to={to}
                 onClick={onNavigate}
                 className={cn(
-                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                  'relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
                   'border-l-[3px] border-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
                   isActive && 'border-l-primary bg-primary/10 text-primary',
                   collapsed && 'justify-center px-2',
                 )}
               >
                 <Icon className="size-5 shrink-0" />
-                {!collapsed ? <span className="truncate">{label}</span> : null}
+                {!collapsed ? <span className="min-w-0 flex-1 truncate">{label}</span> : null}
+                {showMessengerBadge ? (
+                  <UnreadBadge
+                    count={messengerUnread}
+                    className={cn(collapsed && 'absolute -right-0.5 -top-0.5 min-w-4 px-1')}
+                    data-testid="nav-messenger-unread"
+                  />
+                ) : null}
               </Link>
             )
 
@@ -79,7 +94,10 @@ export function SidebarNav({ collapsed, onNavigate }: SidebarNavProps) {
             return (
               <Tooltip key={to}>
                 <TooltipTrigger className="w-full">{link}</TooltipTrigger>
-                <TooltipContent side="right">{label}</TooltipContent>
+                <TooltipContent side="right">
+                  {label}
+                  {showMessengerBadge ? ` (${messengerUnread})` : ''}
+                </TooltipContent>
               </Tooltip>
             )
           })}

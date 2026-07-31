@@ -1,4 +1,4 @@
-import { Clock, Pencil, Share2, Trash2 } from 'lucide-react'
+import { Clock, Pencil, Share2, Trash2, Wheat } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,6 +11,7 @@ type FieldCardProps = {
   onEdit: (field: FieldResponse) => void
   onShare: (field: FieldResponse) => void
   onDelete: (field: FieldResponse) => void
+  onHarvest?: (field: FieldResponse) => void
 }
 
 export function FieldCard({
@@ -20,6 +21,7 @@ export function FieldCard({
   onEdit,
   onShare,
   onDelete,
+  onHarvest,
 }: FieldCardProps) {
   return (
     <Card className="flex flex-col">
@@ -47,6 +49,12 @@ export function FieldCard({
           {field.description ? <p className="line-clamp-2">{field.description}</p> : null}
         </div>
         <div className="mt-auto flex flex-wrap gap-2">
+          {canManage && onHarvest ? (
+            <Button type="button" size="sm" variant="outline" onClick={() => onHarvest(field)}>
+              <Wheat className="size-3.5" />
+              Собрать урожай
+            </Button>
+          ) : null}
           {canManage ? (
             <Button
               type="button"

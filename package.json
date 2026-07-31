@@ -14,7 +14,9 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:full": "playwright test e2e/shifts.spec.ts e2e/messenger.spec.ts e2e/shipment-requests.spec.ts",
+    "test:full": "npm test && npm run lint && npm run test:e2e:full"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -27,6 +29,7 @@
     "@tanstack/react-router": "^1.170.17",
     "@tanstack/react-router-devtools": "^1.167.0",
     "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.14.9",
     "@tanstack/router-plugin": "^1.168.19",
     "@turf/turf": "^7.3.5",
     "axios": "^1.18.1",

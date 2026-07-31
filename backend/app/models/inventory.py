@@ -16,6 +16,7 @@ class InventoryCategory(str, enum.Enum):
     parts = 'parts'
     seeds = 'seeds'
     chemicals = 'chemicals'
+    harvest = 'harvest'
     other = 'other'
 
 
@@ -31,8 +32,10 @@ class InventoryItem(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id'), nullable=False)
     name = Column(String(200), nullable=False)
-    # Dictionary code (e.g. fuel) — was PG enum; now editable via org_dictionaries
+    # Dictionary code (e.g. fuel, harvest) — editable via org_dictionaries
     category = Column(String(50), nullable=False)
+    # Optional link to crop dictionary code when category=harvest
+    crop_code = Column(String(80), nullable=True)
     unit = Column(String(50), nullable=False)
     current_stock = Column(Numeric(12, 2), default=0, nullable=False)
     min_stock = Column(Numeric(12, 2), default=0, nullable=False)
@@ -61,7 +64,14 @@ class InventoryOperation(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     equipment_id = Column(UUID(as_uuid=True), ForeignKey('equipment.id'), nullable=True)
     purpose = Column(String(30), nullable=False, default='general', server_default='general')
+    # Optional link for harvest income from a field (locations.id)
+    field_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('locations.id', ondelete='SET NULL'),
+        nullable=True,
+    )
 
     item = relationship('InventoryItem', back_populates='operations')
     created_by_user = relationship('Employee', back_populates='inventory_operations')
     equipment = relationship('Equipment')
+    field = relationship('Location')

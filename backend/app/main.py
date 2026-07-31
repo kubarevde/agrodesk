@@ -29,6 +29,7 @@ from app.routers import (
     implements,
     inventory,
     maintenance,
+    messenger,
     notifications,
     references,
     repair_journal,
@@ -36,6 +37,7 @@ from app.routers import (
     reports,
     settings as settings_router,
     sharing,
+    shipment_requests,
     shipments,
     shifts,
     superadmin,
@@ -156,6 +158,7 @@ app.include_router(superadmin.router, prefix='/superadmin/api', tags=['superadmi
 app.include_router(superadmin_support.router, prefix='/superadmin/api', tags=['superadmin-support'])
 app.include_router(auth.router, prefix='/api/auth', tags=['auth'])
 app.include_router(support.router, prefix='/api/support', tags=['support'])
+app.include_router(messenger.router, prefix='/api/messenger', tags=['messenger'])
 app.include_router(agro_plan.router, prefix='/api/agro-plan', tags=['agro-plan'])
 app.include_router(audit_log.router, prefix='/api/audit-log', tags=['audit-log'])
 app.include_router(analytics.router, prefix='/api/analytics', tags=['analytics'])
@@ -173,6 +176,7 @@ app.include_router(purchase_planner.router, prefix='/api/purchase-planner', tags
 app.include_router(references.equipment_router, prefix='/api/equipment', tags=['equipment'])
 app.include_router(equipment_logs.router, prefix='/api/equipment', tags=['equipment-logs'])
 app.include_router(inventory.router, prefix='/api/inventory', tags=['inventory'])
+app.include_router(shipment_requests.router, prefix='/api/shipment-requests', tags=['shipment-requests'])
 app.include_router(shipments.router, prefix='/api/shipments', tags=['shipments'])
 app.include_router(expenses.router, prefix='/api/expenses', tags=['expenses'])
 app.include_router(dashboard.router, prefix='/api/dashboard', tags=['dashboard'])

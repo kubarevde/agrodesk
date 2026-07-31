@@ -14,6 +14,29 @@ from app.models.employee import Employee, EmployeeRole
 logger = logging.getLogger(__name__)
 
 
+def format_messenger_telegram_text(
+    *,
+    sender_name: str,
+    body: str,
+    chat_id: UUID,
+    web_base: str | None = None,
+) -> str:
+    """HTML text for optional Telegram push about a new AgroDesk chat message."""
+    preview = (body or '').strip()
+    if len(preview) > 200:
+        preview = f'{preview[:197]}…'
+    path = f'/messenger/{chat_id}'
+    link = f'{web_base.rstrip("/")}{path}' if web_base else path
+    lines = [
+        'У вас новое сообщение в AgroDesk',
+        f'От: {sender_name}',
+    ]
+    if preview:
+        lines.append(preview)
+    lines.append(f'Открыть: {link}')
+    return '\n'.join(lines)
+
+
 class TelegramNotifier:
     def __init__(self, bot_token: str | None) -> None:
         token = (bot_token or '').strip()

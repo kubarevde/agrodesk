@@ -26,11 +26,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies.auth import get_current_employee
 from app.models.employee import Employee, EmployeeRole
+from app.models.organization import Organization
 from app.services.permissions import (
     EMPLOYEE_LOCKED_SECTIONS,
     SECTION_KEYS,
     allowed_sections_for_role,
     get_org_permissions,
+)
+from app.services.org_features import (
+    shipment_requests_enabled,
+    strip_shipment_request_actions,
 )
 
 # Canonical action keys — keep in sync with src/lib/permissionActions.ts
@@ -44,6 +49,8 @@ ACTION_KEYS: tuple[str, ...] = (
     'purchase.create',
     'purchase.manage',
     'support.view_org_tickets',
+    'shipment_requests.manage',
+    'shipment_requests.execute',
 )
 
 ACTION_LABELS: dict[str, str] = {
@@ -56,6 +63,8 @@ ACTION_LABELS: dict[str, str] = {
     'purchase.create': 'Создавать заявки на закупку',
     'purchase.manage': 'Управлять закупками (удаление, затраты)',
     'support.view_org_tickets': 'Видеть все обращения организации',
+    'shipment_requests.manage': 'Управлять заявками на отгрузку ТМЦ',
+    'shipment_requests.execute': 'Исполнять заявки на отгрузку ТМЦ',
 }
 
 # Actions implied by having a section (employee-safe baselines only).
@@ -66,6 +75,7 @@ SECTION_IMPLIED_ACTIONS: dict[str, tuple[str, ...]] = {
     'worktime': ('shift.open_own', 'shift.close_own'),
     'inventory': ('inventory.operate',),
     'purchase-planner': ('purchase.create',),
+    'shipments': ('shipment_requests.execute',),
 }
 
 # Extra actions for manager/admin roles when using role defaults (no group).
@@ -74,6 +84,8 @@ MANAGER_EXTRA_ACTIONS: tuple[str, ...] = (
     'purchase.manage',
     'shift.open_for_others',
     'shift.close_others',
+    'shipment_requests.manage',
+    'shipment_requests.execute',
 )
 
 SUPPLIER_PRESET_CODE = 'supplier'
@@ -145,19 +157,38 @@ def _with_employee_baseline_sections(sections: list[str]) -> list[str]:
     return merged
 
 
+async def _org_settings(db: AsyncSession, org_id: UUID) -> dict[str, Any]:
+    org = await db.get(Organization, org_id)
+    raw = org.settings if org is not None and isinstance(org.settings, dict) else {}
+    return dict(raw)
+
+
+def _apply_feature_flags(effective: dict[str, Any], settings: dict[str, Any]) -> dict[str, Any]:
+    """Strip shipment-request actions when org feature flag is off."""
+    if shipment_requests_enabled(settings):
+        return effective
+    actions = strip_shipment_request_actions(list(effective.get('actions') or []))
+    return {**effective, 'actions': actions}
+
+
 async def resolve_effective_permissions(
     db: AsyncSession,
     employee: Employee,
 ) -> dict[str, Any]:
     """Return {role, allowed_sections, actions, access_group_id, access_group_name}."""
+    settings = await _org_settings(db, employee.org_id)
+
     if employee.role == EmployeeRole.admin:
-        return {
-            'role': 'admin',
-            'allowed_sections': list(SECTION_KEYS),
-            'actions': list(ACTION_KEYS),
-            'access_group_id': None,
-            'access_group_name': None,
-        }
+        return _apply_feature_flags(
+            {
+                'role': 'admin',
+                'allowed_sections': list(SECTION_KEYS),
+                'actions': list(ACTION_KEYS),
+                'access_group_id': None,
+                'access_group_name': None,
+            },
+            settings,
+        )
 
     # Eager-load group if relationship available; otherwise fetch by id.
     group = getattr(employee, 'access_group', None)
@@ -178,24 +209,30 @@ async def resolve_effective_permissions(
             for action in SECTION_IMPLIED_ACTIONS.get(section, ()):
                 if action not in actions:
                     actions.append(action)
-        return {
-            'role': employee.role.value,
-            'allowed_sections': sections,
-            'actions': actions,
-            'access_group_id': str(group.id),
-            'access_group_name': group.name,
-        }
+        return _apply_feature_flags(
+            {
+                'role': employee.role.value,
+                'allowed_sections': sections,
+                'actions': actions,
+                'access_group_id': str(group.id),
+                'access_group_name': group.name,
+            },
+            settings,
+        )
 
     org_perms = await get_org_permissions(db, employee.org_id)
     sections = allowed_sections_for_role(employee.role, org_perms)
     actions = actions_from_sections(sections, employee.role)
-    return {
-        'role': employee.role.value,
-        'allowed_sections': sections,
-        'actions': actions,
-        'access_group_id': None,
-        'access_group_name': None,
-    }
+    return _apply_feature_flags(
+        {
+            'role': employee.role.value,
+            'allowed_sections': sections,
+            'actions': actions,
+            'access_group_id': None,
+            'access_group_name': None,
+        },
+        settings,
+    )
 
 
 def employee_has_action(effective: dict[str, Any], action: str) -> bool:
@@ -236,6 +273,32 @@ def require_action(action: str):
                 detail='Недостаточно прав для этого действия',
             )
         return employee
+
+    return _checker
+
+
+def require_any_action(*actions: str):
+    """FastAPI dependency: require at least one of the given Level-2 actions."""
+
+    unknown = [action for action in actions if action not in ACTION_KEYS]
+    if unknown:
+        raise ValueError(f'Unknown action(s): {unknown}')
+    if not actions:
+        raise ValueError('require_any_action needs at least one action')
+
+    async def _checker(
+        employee: Employee = Depends(get_current_employee),
+        db: AsyncSession = Depends(get_db),
+    ) -> Employee:
+        if employee.role == EmployeeRole.admin:
+            return employee
+        effective = await resolve_effective_permissions(db, employee)
+        if any(employee_has_action(effective, action) for action in actions):
+            return employee
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Недостаточно прав для этого действия',
+        )
 
     return _checker
 
@@ -283,5 +346,6 @@ __all__ = [
     'normalize_actions',
     'normalize_group_sections',
     'require_action',
+    'require_any_action',
     'resolve_effective_permissions',
 ]

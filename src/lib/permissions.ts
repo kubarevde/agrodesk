@@ -16,6 +16,9 @@ export function sectionForPath(pathname: string): string | null {
   if (normalized === '/notifications' || normalized.startsWith('/notifications/')) {
     return null
   }
+  if (normalized === '/messenger' || normalized.startsWith('/messenger/')) {
+    return null
+  }
   if (normalized === NO_ACCESS_ROUTE || normalized.startsWith(`${NO_ACCESS_ROUTE}/`)) {
     return null
   }

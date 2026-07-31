@@ -1,6 +1,7 @@
 import {
   BarChart2,
   CalendarDays,
+  ClipboardList,
   Clock,
   DollarSign,
   Package,
@@ -47,12 +48,21 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
   },
   {
     id: 'shipments',
-    title: 'Отгрузки',
-    description: 'История отгрузок с суммами по культурам',
+    title: 'Отгрузки урожая',
+    description: 'Реализация культур: кг, направление, цена (не ТМЦ и не заявки)',
     icon: Truck,
     endpoint: '/api/reports/shipments',
     periodMode: 'range',
     filename: ({ from, to }) => `shipments_${from}_${to}.xlsx`,
+  },
+  {
+    id: 'shipment-requests',
+    title: 'Заявки на отгрузку',
+    description: 'Операционный срез ТМЦ: план, статус, исполнитель, смена (не культуры)',
+    icon: ClipboardList,
+    endpoint: '/api/reports/shipment-requests',
+    periodMode: 'range',
+    filename: ({ from, to }) => `shipment_requests_${from}_${to}.xlsx`,
   },
   {
     id: 'inventory',

@@ -9,6 +9,12 @@ const ShipmentsPage = lazy(() =>
 )
 
 export const Route = createFileRoute('/_layout/shipments/')({
+  validateSearch: (search: Record<string, unknown>) => ({
+    requestId: typeof search.requestId === 'string' ? search.requestId : undefined,
+  }),
   beforeLoad: makeSectionBeforeLoad('shipments'),
-  component: ShipmentsPage,
+  component: function ShipmentsRoute() {
+    const { requestId } = Route.useSearch()
+    return <ShipmentsPage initialRequestId={requestId ?? null} />
+  },
 })

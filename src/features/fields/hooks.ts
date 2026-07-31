@@ -4,6 +4,7 @@ import type { Field } from '@/types'
 import { api } from '@/lib/api'
 import { apiErrorMessage } from '@/lib/apiError'
 import { db } from '@/lib/db'
+import { displayDateToIso, inventoryOperationFromApi } from '@/lib/transformers'
 import type { FieldFormValues } from './schemas'
 
 function toPayload(values: FieldFormValues) {
@@ -24,6 +25,7 @@ function toPayload(values: FieldFormValues) {
   return {
     name: values.name.trim(),
     crop_type: values.crop_type || null,
+    crop_code: values.crop_code || null,
     area_ha: area,
     description: values.description || null,
     latitude: lat,
@@ -112,5 +114,35 @@ export function useDeleteField() {
       toast.success('Поле удалено')
     },
     onError: () => toast.error('Не удалось удалить поле'),
+  })
+}
+
+export function useFieldHarvest() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: {
+      fieldId: string
+      inventoryItemId: string
+      quantity: number
+      date: string
+    }) => {
+      const { data } = await api.post<Record<string, unknown>>(
+        `/api/fields/${payload.fieldId}/harvest`,
+        {
+          inventory_item_id: payload.inventoryItemId,
+          quantity: payload.quantity,
+          date: displayDateToIso(payload.date),
+        },
+      )
+      return inventoryOperationFromApi(data)
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['inventory'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+      ])
+    },
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось оприходовать урожай')),
   })
 }

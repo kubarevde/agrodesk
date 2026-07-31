@@ -20,7 +20,7 @@ export function EmployeeSectionLinks() {
     )
   }
 
-  const items = getNavItems(user.role, perms?.allowedSections).filter(
+  const items = getNavItems(user.role, perms?.allowedSections, perms?.actions).filter(
     (item) => item.to !== '/my-shift',
   )
 

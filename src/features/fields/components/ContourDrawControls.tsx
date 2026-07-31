@@ -3,12 +3,17 @@ import { Check, Pencil, Undo2, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useMap } from 'react-leaflet'
 import { Button } from '@/components/ui/button'
+import { createContourVertexIcons } from '@/lib/maps/contourVertexIcon'
 import type { LatLngPair } from '../geometry'
 import { normalizePolygon, polygonAreaHa, polygonCentroid } from '../geometry'
+
+const VERTEX_ICONS = createContourVertexIcons()
 
 const POLYGON_STYLE = {
   allowIntersection: false,
   showArea: false,
+  icon: VERTEX_ICONS.icon,
+  touchIcon: VERTEX_ICONS.touchIcon,
   shapeOptions: {
     color: '#01696F',
     fillColor: '#01696F',
@@ -80,6 +85,10 @@ export function ContourDrawEngine({
       edit: {
         featureGroup: group,
         remove: true,
+        poly: {
+          icon: VERTEX_ICONS.icon,
+          touchIcon: VERTEX_ICONS.touchIcon,
+        },
       },
     })
     map.addControl(control)

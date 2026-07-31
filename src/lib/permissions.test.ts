@@ -29,8 +29,21 @@ describe('permissions route coverage', () => {
 
   it('covers every nav item with a section mapping', () => {
     for (const item of NAV_ITEMS) {
+      // Action-gated routes (no Level-1 section) are allowed to map to null.
+      if (item.requiredAction) continue
+      // Messenger is open to all roles and is not a Level-1 permission section.
+      if (item.to === '/messenger') {
+        expect(sectionForPath(item.to)).toBeNull()
+        continue
+      }
       expect(sectionForPath(item.to)).not.toBeNull()
     }
+  })
+
+  it('allows messenger for employees without a section grant', () => {
+    expect(sectionForPath('/messenger')).toBeNull()
+    expect(canAccessPath('/messenger', 'employee', ['my-shift', 'sharing'])).toBe(true)
+    expect(canAccessPath('/messenger/abc', 'employee', [])).toBe(true)
   })
 })
 
@@ -96,7 +109,7 @@ describe('getNavGroups for employee', () => {
   it('shows only defaults while permissions are loading', () => {
     const groups = getNavGroups('employee', undefined)
     const paths = groups.flatMap((g) => g.items.map((i) => i.to))
-    expect(paths).toEqual(['/my-shift', '/sharing'])
+    expect(paths).toEqual(['/my-shift', '/messenger', '/sharing'])
   })
 
   it('shows granted sections after permissions load', () => {
@@ -104,6 +117,7 @@ describe('getNavGroups for employee', () => {
     const paths = getNavItems('employee', allowed).map((i) => i.to)
     expect(paths).toContain('/fields')
     expect(paths).toContain('/reports')
+    expect(paths).toContain('/messenger')
     expect(paths).not.toContain('/employees')
   })
 
@@ -115,6 +129,29 @@ describe('getNavGroups for employee', () => {
       .map((i) => i.to)
     expect(home.every((to) => sidebar.includes(to))).toBe(true)
     expect(home).toContain('/inventory')
+  })
+
+  it('hides shipment-requests without manage action', () => {
+    const paths = getNavItems('manager', ['shipments', 'expenses'], []).map((i) => i.to)
+    expect(paths).not.toContain('/shipment-requests')
+    const withManage = getNavItems(
+      'manager',
+      ['shipments', 'expenses'],
+      ['shipment_requests.manage'],
+    ).map((i) => i.to)
+    expect(withManage).toContain('/shipment-requests')
+  })
+
+  it('shows my shipments only with execute action', () => {
+    const without = getNavItems('employee', ['my-shift', 'sharing'], []).map((i) => i.to)
+    expect(without).not.toContain('/shipment-requests/my')
+    const withExecute = getNavItems(
+      'employee',
+      ['my-shift', 'sharing'],
+      ['shipment_requests.execute'],
+    ).map((i) => i.to)
+    expect(withExecute).toContain('/shipment-requests/my')
+    expect(withExecute).not.toContain('/shipment-requests')
   })
 })
 

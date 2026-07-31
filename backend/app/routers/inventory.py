@@ -3,7 +3,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import case, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.dependencies.auth import get_current_employee
 from app.middleware.org_context import get_org_id
+from app.models.dictionary import OrgDictionary
 from app.models.employee import Employee
 from app.models.inventory import (
     InventoryItem,
@@ -27,6 +28,10 @@ from app.schemas.inventory import (
 )
 from app.services.audit import log_change, model_snapshot
 from app.services.action_permissions import require_action
+from app.services.harvest_inventory import (
+    is_harvest_inventory_category,
+    resolve_inventory_crop_code,
+)
 from app.services.inventory import create_inventory_operation, create_opening_balance_operation
 from app.services.permissions import require_manager_section
 
@@ -36,6 +41,7 @@ _OPERATION_LOAD_OPTIONS = (
     selectinload(InventoryOperation.item),
     selectinload(InventoryOperation.equipment),
     selectinload(InventoryOperation.created_by_user),
+    selectinload(InventoryOperation.field),
 )
 
 
@@ -43,17 +49,20 @@ def item_to_response(item: InventoryItem) -> InventoryItemResponse:
     category = item.category
     if hasattr(category, 'value'):
         category = category.value
+    category_str = str(category)
     return InventoryItemResponse(
         id=item.id,
         org_id=item.org_id,
         name=item.name,
-        category=str(category),
+        category=category_str,
         unit=item.unit,
         current_stock=item.current_stock,
         min_stock=item.min_stock,
         total_capacity=item.total_capacity,
         is_active=item.is_active,
         is_critical=item.current_stock < item.min_stock,
+        crop_code=item.crop_code,
+        is_harvest=is_harvest_inventory_category(category_str),
     )
 
 
@@ -76,6 +85,8 @@ def operation_to_response(operation: InventoryOperation) -> InventoryOperationRe
         equipment_id=operation.equipment_id,
         purpose=operation.purpose or 'general',
         equipment_name=operation.equipment.name if operation.equipment else None,
+        field_id=operation.field_id,
+        field_name=operation.field.name if operation.field else None,
     )
 
 
@@ -113,6 +124,10 @@ async def list_inventory(
     request: Request,
     category: str | None = Query(None),
     is_active: bool | None = Query(None),
+    search: str | None = Query(
+        None,
+        description='Filter by name; for harvest also crop_code / crop dictionary name',
+    ),
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> list[InventoryItemResponse]:
@@ -122,6 +137,27 @@ async def list_inventory(
         query = query.where(InventoryItem.category == category)
     if is_active is not None:
         query = query.where(InventoryItem.is_active == is_active)
+
+    term = (search or '').strip()
+    if term:
+        pattern = f'%{term}%'
+        crop_name_codes = (
+            select(OrgDictionary.code)
+            .where(
+                OrgDictionary.org_id == org_id,
+                OrgDictionary.type == 'crop',
+                OrgDictionary.name.ilike(pattern),
+            )
+            .scalar_subquery()
+        )
+        harvest_match = and_(
+            func.lower(InventoryItem.category) == 'harvest',
+            or_(
+                InventoryItem.crop_code.ilike(pattern),
+                InventoryItem.crop_code.in_(crop_name_codes),
+            ),
+        )
+        query = query.where(or_(InventoryItem.name.ilike(pattern), harvest_match))
 
     query = query.order_by(
         case((InventoryItem.current_stock < InventoryItem.min_stock, 0), else_=1),
@@ -359,8 +395,15 @@ async def create_inventory_item(
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(require_action('inventory.manage_items')),
 ) -> InventoryItemResponse:
+    org_id = get_org_id(request)
+    crop_code = await resolve_inventory_crop_code(
+        db,
+        org_id,
+        category=payload.category,
+        crop_code=payload.crop_code,
+    )
     item = InventoryItem(
-        org_id=get_org_id(request),
+        org_id=org_id,
         name=payload.name,
         category=payload.category,
         unit=payload.unit,
@@ -368,6 +411,7 @@ async def create_inventory_item(
         min_stock=payload.min_stock,
         total_capacity=payload.total_capacity or Decimal('0'),
         is_active=True,
+        crop_code=crop_code,
     )
     db.add(item)
     try:
@@ -404,7 +448,41 @@ async def update_inventory_item(
     item = await get_item_or_404(db, item_id, get_org_id(request))
     before = model_snapshot(item)
 
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    next_category = data.get('category', item.category)
+    category_changed = (
+        'category' in data
+        and str(data.get('category') or '') != str(item.category or '')
+    )
+    if 'crop_code' in data:
+        # Explicit crop_code from client (including null) — validate against target category.
+        data['crop_code'] = await resolve_inventory_crop_code(
+            db,
+            get_org_id(request),
+            category=str(next_category) if next_category is not None else None,
+            crop_code=data['crop_code']
+            if isinstance(data['crop_code'], str) or data['crop_code'] is None
+            else str(data['crop_code']),
+        )
+    elif category_changed:
+        # Category switched — re-validate existing crop against the new category.
+        data['crop_code'] = await resolve_inventory_crop_code(
+            db,
+            get_org_id(request),
+            category=str(next_category) if next_category is not None else None,
+            crop_code=item.crop_code,
+        )
+    elif (
+        is_harvest_inventory_category(str(next_category))
+        and not (item.crop_code or '').strip()
+    ):
+        # Updating a harvest SKU that still has no crop — client must send crop_code.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Для позиций «Урожай на складе» необходимо указать культуру.',
+        )
+    # If category is resent unchanged, crop already set, crop_code omitted — keep as-is.
+    for field, value in data.items():
         setattr(item, field, value)
 
     db.add(item)

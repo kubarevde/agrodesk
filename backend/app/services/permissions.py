@@ -48,7 +48,7 @@ SECTION_LABELS: dict[str, str] = {
     'maintenance': 'Ремонт и обслуживание',
     'purchase-planner': 'Планировщик закупок',
     'inventory': 'Склад ТМЦ',
-    'shipments': 'Отгрузки',
+    'shipments': 'Отгрузки урожая',
     'expenses': 'Затраты',
     'analytics': 'Прогноз и оптимизация',
     'reports': 'Отчёты',

@@ -29,7 +29,11 @@ describe('apiErrorMessage', () => {
     expect(apiErrorMessage(error, 'fallback')).toMatch(/alembic upgrade head/i)
   })
 
-  it('falls back when detail missing', () => {
-    expect(apiErrorMessage(new Error('x'), 'Не удалось добавить')).toBe('Не удалось добавить')
+  it('uses Error.message when not an AxiosError', () => {
+    expect(apiErrorMessage(new Error('x'), 'Не удалось добавить')).toBe('x')
+  })
+
+  it('falls back when Error has empty message', () => {
+    expect(apiErrorMessage(new Error('   '), 'Не удалось добавить')).toBe('Не удалось добавить')
   })
 })

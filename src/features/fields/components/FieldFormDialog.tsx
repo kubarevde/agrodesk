@@ -43,6 +43,7 @@ type FieldFormDialogProps = {
 const defaults: FieldFormValues = {
   name: '',
   crop_type: undefined,
+  crop_code: undefined,
   area_ha: undefined,
   description: '',
   latitude: undefined,
@@ -76,6 +77,7 @@ export function FieldFormDialog({
       ? {
           name: field.name,
           crop_type: field.crop_type ?? undefined,
+          crop_code: field.crop_code ?? undefined,
           area_ha: field.area_ha ?? undefined,
           description: field.description ?? '',
           latitude: field.latitude ?? undefined,
@@ -111,12 +113,20 @@ export function FieldFormDialog({
   }
 
   const cropItems = useMemo(() => {
-    const rows = crops.map((crop) => ({ value: crop.name, label: crop.name }))
-    if (field?.crop_type && !rows.some((item) => item.value === field.crop_type)) {
-      return [{ value: field.crop_type, label: field.crop_type }, ...rows]
+    const rows = crops.map((crop) => ({ value: crop.code, label: crop.name }))
+    const orphanCode = field?.crop_code
+    const orphanName = field?.crop_type
+    if (orphanCode && !rows.some((item) => item.value === orphanCode)) {
+      return [
+        { value: orphanCode, label: orphanName ?? orphanCode },
+        ...rows,
+      ]
+    }
+    if (!orphanCode && orphanName && !rows.some((item) => item.label === orphanName)) {
+      return [{ value: orphanName, label: orphanName }, ...rows]
     }
     return rows
-  }, [crops, field?.crop_type])
+  }, [crops, field?.crop_code, field?.crop_type])
 
   const watchPolygon = form.watch('polygon')
   const parsedLat = parseCoord(latText)
@@ -166,12 +176,19 @@ export function FieldFormDialog({
             <div className="space-y-2">
               <Label>Культура</Label>
               <Controller
-                name="crop_type"
+                name="crop_code"
                 control={form.control}
                 render={({ field: f }) => (
                   <Select
-                    value={f.value ?? undefined}
-                    onValueChange={(value) => f.onChange(value ?? undefined)}
+                    value={f.value ?? form.getValues('crop_type') ?? undefined}
+                    onValueChange={(value) => {
+                      const code = value ?? undefined
+                      const row = crops.find((crop) => crop.code === code)
+                      f.onChange(code)
+                      form.setValue('crop_type', row?.name ?? code, {
+                        shouldDirty: true,
+                      })
+                    }}
                     items={cropItems}
                   >
                     <SelectTrigger className="w-full">

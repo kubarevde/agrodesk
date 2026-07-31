@@ -23,6 +23,8 @@ OPENING_BALANCE_DATE = date(1900, 1, 1)
 PURPOSE_OPENING = 'opening'
 PURPOSE_ADJUSTMENT = 'adjustment'
 PURPOSE_GENERAL = 'general'
+PURPOSE_SHIPMENT_REQUEST = 'shipment_request'
+PURPOSE_HARVEST_INCOME = 'harvest_income'
 
 
 def assert_operation_date(op_date: date) -> None:
@@ -117,6 +119,7 @@ async def create_inventory_operation(
     cost: Decimal | None = None,
     equipment_id: UUID | None = None,
     purpose: str = PURPOSE_GENERAL,
+    field_id: UUID | None = None,
 ) -> InventoryOperation:
     effective_date = op_date or date.today()
     assert_operation_date(effective_date)
@@ -133,6 +136,22 @@ async def create_inventory_operation(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Для корректировки укажите причину',
         )
+
+    resolved_field_id = field_id
+    if purpose_norm == PURPOSE_HARVEST_INCOME:
+        if op_type != InventoryOperationType.income:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Сбор урожая оформляется только как приход',
+            )
+        if resolved_field_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Для сбора урожая укажите поле (field_id)',
+            )
+    elif resolved_field_id is not None and purpose_norm != PURPOSE_HARVEST_INCOME:
+        # Ignore stray field_id on non-harvest purposes (no parallel semantics).
+        resolved_field_id = None
 
     # Expense / write-off: refuse if stock at posting date is insufficient.
     # Income must never hit this gate (observed bug: shared insufficient check).
@@ -169,6 +188,7 @@ async def create_inventory_operation(
         created_by=created_by,
         equipment_id=equipment_id,
         purpose=purpose_norm,
+        field_id=resolved_field_id,
     )
     db.add(operation)
     await db.flush()

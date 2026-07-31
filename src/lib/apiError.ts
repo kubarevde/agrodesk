@@ -37,6 +37,7 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
         break
     }
   }
+  if (error instanceof Error && error.message.trim()) return error.message
   return fallback
 }
 

@@ -146,3 +146,25 @@
   }
 }
 
+/* Contour vertices: small primary dots instead of Leaflet’s default white squares. */
+.agrodesk-contour-map .agrodesk-contour-vertex {
+  background: transparent !important;
+  border: none !important;
+}
+
+.agrodesk-contour-map .agrodesk-contour-vertex__dot {
+  display: block;
+  box-sizing: border-box;
+  border-radius: 9999px;
+  background: var(--primary);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+
+.agrodesk-contour-map .agrodesk-contour-vertex:hover .agrodesk-contour-vertex__dot,
+.agrodesk-contour-map .agrodesk-contour-vertex.leaflet-drag-target .agrodesk-contour-vertex__dot {
+  background: var(--primary-hover);
+  transform: scale(1.2);
+}
+

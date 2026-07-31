@@ -1,0 +1,234 @@
+import { format } from 'date-fns'
+import { ru } from 'date-fns/locale'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { CalendarIcon, Loader2, Wheat } from 'lucide-react'
+import { useEffect, useMemo } from 'react'
+import { Controller, useForm } from 'react-hook-form'
+import { Link } from '@tanstack/react-router'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useDictionary } from '@/features/dictionaries/hooks'
+import { useInventory } from '@/features/inventory/hooks'
+import { numberInputRegister } from '@/lib/formNumbers'
+import { formatApiDate, parseApiDate } from '@/features/worktime/utils'
+import type { FieldResponse } from '../types'
+import {
+  fieldEffectiveCropCode,
+  fieldHarvestBlockReason,
+  harvestItemsMatchingCrop,
+} from '../fieldHarvest'
+import { fieldHarvestSchema, type FieldHarvestFormValues } from '../harvestSchema'
+import { useFieldHarvest } from '../hooks'
+
+type FieldHarvestModalProps = {
+  open: boolean
+  field: FieldResponse | null
+  onClose: () => void
+  onEditField?: (field: FieldResponse) => void
+}
+
+export function FieldHarvestModal({
+  open,
+  field,
+  onClose,
+  onEditField,
+}: FieldHarvestModalProps) {
+  const { data: items = [], isLoading } = useInventory({ category: 'harvest' })
+  const { data: crops = [] } = useDictionary('crop')
+  const harvest = useFieldHarvest()
+  const effectiveCode = useMemo(
+    () => (field ? fieldEffectiveCropCode(field, crops) : null),
+    [field, crops],
+  )
+  const matching = useMemo(
+    () => harvestItemsMatchingCrop(items, effectiveCode),
+    [items, effectiveCode],
+  )
+  const blockReason = field ? fieldHarvestBlockReason(field, matching, crops) : null
+  const missingCulture =
+    field != null &&
+    !(field.crop_code ?? '').trim() &&
+    !(field.crop_type ?? '').trim()
+  const cropLabel =
+    (field?.crop_type ?? '').trim() ||
+    crops.find((row) => row.code === effectiveCode)?.name ||
+    effectiveCode ||
+    '—'
+
+  const {
+    control,
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<FieldHarvestFormValues>({
+    resolver: zodResolver(fieldHarvestSchema),
+    defaultValues: {
+      inventoryItemId: '',
+      quantity: undefined,
+      date: formatApiDate(new Date()),
+    },
+  })
+
+  useEffect(() => {
+    if (!open || !field) return
+    reset({
+      inventoryItemId: matching[0]?.id ?? '',
+      quantity: undefined,
+      date: formatApiDate(new Date()),
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when dialog opens
+  }, [open, field?.id, matching[0]?.id, reset])
+
+  const pending = isSubmitting || harvest.isPending
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Собрать урожай{field ? `: ${field.name}` : ''}</DialogTitle>
+        </DialogHeader>
+
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">Загрузка склада…</p>
+        ) : blockReason ? (
+          <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
+            <p className="text-sm text-foreground">{blockReason}</p>
+            {onEditField && field && (missingCulture || !effectiveCode) ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  onClose()
+                  onEditField(field)
+                }}
+              >
+                Указать культуру поля
+              </Button>
+            ) : (
+              <Button type="button" variant="outline" asChild>
+                <Link to="/inventory">Открыть склад</Link>
+              </Button>
+            )}
+          </div>
+        ) : (
+          <form
+            className="space-y-4"
+            onSubmit={handleSubmit(async (values) => {
+              if (!field) return
+              await harvest.mutateAsync({
+                fieldId: field.id,
+                inventoryItemId: values.inventoryItemId,
+                quantity: values.quantity,
+                date: values.date,
+              })
+              toast.success('Урожай оприходован на склад', {
+                action: {
+                  label: 'Склад',
+                  onClick: () => {
+                    window.location.assign('/inventory')
+                  },
+                },
+              })
+              onClose()
+            })}
+          >
+            <p className="text-xs text-muted-foreground">
+              Культура поля: {cropLabel}. Приход только на склад
+              (не создаёт запись в «Отгрузках урожая»).
+            </p>
+
+            <div className="space-y-2">
+              <Label>Позиция урожая</Label>
+              <Controller
+                name="inventoryItemId"
+                control={control}
+                render={({ field: f }) => (
+                  <select
+                    className="flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    value={f.value ?? ''}
+                    onChange={(event) => f.onChange(event.target.value)}
+                  >
+                    <option value="">Выберите позицию</option>
+                    {matching.map((row) => (
+                      <option key={row.id} value={row.id}>
+                        {row.name} ({row.currentStock.toLocaleString('ru-RU')} {row.unit})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              />
+              {errors.inventoryItemId ? (
+                <p className="text-xs text-destructive">{errors.inventoryItemId.message}</p>
+              ) : null}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="fh-qty">Количество, кг</Label>
+              <Input
+                id="fh-qty"
+                type="number"
+                min={0}
+                step="any"
+                {...register('quantity', numberInputRegister)}
+              />
+              {errors.quantity ? (
+                <p className="text-xs text-destructive">{errors.quantity.message}</p>
+              ) : null}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Дата</Label>
+              <Controller
+                name="date"
+                control={control}
+                render={({ field: f }) => (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button type="button" variant="outline" className="w-full justify-start">
+                        <CalendarIcon className="size-4" />
+                        {f.value
+                          ? format(parseApiDate(f.value), 'd MMMM yyyy', { locale: ru })
+                          : 'Выберите дату'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={f.value ? parseApiDate(f.value) : undefined}
+                        onSelect={(d) => d && f.onChange(formatApiDate(d))}
+                        disabled={{ after: new Date() }}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                )}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="submit"
+                disabled={pending}
+                className="w-full bg-primary text-primary-foreground hover:bg-primary-hover"
+              >
+                {pending ? <Loader2 className="size-4 animate-spin" /> : <Wheat className="size-4" />}
+                Оприходовать
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}

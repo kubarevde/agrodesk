@@ -14,6 +14,8 @@ class InventoryItemCreate(BaseModel):
     current_stock: Decimal = Field(default=Decimal('0'), ge=0)
     min_stock: Decimal = Field(default=Decimal('0'), ge=0)
     total_capacity: Decimal | None = Field(default=None, ge=0)
+    # Optional when category=harvest — code from org crop dictionary (required for harvest).
+    crop_code: str | None = Field(default=None, max_length=80)
 
 
 class InventoryItemUpdate(BaseModel):
@@ -23,6 +25,7 @@ class InventoryItemUpdate(BaseModel):
     min_stock: Decimal | None = Field(default=None, ge=0)
     total_capacity: Decimal | None = Field(default=None, ge=0)
     is_active: bool | None = None
+    crop_code: str | None = Field(default=None, max_length=80)
 
 
 class InventoryItemResponse(BaseModel):
@@ -36,6 +39,8 @@ class InventoryItemResponse(BaseModel):
     total_capacity: Decimal
     is_active: bool
     is_critical: bool
+    crop_code: str | None = None
+    is_harvest: bool = False
 
 
 class InventoryOperationCreate(BaseModel):
@@ -101,3 +106,5 @@ class InventoryOperationResponse(BaseModel):
     equipment_id: UUID | None = None
     purpose: str = 'general'
     equipment_name: str | None = None
+    field_id: UUID | None = None
+    field_name: str | None = None

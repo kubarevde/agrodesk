@@ -83,7 +83,7 @@ export function KpiCards({ stats }: KpiCardsProps) {
         icon={Clock}
       />
       <KpiCard
-        title="Отгрузки за месяц"
+        title="Отгрузки урожая за месяц"
         value={formatTonnes(stats.monthShipmentWeight)}
         icon={Truck}
       />

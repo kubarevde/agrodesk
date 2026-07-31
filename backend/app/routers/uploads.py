@@ -20,6 +20,7 @@ ALLOWED_FOLDERS = frozenset({
     'profile',
     'purchase-planner',
     'support',
+    'shipment-requests',
 })
 ALLOWED_TYPES = frozenset({'image/jpeg', 'image/jpg', 'image/png', 'image/webp'})
 EXT_TYPES = {

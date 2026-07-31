@@ -9,6 +9,7 @@ import {
   resolveHomeRoute,
   SECTION_ROUTE_MAP,
 } from '@/lib/permissions'
+import { hasAction, type PermissionAction } from '@/lib/permissionActions'
 import { DEFAULT_EMPLOYEE_SECTIONS } from '@/lib/sectionRegistry'
 import {
   cacheCurrentUser,
@@ -204,6 +205,32 @@ export async function fetchAllowedSections(queryClient: QueryClient): Promise<st
   const sections = normalizePermissionsQueryData(data)
 
   return sections
+}
+
+/** Route guard: redirect unless user has a Level-2 action (admin always passes). */
+export async function guardActionAccess(
+  queryClient: QueryClient,
+  action: string,
+  fallback?: string,
+): Promise<CurrentUser> {
+  const user = await resolveCurrentUser(queryClient)
+  if (user.role === 'admin') return user
+  const perms = await queryClient.fetchQuery({
+    queryKey: AUTH_PERMISSIONS_QUERY_KEY,
+    queryFn: fetchUserPermissions,
+    staleTime: 10_000,
+  })
+  if (!hasAction(perms.actions, action as PermissionAction, user.role)) {
+    const allowed = perms.allowedSections
+    const home = fallback ?? resolveHomeRoute(user.role, allowed)
+    throw redirect({
+      to:
+        home === '/shipment-requests' || home === '/shipment-requests/my'
+          ? NO_ACCESS_ROUTE
+          : home,
+    })
+  }
+  return user
 }
 
 /** Route guard: redirect if current role cannot access section. */

@@ -18,6 +18,8 @@ const BACKEND_ACTION_KEYS = [
   'purchase.create',
   'purchase.manage',
   'support.view_org_tickets',
+  'shipment_requests.manage',
+  'shipment_requests.execute',
 ] as const
 
 describe('permissionActions', () => {

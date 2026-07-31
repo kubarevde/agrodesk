@@ -35,15 +35,29 @@ export const expenseSchema = z
     path: ['date'],
   })
 
-export const inventoryItemSchema = z.object({
-  name: z.string().min(1, 'Укажите название'),
-  category: z.string().min(1, 'Выберите категорию'),
-  unit: z.string().min(1, 'Укажите единицу измерения'),
-  currentStock: requiredNumber('Укажите остаток').min(0, 'Остаток не может быть отрицательным'),
-  minStock: requiredNumber('Укажите мин. запас').min(0, 'Мин. запас не может быть отрицательным'),
-  totalCapacity: requiredNumber('Укажите ёмкость').min(0, 'Ёмкость не может быть отрицательной'),
-  isActive: z.boolean(),
-})
+export const inventoryItemSchema = z
+  .object({
+    name: z.string().min(1, 'Укажите название'),
+    category: z.string().min(1, 'Выберите категорию'),
+    unit: z.string().min(1, 'Укажите единицу измерения'),
+    currentStock: requiredNumber('Укажите остаток').min(0, 'Остаток не может быть отрицательным'),
+    minStock: requiredNumber('Укажите мин. запас').min(0, 'Мин. запас не может быть отрицательным'),
+    totalCapacity: requiredNumber('Укажите ёмкость').min(0, 'Ёмкость не может быть отрицательной'),
+    isActive: z.boolean(),
+    /** Required when category=harvest — org crop dictionary code */
+    cropCode: z.string().max(80).optional().or(z.literal('')),
+  })
+  .superRefine((values, ctx) => {
+    if (values.category.trim().toLowerCase() !== 'harvest') return
+    const code = (values.cropCode ?? '').trim()
+    if (!code || code === 'none') {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Выберите культуру',
+        path: ['cropCode'],
+      })
+    }
+  })
 
 export const adjustmentSchema = z
   .object({

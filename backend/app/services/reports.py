@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi.responses import StreamingResponse
 from openpyxl.workbook.workbook import Workbook
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -22,9 +22,18 @@ from app.models.purchase_planner import PurchasePlannerItem
 from app.models.reference import Equipment, Location
 from app.models.shift import Shift, ShiftStatus
 from app.models.shipment import Shipment
+from app.models.shipment_request import ShipmentRequest
+from app.services.harvest_inventory import is_harvest_inventory_category
 from app.services.equipment_meters import calc_meter_label
 from app.services.excel_styles import new_workbook, write_table
 from app.services.shifts import calc_duration_from_datetimes, combine_date_time
+
+SHIPMENT_REQUEST_STATUS_LABELS = {
+    'new': 'Новая',
+    'in_progress': 'В работе',
+    'done': 'Выполнена',
+    'cancelled': 'Отменена',
+}
 
 EXPENSE_CATEGORY_LABELS = {
     # Legacy compatibility for historical expense.category codes before custom dictionaries.
@@ -43,6 +52,7 @@ INVENTORY_CATEGORY_LABELS = {
     'parts': 'Запчасти',
     'seeds': 'Семена',
     'chemicals': 'СЗР',
+    'harvest': 'Урожай (на складе)',
     'other': 'Прочее',
 }
 
@@ -98,6 +108,10 @@ def inventory_operation_label(op_type: str, purpose: str | None = None) -> str:
         return 'Заправка'
     if purpose_norm == 'install':
         return 'Установка'
+    if purpose_norm == 'shipment_request':
+        return 'Расход по заявке на отгрузку'
+    if purpose_norm == 'harvest_income':
+        return 'Сбор урожая с поля'
     return OPERATION_TYPE_LABELS.get(op_type, op_type)
 
 SHIFT_STATUS_LABELS = {
@@ -642,6 +656,7 @@ async def build_inventory_workbook(
 async def build_shipments_workbook(
     db: AsyncSession, from_date: date, to_date: date, org_id: UUID | None = None
 ) -> Workbook:
+    """Excel for crop/harvest shipments (`shipments` table) — not ТМЦ requests."""
     query = select(Shipment).where(Shipment.date >= from_date, Shipment.date <= to_date)
     if org_id is not None:
         query = query.where(Shipment.org_id == org_id)
@@ -677,6 +692,98 @@ async def build_shipments_workbook(
         ['Дата', 'Культура', 'Кг', 'Направление', 'Цена/кг', 'Сумма'],
         rows,
         ['ИТОГО', '', total_kg, '', '', total_sum],
+    )
+    return workbook
+
+
+async def build_shipment_requests_workbook(
+    db: AsyncSession, from_date: date, to_date: date, org_id: UUID | None = None
+) -> Workbook:
+    """Excel report for ТМЦ shipment requests (not crop shipments).
+
+    Includes kind=harvest the same as inventory — no kind filter.
+    """
+    created_day = func.date(ShipmentRequest.created_at)
+    query = (
+        select(ShipmentRequest)
+        .options(
+            selectinload(ShipmentRequest.inventory_item),
+            selectinload(ShipmentRequest.assignee),
+        )
+        .where(created_day >= from_date, created_day <= to_date)
+        .order_by(ShipmentRequest.created_at)
+    )
+    if org_id is not None:
+        query = query.where(ShipmentRequest.org_id == org_id)
+    result = await db.execute(query)
+    rows_data = result.scalars().all()
+
+    category_labels = await load_dictionary_labels(
+        db, org_id, 'inventory_category', INVENTORY_CATEGORY_LABELS
+    ) if org_id is not None else dict(INVENTORY_CATEGORY_LABELS)
+
+    workbook = new_workbook()
+    ws = workbook.active
+    ws.title = 'Заявки на отгрузку'
+
+    rows = []
+    for row in rows_data:
+        item = row.inventory_item
+        category = getattr(item, 'category', None) if item is not None else None
+        category_code = str(getattr(category, 'value', category) or '') if category else ''
+        category_label = resolve_label(category_code, category_labels) if category_code else ''
+        item_name = item.name if item else ''
+        item_label = f'{item_name} ({category_label})' if category_label else item_name
+        crop_code = getattr(item, 'crop_code', None) if item is not None else None
+        rows.append(
+            [
+                fmt_date(row.created_at.date()) if row.created_at else '',
+                fmt_date(row.planned_at.date()) if row.planned_at else '',
+                row.customer_name,
+                item_label,
+                category_label or (
+                    'Урожай (на складе)'
+                    if getattr(row, 'kind', None) == 'harvest'
+                    else ''
+                ),
+                'Урожай'
+                if (
+                    getattr(row, 'kind', None) == 'harvest'
+                    or is_harvest_inventory_category(category_code or None)
+                )
+                else 'ТМЦ',
+                getattr(row, 'kind', None) or '',
+                crop_code or '',
+                to_number(row.quantity),
+                to_number(row.price),
+                SHIPMENT_REQUEST_STATUS_LABELS.get(row.status, row.status),
+                row.assignee.full_name if row.assignee else '',
+                fmt_date(row.completed_at.date()) if row.completed_at else '',
+                'Да' if row.priority == 'urgent' else 'Нет',
+                str(row.shift_id) if row.shift_id else '',
+            ]
+        )
+
+    write_table(
+        ws,
+        [
+            'Дата создания',
+            'План',
+            'Контрагент',
+            'ТМЦ',
+            'Категория',
+            'Вид номенклатуры',
+            'Тип заявки',
+            'Код культуры',
+            'Количество',
+            'Цена',
+            'Статус',
+            'Исполнитель',
+            'Дата выполнения',
+            'Срочная',
+            'ID смены',
+        ],
+        rows,
     )
     return workbook
 

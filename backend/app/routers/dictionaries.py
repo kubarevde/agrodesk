@@ -22,7 +22,11 @@ from app.models.dictionary import (
 )
 from app.models.employee import Employee
 from app.services.audit import log_change, model_snapshot
-from app.services.dictionary_usage import dictionary_usage_count
+from app.services.dictionary_usage import (
+    crop_usage_breakdown,
+    dictionary_usage_count,
+    format_crop_usage_detail,
+)
 
 router = APIRouter()
 
@@ -33,6 +37,16 @@ async def _assert_can_deactivate(
     org_id: UUID,
     item: OrgDictionary,
 ) -> None:
+    if item.type == 'crop':
+        breakdown = await crop_usage_breakdown(db, org_id=org_id, item=item)
+        used = sum(breakdown.values())
+        if used > 0:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=format_crop_usage_detail(item.name, breakdown),
+            )
+        return
+
     used = await dictionary_usage_count(db, org_id=org_id, item=item)
     if used > 0:
         raise HTTPException(

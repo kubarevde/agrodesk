@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { isRedirect, redirect } from '@tanstack/react-router'
-import { guardSectionAccess } from '@/features/auth/utils'
+import { guardActionAccess, guardSectionAccess } from '@/features/auth/utils'
 
 type RouteContext = { queryClient: QueryClient }
 
@@ -20,5 +20,16 @@ export async function sectionBeforeLoad(
 export function makeSectionBeforeLoad(section: string) {
   return async ({ context }: { context: RouteContext }) => {
     await sectionBeforeLoad(context.queryClient, section)
+  }
+}
+
+export function makeActionBeforeLoad(action: string) {
+  return async ({ context }: { context: RouteContext }) => {
+    try {
+      await guardActionAccess(context.queryClient, action)
+    } catch (error) {
+      if (isRedirect(error)) throw error
+      throw redirect({ to: '/login' })
+    }
   }
 }

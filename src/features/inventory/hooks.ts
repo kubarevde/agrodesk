@@ -9,32 +9,85 @@ import { flushSyncQueue } from '@/lib/sync'
 import { inventoryItemFromApi, inventoryOperationFromApi } from '@/lib/transformers'
 import type { InventoryItem, InventoryQueueItem } from '@/types'
 import { requeueInventoryItem } from './offlineInventory'
+import {
+  filterInventoryBySearch,
+  inventoryListQueryParams,
+} from './inventorySearch'
 import type { InventoryItemFormValues } from './schemas'
+import { isHarvestCategory } from './utils'
+import {
+  buildInventoryItemUpdateBody,
+  inventoryCropPayload,
+} from './inventoryItemPayload'
 
-async function fetchInventoryOnline(): Promise<InventoryItem[]> {
+async function fetchInventoryOnline(params?: {
+  category?: string
+  search?: string
+  /** Optional crop name map for client-side search fallback */
+  cropNameByCode?: Record<string, string>
+}): Promise<InventoryItem[]> {
+  const search = (params?.search ?? '').trim()
+  const category =
+    params?.category && params.category !== 'all' ? params.category : undefined
   const { data } = await api.get<Record<string, unknown>[]>('/api/inventory', {
-    params: { is_active: true },
+    params: inventoryListQueryParams({
+      isActive: true,
+      category,
+      search,
+    }),
   })
-  const items = data.map(inventoryItemFromApi)
-  await db.inventory.clear()
-  await db.inventory.bulkPut(items)
+  let items = data.map(inventoryItemFromApi)
+  // Belt-and-suspenders: if an older API ignores `search`, still filter locally.
+  if (search) {
+    items = filterInventoryBySearch(items, search, params?.cropNameByCode)
+  }
+  // Keep Dexie cache as full active list only when unfiltered
+  if (!category && !search) {
+    await db.inventory.clear()
+    await db.inventory.bulkPut(items)
+  }
   return items
 }
 
-export function useInventory(options?: { enabled?: boolean }) {
+export function useInventory(options?: {
+  enabled?: boolean
+  category?: string
+  search?: string
+  cropNameByCode?: Record<string, string>
+}) {
+  const category = options?.category
+  const search = (options?.search ?? '').trim()
+  const cropNameByCode = options?.cropNameByCode
   return useQuery({
-    queryKey: ['inventory'],
+    queryKey: ['inventory', { category: category ?? 'all', search }],
     queryFn: async () => {
       if (!navigator.onLine) {
         const cached = await db.inventory.toArray()
-        if (cached.length > 0) return cached.filter((item) => item.isActive !== false)
-        throw new Error('Нет локального кэша склада. Откройте раздел онлайн один раз.')
+        const active = cached.filter((item) => item.isActive !== false)
+        if (active.length === 0) {
+          throw new Error('Нет локального кэша склада. Откройте раздел онлайн один раз.')
+        }
+        let rows = active
+        if (category && category !== 'all') {
+          rows = rows.filter((item) => item.category === category)
+        }
+        if (search) {
+          rows = filterInventoryBySearch(rows, search, cropNameByCode)
+        }
+        return rows
       }
       try {
-        return await fetchInventoryOnline()
+        return await fetchInventoryOnline({ category, search, cropNameByCode })
       } catch (error) {
         const cached = await db.inventory.toArray()
-        if (cached.length > 0) return cached.filter((item) => item.isActive !== false)
+        if (cached.length > 0) {
+          let rows = cached.filter((item) => item.isActive !== false)
+          if (category && category !== 'all') {
+            rows = rows.filter((item) => item.category === category)
+          }
+          if (search) rows = filterInventoryBySearch(rows, search, cropNameByCode)
+          return rows
+        }
         throw error
       }
     },
@@ -97,7 +150,7 @@ export function useInventoryItemOperations(itemId: string | null, enabled = true
     queryFn: async () => {
       const { data } = await api.get<Record<string, unknown>[]>(
         `/api/inventory/${itemId}/operations`,
-        { params: { limit: 20, exclude_opening: false } },
+        { params: { limit: 100, exclude_opening: false } },
       )
       return data.map(inventoryOperationFromApi)
     },
@@ -109,6 +162,10 @@ export function useCreateInventoryItem() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (payload: InventoryItemFormValues) => {
+      const cropCode = inventoryCropPayload(payload.category, payload.cropCode)
+      if (isHarvestCategory(payload.category) && !cropCode) {
+        throw new Error('Для позиций «Урожай на складе» необходимо указать культуру.')
+      }
       const { data } = await api.post<Record<string, unknown>>('/api/inventory', {
         name: payload.name,
         category: payload.category,
@@ -116,6 +173,7 @@ export function useCreateInventoryItem() {
         current_stock: payload.currentStock,
         min_stock: payload.minStock,
         total_capacity: payload.totalCapacity,
+        crop_code: cropCode,
       })
       const created = inventoryItemFromApi(data)
       if (payload.isActive === false) {
@@ -143,26 +201,40 @@ export function useUpdateInventoryItem() {
   return useMutation({
     mutationFn: async ({
       id,
+      previousIsActive,
       ...payload
-    }: { id: string } & Partial<InventoryItemFormValues>) => {
-      const { data } = await api.patch<Record<string, unknown>>(`/api/inventory/${id}`, {
-        name: payload.name,
-        category: payload.category,
-        unit: payload.unit,
-        min_stock: payload.minStock,
-        total_capacity: payload.totalCapacity,
-        is_active: payload.isActive,
-      })
-      return inventoryItemFromApi(data)
+    }: {
+      id: string
+      /** Prior isActive — used only for toast copy */
+      previousIsActive?: boolean
+    } & Partial<InventoryItemFormValues>) => {
+      const body = buildInventoryItemUpdateBody(payload)
+      const { data } = await api.patch<Record<string, unknown>>(`/api/inventory/${id}`, body)
+      const item = inventoryItemFromApi(data)
+      // Guard against stale backend (e.g. Vite proxy → old :8000 without crop_code in schema):
+      // request can succeed (200) while crop is silently dropped.
+      const sentCrop = inventoryCropPayload(payload.category, payload.cropCode)
+      if (sentCrop && !item.cropCode) {
+        throw new Error(
+          'Сервер не сохранил культуру (в ответе нет crop_code). ' +
+            'Перезапустите backend на порту из Vite proxy (обычно :8000) с актуальным кодом.',
+        )
+      }
+      return { item, previousIsActive }
     },
-    onSuccess: async (_data, variables) => {
+    onSuccess: async (result, variables) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['inventory'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       ])
-      if (variables.isActive === false) toast.success('Позиция архивирована (история сохранена)')
-      else if (variables.isActive === true) toast.success('Позиция восстановлена из архива')
-      else toast.success('Позиция обновлена')
+      const wasActive = variables.previousIsActive
+      if (variables.isActive === false) {
+        toast.success('Позиция архивирована (история сохранена)')
+      } else if (wasActive === false && variables.isActive === true) {
+        toast.success('Позиция восстановлена из архива')
+      } else {
+        toast.success('Позиция обновлена')
+      }
     },
     onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось обновить позицию')),
   })

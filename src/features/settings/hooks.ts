@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { Location, WorkType } from '@/types'
+import { AUTH_PERMISSIONS_QUERY_KEY } from '@/features/auth/utils'
 import { api } from '@/lib/api'
 import { apiErrorMessage } from '@/lib/apiError'
 import { locationFromApi, workTypeFromApi } from '@/lib/transformers'
@@ -138,16 +139,22 @@ export function useUpdateWorkType() {
 export type OrganizationSettings = {
   timezone: string
   available_timezones: string[]
+  shipmentRequestsEnabled: boolean
 }
 
 export function useOrganizationSettings() {
   return useQuery({
     queryKey: ['settings', 'organization'],
     queryFn: async (): Promise<OrganizationSettings> => {
-      const { data } = await api.get<OrganizationSettings>('/api/settings/organization')
+      const { data } = await api.get<{
+        timezone: string
+        available_timezones: string[]
+        shipment_requests_enabled?: boolean
+      }>('/api/settings/organization')
       return {
         timezone: data.timezone || 'Asia/Bangkok',
         available_timezones: data.available_timezones ?? [],
+        shipmentRequestsEnabled: data.shipment_requests_enabled !== false,
       }
     },
   })
@@ -156,17 +163,34 @@ export function useOrganizationSettings() {
 export function useUpdateOrganizationSettings() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { timezone: string }) => {
-      const { data } = await api.patch<OrganizationSettings>(
-        '/api/settings/organization',
-        payload,
-      )
-      return data
+    mutationFn: async (payload: {
+      timezone?: string
+      shipmentRequestsEnabled?: boolean
+    }) => {
+      const body: Record<string, unknown> = {}
+      if (payload.timezone != null) body.timezone = payload.timezone
+      if (payload.shipmentRequestsEnabled != null) {
+        body.shipment_requests_enabled = payload.shipmentRequestsEnabled
+      }
+      const { data } = await api.patch<{
+        timezone: string
+        available_timezones: string[]
+        shipment_requests_enabled?: boolean
+      }>('/api/settings/organization', body)
+      return {
+        timezone: data.timezone,
+        available_timezones: data.available_timezones ?? [],
+        shipmentRequestsEnabled: data.shipment_requests_enabled !== false,
+      } satisfies OrganizationSettings
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['settings', 'organization'] })
-      toast.success('Часовой пояс сохранён')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['settings', 'organization'] }),
+        queryClient.invalidateQueries({ queryKey: AUTH_PERMISSIONS_QUERY_KEY }),
+      ])
+      toast.success('Настройки организации сохранены')
     },
-    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось сохранить часовой пояс')),
+    onError: (error) =>
+      toast.error(apiErrorMessage(error, 'Не удалось сохранить настройки организации')),
   })
 }

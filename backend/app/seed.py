@@ -50,6 +50,17 @@ FIELD_SEED = [
     ('Поле №4', 'Озимые', Decimal('150'), 'Супесчаная', Decimal('51.5000'), Decimal('36.4500')),
 ]
 
+# Display name → dictionary code (org_dictionaries type=crop)
+CROP_NAME_TO_CODE = {
+    'Пшеница': 'wheat',
+    'Подсолнечник': 'sunflower',
+    'Кукуруза': 'corn',
+    'Озимые': 'winter',
+    'Ячмень': 'barley',
+    'Рапс': 'rapeseed',
+    'Пар': 'fallow',
+}
+
 WORK_TYPES = [
     ('Посев', 'полевые работы'),
     ('Уборка урожая', 'полевые работы'),
@@ -92,14 +103,17 @@ EMPLOYEES = [
 ]
 
 INVENTORY_ITEMS = [
-    ('Дизельное топливо', 'fuel', 'л', Decimal('2340'), Decimal('500'), Decimal('5000')),
-    ('Аммиачная селитра', 'fertilizer', 'кг', Decimal('1200'), Decimal('300'), Decimal('3000')),
-    ('Подсолнечник семена', 'seeds', 'кг', Decimal('850'), Decimal('200'), Decimal('2000')),
-    ('Гербицид Балерина', 'chemicals', 'л', Decimal('45'), Decimal('50'), Decimal('500')),
-    ('Масло моторное М-10', 'parts', 'л', Decimal('80'), Decimal('100'), Decimal('300')),
-    ('Запчасти МТЗ', 'parts', 'шт', Decimal('5'), Decimal('5'), Decimal('20')),
-    ('Пшеница семенная', 'seeds', 'кг', Decimal('4500'), Decimal('1000'), Decimal('5000')),
-    ('Аммофос', 'fertilizer', 'кг', Decimal('600'), Decimal('200'), Decimal('1500')),
+    ('Дизельное топливо', 'fuel', 'л', Decimal('2340'), Decimal('500'), Decimal('5000'), None),
+    ('Аммиачная селитра', 'fertilizer', 'кг', Decimal('1200'), Decimal('300'), Decimal('3000'), None),
+    ('Подсолнечник семена', 'seeds', 'кг', Decimal('850'), Decimal('200'), Decimal('2000'), None),
+    ('Гербицид Балерина', 'chemicals', 'л', Decimal('45'), Decimal('50'), Decimal('500'), None),
+    ('Масло моторное М-10', 'parts', 'л', Decimal('80'), Decimal('100'), Decimal('300'), None),
+    ('Запчасти МТЗ', 'parts', 'шт', Decimal('5'), Decimal('5'), Decimal('20'), None),
+    ('Пшеница семенная', 'seeds', 'кг', Decimal('4500'), Decimal('1000'), Decimal('5000'), None),
+    ('Аммофос', 'fertilizer', 'кг', Decimal('600'), Decimal('200'), Decimal('1500'), None),
+    # Harvest-as-SKU (warehouse stock) — linked to crop dictionary codes; not agronomic shipments.
+    ('Пшеница (урожай на складе)', 'harvest', 'кг', Decimal('8000'), Decimal('500'), Decimal('20000'), 'wheat'),
+    ('Подсолнечник (урожай на складе)', 'harvest', 'кг', Decimal('3200'), Decimal('200'), Decimal('10000'), 'sunflower'),
 ]
 
 # name, category, condition(legacy), year, serial, usage_hours, service_interval
@@ -191,6 +205,7 @@ async def update_field_seed(session, org_id=None) -> None:
         if item is None:
             continue
         item.crop_type = crop_type
+        item.crop_code = CROP_NAME_TO_CODE.get(crop_type)
         item.area_ha = area_ha
         item.soil_type = soil_type
         item.kind = 'field'
@@ -532,9 +547,10 @@ async def seed_inventory_items(session, org_id) -> None:
             current_stock=current_stock,
             min_stock=min_stock,
             total_capacity=total_capacity,
+            crop_code=crop_code,
             is_active=True,
         )
-        for name, category, unit, current_stock, min_stock, total_capacity in INVENTORY_ITEMS
+        for name, category, unit, current_stock, min_stock, total_capacity, crop_code in INVENTORY_ITEMS
     ]
     session.add_all(items)
     await session.flush()
@@ -542,6 +558,49 @@ async def seed_inventory_items(session, org_id) -> None:
         await create_opening_balance_operation(session, item=item, created_by=None)
     await session.commit()
     print(f'inventory_items: seeded {len(INVENTORY_ITEMS)} rows with opening balances')
+
+
+async def ensure_harvest_inventory_samples(session, org_id) -> None:
+    """Idempotent: ensure 1–2 harvest-as-SKU rows linked to crop codes exist."""
+    from app.services.inventory import create_opening_balance_operation
+
+    samples = [
+        ('Пшеница (урожай на складе)', 'wheat', Decimal('8000'), Decimal('500'), Decimal('20000')),
+        ('Подсолнечник (урожай на складе)', 'sunflower', Decimal('3200'), Decimal('200'), Decimal('10000')),
+    ]
+    added = 0
+    for name, crop_code, stock, min_stock, capacity in samples:
+        exists = await session.scalar(
+            select(func.count())
+            .select_from(InventoryItem)
+            .where(
+                InventoryItem.org_id == org_id,
+                InventoryItem.category == 'harvest',
+                InventoryItem.crop_code == crop_code,
+            )
+        )
+        if exists:
+            continue
+        item = InventoryItem(
+            org_id=org_id,
+            name=name,
+            category='harvest',
+            unit='кг',
+            current_stock=stock,
+            min_stock=min_stock,
+            total_capacity=capacity,
+            crop_code=crop_code,
+            is_active=True,
+        )
+        session.add(item)
+        await session.flush()
+        await create_opening_balance_operation(session, item=item, created_by=None)
+        added += 1
+    if added:
+        await session.commit()
+        print(f'inventory_items: ensured {added} harvest-as-SKU sample(s)')
+    else:
+        print('inventory_items: harvest-as-SKU samples already present')
 
 
 async def seed_implements(session, org_id) -> None:
@@ -628,6 +687,7 @@ async def seed_finance_demo(session, org_id) -> None:
                     org_id=org_id,
                     date=month_start,
                     crop_type='Пшеница',
+                    crop_code='wheat',
                     quantity_kg=Decimal('12500'),
                     destination='Элеватор №1',
                     price_per_kg=Decimal('14.50'),
@@ -637,6 +697,7 @@ async def seed_finance_demo(session, org_id) -> None:
                     org_id=org_id,
                     date=today,
                     crop_type='Подсолнечник',
+                    crop_code='sunflower',
                     quantity_kg=Decimal('8200'),
                     destination='Маслозавод',
                     price_per_kg=Decimal('28.00'),
@@ -646,6 +707,7 @@ async def seed_finance_demo(session, org_id) -> None:
                     org_id=org_id,
                     date=today.replace(day=max(1, today.day - 3)),
                     crop_type='Кукуруза',
+                    crop_code='corn',
                     quantity_kg=Decimal('15000'),
                     destination='Элеватор №2',
                     price_per_kg=Decimal('11.20'),
@@ -723,6 +785,7 @@ async def ensure_demo_data() -> None:
         await seed_equipment(session, org.id)
         await seed_employees(session, org.id)
         await seed_inventory_items(session, org.id)
+        await ensure_harvest_inventory_samples(session, org.id)
         await seed_implements(session, org.id)
         await seed_finance_demo(session, org.id)
         await ensure_demo_open_shift(session, org.id)

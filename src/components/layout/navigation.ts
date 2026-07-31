@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   BarChart2,
   CalendarDays,
+  ClipboardList,
   Clock,
   DollarSign,
   Handshake,
@@ -9,6 +10,7 @@ import {
   History,
   LayoutDashboard,
   Map,
+  MessageCircle,
   Package,
   Settings,
   ShoppingCart,
@@ -19,12 +21,15 @@ import {
   Wrench,
 } from 'lucide-react'
 import type { CurrentUser } from '@/lib/transformers'
+import { hasAction, type PermissionAction } from '@/lib/permissionActions'
 import { filterNavBySections } from '@/lib/permissions'
 
 export interface NavItem {
   to: string
   label: string
   icon: LucideIcon
+  /** When set, item is hidden unless the user has this action (admin always sees it). */
+  requiredAction?: PermissionAction
 }
 
 export interface NavGroup {
@@ -36,6 +41,19 @@ const MY_SHIFT_ITEM: NavItem = {
   to: '/my-shift',
   label: 'Моя смена',
   icon: Clock,
+}
+
+const MESSENGER_ITEM: NavItem = {
+  to: '/messenger',
+  label: 'Мессенджер',
+  icon: MessageCircle,
+}
+
+const MY_SHIPMENTS_ITEM: NavItem = {
+  to: '/shipment-requests/my',
+  label: 'Мои заявки ТМЦ',
+  icon: Truck,
+  requiredAction: 'shipment_requests.execute',
 }
 
 const SHARING_ITEM: NavItem = {
@@ -61,7 +79,13 @@ const RESOURCES_ITEMS: NavItem[] = [
 ]
 
 const FINANCE_ITEMS: NavItem[] = [
-  { to: '/shipments', label: 'Отгрузки', icon: Truck },
+  { to: '/shipments', label: 'Отгрузки урожая', icon: Truck },
+  {
+    to: '/shipment-requests',
+    label: 'Заявки на отгрузку',
+    icon: ClipboardList,
+    requiredAction: 'shipment_requests.manage',
+  },
   { to: '/expenses', label: 'Затраты', icon: DollarSign },
   { to: '/analytics/forecast', label: 'Прогноз и оптимизация', icon: TrendingUp },
   { to: '/reports', label: 'Отчёты', icon: BarChart2 },
@@ -74,7 +98,10 @@ const ADMIN_ITEMS: NavItem[] = [
 ]
 
 export const NAV_GROUPS: NavGroup[] = [
-  { title: 'Операционные', items: [MY_SHIFT_ITEM, ...OPERATIONS_ITEMS] },
+  {
+    title: 'Операционные',
+    items: [MY_SHIFT_ITEM, MESSENGER_ITEM, MY_SHIPMENTS_ITEM, ...OPERATIONS_ITEMS],
+  },
   { title: 'Ресурсы', items: RESOURCES_ITEMS },
   { title: 'Финансы и отчёты', items: FINANCE_ITEMS },
   { title: 'Администрирование', items: ADMIN_ITEMS },
@@ -91,21 +118,36 @@ export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((group) => group.items)
 export function getNavGroups(
   role?: CurrentUser['role'],
   allowedSections?: string[],
+  actions?: string[],
+  options?: { shipmentRequestsEnabled?: boolean },
 ): NavGroup[] {
+  const shipmentRequestsEnabled = options?.shipmentRequestsEnabled !== false
   if (role === 'employee' && allowedSections === undefined) {
-    return [{ title: 'Операционные', items: [MY_SHIFT_ITEM, SHARING_ITEM] }]
+    return [{ title: 'Операционные', items: [MY_SHIFT_ITEM, MESSENGER_ITEM, SHARING_ITEM] }]
   }
   return NAV_GROUPS.map((group) => ({
     ...group,
-    items: filterNavBySections(group.items, allowedSections, role),
+    items: filterNavBySections(group.items, allowedSections, role).filter((item) => {
+      if (
+        !shipmentRequestsEnabled &&
+        (item.requiredAction === 'shipment_requests.manage' ||
+          item.requiredAction === 'shipment_requests.execute')
+      ) {
+        return false
+      }
+      if (!item.requiredAction) return true
+      return hasAction(actions, item.requiredAction, role)
+    }),
   })).filter((group) => group.items.length > 0)
 }
 
 export function getNavItems(
   role?: CurrentUser['role'],
   allowedSections?: string[],
+  actions?: string[],
+  options?: { shipmentRequestsEnabled?: boolean },
 ): NavItem[] {
-  return getNavGroups(role, allowedSections).flatMap((group) => group.items)
+  return getNavGroups(role, allowedSections, actions, options).flatMap((group) => group.items)
 }
 
 export function getPageTitle(pathname: string): string {
@@ -120,8 +162,17 @@ export function getPageTitle(pathname: string): string {
     if (normalized.includes('/guide')) return 'Как пользоваться системой'
     return 'Поддержка'
   }
+  if (normalized === '/messenger' || normalized.startsWith('/messenger/')) {
+    return 'Мессенджер'
+  }
   if (normalized === '/agro-calendar' || normalized.startsWith('/agro-calendar/')) {
     return 'Агрокалендарь'
+  }
+  if (normalized === '/shipment-requests' || normalized.startsWith('/shipment-requests/')) {
+    if (normalized.endsWith('/my') || normalized.includes('/my/')) {
+      return 'Мои заявки ТМЦ'
+    }
+    return 'Заявки на отгрузку'
   }
   const item = NAV_ITEMS.find(
     (nav) => normalized === nav.to || normalized.startsWith(`${nav.to}/`),

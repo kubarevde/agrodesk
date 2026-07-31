@@ -18,6 +18,7 @@ import type { FieldFormValues } from '@/features/fields/schemas'
 import type { FieldResponse } from '@/features/fields/types'
 import { FieldCard } from './FieldCard'
 import { FieldFormDialog } from './FieldFormDialog'
+import { FieldHarvestModal } from './FieldHarvestModal'
 import { FieldsMap } from './FieldsMap'
 import { SharingCreateModal } from './SharingCreateModal'
 
@@ -35,6 +36,7 @@ export function FieldsPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<FieldResponse | null>(null)
   const [shareField, setShareField] = useState<FieldResponse | null>(null)
+  const [harvestField, setHarvestField] = useState<FieldResponse | null>(null)
 
   useEffect(() => {
     if (isError) toast.error('Не удалось загрузить поля')
@@ -101,6 +103,7 @@ export function FieldsPage() {
                   field={field}
                   canManage={canManage}
                   canDelete={canDelete}
+                  onHarvest={setHarvestField}
                   onEdit={(item) => {
                     setEditing(item)
                     setFormOpen(true)
@@ -144,6 +147,16 @@ export function FieldsPage() {
           if (!open) setShareField(null)
         }}
         field={shareField}
+      />
+
+      <FieldHarvestModal
+        open={Boolean(harvestField)}
+        field={harvestField}
+        onClose={() => setHarvestField(null)}
+        onEditField={(item) => {
+          setEditing(item)
+          setFormOpen(true)
+        }}
       />
     </div>
   )

@@ -5,6 +5,7 @@ Uses pure ASGI middleware (not BaseHTTPMiddleware) so request.state is reliable.
 
 from __future__ import annotations
 
+from urllib.parse import unquote
 from uuid import UUID
 
 from fastapi import HTTPException, Request, status
@@ -77,7 +78,18 @@ class OrgContextMiddleware:
             for k, v in scope.get('headers') or []
         }
         auth_header = headers.get('authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
+        token = ''
+        if auth_header and auth_header.startswith('Bearer '):
+            token = auth_header.removeprefix('Bearer ').strip()
+        elif path.startswith('/api/messenger/events'):
+            # EventSource cannot set Authorization — allow JWT via ?token=
+            query = scope.get('query_string', b'').decode('latin-1')
+            for part in query.split('&'):
+                if part.startswith('token='):
+                    token = unquote(part[len('token=') :])
+                    break
+
+        if not token:
             response = JSONResponse(
                 status_code=401,
                 content={'detail': 'Недействительный токен'},
@@ -86,7 +98,6 @@ class OrgContextMiddleware:
             await response(scope, receive, send)
             return
 
-        token = auth_header.removeprefix('Bearer ').strip()
         try:
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
             org_id_raw = payload.get('org_id')

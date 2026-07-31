@@ -121,7 +121,7 @@ export const SECTION_REGISTRY: readonly SectionDefinition[] = [
   },
   {
     key: 'shipments',
-    title: 'Отгрузки',
+    title: 'Отгрузки урожая',
     route: '/shipments',
     showInSidebar: true,
     showInEmployeeHome: true,

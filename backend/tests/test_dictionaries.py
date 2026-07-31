@@ -86,3 +86,37 @@ def test_cannot_deactivate_used_inventory_category(
     )
     assert blocked.status_code == 409, blocked.text
     assert 'используется' in blocked.json()['detail'].lower() or 'Нельзя' in blocked.json()['detail']
+
+
+def test_cannot_deactivate_crop_used_on_harvest_sku(
+    client: httpx.Client,
+    admin_headers: dict[str, str],
+) -> None:
+    crops = client.get('/api/dictionaries/crop', headers=admin_headers)
+    assert crops.status_code == 200
+    wheat = next((c for c in crops.json() if c.get('code') == 'wheat' and c.get('is_active')), None)
+    if wheat is None:
+        return
+    created = client.post(
+        '/api/inventory',
+        headers=admin_headers,
+        json={
+            'name': f'Usage crop SKU {uuid.uuid4().hex[:8]}',
+            'category': 'harvest',
+            'unit': 'кг',
+            'current_stock': 1,
+            'min_stock': 0,
+            'total_capacity': 10,
+            'crop_code': 'wheat',
+        },
+    )
+    assert created.status_code == 201, created.text
+    blocked = client.patch(
+        f"/api/dictionaries/crop/{wheat['id']}",
+        headers=admin_headers,
+        json={'is_active': False},
+    )
+    assert blocked.status_code == 409, blocked.text
+    detail = blocked.json().get('detail', '').lower()
+    assert 'склад' in detail or 'урожай' in detail
+

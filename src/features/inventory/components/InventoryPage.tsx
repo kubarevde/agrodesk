@@ -1,14 +1,17 @@
-import { Minus, Package, Plus, SlidersHorizontal } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { ClipboardList, Minus, Package, Plus, Search, SlidersHorizontal } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
 import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { InventoryItem } from '@/types'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { useDictionary } from '@/features/dictionaries/hooks'
 import { inventoryHelp } from '@/features/help/content'
 import { useInventory, useInventoryOperations, useInventoryQueueIssues } from '@/features/inventory/hooks'
+import { ShipmentRequestFormDialog } from '@/features/shipment-requests/components/ShipmentRequestFormDialog'
 import { useUserPermissions } from '@/features/settings/permissionsHooks'
 import { hasAction } from '@/lib/permissionActions'
 import { CategoryFilter } from './CategoryFilter'
@@ -21,30 +24,80 @@ import { InventoryItemFormModal } from './InventoryItemFormModal'
 import { InventoryOfflinePanel } from './InventoryOfflinePanel'
 import { InventoryOperationsTable } from './InventoryOperationsTable'
 
-export function InventoryPage() {
+type InventoryPageProps = {
+  category?: string
+  search?: string
+  onCategoryChange?: (category: string) => void
+  onSearchChange?: (search: string) => void
+}
+
+export function InventoryPage({
+  category = 'all',
+  search = '',
+  onCategoryChange,
+  onSearchChange,
+}: InventoryPageProps) {
   const { data: user } = useCurrentUser()
   const { data: perms } = useUserPermissions()
   const canManage = hasAction(perms?.actions, 'inventory.manage_items', user?.role)
   const canOperate = hasAction(perms?.actions, 'inventory.operate', user?.role)
-  const { data: items = [], isLoading } = useInventory()
+  const canShipmentRequest = hasAction(perms?.actions, 'shipment_requests.manage', user?.role)
+
+  const [searchInput, setSearchInput] = useState(search)
+  const [debouncedSearch, setDebouncedSearch] = useState(search.trim())
+  const onSearchChangeRef = useRef(onSearchChange)
+  onSearchChangeRef.current = onSearchChange
+  const lastSyncedSearchRef = useRef(search.trim())
+
+  // Apply external URL changes (back/forward) without clobbering in-progress typing we just synced.
+  useEffect(() => {
+    const fromUrl = search.trim()
+    if (fromUrl === lastSyncedSearchRef.current) return
+    lastSyncedSearchRef.current = fromUrl
+    setSearchInput(fromUrl)
+    setDebouncedSearch(fromUrl)
+  }, [search])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const next = searchInput.trim()
+      setDebouncedSearch(next)
+      if (next === lastSyncedSearchRef.current) return
+      lastSyncedSearchRef.current = next
+      onSearchChangeRef.current?.(next)
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [searchInput])
+
+  const { data: crops = [] } = useDictionary('crop')
+  const cropNameByCode = useMemo(
+    () => Object.fromEntries(crops.map((row) => [row.code, row.name])),
+    [crops],
+  )
+
+  const { data: items = [], isLoading } = useInventory({
+    category,
+    search: debouncedSearch,
+    cropNameByCode,
+  })
+  const { data: allItems = [] } = useInventory()
   const { data: operations = [], isLoading: operationsLoading } = useInventoryOperations()
   const queueIssues = useInventoryQueueIssues()
   const issueItemIds = useMemo(
     () => new Set(queueIssues.map((row) => row.itemId)),
     [queueIssues],
   )
-  const [category, setCategory] = useState<string>('all')
   const [incomeOpen, setIncomeOpen] = useState(false)
   const [expenseOpen, setExpenseOpen] = useState(false)
   const [adjustOpen, setAdjustOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<InventoryItem | null>(null)
+  const [shipmentOpen, setShipmentOpen] = useState(false)
+  const [shipmentItemId, setShipmentItemId] = useState<string | null>(null)
 
-  const filteredItems = useMemo(() => {
-    if (category === 'all') return items
-    return items.filter((item) => item.category === category)
-  }, [category, items])
+  const modalItems = allItems.length > 0 ? allItems : items
+  const setCategory = onCategoryChange ?? (() => undefined)
 
   return (
     <div className="space-y-6">
@@ -91,6 +144,19 @@ export function InventoryPage() {
               Корректировка
             </Button>
           ) : null}
+          {canShipmentRequest ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShipmentItemId(null)
+                setShipmentOpen(true)
+              }}
+            >
+              <ClipboardList className="size-4" />
+              Заявка
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -99,7 +165,23 @@ export function InventoryPage() {
 
       <InventoryOfflinePanel />
 
-      <CategoryFilter value={category} onChange={setCategory} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative min-w-0 flex-1 sm:max-w-sm">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder={
+              category === 'harvest'
+                ? 'Поиск по названию или культуре…'
+                : 'Поиск по названию…'
+            }
+            className="pl-9"
+            aria-label="Поиск по складу"
+          />
+        </div>
+        <CategoryFilter value={category} onChange={setCategory} />
+      </div>
 
       {isLoading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
@@ -107,7 +189,7 @@ export function InventoryPage() {
             <Skeleton key={index} className="h-52 w-full rounded-xl" />
           ))}
         </div>
-      ) : items.length === 0 ? (
+      ) : items.length === 0 && !debouncedSearch && category === 'all' ? (
         <EmptyState
           icon={Package}
           title="Позиций нет"
@@ -124,16 +206,16 @@ export function InventoryPage() {
               : undefined
           }
         />
-      ) : filteredItems.length === 0 ? (
+      ) : items.length === 0 ? (
         <EmptyState
           icon={Package}
-          title="Позиций нет"
-          description="Выберите другую категорию или оформите приход"
+          title="Ничего не найдено"
+          description="Измените поиск или категорию, либо оформите приход."
           action={{ label: 'Оформить приход', onClick: () => setIncomeOpen(true) }}
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
-          {filteredItems.map((item) => (
+          {items.map((item) => (
             <InventoryCard
               key={item.id}
               item={item}
@@ -147,6 +229,14 @@ export function InventoryPage() {
                     }
                   : undefined
               }
+              onShipmentRequest={
+                canShipmentRequest
+                  ? (row) => {
+                      setShipmentItemId(row.id)
+                      setShipmentOpen(true)
+                    }
+                  : undefined
+              }
             />
           ))}
         </div>
@@ -154,9 +244,9 @@ export function InventoryPage() {
 
       <InventoryOperationsTable operations={operations} isLoading={operationsLoading} />
 
-      <IncomeModal open={incomeOpen} items={items} onClose={() => setIncomeOpen(false)} />
-      <ExpenseModal open={expenseOpen} items={items} onClose={() => setExpenseOpen(false)} />
-      <AdjustmentModal open={adjustOpen} items={items} onClose={() => setAdjustOpen(false)} />
+      <IncomeModal open={incomeOpen} items={modalItems} onClose={() => setIncomeOpen(false)} />
+      <ExpenseModal open={expenseOpen} items={modalItems} onClose={() => setExpenseOpen(false)} />
+      <AdjustmentModal open={adjustOpen} items={modalItems} onClose={() => setAdjustOpen(false)} />
       <InventoryDetailSheet
         item={selectedItem}
         open={Boolean(selectedItem)}
@@ -170,6 +260,16 @@ export function InventoryPage() {
           onClose={() => {
             setFormOpen(false)
             setEditing(null)
+          }}
+        />
+      ) : null}
+      {canShipmentRequest ? (
+        <ShipmentRequestFormDialog
+          open={shipmentOpen}
+          initialInventoryItemId={shipmentItemId}
+          onClose={() => {
+            setShipmentOpen(false)
+            setShipmentItemId(null)
           }}
         />
       ) : null}

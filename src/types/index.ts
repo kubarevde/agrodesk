@@ -104,6 +104,7 @@ export interface Field {
   id: string
   name: string
   crop_type: string | null
+  crop_code?: string | null
   area_ha: number | null
   soil_type: string | null
   description: string | null
@@ -229,6 +230,8 @@ export interface InventoryItem {
   minStock: number
   totalCapacity: number
   isActive: boolean
+  cropCode?: string | null
+  isHarvest?: boolean
 }
 
 export interface InventoryOperation {
@@ -244,23 +247,28 @@ export interface InventoryOperation {
   cost?: number
   createdByName?: string
   purpose?: string
+  fieldId?: string | null
+  fieldName?: string | null
 }
 
 export interface Shipment {
   id: string
   date: string
   cropType: string
+  cropCode?: string | null
   quantityKg: number
   destination?: string
   pricePerKg: number | null
   totalSum: number | null
   notes?: string
+  shipmentRequestId?: string | null
 }
 
 export interface ShipmentFilters {
   from?: string
   to?: string
   cropType?: string
+  shipmentRequestId?: string
 }
 
 export interface Expense {
@@ -363,6 +371,13 @@ export interface DashboardUrgentPurchase {
   estimatedCost: number | null
 }
 
+export interface DashboardShipmentRequestsSummary {
+  today: number
+  upcoming: number
+  overdue: number
+  urgent: number
+}
+
 export interface DashboardStats {
   activeShiftsCount: number
   activeShifts: DashboardActiveShift[]
@@ -381,4 +396,5 @@ export interface DashboardStats {
   sharingNewRequests: number
   urgentPurchasesCount: number
   urgentPurchases: DashboardUrgentPurchase[]
+  shipmentRequestsSummary: DashboardShipmentRequestsSummary
 }
