@@ -14,14 +14,23 @@ from app.models.reference import Equipment, Location
 from app.models.sharing import SharingListing, SharingRequest
 from app.models.shift import Shift, ShiftStatus
 from app.models.shipment import Shipment
+from app.models.shipment_request import ShipmentRequest, ShipmentRequestStatus
 from app.schemas.dashboard import (
     DashboardActiveShift,
     DashboardAgroPlanToday,
     DashboardCriticalItem,
     DashboardEquipmentWarning,
+    DashboardShipmentRequestsSummary,
     DashboardStatsResponse,
     DashboardUrgentPurchase,
     DashboardWeeklyHours,
+)
+
+# How many days ahead (after today) count toward "upcoming" shipment requests.
+SHIPMENT_REQUESTS_UPCOMING_DAYS = 7
+ACTIVE_SHIPMENT_STATUSES = (
+    ShipmentRequestStatus.new.value,
+    ShipmentRequestStatus.in_progress.value,
 )
 from app.services.equipment_meters import calc_meter_label
 from app.services.maintenance import build_maintenance_summary
@@ -344,6 +353,65 @@ async def fetch_urgent_purchases(org_id: UUID) -> tuple[int, list[DashboardUrgen
     return int(count or 0), items
 
 
+async def fetch_shipment_requests_summary(
+    today: date,
+    org_id: UUID,
+    upcoming_days: int = SHIPMENT_REQUESTS_UPCOMING_DAYS,
+) -> DashboardShipmentRequestsSummary:
+    """Aggregate active shipment requests for the dashboard widget.
+
+    Counts all kinds (inventory + harvest) — no kind filter by design.
+    """
+    upcoming_end = today + timedelta(days=max(1, upcoming_days))
+    planned_day = func.date(ShipmentRequest.planned_at)
+
+    async with AsyncSessionLocal() as db:
+        today_count = await db.scalar(
+            select(func.count())
+            .select_from(ShipmentRequest)
+            .where(
+                ShipmentRequest.org_id == org_id,
+                ShipmentRequest.status.in_(ACTIVE_SHIPMENT_STATUSES),
+                planned_day == today,
+            )
+        )
+        upcoming_count = await db.scalar(
+            select(func.count())
+            .select_from(ShipmentRequest)
+            .where(
+                ShipmentRequest.org_id == org_id,
+                ShipmentRequest.status.in_(ACTIVE_SHIPMENT_STATUSES),
+                planned_day > today,
+                planned_day <= upcoming_end,
+            )
+        )
+        overdue_count = await db.scalar(
+            select(func.count())
+            .select_from(ShipmentRequest)
+            .where(
+                ShipmentRequest.org_id == org_id,
+                ShipmentRequest.status.in_(ACTIVE_SHIPMENT_STATUSES),
+                planned_day < today,
+            )
+        )
+        urgent_count = await db.scalar(
+            select(func.count())
+            .select_from(ShipmentRequest)
+            .where(
+                ShipmentRequest.org_id == org_id,
+                ShipmentRequest.status.in_(ACTIVE_SHIPMENT_STATUSES),
+                ShipmentRequest.priority == 'urgent',
+            )
+        )
+
+    return DashboardShipmentRequestsSummary(
+        today=int(today_count or 0),
+        upcoming=int(upcoming_count or 0),
+        overdue=int(overdue_count or 0),
+        urgent=int(urgent_count or 0),
+    )
+
+
 async def compute_stats(owner_id: UUID, org_id: UUID) -> DashboardStatsResponse:
     today = date.today()
     now = datetime.now()
@@ -359,6 +427,7 @@ async def compute_stats(owner_id: UUID, org_id: UUID) -> DashboardStatsResponse:
         agro_plan_today,
         sharing_new_requests,
         urgent_purchases_result,
+        shipment_requests_summary,
     ) = await asyncio.gather(
         fetch_shift_stats(today, month_start, month_end, week_start, week_end, now, org_id),
         fetch_shipment_stats(month_start, month_end, org_id),
@@ -368,6 +437,7 @@ async def compute_stats(owner_id: UUID, org_id: UUID) -> DashboardStatsResponse:
         fetch_agro_plan_today(today, org_id),
         fetch_sharing_new_requests(owner_id),
         fetch_urgent_purchases(org_id),
+        fetch_shipment_requests_summary(today, org_id),
     )
 
     (
@@ -405,6 +475,7 @@ async def compute_stats(owner_id: UUID, org_id: UUID) -> DashboardStatsResponse:
         sharing_new_requests=sharing_new_requests,
         urgent_purchases_count=urgent_purchases_count,
         urgent_purchases=urgent_purchases,
+        shipment_requests_summary=shipment_requests_summary,
     )
 
 

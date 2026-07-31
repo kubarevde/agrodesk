@@ -52,6 +52,13 @@ class DashboardUrgentPurchase(BaseModel):
     estimated_cost: float | None = None
 
 
+class DashboardShipmentRequestsSummary(BaseModel):
+    today: int = 0
+    upcoming: int = 0
+    overdue: int = 0
+    urgent: int = 0
+
+
 class DashboardStatsResponse(BaseModel):
     active_shifts_count: int
     active_shifts: list[DashboardActiveShift]
@@ -72,3 +79,4 @@ class DashboardStatsResponse(BaseModel):
     sharing_new_requests: int
     urgent_purchases_count: int = 0
     urgent_purchases: list[DashboardUrgentPurchase] = []
+    shipment_requests_summary: DashboardShipmentRequestsSummary = DashboardShipmentRequestsSummary()

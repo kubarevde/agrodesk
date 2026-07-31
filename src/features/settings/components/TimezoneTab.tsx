@@ -29,10 +29,12 @@ export function TimezoneTab() {
   const { data, isLoading, isError } = useOrganizationSettings()
   const update = useUpdateOrganizationSettings()
   const [timezone, setTimezone] = useState('Asia/Bangkok')
+  const [shipmentEnabled, setShipmentEnabled] = useState(true)
 
   useEffect(() => {
     if (data?.timezone) setTimezone(data.timezone)
-  }, [data?.timezone])
+    if (data) setShipmentEnabled(data.shipmentRequestsEnabled)
+  }, [data])
 
   if (isLoading) return <PageSkeleton />
   if (isError || !data) {
@@ -46,6 +48,9 @@ export function TimezoneTab() {
   const options = data.available_timezones?.length
     ? data.available_timezones
     : Object.keys(TIMEZONE_LABELS)
+
+  const dirty =
+    timezone !== data.timezone || shipmentEnabled !== data.shipmentRequestsEnabled
 
   return (
     <div className="max-w-md space-y-4 rounded-lg border border-border bg-surface p-4">
@@ -79,11 +84,34 @@ export function TimezoneTab() {
           </span>
         </p>
       </div>
+
+      <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3">
+        <input
+          type="checkbox"
+          className="mt-1 size-4 accent-primary"
+          checked={shipmentEnabled}
+          onChange={(e) => setShipmentEnabled(e.target.checked)}
+        />
+        <span>
+          <span className="block text-sm font-medium text-foreground">
+            Заявки на отгрузку ТМЦ
+          </span>
+          <span className="text-xs text-muted-foreground">
+            Включает раздел заявок, права shipment_requests.* и API модуля.
+          </span>
+        </span>
+      </label>
+
       <Button
         type="button"
-        disabled={update.isPending || timezone === data.timezone}
+        disabled={update.isPending || !dirty}
         className="bg-primary hover:bg-primary-hover text-primary-foreground"
-        onClick={() => void update.mutateAsync({ timezone })}
+        onClick={() =>
+          void update.mutateAsync({
+            timezone,
+            shipmentRequestsEnabled: shipmentEnabled,
+          })
+        }
       >
         {update.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
         Сохранить

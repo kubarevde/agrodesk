@@ -17,6 +17,8 @@ export const ACTION_KEYS = [
   'purchase.create',
   'purchase.manage',
   'support.view_org_tickets',
+  'shipment_requests.manage',
+  'shipment_requests.execute',
 ] as const
 
 export type PermissionAction = (typeof ACTION_KEYS)[number]
@@ -31,6 +33,8 @@ export const ACTION_LABELS: Record<PermissionAction, string> = {
   'purchase.create': 'Создавать заявки на закупку',
   'purchase.manage': 'Управлять закупками (удаление, затраты)',
   'support.view_org_tickets': 'Видеть все обращения организации',
+  'shipment_requests.manage': 'Управлять заявками на отгрузку ТМЦ',
+  'shipment_requests.execute': 'Исполнять заявки на отгрузку ТМЦ',
 }
 
 /** Employee-safe baselines when a section is granted (matches backend SECTION_IMPLIED_ACTIONS). */
@@ -39,6 +43,7 @@ export const SECTION_IMPLIED_ACTIONS: Record<string, readonly PermissionAction[]
   worktime: ['shift.open_own', 'shift.close_own'],
   inventory: ['inventory.operate'],
   'purchase-planner': ['purchase.create'],
+  shipments: ['shipment_requests.execute'],
 }
 
 export function impliedActionsForSections(sections: string[]): PermissionAction[] {

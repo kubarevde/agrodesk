@@ -312,6 +312,8 @@ export function inventoryItemFromApi(raw: ApiRecord): InventoryItem {
     minStock: toNumber(raw.min_stock),
     totalCapacity: toNumber(raw.total_capacity),
     isActive: raw.is_active !== false,
+    cropCode: raw.crop_code != null ? String(raw.crop_code) : null,
+    isHarvest: raw.is_harvest === true,
   }
 }
 
@@ -330,6 +332,8 @@ export function inventoryOperationFromApi(raw: ApiRecord): InventoryOperation {
     createdByName:
       raw.created_by_name != null ? String(raw.created_by_name) : undefined,
     purpose: raw.purpose != null ? String(raw.purpose) : 'general',
+    fieldId: raw.field_id != null ? String(raw.field_id) : null,
+    fieldName: raw.field_name != null ? String(raw.field_name) : null,
   }
 }
 
@@ -362,6 +366,7 @@ export function shipmentFromApi(raw: ApiRecord): Shipment {
     id: String(raw.id),
     date: isoDateToDisplay(String(raw.date)),
     cropType: String(raw.crop_type),
+    cropCode: raw.crop_code != null ? String(raw.crop_code) : null,
     quantityKg,
     destination: raw.destination ? String(raw.destination) : undefined,
     pricePerKg,
@@ -372,6 +377,8 @@ export function shipmentFromApi(raw: ApiRecord): Shipment {
           ? quantityKg * pricePerKg
           : null,
     notes: raw.notes ? String(raw.notes) : undefined,
+    shipmentRequestId:
+      raw.shipment_request_id != null ? String(raw.shipment_request_id) : null,
   }
 }
 
@@ -380,42 +387,53 @@ export function shipmentFiltersToApi(filters: ShipmentFilters): ApiRecord {
   if (filters.from) params.from_date = displayDateToIso(filters.from)
   if (filters.to) params.to_date = displayDateToIso(filters.to)
   if (filters.cropType) params.crop_type = filters.cropType
+  if (filters.shipmentRequestId) params.shipment_request_id = filters.shipmentRequestId
   return params
 }
 
 export function shipmentCreateToApi(values: {
   date: string
   cropType: string
+  cropCode?: string | null
   quantityKg: number
   destination?: string
   pricePerKg?: number | null
   notes?: string
+  shipmentRequestId?: string | null
 }): ApiRecord {
   return {
     date: displayDateToIso(values.date),
     crop_type: values.cropType,
+    crop_code: values.cropCode || undefined,
     quantity_kg: values.quantityKg,
     destination: values.destination || undefined,
     price_per_kg: values.pricePerKg ?? undefined,
     notes: values.notes || undefined,
+    shipment_request_id: values.shipmentRequestId || null,
   }
 }
 
 export function shipmentUpdateToApi(values: {
   date?: string
   cropType?: string
+  cropCode?: string | null
   quantityKg?: number
   destination?: string
   pricePerKg?: number | null
   notes?: string
+  shipmentRequestId?: string | null
 }): ApiRecord {
   const body: ApiRecord = {}
   if (values.date !== undefined) body.date = displayDateToIso(values.date)
   if (values.cropType !== undefined) body.crop_type = values.cropType
+  if (values.cropCode !== undefined) body.crop_code = values.cropCode || null
   if (values.quantityKg !== undefined) body.quantity_kg = values.quantityKg
   if (values.destination !== undefined) body.destination = values.destination || null
   if (values.pricePerKg !== undefined) body.price_per_kg = values.pricePerKg
   if (values.notes !== undefined) body.notes = values.notes || null
+  if (values.shipmentRequestId !== undefined) {
+    body.shipment_request_id = values.shipmentRequestId || null
+  }
   return body
 }
 
@@ -566,6 +584,11 @@ export function dashboardStatsFromApi(raw: ApiRecord): DashboardStats {
       })
     : []
 
+  const summaryRaw =
+    raw.shipment_requests_summary && typeof raw.shipment_requests_summary === 'object'
+      ? (raw.shipment_requests_summary as ApiRecord)
+      : {}
+
   return {
     activeShiftsCount: toNumber(raw.active_shifts_count),
     activeShifts,
@@ -584,5 +607,11 @@ export function dashboardStatsFromApi(raw: ApiRecord): DashboardStats {
     sharingNewRequests: toNumber(raw.sharing_new_requests),
     urgentPurchasesCount: toNumber(raw.urgent_purchases_count),
     urgentPurchases,
+    shipmentRequestsSummary: {
+      today: toNumber(summaryRaw.today),
+      upcoming: toNumber(summaryRaw.upcoming),
+      overdue: toNumber(summaryRaw.overdue),
+      urgent: toNumber(summaryRaw.urgent),
+    },
   }
 }

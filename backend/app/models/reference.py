@@ -30,6 +30,8 @@ class Location(Base):
     area_ha = Column(Numeric(8, 2), nullable=True)
     polygon = Column(JSONB, nullable=True)
     crop_type = Column(String(100), nullable=True)
+    # Preferred stable key from org_dictionaries(type='crop').code; crop_type stays display name.
+    crop_code = Column(String(80), nullable=True)
     soil_type = Column(String(100), nullable=True)
     latitude = Column(Numeric(9, 6), nullable=True)
     longitude = Column(Numeric(9, 6), nullable=True)

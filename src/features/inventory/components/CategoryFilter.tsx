@@ -25,7 +25,9 @@ export function CategoryFilter({ value, onChange }: CategoryFilterProps) {
             'rounded-full border px-3 py-1 text-sm transition-colors',
             value === filter.id
               ? 'border-primary bg-primary text-primary-foreground'
-              : 'border-border bg-surface text-foreground hover:bg-muted',
+              : filter.id === 'harvest'
+                ? 'border-primary/40 bg-primary/5 text-primary hover:bg-primary/10'
+                : 'border-border bg-surface text-foreground hover:bg-muted',
           )}
         >
           {filter.label}

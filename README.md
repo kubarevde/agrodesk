@@ -2,6 +2,10 @@
 
 PWA + FastAPI + Telegram-бот для учёта работ в КФХ: мультитенантность, суперадмин, ставки оплаты, dual-write в Google Sheets (зеркало БД).
 
+Основные модули: смены, склад ТМЦ, **мессенджер** (см. [docs/messenger.md](docs/messenger.md)), **заявки на отгрузку ТМЦ** ([docs/shipment-requests.md](docs/shipment-requests.md)), **отгрузки урожая** ([docs/shipments.md](docs/shipments.md)), закупки, агрокалендарь, отчёты, поддержка.
+
+**Единая цепочка учёта урожая:** культура → поле → «Собрать урожай» (склад) → заявка → отгрузка урожая (KPI). Склад и KPI не смешиваются — [docs/harvest-tmc-link.md](docs/harvest-tmc-link.md).
+
 ## Куда заходить
 
 ### Dev
@@ -27,6 +31,8 @@ PWA + FastAPI + Telegram-бот для учёта работ в КФХ: муль
 
 **Прод — обновление и запуск (фронт, бэк, бот):** [docs/PROD-UPDATE.md](docs/PROD-UPDATE.md).  
 Первый деплой на VPS: [docs/DEPLOY.md](docs/DEPLOY.md). Бот на bothost: [docs/bot-bothost.md](docs/bot-bothost.md).
+
+**Откат экспериментов урожай/ТМЦ/заявки:** тег `harvest-unify-baseline`, бэкап/restore и чек-лист — [docs/rollback-harvest-unify.md](docs/rollback-harvest-unify.md). Кратко: [CHANGELOG.md](CHANGELOG.md).
 
 ---
 

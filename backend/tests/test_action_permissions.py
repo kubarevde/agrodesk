@@ -25,10 +25,12 @@ def test_actions_from_sections_employee_inventory():
 
 
 def test_actions_from_sections_manager_extras():
-    actions = actions_from_sections(['inventory', 'purchase-planner'], 'manager')
+    actions = actions_from_sections(['inventory', 'purchase-planner', 'shipments'], 'manager')
     assert 'inventory.operate' in actions
     assert 'inventory.manage_items' in actions
     assert 'purchase.manage' in actions
+    assert 'shipment_requests.manage' in actions
+    assert 'shipment_requests.execute' in actions
     assert 'support.view_org_tickets' not in actions
 
 

@@ -1,7 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Plus } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
+import { isHarvestCategory } from '@/features/inventory/utils'
+import { asCropCode } from '@/features/inventory/inventoryItemPayload'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -21,6 +23,7 @@ import {
 } from '@/components/ui/select'
 import type { InventoryItem } from '@/types'
 import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
+import { buildDictionarySelectOptions } from '@/features/dictionaries/labels'
 import { useDictionary } from '@/features/dictionaries/hooks'
 import {
   useCreateInventoryItem,
@@ -47,14 +50,18 @@ const defaults = {
   minStock: undefined as number | undefined,
   totalCapacity: undefined as number | undefined,
   isActive: true,
+  cropCode: '',
 } satisfies Partial<InventoryItemFormValues>
+
+const selectClassName =
+  'flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive'
 
 export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFormModalProps) {
   const isEdit = Boolean(item)
   const createItem = useCreateInventoryItem()
   const updateItem = useUpdateInventoryItem()
   const { data: categories = [] } = useDictionary('inventory_category')
-  // Stable primitive — avoid putting `categories` array in effect deps (new [] each render → loop)
+  const { data: crops = [] } = useDictionary('crop')
   const firstCategoryCode = categories[0]?.code
 
   const {
@@ -62,11 +69,15 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
     register,
     handleSubmit,
     reset,
+    setValue,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<InventoryItemFormValues>({
     resolver: zodResolver(inventoryItemSchema),
     defaultValues: defaults,
   })
+  const watchedCategory = useWatch({ control, name: 'category' })
+  const showCropCode = isHarvestCategory(watchedCategory)
 
   const categoryItems = useMemo(() => {
     const rows = categories.map((row) => ({ value: row.code, label: row.name }))
@@ -76,8 +87,17 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
     return rows
   }, [categories, item?.category])
 
-  // Reset only when dialog opens / edited item changes — never depend on `categories` array
-  // (default `[]` is a new reference every render and caused Maximum update depth exceeded).
+  const cropItems = useMemo(
+    () =>
+      buildDictionarySelectOptions(crops, {
+        valueKey: 'code',
+        orphanValue: item?.cropCode,
+      }),
+    [crops, item?.cropCode],
+  )
+
+  // Reset only when dialog opens / item id changes — NOT when `reset` identity changes
+  // (that wiped cropCode after the user selected a culture).
   useEffect(() => {
     if (!open) {
       reset(defaults)
@@ -93,19 +113,25 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
             minStock: item.minStock,
             totalCapacity: item.totalCapacity,
             isActive: item.isActive,
+            cropCode: item.cropCode ?? '',
           }
         : {
             ...defaults,
             category: firstCategoryCode ?? 'fuel',
+            cropCode: '',
           },
     )
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- firstCategoryCode read at open time only
-  }, [item?.id, open, reset])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- item.id + open only
+  }, [item?.id, open])
 
   const pending = isSubmitting || createItem.isPending || updateItem.isPending
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => !isOpen && onClose()}
+      disablePointerDismissal
+    >
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Редактировать позицию' : 'Добавить позицию ТМЦ'}</DialogTitle>
@@ -113,20 +139,32 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
         <form
           className="space-y-4"
           onSubmit={handleSubmit(async (values) => {
-            if (item) {
-              await updateItem.mutateAsync({
-                id: item.id,
-                name: values.name,
-                category: values.category,
-                unit: values.unit,
-                minStock: values.minStock,
-                totalCapacity: values.totalCapacity,
-                isActive: values.isActive,
-              })
-            } else {
-              await createItem.mutateAsync(values)
+            const category = String(values.category ?? '').trim()
+            const cropCode = isHarvestCategory(category) ? asCropCode(values.cropCode) : ''
+            if (isHarvestCategory(category) && (!cropCode || cropCode.toLowerCase() === 'none')) {
+              setError('cropCode', { type: 'manual', message: 'Выберите культуру' })
+              return
             }
-            onClose()
+            try {
+              if (item) {
+                await updateItem.mutateAsync({
+                  id: item.id,
+                  previousIsActive: item.isActive,
+                  name: values.name,
+                  category,
+                  unit: values.unit,
+                  minStock: values.minStock,
+                  totalCapacity: values.totalCapacity,
+                  isActive: values.isActive,
+                  cropCode,
+                })
+              } else {
+                await createItem.mutateAsync({ ...values, category, cropCode })
+              }
+              onClose()
+            } catch {
+              // Mutation onError already toasts — prevent uncaught promise noise.
+            }
           })}
         >
           <div className="space-y-2">
@@ -138,34 +176,86 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
           </div>
 
           <div className="space-y-2">
-            <Label>Категория</Label>
+            <Label htmlFor="inv-category">Категория</Label>
             <Controller
               name="category"
               control={control}
               render={({ field }) => (
-                <Select
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  items={categoryItems}
+                <select
+                  id="inv-category"
+                  className={selectClassName}
+                  value={field.value ?? ''}
+                  onChange={(event) => {
+                    const code = event.target.value
+                    field.onChange(code)
+                    if (isHarvestCategory(code)) {
+                      setValue('unit', 'кг', { shouldDirty: true })
+                    } else {
+                      setValue('cropCode', '', { shouldValidate: true })
+                    }
+                  }}
                 >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Выберите категорию" />
-                  </SelectTrigger>
-                  <SelectContent alignItemWithTrigger={false}>
-                    {categoryItems.map((category) => (
-                      <SelectItem key={category.value} value={category.value}>
-                        {category.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  {categoryItems.map((category) => (
+                    <option key={category.value} value={category.value}>
+                      {category.label}
+                    </option>
+                  ))}
+                </select>
               )}
             />
             <p className="text-xs text-muted-foreground">
-              Категории задаются в Настройках → Категории ТМЦ
+              Категории задаются в Настройках → Категории ТМЦ. «Урожай (на складе)» —
+              складской учёт продукции; KPI по культурам — в «Отгрузках урожая».
             </p>
             <ManageInSettingsLink tab="inventory-cats" tabHint="категории ТМЦ" />
           </div>
+
+          {showCropCode ? (
+            <div className="space-y-2">
+              <Label htmlFor="inv-crop">Культура</Label>
+              <Controller
+                name="cropCode"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value || null}
+                    onValueChange={(value) => field.onChange(value ?? '')}
+                    items={cropItems}
+                    disabled={cropItems.length === 0}
+                  >
+                    <SelectTrigger
+                      id="inv-crop"
+                      className="w-full"
+                      aria-invalid={Boolean(errors.cropCode) || undefined}
+                    >
+                      <SelectValue
+                        placeholder={
+                          cropItems.length === 0
+                            ? 'Сначала добавьте культуру в Настройках'
+                            : 'Выберите культуру'
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      {cropItems.map((crop) => (
+                        <SelectItem key={crop.value} value={crop.value}>
+                          {crop.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.cropCode ? (
+                <p className="text-xs text-destructive">{errors.cropCode.message}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Обязательно для урожая. Не создаёт запись в «Отгрузках урожая».
+                </p>
+              )}
+              <ManageInSettingsLink tab="crops" tabHint="культуры" />
+            </div>
+          ) : null}
 
           <div className="space-y-2">
             <Label htmlFor="inv-unit">Ед. изм.</Label>

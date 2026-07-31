@@ -77,6 +77,7 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   price_per_kg: 'Цена за кг',
   destination: 'Направление',
   crop_type: 'Культура',
+  crop_code: 'Культура',
 
   // equipment / maintenance
   meter_type: 'Тип счётчика',

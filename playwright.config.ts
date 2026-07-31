@@ -18,7 +18,13 @@ export default defineConfig({
     reuseExistingServer: !isCI,
     timeout: 120_000,
     env: {
-      VITE_API_URL: process.env.VITE_API_URL ?? 'http://127.0.0.1:8000',
+      // Prefer same-origin /api via Vite proxy (avoids CORS flakes in e2e).
+      // Point the proxy at the live API with VITE_API_URL / VITE_API_PROXY_TARGET.
+      VITE_API_URL: '',
+      VITE_API_PROXY_TARGET:
+        process.env.VITE_API_PROXY_TARGET ||
+        process.env.VITE_API_URL ||
+        'http://127.0.0.1:8000',
     },
   },
 })

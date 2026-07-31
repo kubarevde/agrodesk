@@ -1,6 +1,6 @@
 import { formatDistanceToNow } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { Handshake, Wrench, type LucideIcon } from 'lucide-react'
+import { Handshake, MessageCircle, Wrench, type LucideIcon } from 'lucide-react'
 import { formatOrgDateTime } from '@/lib/timezone'
 import { NOTIFICATION_TYPE_GROUPS } from './types'
 
@@ -14,12 +14,14 @@ export function notificationTimeAgo(createdAt: string, timezone?: string): strin
 
 export function notificationTypeLabel(type: string): string {
   if (type === 'support_reply') return 'Поддержка'
+  if (type === 'new_message') return 'Мессенджер'
   if (NOTIFICATION_TYPE_GROUPS.maintenance.includes(type as never)) return 'ТО'
   if (NOTIFICATION_TYPE_GROUPS.sharing.includes(type as never)) return 'Шеринг'
   return 'Система'
 }
 
 export function notificationTypeIcon(type: string): LucideIcon {
+  if (type === 'new_message') return MessageCircle
   if (NOTIFICATION_TYPE_GROUPS.sharing.includes(type as never)) return Handshake
   if (NOTIFICATION_TYPE_GROUPS.maintenance.includes(type as never)) return Wrench
   return Wrench

@@ -1,11 +1,10 @@
-import { Plus, Truck } from 'lucide-react'
+import { Truck } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { OnlineOnlyNotice } from '@/components/shared/OnlineOnlyNotice'
-import { SectionHelp } from '@/components/shared/SectionHelp'
+import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
 import { SkeletonTable } from '@/components/shared/SkeletonTable'
-import { Button } from '@/components/ui/button'
 import type { Shipment } from '@/types'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { shipmentsHelp } from '@/features/help/content'
@@ -22,10 +21,13 @@ import { getDefaultMonthRange } from '@/features/worktime/utils'
 import { ShipmentFormModal } from './ShipmentFormModal'
 import { ShipmentKpiCards } from './ShipmentKpiCards'
 import { ShipmentsByCropChart } from './ShipmentsByCropChart'
+import { ShipmentsCards } from './ShipmentsCards'
 import { ShipmentsFilters } from './ShipmentsFilters'
+import { ShipmentsPageHeader } from './ShipmentsPageHeader'
 import { ShipmentsTable } from './ShipmentsTable'
+import { ShipmentsTmcOutboundPanel } from './ShipmentsTmcOutboundPanel'
 
-export function ShipmentsPage() {
+export function ShipmentsPage({ initialRequestId = null }: { initialRequestId?: string | null }) {
   const { data: user } = useCurrentUser()
   const isOnline = useOnlineStatus()
   const canManage = (user?.role === 'admin' || user?.role === 'manager') && isOnline
@@ -35,80 +37,63 @@ export function ShipmentsPage() {
   const [from, setFrom] = useState(monthRange.from)
   const [to, setTo] = useState(monthRange.to)
   const [cropType, setCropType] = useState<string | undefined>()
-
-  const filters = useMemo(
-    () => ({ from, to, cropType }),
-    [cropType, from, to],
-  )
+  const filters = useMemo(() => ({ from, to, cropType }), [cropType, from, to])
 
   const {
     data: monthShipments = [],
     isLoading: monthLoading,
     isError: monthError,
   } = useShipments(monthRange)
-
-  const {
-    data: shipments = [],
-    isLoading,
-    isError,
-  } = useShipments(filters)
-
+  const { data: shipments = [], isLoading, isError } = useShipments(filters)
   const deleteShipment = useDeleteShipment()
-  const [formOpen, setFormOpen] = useState(false)
+  const [formOpen, setFormOpen] = useState(Boolean(initialRequestId))
   const [editingShipment, setEditingShipment] = useState<Shipment | null>(null)
+  const [prefillRequestId, setPrefillRequestId] = useState<string | null>(initialRequestId)
+
+  useEffect(() => {
+    if (initialRequestId) {
+      setPrefillRequestId(initialRequestId)
+      setEditingShipment(null)
+      setFormOpen(true)
+    }
+  }, [initialRequestId])
 
   const monthTotals = useMemo(() => sumShipments(monthShipments), [monthShipments])
   const chartData = useMemo(() => groupShipmentsByCrop(shipments), [shipments])
 
   useEffect(() => {
-    if (isError || monthError) {
-      toast.error('Не удалось загрузить отгрузки')
-    }
+    if (isError || monthError) toast.error('Не удалось загрузить отгрузки')
   }, [isError, monthError])
 
   const openCreate = () => {
     setEditingShipment(null)
+    setPrefillRequestId(null)
     setFormOpen(true)
   }
 
   const openEdit = (shipment: Shipment) => {
+    setPrefillRequestId(null)
     setEditingShipment(shipment)
     setFormOpen(true)
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-semibold text-foreground">Отгрузки</h1>
-        {canManage ? (
-          <Button
-            type="button"
-            className="bg-primary hover:bg-primary-hover text-primary-foreground"
-            onClick={openCreate}
-          >
-            <Plus className="size-4" />
-            Добавить отгрузку
-          </Button>
-        ) : null}
-      </div>
-
-      <SectionHelp section="отгрузки" items={shipmentsHelp} />
-
+      <ShipmentsPageHeader canManage={Boolean(canManage)} onCreate={openCreate} />
+      <RoleSectionHelp section="отгрузки" items={shipmentsHelp} />
       {!isOnline ? (
         <OnlineOnlyNotice
           hideWhenOnline={false}
-          title="Отгрузки: только онлайн-запись"
+          title="Отгрузки урожая: только онлайн-запись"
           description="Без сети создать отгрузку нельзя. Смены доступны офлайн в «Рабочем времени»."
         />
       ) : null}
-
       <ShipmentKpiCards
         totalKg={monthTotals.totalKg}
         totalRevenue={monthTotals.totalSum}
         tripsCount={monthShipments.length}
         isLoading={monthLoading}
       />
-
       <ShipmentsFilters
         from={from}
         to={to}
@@ -119,40 +104,48 @@ export function ShipmentsPage() {
         }}
         onCropChange={setCropType}
       />
-
       <ShipmentsByCropChart data={chartData} isLoading={isLoading} />
-
       {isLoading ? (
         <SkeletonTable rows={5} columns={7} />
       ) : shipments.length === 0 ? (
         <EmptyState
           icon={Truck}
-          title="Отгрузок за период нет"
-          description="Измените фильтры или добавьте первую отгрузку"
+          title="Отгрузок урожая за период нет"
+          description="Измените фильтры или добавьте первую отгрузку культуры"
           action={
-            canManage
-              ? { label: 'Добавить отгрузку', onClick: openCreate }
-              : undefined
+            canManage ? { label: 'Добавить отгрузку', onClick: openCreate } : undefined
           }
         />
       ) : (
-        <ShipmentsTable
-          shipments={shipments}
-          canEdit={Boolean(canManage)}
-          canDelete={Boolean(canDelete)}
-          onEdit={openEdit}
-          onDelete={(shipment) => deleteShipment.mutate(shipment.id)}
-        />
+        <>
+          <ShipmentsCards
+            shipments={shipments}
+            canEdit={Boolean(canManage)}
+            canDelete={Boolean(canDelete)}
+            onEdit={openEdit}
+            onDelete={(s) => deleteShipment.mutate(s.id)}
+          />
+          <ShipmentsTable
+            shipments={shipments}
+            canEdit={Boolean(canManage)}
+            canDelete={Boolean(canDelete)}
+            onEdit={openEdit}
+            onDelete={(s) => deleteShipment.mutate(s.id)}
+          />
+        </>
       )}
-
+      {/* Warehouse overview only — below harvest list, never mixed into crop KPI */}
+      <ShipmentsTmcOutboundPanel from={from} to={to} />
       {canManage ? (
         <ShipmentFormModal
-          key={editingShipment?.id ?? 'create'}
+          key={editingShipment?.id ?? prefillRequestId ?? 'create'}
           open={formOpen}
           shipment={editingShipment}
+          initialRequestId={prefillRequestId}
           onClose={() => {
             setFormOpen(false)
             setEditingShipment(null)
+            setPrefillRequestId(null)
           }}
         />
       ) : null}

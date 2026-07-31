@@ -20,6 +20,7 @@ import { Route as LayoutDashboardRouteImport } from './app/routes/_layout/dashbo
 import { Route as LayoutWorktimeIndexRouteImport } from './app/routes/_layout/worktime/index'
 import { Route as LayoutSupportIndexRouteImport } from './app/routes/_layout/support/index'
 import { Route as LayoutShipmentsIndexRouteImport } from './app/routes/_layout/shipments/index'
+import { Route as LayoutShipmentRequestsIndexRouteImport } from './app/routes/_layout/shipment-requests/index'
 import { Route as LayoutSharingIndexRouteImport } from './app/routes/_layout/sharing/index'
 import { Route as LayoutSettingsIndexRouteImport } from './app/routes/_layout/settings/index'
 import { Route as LayoutReportsIndexRouteImport } from './app/routes/_layout/reports/index'
@@ -28,6 +29,7 @@ import { Route as LayoutProfileIndexRouteImport } from './app/routes/_layout/pro
 import { Route as LayoutNotificationsIndexRouteImport } from './app/routes/_layout/notifications/index'
 import { Route as LayoutNoAccessIndexRouteImport } from './app/routes/_layout/no-access/index'
 import { Route as LayoutMyShiftIndexRouteImport } from './app/routes/_layout/my-shift/index'
+import { Route as LayoutMessengerIndexRouteImport } from './app/routes/_layout/messenger/index'
 import { Route as LayoutMaintenanceIndexRouteImport } from './app/routes/_layout/maintenance/index'
 import { Route as LayoutInventoryIndexRouteImport } from './app/routes/_layout/inventory/index'
 import { Route as LayoutImplementsIndexRouteImport } from './app/routes/_layout/implements/index'
@@ -41,6 +43,9 @@ import { Route as SuperadminAuthenticatedDashboardRouteImport } from './app/rout
 import { Route as LayoutSupportNewRouteImport } from './app/routes/_layout/support/new'
 import { Route as LayoutSupportGuideRouteImport } from './app/routes/_layout/support/guide'
 import { Route as LayoutSupportTicketIdRouteImport } from './app/routes/_layout/support/$ticketId'
+import { Route as LayoutShipmentRequestsMyRouteImport } from './app/routes/_layout/shipment-requests/my'
+import { Route as LayoutShipmentRequestsRequestIdRouteImport } from './app/routes/_layout/shipment-requests/$requestId'
+import { Route as LayoutMessengerChatIdRouteImport } from './app/routes/_layout/messenger/$chatId'
 import { Route as LayoutImplementsImplementIdRouteImport } from './app/routes/_layout/implements/$implementId'
 import { Route as LayoutEquipmentEquipmentIdRouteImport } from './app/routes/_layout/equipment/$equipmentId'
 import { Route as SuperadminAuthenticatedSupportIndexRouteImport } from './app/routes/superadmin/_authenticated/support/index'
@@ -100,6 +105,12 @@ const LayoutShipmentsIndexRoute = LayoutShipmentsIndexRouteImport.update({
   path: '/shipments/',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutShipmentRequestsIndexRoute =
+  LayoutShipmentRequestsIndexRouteImport.update({
+    id: '/shipment-requests/',
+    path: '/shipment-requests/',
+    getParentRoute: () => LayoutRoute,
+  } as any)
 const LayoutSharingIndexRoute = LayoutSharingIndexRouteImport.update({
   id: '/sharing/',
   path: '/sharing/',
@@ -140,6 +151,11 @@ const LayoutNoAccessIndexRoute = LayoutNoAccessIndexRouteImport.update({
 const LayoutMyShiftIndexRoute = LayoutMyShiftIndexRouteImport.update({
   id: '/my-shift/',
   path: '/my-shift/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutMessengerIndexRoute = LayoutMessengerIndexRouteImport.update({
+  id: '/messenger/',
+  path: '/messenger/',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutMaintenanceIndexRoute = LayoutMaintenanceIndexRouteImport.update({
@@ -208,6 +224,23 @@ const LayoutSupportTicketIdRoute = LayoutSupportTicketIdRouteImport.update({
   path: '/support/$ticketId',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutShipmentRequestsMyRoute =
+  LayoutShipmentRequestsMyRouteImport.update({
+    id: '/shipment-requests/my',
+    path: '/shipment-requests/my',
+    getParentRoute: () => LayoutRoute,
+  } as any)
+const LayoutShipmentRequestsRequestIdRoute =
+  LayoutShipmentRequestsRequestIdRouteImport.update({
+    id: '/shipment-requests/$requestId',
+    path: '/shipment-requests/$requestId',
+    getParentRoute: () => LayoutRoute,
+  } as any)
+const LayoutMessengerChatIdRoute = LayoutMessengerChatIdRouteImport.update({
+  id: '/messenger/$chatId',
+  path: '/messenger/$chatId',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutImplementsImplementIdRoute =
   LayoutImplementsImplementIdRouteImport.update({
     id: '/implements/$implementId',
@@ -248,6 +281,9 @@ export interface FileRoutesByFullPath {
   '/landing/': typeof LandingIndexRoute
   '/equipment/$equipmentId': typeof LayoutEquipmentEquipmentIdRoute
   '/implements/$implementId': typeof LayoutImplementsImplementIdRoute
+  '/messenger/$chatId': typeof LayoutMessengerChatIdRoute
+  '/shipment-requests/$requestId': typeof LayoutShipmentRequestsRequestIdRoute
+  '/shipment-requests/my': typeof LayoutShipmentRequestsMyRoute
   '/support/$ticketId': typeof LayoutSupportTicketIdRoute
   '/support/guide': typeof LayoutSupportGuideRoute
   '/support/new': typeof LayoutSupportNewRoute
@@ -261,6 +297,7 @@ export interface FileRoutesByFullPath {
   '/implements/': typeof LayoutImplementsIndexRoute
   '/inventory/': typeof LayoutInventoryIndexRoute
   '/maintenance/': typeof LayoutMaintenanceIndexRoute
+  '/messenger/': typeof LayoutMessengerIndexRoute
   '/my-shift/': typeof LayoutMyShiftIndexRoute
   '/no-access/': typeof LayoutNoAccessIndexRoute
   '/notifications/': typeof LayoutNotificationsIndexRoute
@@ -269,6 +306,7 @@ export interface FileRoutesByFullPath {
   '/reports/': typeof LayoutReportsIndexRoute
   '/settings/': typeof LayoutSettingsIndexRoute
   '/sharing/': typeof LayoutSharingIndexRoute
+  '/shipment-requests/': typeof LayoutShipmentRequestsIndexRoute
   '/shipments/': typeof LayoutShipmentsIndexRoute
   '/support/': typeof LayoutSupportIndexRoute
   '/worktime/': typeof LayoutWorktimeIndexRoute
@@ -285,6 +323,9 @@ export interface FileRoutesByTo {
   '/landing': typeof LandingIndexRoute
   '/equipment/$equipmentId': typeof LayoutEquipmentEquipmentIdRoute
   '/implements/$implementId': typeof LayoutImplementsImplementIdRoute
+  '/messenger/$chatId': typeof LayoutMessengerChatIdRoute
+  '/shipment-requests/$requestId': typeof LayoutShipmentRequestsRequestIdRoute
+  '/shipment-requests/my': typeof LayoutShipmentRequestsMyRoute
   '/support/$ticketId': typeof LayoutSupportTicketIdRoute
   '/support/guide': typeof LayoutSupportGuideRoute
   '/support/new': typeof LayoutSupportNewRoute
@@ -298,6 +339,7 @@ export interface FileRoutesByTo {
   '/implements': typeof LayoutImplementsIndexRoute
   '/inventory': typeof LayoutInventoryIndexRoute
   '/maintenance': typeof LayoutMaintenanceIndexRoute
+  '/messenger': typeof LayoutMessengerIndexRoute
   '/my-shift': typeof LayoutMyShiftIndexRoute
   '/no-access': typeof LayoutNoAccessIndexRoute
   '/notifications': typeof LayoutNotificationsIndexRoute
@@ -306,6 +348,7 @@ export interface FileRoutesByTo {
   '/reports': typeof LayoutReportsIndexRoute
   '/settings': typeof LayoutSettingsIndexRoute
   '/sharing': typeof LayoutSharingIndexRoute
+  '/shipment-requests': typeof LayoutShipmentRequestsIndexRoute
   '/shipments': typeof LayoutShipmentsIndexRoute
   '/support': typeof LayoutSupportIndexRoute
   '/worktime': typeof LayoutWorktimeIndexRoute
@@ -325,6 +368,9 @@ export interface FileRoutesById {
   '/landing/': typeof LandingIndexRoute
   '/_layout/equipment/$equipmentId': typeof LayoutEquipmentEquipmentIdRoute
   '/_layout/implements/$implementId': typeof LayoutImplementsImplementIdRoute
+  '/_layout/messenger/$chatId': typeof LayoutMessengerChatIdRoute
+  '/_layout/shipment-requests/$requestId': typeof LayoutShipmentRequestsRequestIdRoute
+  '/_layout/shipment-requests/my': typeof LayoutShipmentRequestsMyRoute
   '/_layout/support/$ticketId': typeof LayoutSupportTicketIdRoute
   '/_layout/support/guide': typeof LayoutSupportGuideRoute
   '/_layout/support/new': typeof LayoutSupportNewRoute
@@ -338,6 +384,7 @@ export interface FileRoutesById {
   '/_layout/implements/': typeof LayoutImplementsIndexRoute
   '/_layout/inventory/': typeof LayoutInventoryIndexRoute
   '/_layout/maintenance/': typeof LayoutMaintenanceIndexRoute
+  '/_layout/messenger/': typeof LayoutMessengerIndexRoute
   '/_layout/my-shift/': typeof LayoutMyShiftIndexRoute
   '/_layout/no-access/': typeof LayoutNoAccessIndexRoute
   '/_layout/notifications/': typeof LayoutNotificationsIndexRoute
@@ -346,6 +393,7 @@ export interface FileRoutesById {
   '/_layout/reports/': typeof LayoutReportsIndexRoute
   '/_layout/settings/': typeof LayoutSettingsIndexRoute
   '/_layout/sharing/': typeof LayoutSharingIndexRoute
+  '/_layout/shipment-requests/': typeof LayoutShipmentRequestsIndexRoute
   '/_layout/shipments/': typeof LayoutShipmentsIndexRoute
   '/_layout/support/': typeof LayoutSupportIndexRoute
   '/_layout/worktime/': typeof LayoutWorktimeIndexRoute
@@ -364,6 +412,9 @@ export interface FileRouteTypes {
     | '/landing/'
     | '/equipment/$equipmentId'
     | '/implements/$implementId'
+    | '/messenger/$chatId'
+    | '/shipment-requests/$requestId'
+    | '/shipment-requests/my'
     | '/support/$ticketId'
     | '/support/guide'
     | '/support/new'
@@ -377,6 +428,7 @@ export interface FileRouteTypes {
     | '/implements/'
     | '/inventory/'
     | '/maintenance/'
+    | '/messenger/'
     | '/my-shift/'
     | '/no-access/'
     | '/notifications/'
@@ -385,6 +437,7 @@ export interface FileRouteTypes {
     | '/reports/'
     | '/settings/'
     | '/sharing/'
+    | '/shipment-requests/'
     | '/shipments/'
     | '/support/'
     | '/worktime/'
@@ -401,6 +454,9 @@ export interface FileRouteTypes {
     | '/landing'
     | '/equipment/$equipmentId'
     | '/implements/$implementId'
+    | '/messenger/$chatId'
+    | '/shipment-requests/$requestId'
+    | '/shipment-requests/my'
     | '/support/$ticketId'
     | '/support/guide'
     | '/support/new'
@@ -414,6 +470,7 @@ export interface FileRouteTypes {
     | '/implements'
     | '/inventory'
     | '/maintenance'
+    | '/messenger'
     | '/my-shift'
     | '/no-access'
     | '/notifications'
@@ -422,6 +479,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/sharing'
+    | '/shipment-requests'
     | '/shipments'
     | '/support'
     | '/worktime'
@@ -440,6 +498,9 @@ export interface FileRouteTypes {
     | '/landing/'
     | '/_layout/equipment/$equipmentId'
     | '/_layout/implements/$implementId'
+    | '/_layout/messenger/$chatId'
+    | '/_layout/shipment-requests/$requestId'
+    | '/_layout/shipment-requests/my'
     | '/_layout/support/$ticketId'
     | '/_layout/support/guide'
     | '/_layout/support/new'
@@ -453,6 +514,7 @@ export interface FileRouteTypes {
     | '/_layout/implements/'
     | '/_layout/inventory/'
     | '/_layout/maintenance/'
+    | '/_layout/messenger/'
     | '/_layout/my-shift/'
     | '/_layout/no-access/'
     | '/_layout/notifications/'
@@ -461,6 +523,7 @@ export interface FileRouteTypes {
     | '/_layout/reports/'
     | '/_layout/settings/'
     | '/_layout/sharing/'
+    | '/_layout/shipment-requests/'
     | '/_layout/shipments/'
     | '/_layout/support/'
     | '/_layout/worktime/'
@@ -556,6 +619,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutShipmentsIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/shipment-requests/': {
+      id: '/_layout/shipment-requests/'
+      path: '/shipment-requests'
+      fullPath: '/shipment-requests/'
+      preLoaderRoute: typeof LayoutShipmentRequestsIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/sharing/': {
       id: '/_layout/sharing/'
       path: '/sharing'
@@ -610,6 +680,13 @@ declare module '@tanstack/react-router' {
       path: '/my-shift'
       fullPath: '/my-shift/'
       preLoaderRoute: typeof LayoutMyShiftIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/messenger/': {
+      id: '/_layout/messenger/'
+      path: '/messenger'
+      fullPath: '/messenger/'
+      preLoaderRoute: typeof LayoutMessengerIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/maintenance/': {
@@ -703,6 +780,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutSupportTicketIdRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/shipment-requests/my': {
+      id: '/_layout/shipment-requests/my'
+      path: '/shipment-requests/my'
+      fullPath: '/shipment-requests/my'
+      preLoaderRoute: typeof LayoutShipmentRequestsMyRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/shipment-requests/$requestId': {
+      id: '/_layout/shipment-requests/$requestId'
+      path: '/shipment-requests/$requestId'
+      fullPath: '/shipment-requests/$requestId'
+      preLoaderRoute: typeof LayoutShipmentRequestsRequestIdRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/messenger/$chatId': {
+      id: '/_layout/messenger/$chatId'
+      path: '/messenger/$chatId'
+      fullPath: '/messenger/$chatId'
+      preLoaderRoute: typeof LayoutMessengerChatIdRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/implements/$implementId': {
       id: '/_layout/implements/$implementId'
       path: '/implements/$implementId'
@@ -780,6 +878,9 @@ interface LayoutRouteChildren {
   LayoutDashboardRoute: typeof LayoutDashboardRoute
   LayoutEquipmentEquipmentIdRoute: typeof LayoutEquipmentEquipmentIdRoute
   LayoutImplementsImplementIdRoute: typeof LayoutImplementsImplementIdRoute
+  LayoutMessengerChatIdRoute: typeof LayoutMessengerChatIdRoute
+  LayoutShipmentRequestsRequestIdRoute: typeof LayoutShipmentRequestsRequestIdRoute
+  LayoutShipmentRequestsMyRoute: typeof LayoutShipmentRequestsMyRoute
   LayoutSupportTicketIdRoute: typeof LayoutSupportTicketIdRoute
   LayoutSupportGuideRoute: typeof LayoutSupportGuideRoute
   LayoutSupportNewRoute: typeof LayoutSupportNewRoute
@@ -792,6 +893,7 @@ interface LayoutRouteChildren {
   LayoutImplementsIndexRoute: typeof LayoutImplementsIndexRoute
   LayoutInventoryIndexRoute: typeof LayoutInventoryIndexRoute
   LayoutMaintenanceIndexRoute: typeof LayoutMaintenanceIndexRoute
+  LayoutMessengerIndexRoute: typeof LayoutMessengerIndexRoute
   LayoutMyShiftIndexRoute: typeof LayoutMyShiftIndexRoute
   LayoutNoAccessIndexRoute: typeof LayoutNoAccessIndexRoute
   LayoutNotificationsIndexRoute: typeof LayoutNotificationsIndexRoute
@@ -800,6 +902,7 @@ interface LayoutRouteChildren {
   LayoutReportsIndexRoute: typeof LayoutReportsIndexRoute
   LayoutSettingsIndexRoute: typeof LayoutSettingsIndexRoute
   LayoutSharingIndexRoute: typeof LayoutSharingIndexRoute
+  LayoutShipmentRequestsIndexRoute: typeof LayoutShipmentRequestsIndexRoute
   LayoutShipmentsIndexRoute: typeof LayoutShipmentsIndexRoute
   LayoutSupportIndexRoute: typeof LayoutSupportIndexRoute
   LayoutWorktimeIndexRoute: typeof LayoutWorktimeIndexRoute
@@ -810,6 +913,9 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutDashboardRoute: LayoutDashboardRoute,
   LayoutEquipmentEquipmentIdRoute: LayoutEquipmentEquipmentIdRoute,
   LayoutImplementsImplementIdRoute: LayoutImplementsImplementIdRoute,
+  LayoutMessengerChatIdRoute: LayoutMessengerChatIdRoute,
+  LayoutShipmentRequestsRequestIdRoute: LayoutShipmentRequestsRequestIdRoute,
+  LayoutShipmentRequestsMyRoute: LayoutShipmentRequestsMyRoute,
   LayoutSupportTicketIdRoute: LayoutSupportTicketIdRoute,
   LayoutSupportGuideRoute: LayoutSupportGuideRoute,
   LayoutSupportNewRoute: LayoutSupportNewRoute,
@@ -822,6 +928,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutImplementsIndexRoute: LayoutImplementsIndexRoute,
   LayoutInventoryIndexRoute: LayoutInventoryIndexRoute,
   LayoutMaintenanceIndexRoute: LayoutMaintenanceIndexRoute,
+  LayoutMessengerIndexRoute: LayoutMessengerIndexRoute,
   LayoutMyShiftIndexRoute: LayoutMyShiftIndexRoute,
   LayoutNoAccessIndexRoute: LayoutNoAccessIndexRoute,
   LayoutNotificationsIndexRoute: LayoutNotificationsIndexRoute,
@@ -830,6 +937,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutReportsIndexRoute: LayoutReportsIndexRoute,
   LayoutSettingsIndexRoute: LayoutSettingsIndexRoute,
   LayoutSharingIndexRoute: LayoutSharingIndexRoute,
+  LayoutShipmentRequestsIndexRoute: LayoutShipmentRequestsIndexRoute,
   LayoutShipmentsIndexRoute: LayoutShipmentsIndexRoute,
   LayoutSupportIndexRoute: LayoutSupportIndexRoute,
   LayoutWorktimeIndexRoute: LayoutWorktimeIndexRoute,

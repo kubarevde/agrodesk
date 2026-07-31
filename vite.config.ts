@@ -8,29 +8,39 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const base = mode === 'production' ? env.VITE_BASE_PATH || '/' : '/'
   const normalizedBase = base.endsWith('/') ? base : `${base}/`
+  const apiProxyTarget =
+    process.env.VITE_API_PROXY_TARGET ||
+    process.env.VITE_API_URL ||
+    env.VITE_API_URL ||
+    'http://localhost:8000'
 
   return {
     // Prod Docker/nginx: '/' | Yandex subfolder deploy: set VITE_BASE_PATH=/agrodesk-prod/
     base: normalizedBase,
+    // Keep Vite proxy aligned with the API used by Playwright when VITE_API_URL is empty.
+    // When VITE_API_URL is set, the browser talks to that origin directly (CORS).
     server: {
       host: '0.0.0.0',
       port: 5173,
       strictPort: true,
       proxy: {
         '/api': {
-          target: 'http://localhost:8000',
+          target: apiProxyTarget,
           changeOrigin: true,
+          // Keep SSE (/api/messenger/events) streaming through the Vite proxy.
+          timeout: 0,
+          proxyTimeout: 0,
         },
         '/uploads': {
-          target: 'http://localhost:8000',
+          target: apiProxyTarget,
           changeOrigin: true,
         },
         '/superadmin/api': {
-          target: 'http://localhost:8000',
+          target: apiProxyTarget,
           changeOrigin: true,
         },
         '/health': {
-          target: 'http://localhost:8000',
+          target: apiProxyTarget,
           changeOrigin: true,
         },
       },
@@ -45,6 +55,12 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['favicon.svg', 'icons/*.png', 'icons.svg', 'screenshots/*'],
+        // Enable SW in Vite dev when Playwright (or manual) sets VITE_PWA_DEV=1 —
+        // required for offline cold-reload e2e; default stays off for faster local UX.
+        devOptions: {
+          enabled: (process.env.VITE_PWA_DEV || env.VITE_PWA_DEV) === '1',
+          navigateFallback: 'index.html',
+        },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest,woff2}'],
           // SPA shell: any navigation without network gets cached index.html

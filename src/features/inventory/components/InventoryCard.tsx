@@ -1,26 +1,37 @@
-import { AlertTriangle, Pencil } from 'lucide-react'
+import { AlertTriangle, ClipboardList, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { humanLabel } from '@/lib/display'
 import type { InventoryItem } from '@/types'
 import { useDictionary } from '@/features/dictionaries/hooks'
-import { getCategoryLabel, isCriticalStock } from '@/features/inventory/utils'
+import { getCategoryLabel, isCriticalStock, isHarvestCategory } from '@/features/inventory/utils'
 import { StockProgressBar } from './StockProgressBar'
 
 interface InventoryCardProps {
   item: InventoryItem
   onClick?: (item: InventoryItem) => void
   onEdit?: (item: InventoryItem) => void
+  onShipmentRequest?: (item: InventoryItem) => void
   /** Offline sync conflict / error for this item */
   hasSyncIssue?: boolean
 }
 
-export function InventoryCard({ item, onClick, onEdit, hasSyncIssue }: InventoryCardProps) {
+export function InventoryCard({
+  item,
+  onClick,
+  onEdit,
+  onShipmentRequest,
+  hasSyncIssue,
+}: InventoryCardProps) {
   const critical = isCriticalStock(item)
   const { data: categories = [] } = useDictionary('inventory_category')
+  const { data: crops = [] } = useDictionary('crop')
   const categoryLabel =
     categories.find((row) => row.code === item.category)?.name ?? getCategoryLabel(item.category)
+  const cropLabel = item.cropCode
+    ? (crops.find((row) => row.code === item.cropCode)?.name ?? item.cropCode)
+    : null
 
   return (
     <Card
@@ -79,9 +90,25 @@ export function InventoryCard({ item, onClick, onEdit, hasSyncIssue }: Inventory
             ) : null}
           </div>
         </div>
-        <Badge variant="outline" className="w-fit bg-muted text-muted-foreground">
-          {categoryLabel}
-        </Badge>
+        <div className="flex flex-wrap gap-1">
+          <Badge variant="outline" className="w-fit bg-muted text-muted-foreground">
+            {categoryLabel}
+          </Badge>
+          {isHarvestCategory(item.category) || item.isHarvest ? (
+            <Badge
+              variant="outline"
+              className="w-fit border-primary/40 text-primary"
+              title="Складской учёт урожая; KPI по культурам — в «Отгрузках урожая»"
+            >
+              Урожай на складе
+            </Badge>
+          ) : null}
+          {cropLabel ? (
+            <Badge variant="outline" className="w-fit bg-muted text-muted-foreground">
+              {cropLabel}
+            </Badge>
+          ) : null}
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-3xl font-semibold text-foreground">
@@ -92,6 +119,22 @@ export function InventoryCard({ item, onClick, onEdit, hasSyncIssue }: Inventory
         <p className="text-sm text-muted-foreground">
           Мин. запас: {item.minStock.toLocaleString('ru-RU')} {item.unit}
         </p>
+        {onShipmentRequest ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="w-full"
+            onClick={(event) => {
+              event.stopPropagation()
+              event.preventDefault()
+              onShipmentRequest(item)
+            }}
+          >
+            <ClipboardList className="size-3.5" />
+            Заявка
+          </Button>
+        ) : null}
       </CardContent>
     </Card>
   )

@@ -11,8 +11,9 @@ import { EntityHistoryButton } from '@/features/audit-log/components/EntityHisto
 import { humanLabel } from '@/lib/display'
 import type { InventoryItem } from '@/types'
 import { useInventoryItemOperations } from '@/features/inventory/hooks'
-import { getCategoryLabel, isCriticalStock } from '@/features/inventory/utils'
+import { getCategoryLabel, isCriticalStock, isHarvestCategory } from '@/features/inventory/utils'
 import { InventoryItemOperationsHistory } from './InventoryItemOperationsHistory'
+import { HarvestFieldIncomesSummary } from './HarvestFieldIncomesSummary'
 import { StockProgressBar } from './StockProgressBar'
 
 type InventoryDetailSheetProps = {
@@ -67,6 +68,19 @@ export function InventoryDetailSheet({ item, open, onClose }: InventoryDetailShe
             value={`${item.totalCapacity.toLocaleString('ru-RU')} ${item.unit}`}
           />
           <Row label="Статус позиции" value={item.isActive ? 'Активна' : 'Неактивна'} />
+
+          {isHarvestCategory(item.category) || item.isHarvest ? (
+            <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              Урожай на складе: культура задаётся в карточке позиции; сбор — с поля; продажа —
+              через заявку; KPI культур — в «Отгрузках урожая» (с опциональной связью с заявкой).
+            </p>
+          ) : null}
+
+          <HarvestFieldIncomesSummary
+            category={item.category}
+            unit={item.unit}
+            operations={operations}
+          />
 
           <InventoryItemOperationsHistory
             operations={operations}

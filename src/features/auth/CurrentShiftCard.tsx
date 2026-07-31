@@ -33,7 +33,7 @@ export function CurrentShiftCard({
         <Button
           type="button"
           onClick={onStart}
-          className="h-12 w-full bg-success text-base text-white hover:bg-success/90"
+          className="min-h-14 h-auto w-full bg-success px-4 py-3 text-base text-white hover:bg-success/90"
         >
           <Play className="size-5" />
           Начать смену
@@ -82,7 +82,7 @@ export function CurrentShiftCard({
       <Button
         type="button"
         onClick={() => onFinish(shift)}
-        className="h-12 w-full bg-destructive text-base text-white hover:bg-destructive/90"
+        className="min-h-14 h-auto w-full bg-destructive px-4 py-3 text-base text-white hover:bg-destructive/90"
       >
         Завершить смену
       </Button>

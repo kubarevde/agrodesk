@@ -50,6 +50,7 @@ ENTITY_TYPE_LABELS: dict[str, str] = {
     'dictionary_item': 'Справочник',
     'purchase_planner': 'Планировщик закупок',
     'organization': 'Организация',
+    'chat': 'Чат',
 }
 
 ACTION_LABELS: dict[str, str] = {

@@ -12,10 +12,16 @@ from app.dependencies.auth import get_current_employee, require_manager
 from app.middleware.org_context import get_org_id
 from app.models.dictionary import normalize_name
 from app.models.employee import Employee
+from app.models.inventory import InventoryOperation
 from app.models.reference import Location
-from app.schemas.field import FieldCreate, FieldResponse, FieldUpdate
+from app.routers.inventory import operation_to_response
+from app.schemas.field import FieldCreate, FieldHarvestCreate, FieldResponse, FieldUpdate
+from app.schemas.inventory import InventoryOperationResponse
+from app.services.action_permissions import require_action
 from app.services.audit import log_change, model_snapshot
+from app.services.crop_dictionary import resolve_crop_pair_for_org
 from app.services.field_geometry import apply_geometry_on_write
+from app.services.harvest_service import create_field_harvest
 
 # Read (list/get) is available to any authenticated employee — needed for open-shift
 # field selection (my-shift). Mutations stay manager-only below.
@@ -51,6 +57,7 @@ def location_to_field(location: Location) -> FieldResponse:
         id=location.id,
         name=location.name,
         crop_type=location.crop_type,
+        crop_code=location.crop_code,
         area_ha=_num(location.area_ha),
         soil_type=None,
         description=location.description,
@@ -144,11 +151,19 @@ async def create_field(
         clear_polygon=clear_polygon,
     )
 
+    crop_name, crop_code = await resolve_crop_pair_for_org(
+        db,
+        org_id,
+        crop_type=payload.crop_type,
+        crop_code=payload.crop_code,
+    )
+
     location = Location(
         org_id=org_id,
         name=name,
         kind='field',
-        crop_type=normalize_name(payload.crop_type) if payload.crop_type else None,
+        crop_type=crop_name,
+        crop_code=crop_code,
         area_ha=Decimal(str(area_ha)) if area_ha is not None else None,
         soil_type=None,
         description=payload.description,
@@ -205,8 +220,17 @@ async def update_field(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail='Укажите название поля',
             )
-    if 'crop_type' in updates and updates['crop_type'] is not None:
-        updates['crop_type'] = normalize_name(updates['crop_type']) or None
+    if 'crop_type' in updates or 'crop_code' in updates:
+        next_type = updates['crop_type'] if 'crop_type' in updates else location.crop_type
+        next_code = updates['crop_code'] if 'crop_code' in updates else location.crop_code
+        crop_name, crop_code = await resolve_crop_pair_for_org(
+            db,
+            org_id,
+            crop_type=next_type,
+            crop_code=next_code,
+        )
+        updates['crop_type'] = crop_name
+        updates['crop_code'] = crop_code
 
     polygon_in_payload = 'polygon' in updates
     raw_polygon = updates.pop('polygon', None) if polygon_in_payload else None
@@ -262,6 +286,58 @@ async def update_field(
 
     location = await get_field_or_404(db, field_id, org_id)
     return location_to_field(location)
+
+
+@router.post(
+    '/{field_id}/harvest',
+    response_model=InventoryOperationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def harvest_from_field(
+    request: Request,
+    field_id: UUID,
+    payload: FieldHarvestCreate,
+    db: AsyncSession = Depends(get_db),
+    current: Employee = Depends(require_action('inventory.operate')),
+) -> InventoryOperationResponse:
+    """Collect harvest from a field → income on harvest inventory SKU (not shipments)."""
+    org_id = get_org_id(request)
+    location = await get_field_or_404(db, field_id, org_id)
+    if not is_field_location(location):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Поле не найдено')
+
+    operation = await create_field_harvest(
+        db,
+        field=location,
+        item_id=payload.inventory_item_id,
+        quantity=Decimal(str(payload.quantity)),
+        op_date=payload.date,
+        user_id=current.id,
+        org_id=org_id,
+    )
+    await log_change(
+        db,
+        org_id=org_id,
+        entity_type='inventory_operation',
+        entity_id=operation.id,
+        action='create',
+        changed_by=current.id,
+        after=model_snapshot(operation),
+    )
+    await db.commit()
+
+    result = await db.execute(
+        select(InventoryOperation)
+        .options(
+            selectinload(InventoryOperation.item),
+            selectinload(InventoryOperation.equipment),
+            selectinload(InventoryOperation.created_by_user),
+            selectinload(InventoryOperation.field),
+        )
+        .where(InventoryOperation.id == operation.id)
+    )
+    loaded = result.scalar_one()
+    return operation_to_response(loaded)
 
 
 @router.delete('/{field_id}', status_code=status.HTTP_204_NO_CONTENT)

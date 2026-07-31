@@ -23,6 +23,10 @@ from app.schemas.permissions import (
 from app.services.action_permissions import ACTION_KEYS, ACTION_LABELS
 from app.services.audit import log_change, model_snapshot
 from app.services.org_timezone import DEFAULT_TIMEZONE, timezone_from_settings
+from app.services.org_features import (
+    SHIPMENT_REQUESTS_ENABLED_KEY,
+    shipment_requests_enabled,
+)
 from app.services.permissions import (
     SECTION_KEYS,
     SECTION_LABELS,
@@ -48,10 +52,14 @@ COMMON_TIMEZONES = [
 class OrgSettingsResponse(BaseModel):
     timezone: str = DEFAULT_TIMEZONE
     available_timezones: list[str] = Field(default_factory=lambda: list(COMMON_TIMEZONES))
+    # Documented Organization.settings key; absent → true (backward compatible).
+    shipment_requests_enabled: bool = True
 
 
 class OrgSettingsUpdate(BaseModel):
-    timezone: str = Field(min_length=1, max_length=64)
+    timezone: str | None = Field(default=None, min_length=1, max_length=64)
+    shipment_requests_enabled: bool | None = None
+
 
 
 async def _get_org(db: AsyncSession, org_id: UUID) -> Organization:
@@ -74,7 +82,11 @@ async def get_organization_settings(
     _: Employee = Depends(get_current_employee),
 ) -> OrgSettingsResponse:
     org = await _get_org(db, get_org_id(request))
-    return OrgSettingsResponse(timezone=timezone_from_settings(_settings_dict(org)))
+    settings = _settings_dict(org)
+    return OrgSettingsResponse(
+        timezone=timezone_from_settings(settings),
+        shipment_requests_enabled=shipment_requests_enabled(settings),
+    )
 
 
 @router.patch('/organization', response_model=OrgSettingsResponse)
@@ -87,26 +99,37 @@ async def update_organization_settings(
     org = await _get_org(db, get_org_id(request))
     before = model_snapshot(org)
     settings = _settings_dict(org)
-    tz = payload.timezone.strip()
-    if tz not in COMMON_TIMEZONES and tz != 'UTC':
-        # Allow custom IANA zones but reject empty/space junk
-        try:
-            from zoneinfo import ZoneInfo
 
-            ZoneInfo(tz)
-        except Exception as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail='Неизвестный часовой пояс',
-            ) from exc
-    settings['timezone'] = tz
+    tz = timezone_from_settings(settings)
+    if payload.timezone is not None:
+        tz = payload.timezone.strip()
+        if tz not in COMMON_TIMEZONES and tz != 'UTC':
+            # Allow custom IANA zones but reject empty/space junk
+            try:
+                from zoneinfo import ZoneInfo
+
+                ZoneInfo(tz)
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail='Неизвестный часовой пояс',
+                ) from exc
+        settings['timezone'] = tz
+
+    if payload.shipment_requests_enabled is not None:
+        settings[SHIPMENT_REQUESTS_ENABLED_KEY] = bool(payload.shipment_requests_enabled)
+
     org.settings = settings
+    flag_modified(org, 'settings')
     db.add(org)
     await log_change(db, org_id=org.id, entity_type='organization', entity_id=org.id,
                      action='update', changed_by=current.id, before=before, after=model_snapshot(org))
     await db.commit()
     await db.refresh(org)
-    return OrgSettingsResponse(timezone=tz)
+    return OrgSettingsResponse(
+        timezone=tz,
+        shipment_requests_enabled=shipment_requests_enabled(settings),
+    )
 
 
 @router.get('/role-permissions', response_model=RolePermissionsResponse)

@@ -15,6 +15,70 @@ from app.models.reference import Location
 from app.models.shipment import Shipment
 
 
+async def crop_usage_breakdown(
+    db: AsyncSession,
+    *,
+    org_id: UUID,
+    item: OrgDictionary,
+) -> dict[str, int]:
+    """Counts of crop references by domain (fields / shipments / harvest SKUs)."""
+    fields = await db.scalar(
+        select(func.count())
+        .select_from(Location)
+        .where(
+            Location.org_id == org_id,
+            Location.kind == 'field',
+            or_(
+                Location.crop_type == item.name,
+                Location.crop_type == item.code,
+                Location.crop_code == item.code,
+            ),
+        )
+    )
+    shipments = await db.scalar(
+        select(func.count())
+        .select_from(Shipment)
+        .where(
+            Shipment.org_id == org_id,
+            or_(
+                Shipment.crop_type == item.name,
+                Shipment.crop_type == item.code,
+                Shipment.crop_code == item.code,
+            ),
+        )
+    )
+    inventory = await db.scalar(
+        select(func.count())
+        .select_from(InventoryItem)
+        .where(
+            InventoryItem.org_id == org_id,
+            InventoryItem.crop_code == item.code,
+        )
+    )
+    return {
+        'fields': int(fields or 0),
+        'shipments': int(shipments or 0),
+        'inventory': int(inventory or 0),
+    }
+
+
+def format_crop_usage_detail(name: str, breakdown: dict[str, int]) -> str:
+    parts: list[str] = []
+    if breakdown.get('fields'):
+        parts.append(f"поля: {breakdown['fields']}")
+    if breakdown.get('shipments'):
+        parts.append(f"отгрузки: {breakdown['shipments']}")
+    if breakdown.get('inventory'):
+        parts.append(f"склад (урожай): {breakdown['inventory']}")
+    used = sum(breakdown.values())
+    where = ', '.join(parts) if parts else 'связанных записях'
+    return (
+        f'Нельзя деактивировать «{name}»: используется в {used} записях ({where}). '
+        'Сначала смените значение у связанных сущностей или оставьте справочник активным '
+        'для истории.'
+    )
+
+
 async def dictionary_usage_count(
     db: AsyncSession,
     *,
@@ -23,24 +87,8 @@ async def dictionary_usage_count(
 ) -> int:
     """How many business rows still reference this dictionary value."""
     if item.type == 'crop':
-        fields = await db.scalar(
-            select(func.count())
-            .select_from(Location)
-            .where(
-                Location.org_id == org_id,
-                Location.kind == 'field',
-                or_(Location.crop_type == item.name, Location.crop_type == item.code),
-            )
-        )
-        shipments = await db.scalar(
-            select(func.count())
-            .select_from(Shipment)
-            .where(
-                Shipment.org_id == org_id,
-                or_(Shipment.crop_type == item.name, Shipment.crop_type == item.code),
-            )
-        )
-        return int(fields or 0) + int(shipments or 0)
+        breakdown = await crop_usage_breakdown(db, org_id=org_id, item=item)
+        return sum(breakdown.values())
 
     if item.type == 'implement_category':
         result = await db.scalar(

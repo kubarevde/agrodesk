@@ -7,6 +7,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   seeds: 'Семена',
   parts: 'Запчасти',
   chemicals: 'СЗР',
+  harvest: 'Урожай (на складе)',
   other: 'Прочее',
 }
 
@@ -14,9 +15,13 @@ export function getCategoryLabel(category: string): string {
   return CATEGORY_LABELS[category] ?? category
 }
 
+export function isHarvestCategory(category: string | null | undefined): boolean {
+  return (category ?? '').trim().toLowerCase() === 'harvest'
+}
+
 /** Human-readable operation type for tables, history, and exports. */
 export function getInventoryOperationLabel(
-  operation: Pick<InventoryOperation, 'type' | 'purpose'>,
+  operation: Pick<InventoryOperation, 'type' | 'purpose' | 'fieldName'>,
 ): string {
   const purpose = operation.purpose ?? 'general'
   if (purpose === 'opening') return 'Начальный остаток'
@@ -25,6 +30,11 @@ export function getInventoryOperationLabel(
   }
   if (purpose === 'refuel') return 'Заправка'
   if (purpose === 'install') return 'Установка'
+  if (purpose === 'shipment_request') return 'Расход по заявке на отгрузку'
+  if (purpose === 'harvest_income') {
+    const field = (operation.fieldName ?? '').trim()
+    return field ? `Сбор с поля ${field}` : 'Сбор урожая с поля'
+  }
   return operation.type === 'income' ? 'Приход' : 'Расход'
 }
 

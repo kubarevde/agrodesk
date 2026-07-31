@@ -51,6 +51,8 @@ DEFAULTS: dict[str, list[tuple[str, str]]] = {
         ('seeds', 'Семена'),
         ('parts', 'Запчасти'),
         ('chemicals', 'СЗР'),
+        # Crop product held as warehouse stock (not agronomic shipments table).
+        ('harvest', 'Урожай (на складе)'),
         ('other', 'Прочее'),
     ],
     'expense_category': [
@@ -108,15 +110,22 @@ def normalize_name(value: str) -> str:
 
 
 async def ensure_default_dictionaries(db: AsyncSession, org_id: uuid.UUID) -> None:
+    """Seed missing dictionary types and missing default codes for an org."""
     result = await db.execute(
-        select(OrgDictionary.type).where(OrgDictionary.org_id == org_id).distinct()
+        select(OrgDictionary.type, OrgDictionary.code).where(OrgDictionary.org_id == org_id)
     )
-    existing_types = {row[0] for row in result.all()}
+    existing: dict[str, set[str]] = {}
+    for dict_type, code in result.all():
+        existing.setdefault(dict_type, set()).add(code)
+
     added = False
     for dict_type, rows in DEFAULTS.items():
-        if dict_type in existing_types:
-            continue
-        for index, (code, name) in enumerate(rows):
+        known = existing.get(dict_type, set())
+        # New type: seed all defaults. Existing type: only missing codes (e.g. harvest).
+        start_index = len(known)
+        for offset, (code, name) in enumerate(rows):
+            if code in known:
+                continue
             db.add(
                 OrgDictionary(
                     org_id=org_id,
@@ -124,9 +133,11 @@ async def ensure_default_dictionaries(db: AsyncSession, org_id: uuid.UUID) -> No
                     code=code,
                     name=name,
                     is_active=True,
-                    sort_order=index,
+                    sort_order=start_index + offset,
                 )
             )
+            known.add(code)
             added = True
+        existing[dict_type] = known
     if added:
         await db.commit()

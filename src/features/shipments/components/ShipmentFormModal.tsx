@@ -35,49 +35,69 @@ import {
 } from '@/features/shipments/hooks'
 import { shipmentSchema, type ShipmentFormValues } from '@/features/shipments/schemas'
 import { calcShipmentSum, formatMoney } from '@/features/shipments/utils'
+import { NONE_REQUEST_VALUE, harvestRequestOptionLabel } from '@/features/shipments/requestLink'
+import { useShipmentRequests } from '@/features/shipment-requests/hooks'
 import { numberInputRegister } from '@/lib/formNumbers'
 
 interface ShipmentFormModalProps {
   open: boolean
   shipment?: Shipment | null
   onClose: () => void
+  /** Prefill managerial link (e.g. from harvest request detail). */
+  initialRequestId?: string | null
 }
 
-function getDefaultValues(defaultCrop = ''): Partial<ShipmentFormValues> {
+function getDefaultValues(
+  defaultCode = '',
+  defaultName = '',
+  requestId = '',
+): Partial<ShipmentFormValues> {
   return {
     date: formatApiDate(new Date()),
-    cropType: defaultCrop,
+    cropCode: defaultCode,
+    cropType: defaultName,
     quantityKg: undefined,
     destination: '',
     pricePerKg: undefined,
     notes: '',
+    shipmentRequestId: requestId || NONE_REQUEST_VALUE,
   }
 }
 
 function toFormValues(shipment: Shipment): Partial<ShipmentFormValues> {
   return {
     date: shipment.date,
+    cropCode: shipment.cropCode ?? shipment.cropType,
     cropType: shipment.cropType,
     quantityKg: shipment.quantityKg,
     destination: shipment.destination ?? '',
     pricePerKg: shipment.pricePerKg ?? undefined,
     notes: shipment.notes ?? '',
+    shipmentRequestId: shipment.shipmentRequestId || NONE_REQUEST_VALUE,
   }
 }
 
-export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModalProps) {
+export function ShipmentFormModal({
+  open,
+  shipment,
+  onClose,
+  initialRequestId = null,
+}: ShipmentFormModalProps) {
   const isEdit = Boolean(shipment)
   const createShipment = useCreateShipment()
   const updateShipment = useUpdateShipment()
   const { data: crops = [], isLoading: cropsLoading } = useDictionary('crop')
-  const firstCrop = crops[0]?.name ?? ''
+  const firstCrop = crops[0]
+  const firstCode = firstCrop?.code ?? ''
+  const firstName = firstCrop?.name ?? ''
   const cropItems = useMemo(
     () =>
       buildDictionarySelectOptions(crops, {
-        valueKey: 'name',
-        orphanValue: shipment?.cropType,
+        valueKey: 'code',
+        orphanValue: shipment?.cropCode ?? shipment?.cropType,
+        orphanLabel: shipment?.cropType,
       }),
-    [crops, shipment?.cropType],
+    [crops, shipment?.cropCode, shipment?.cropType],
   )
   const dictionaryEmpty = !cropsLoading && crops.length === 0 && !shipment?.cropType
 
@@ -86,35 +106,89 @@ export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModal
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<ShipmentFormValues>({
     resolver: zodResolver(shipmentSchema),
-    defaultValues: getDefaultValues(firstCrop),
+    defaultValues: getDefaultValues(firstCode, firstName),
   })
 
   const quantityKg = useWatch({ control, name: 'quantityKg' }) ?? 0
   const pricePerKg = useWatch({ control, name: 'pricePerKg' }) ?? 0
+  const cropCode = useWatch({ control, name: 'cropCode' })
+  const shipmentRequestId = useWatch({ control, name: 'shipmentRequestId' })
+  const selectedCrop = (cropCode ?? '').trim()
+  const { data: harvestDone = [] } = useShipmentRequests(
+    {
+      kind: 'harvest',
+      status: 'done',
+      ...(selectedCrop ? { cropCode: selectedCrop } : {}),
+    },
+    open && Boolean(selectedCrop),
+  )
+  const requestItems = useMemo(() => {
+    const rows = harvestDone.map((row) => ({
+      value: row.id,
+      label: harvestRequestOptionLabel(row),
+    }))
+    const linked = shipment?.shipmentRequestId
+    if (linked && !rows.some((row) => row.value === linked)) {
+      rows.unshift({ value: linked, label: `Заявка ${linked.slice(0, 8)}…` })
+    }
+    return [{ value: NONE_REQUEST_VALUE, label: 'Без заявки' }, ...rows]
+  }, [harvestDone, shipment?.shipmentRequestId])
   const liveSum = calcShipmentSum(Number(quantityKg) || 0, Number(pricePerKg) || 0)
+  const similarForCrop = useMemo(() => {
+    const code = (cropCode ?? '').trim()
+    if (!code) return []
+    return harvestDone.filter((row) => (row.cropCode ?? '').trim() === code)
+  }, [harvestDone, cropCode])
+  const similarRequestHint =
+    !isEdit &&
+    similarForCrop.length > 0 &&
+    (!shipmentRequestId || shipmentRequestId === NONE_REQUEST_VALUE)
+      ? ` По культуре есть ${similarForCrop.length} выполн. заявки — можно привязать.`
+      : ''
+
+  useEffect(() => {
+    if (!selectedCrop) return
+    const linked = shipmentRequestId
+    if (!linked || linked === NONE_REQUEST_VALUE) return
+    if (!harvestDone.some((row) => row.id === linked)) {
+      setValue('shipmentRequestId', NONE_REQUEST_VALUE)
+    }
+  }, [selectedCrop, harvestDone, shipmentRequestId, setValue])
 
   useEffect(() => {
     if (!open) {
-      reset(getDefaultValues(firstCrop))
+      reset(getDefaultValues(firstCode, firstName))
       return
     }
-    reset(shipment ? toFormValues(shipment) : getDefaultValues(firstCrop))
+    reset(
+      shipment
+        ? toFormValues(shipment)
+        : getDefaultValues(firstCode, firstName, initialRequestId ?? ''),
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, reset, shipment?.id, firstCrop])
+  }, [open, reset, shipment?.id, firstCode, firstName, initialRequestId])
 
   const handleClose = () => {
-    reset(getDefaultValues(firstCrop))
+    reset(getDefaultValues(firstCode, firstName))
     onClose()
   }
 
   const onSubmit = async (values: ShipmentFormValues) => {
+    const payload = {
+      ...values,
+      shipmentRequestId:
+        values.shipmentRequestId && values.shipmentRequestId !== NONE_REQUEST_VALUE
+          ? values.shipmentRequestId
+          : '',
+    }
     if (shipment) {
-      await updateShipment.mutateAsync({ id: shipment.id, ...values })
+      await updateShipment.mutateAsync({ id: shipment.id, ...payload })
     } else {
-      await createShipment.mutateAsync(values)
+      await createShipment.mutateAsync(payload)
     }
     handleClose()
   }
@@ -164,16 +238,20 @@ export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModal
           <div className="space-y-2">
             <Label>Культура</Label>
             <Controller
-              name="cropType"
+              name="cropCode"
               control={control}
               render={({ field }) => (
                 <Select
                   value={field.value}
-                  onValueChange={field.onChange}
+                  onValueChange={(code) => {
+                    const row = crops.find((crop) => crop.code === code)
+                    field.onChange(code)
+                    setValue('cropType', row?.name ?? code, { shouldValidate: true })
+                  }}
                   items={cropItems}
                   disabled={dictionaryEmpty}
                 >
-                  <SelectTrigger className="w-full" aria-invalid={Boolean(errors.cropType)}>
+                  <SelectTrigger className="w-full" aria-invalid={Boolean(errors.cropCode)}>
                     <SelectValue
                       placeholder={
                         dictionaryEmpty
@@ -192,15 +270,17 @@ export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModal
                 </Select>
               )}
             />
-            {errors.cropType ? (
-              <p className="text-xs text-destructive">{errors.cropType.message}</p>
+            {errors.cropCode || errors.cropType ? (
+              <p className="text-xs text-destructive">
+                {errors.cropCode?.message ?? errors.cropType?.message}
+              </p>
             ) : (
               <ManageInSettingsLink tab="crops" tabHint="культуры" />
             )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="quantityKg">Количество (кг)</Label>
+            <Label htmlFor="quantityKg">Количество, кг</Label>
             <Input
               id="quantityKg"
               type="number"
@@ -227,7 +307,7 @@ export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModal
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="pricePerKg">Цена за кг (₽)</Label>
+            <Label htmlFor="pricePerKg">Цена за килограмм</Label>
             <Input
               id="pricePerKg"
               type="number"
@@ -240,6 +320,47 @@ export function ShipmentFormModal({ open, shipment, onClose }: ShipmentFormModal
               <p className="text-xs text-destructive">{errors.pricePerKg.message}</p>
             ) : null}
             <p className="text-sm text-muted-foreground">Сумма: {formatMoney(liveSum)}</p>
+          </div>
+
+          <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+            <Label className="text-foreground">Связь с заявкой на урожай</Label>
+            <Controller
+              name="shipmentRequestId"
+              control={control}
+              render={({ field }) => (
+                <Select
+                  value={field.value || NONE_REQUEST_VALUE}
+                  onValueChange={(next) => {
+                    field.onChange(next)
+                    if (next && next !== NONE_REQUEST_VALUE) {
+                      const row = harvestDone.find((r) => r.id === next)
+                      if (row && !isEdit) {
+                        if (!quantityKg) setValue('quantityKg', row.quantity, { shouldValidate: true })
+                        if (!pricePerKg) setValue('pricePerKg', row.price, { shouldValidate: true })
+                        setValue('destination', row.customerName, { shouldDirty: true })
+                      }
+                    }
+                  }}
+                  items={requestItems}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Без заявки" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {requestItems.map((row) => (
+                      <SelectItem key={row.value} value={row.value}>
+                        {row.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            <p className="text-xs text-muted-foreground">
+              {!selectedCrop
+                ? 'Сначала выберите культуру — тогда появятся выполненные harvest‑заявки только по ней.'
+                : `Рекомендуется: сначала заявка (склад) → затем отгрузка с привязкой. Без заявки — осознанная продажа мимо склада; KPI всё равно из этой записи.${similarRequestHint}`}
+            </p>
           </div>
 
           <div className="space-y-2">

@@ -58,3 +58,19 @@ export function groupShipmentsByCrop(
     quantityKg,
   }))
 }
+
+/** ISO date (yyyy-MM-dd) from completedAt / plannedAt for range checks. */
+export function isoDay(value: string | null | undefined): string | null {
+  if (!value) return null
+  const day = value.slice(0, 10)
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null
+}
+
+export function isIsoDayInRange(
+  day: string | null,
+  fromIso: string,
+  toIso: string,
+): boolean {
+  if (!day) return false
+  return day >= fromIso && day <= toIso
+}

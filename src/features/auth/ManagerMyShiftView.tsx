@@ -93,14 +93,14 @@ export function ManagerMyShiftView() {
 
       <RoleSectionHelp section="моя смена" items={myShiftHelp} guideSection="my-shift" />
 
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
         {canOpenOwn ? (
           <Button
             type="button"
             onClick={() => setOpenOwnOpen(true)}
-            className="h-12 flex-1 bg-primary hover:bg-primary-hover text-primary-foreground sm:h-11"
+            className="min-h-14 w-full flex-1 whitespace-normal px-4 py-3 text-base leading-snug bg-primary hover:bg-primary-hover text-primary-foreground lg:min-h-12 lg:whitespace-nowrap"
           >
-            <User className="size-4" />
+            <User className="size-5 shrink-0" />
             Открыть свою смену
           </Button>
         ) : null}
@@ -109,9 +109,9 @@ export function ManagerMyShiftView() {
             type="button"
             variant="outline"
             onClick={() => setOpenOtherOpen(true)}
-            className="h-12 flex-1 sm:h-11"
+            className="min-h-14 w-full flex-1 whitespace-normal px-4 py-3 text-base leading-snug lg:min-h-12 lg:whitespace-nowrap"
           >
-            <Play className="size-4" />
+            <Play className="size-5 shrink-0" />
             Открыть смену за сотрудника
           </Button>
         ) : null}

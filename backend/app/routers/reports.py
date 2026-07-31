@@ -23,6 +23,7 @@ from app.services.reports import (
     build_salary_preview,
     build_salary_workbook,
     build_season_workbook,
+    build_shipment_requests_workbook,
     build_shipments_workbook,
     build_summary_workbook,
     build_timesheet_workbook,
@@ -201,4 +202,20 @@ async def report_purchases(
     return workbook_response(
         workbook,
         f'purchases_{payload.from_date}_{payload.to_date}.xlsx',
+    )
+
+
+@router.post('/shipment-requests')
+async def report_shipment_requests(
+    request: Request,
+    payload: DateRangeRequest,
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(require_manager),
+):
+    workbook = await build_shipment_requests_workbook(
+        db, payload.from_date, payload.to_date, org_id=get_org_id(request)
+    )
+    return workbook_response(
+        workbook,
+        f'shipment_requests_{payload.from_date}_{payload.to_date}.xlsx',
     )

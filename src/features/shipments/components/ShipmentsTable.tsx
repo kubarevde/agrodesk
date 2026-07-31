@@ -1,4 +1,5 @@
-import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { ClipboardList, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -16,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import type { Shipment } from '@/types'
 import { formatKg, formatMoney, sumShipments } from '@/features/shipments/utils'
+import { shortRequestRef } from '@/features/shipments/requestLink'
 
 interface ShipmentsTableProps {
   shipments: Shipment[]
@@ -36,7 +38,11 @@ export function ShipmentsTable({
   const showActions = canEdit || canDelete
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <div
+      className="hidden overflow-x-auto rounded-lg border border-border md:block"
+      data-layout="table"
+      data-testid="shipments-table"
+    >
       <Table>
         <TableHeader>
           <TableRow>
@@ -46,6 +52,7 @@ export function ShipmentsTable({
             <TableHead>Направление</TableHead>
             <TableHead>Цена/кг</TableHead>
             <TableHead>Сумма</TableHead>
+            <TableHead>Заявка</TableHead>
             {showActions ? <TableHead>Действия</TableHead> : null}
           </TableRow>
         </TableHeader>
@@ -61,6 +68,22 @@ export function ShipmentsTable({
               </TableCell>
               <TableCell>
                 {shipment.totalSum != null ? formatMoney(shipment.totalSum) : '—'}
+                <p className="text-xs font-normal text-muted-foreground">урожай</p>
+              </TableCell>
+              <TableCell>
+                {shipment.shipmentRequestId ? (
+                  <Link
+                    to="/shipment-requests/$requestId"
+                    params={{ requestId: shipment.shipmentRequestId }}
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    title="Открыть заявку"
+                  >
+                    <ClipboardList className="size-3.5" />
+                    по заявке #{shortRequestRef(shipment.shipmentRequestId)}
+                  </Link>
+                ) : (
+                  <span className="text-xs text-muted-foreground">—</span>
+                )}
               </TableCell>
               {showActions ? (
                 <TableCell>
@@ -96,7 +119,7 @@ export function ShipmentsTable({
         </TableBody>
         <TableFooter>
           <TableRow>
-            <TableCell colSpan={6} className="font-medium">
+            <TableCell colSpan={7} className="font-medium">
               Итого: {formatKg(totals.totalKg)} / {formatMoney(totals.totalSum)}
             </TableCell>
             {showActions ? <TableCell /> : null}
