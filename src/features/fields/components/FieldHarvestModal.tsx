@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { CalendarIcon, Loader2, Wheat } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import { Controller, useForm } from 'react-hook-form'
-import { Link } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
@@ -44,6 +44,7 @@ export function FieldHarvestModal({
   onClose,
   onEditField,
 }: FieldHarvestModalProps) {
+  const navigate = useNavigate()
   const { data: items = [], isLoading } = useInventory({ category: 'harvest' })
   const { data: crops = [] } = useDictionary('crop')
   const harvest = useFieldHarvest()
@@ -117,8 +118,15 @@ export function FieldHarvestModal({
                 Указать культуру поля
               </Button>
             ) : (
-              <Button type="button" variant="outline" asChild>
-                <Link to="/inventory">Открыть склад</Link>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  onClose()
+                  void navigate({ to: '/inventory' })
+                }}
+              >
+                Открыть склад
               </Button>
             )}
           </div>
@@ -195,13 +203,13 @@ export function FieldHarvestModal({
                 control={control}
                 render={({ field: f }) => (
                   <Popover>
-                    <PopoverTrigger asChild>
-                      <Button type="button" variant="outline" className="w-full justify-start">
-                        <CalendarIcon className="size-4" />
+                    <PopoverTrigger className="inline-flex h-8 w-full items-center justify-start gap-2 rounded-lg border border-input bg-transparent px-2.5 text-sm font-normal">
+                      <CalendarIcon className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate">
                         {f.value
                           ? format(parseApiDate(f.value), 'd MMMM yyyy', { locale: ru })
                           : 'Выберите дату'}
-                      </Button>
+                      </span>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
@@ -209,6 +217,7 @@ export function FieldHarvestModal({
                         selected={f.value ? parseApiDate(f.value) : undefined}
                         onSelect={(d) => d && f.onChange(formatApiDate(d))}
                         disabled={{ after: new Date() }}
+                        locale={ru}
                       />
                     </PopoverContent>
                   </Popover>

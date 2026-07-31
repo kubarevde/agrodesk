@@ -85,11 +85,12 @@ export function ContourDrawEngine({
       edit: {
         featureGroup: group,
         remove: true,
+        // Runtime leaflet-draw option; omitted from @types/leaflet-draw EditOptions.
         poly: {
           icon: VERTEX_ICONS.icon,
           touchIcon: VERTEX_ICONS.touchIcon,
         },
-      },
+      } as L.Control.DrawConstructorOptions['edit'],
     })
     map.addControl(control)
 

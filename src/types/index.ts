@@ -104,7 +104,7 @@ export interface Field {
   id: string
   name: string
   crop_type: string | null
-  crop_code?: string | null
+  crop_code: string | null
   area_ha: number | null
   soil_type: string | null
   description: string | null

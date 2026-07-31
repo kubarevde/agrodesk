@@ -47,8 +47,12 @@ export function useFields() {
       const { data } = await api.get<Field[]>('/api/fields', {
         params: { is_active: true },
       })
-      await db.fields.bulkPut(data)
-      return data
+      const normalized = data.map((field) => ({
+        ...field,
+        crop_code: field.crop_code ?? null,
+      }))
+      await db.fields.bulkPut(normalized)
+      return normalized
     },
   })
 }
