@@ -244,9 +244,10 @@ export function ShipmentFormModal({
                 <Select
                   value={field.value}
                   onValueChange={(code) => {
-                    const row = crops.find((crop) => crop.code === code)
-                    field.onChange(code)
-                    setValue('cropType', row?.name ?? code, { shouldValidate: true })
+                    const next = code ?? ''
+                    const row = crops.find((crop) => crop.code === next)
+                    field.onChange(next)
+                    setValue('cropType', row?.name ?? next, { shouldValidate: true })
                   }}
                   items={cropItems}
                   disabled={dictionaryEmpty}

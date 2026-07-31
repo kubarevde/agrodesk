@@ -45,7 +45,12 @@ export function ShipmentRequestDetailPage({ requestId }: Props) {
           variant="ghost"
           size="sm"
           className="-ml-2 min-h-11"
-          onClick={() => void navigate({ to: '/shipment-requests' })}
+          onClick={() =>
+            void navigate({
+              to: '/shipment-requests',
+              search: { focus: undefined, createItemId: undefined },
+            })
+          }
         >
           <ArrowLeft className="size-4" />
           К списку

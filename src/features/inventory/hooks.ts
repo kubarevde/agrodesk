@@ -222,7 +222,7 @@ export function useUpdateInventoryItem() {
       }
       return { item, previousIsActive }
     },
-    onSuccess: async (result, variables) => {
+    onSuccess: async (_result, variables) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['inventory'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
