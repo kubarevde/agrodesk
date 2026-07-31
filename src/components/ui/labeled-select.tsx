@@ -43,7 +43,7 @@ export function LabeledSelect({
       <SelectTrigger className={cn('w-full', className)} aria-invalid={ariaInvalid}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent alignItemWithTrigger={false}>
         {options.map((option) => (
           <SelectItem key={option.value} value={option.value}>
             {option.label}

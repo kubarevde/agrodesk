@@ -17,10 +17,12 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { LabeledSelect } from '@/components/ui/labeled-select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useDictionary } from '@/features/dictionaries/hooks'
 import { useInventory } from '@/features/inventory/hooks'
 import { numberInputRegister } from '@/lib/formNumbers'
+import { selectOptions } from '@/lib/selectOptions'
 import { formatApiDate, parseApiDate } from '@/features/worktime/utils'
 import type { FieldResponse } from '../types'
 import {
@@ -55,6 +57,16 @@ export function FieldHarvestModal({
   const matching = useMemo(
     () => harvestItemsMatchingCrop(items, effectiveCode),
     [items, effectiveCode],
+  )
+  const skuOptions = useMemo(
+    () =>
+      selectOptions(
+        matching.map((row) => ({
+          value: row.id,
+          label: `${row.name} · ${row.currentStock.toLocaleString('ru-RU')} ${row.unit}`,
+        })),
+      ),
+    [matching],
   )
   const blockReason = field ? fieldHarvestBlockReason(field, matching, crops) : null
   const missingCulture =
@@ -163,18 +175,14 @@ export function FieldHarvestModal({
                 name="inventoryItemId"
                 control={control}
                 render={({ field: f }) => (
-                  <select
-                    className="flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                    value={f.value ?? ''}
-                    onChange={(event) => f.onChange(event.target.value)}
-                  >
-                    <option value="">Выберите позицию</option>
-                    {matching.map((row) => (
-                      <option key={row.id} value={row.id}>
-                        {row.name} ({row.currentStock.toLocaleString('ru-RU')} {row.unit})
-                      </option>
-                    ))}
-                  </select>
+                  <LabeledSelect
+                    value={f.value || null}
+                    onValueChange={(value) => f.onChange(value ?? '')}
+                    options={skuOptions}
+                    placeholder="Выберите позицию"
+                    disabled={skuOptions.length === 0}
+                    aria-invalid={Boolean(errors.inventoryItemId) || undefined}
+                  />
                 )}
               />
               {errors.inventoryItemId ? (
