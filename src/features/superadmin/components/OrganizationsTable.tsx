@@ -33,6 +33,7 @@ export function OrganizationsTable({
           <TableHead>Slug</TableHead>
           <TableHead>План</TableHead>
           <TableHead>Статус</TableHead>
+          <TableHead>Marketplace</TableHead>
           <TableHead>Сотрудников</TableHead>
           <TableHead>Владелец</TableHead>
           <TableHead>Истекает</TableHead>
@@ -47,6 +48,9 @@ export function OrganizationsTable({
             <TableCell>{org.plan}</TableCell>
             <TableCell>
               <OrgStatusBadge org={org} />
+            </TableCell>
+            <TableCell className="text-muted-foreground">
+              {org.marketplaceEnabled ? 'вкл' : '—'}
             </TableCell>
             <TableCell>{org.employeesCount}</TableCell>
             <TableCell className="max-w-[160px] truncate">{org.ownerEmail ?? '—'}</TableCell>

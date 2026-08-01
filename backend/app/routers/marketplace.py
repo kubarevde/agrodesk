@@ -78,7 +78,7 @@ async def get_listing(
 ) -> MarketListingResponse:
     await seller_svc.require_marketplace_enabled(db, get_org_id(request))
     row = await seller_svc.get_org_listing(db, get_org_id(request), listing_id)
-    return import_svc.listing_to_response(row)
+    return await import_svc.listing_to_response_async(db, row)
 
 
 @router.post('/listings', response_model=MarketListingResponse, status_code=201)
@@ -178,7 +178,7 @@ async def get_import_sources(
     '/listings/from-source',
     response_model=MarketListingResponse,
     status_code=201,
-    summary='Create draft listing snapshot from inventory or shipment',
+    summary='Create draft listing linked to inventory or shipment',
 )
 async def create_listing_from_source(
     request: Request,
@@ -186,7 +186,7 @@ async def create_listing_from_source(
     db: AsyncSession = Depends(get_db),
     _: Employee = _manage,
 ) -> MarketListingResponse:
-    """Create ``draft`` listing with frozen quantity/title/unit snapshot."""
+    """Create ``draft`` with soft source link; displayed qty resolves live on read."""
     org_id = get_org_id(request)
     row = await import_svc.create_listing_from_source(
         db,
@@ -195,4 +195,4 @@ async def create_listing_from_source(
         source_id=payload.source_id,
     )
     await db.commit()
-    return import_svc.listing_to_response(row)
+    return await import_svc.listing_to_response_async(db, row)

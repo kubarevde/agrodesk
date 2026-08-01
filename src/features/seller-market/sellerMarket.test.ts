@@ -1,6 +1,15 @@
+import { AxiosError } from 'axios'
 import { describe, expect, it } from 'vitest'
 import { listingFormSchema } from './components/ListingFormFields'
-import { isListingFormReady, listingRejectionVisible } from './labels'
+import {
+  isListingFormReady,
+  isSourceLinkedListing,
+  listingListActionLabel,
+  listingQtyListCaption,
+  listingRejectionVisible,
+  listingSourceLinkLabel,
+  parseImportFromSourceError,
+} from './labels'
 
 describe('isListingFormReady', () => {
   it('requires title, category, price, quantity and photos', () => {
@@ -77,5 +86,104 @@ describe('listingRejectionVisible', () => {
         rejection_reason: 'старая причина',
       }),
     ).toBeNull()
+  })
+})
+
+describe('listingListActionLabel', () => {
+  it('uses fix/edit labels for rejected and draft', () => {
+    expect(listingListActionLabel('rejected')).toBe('Исправить')
+    expect(listingListActionLabel('draft')).toBe('Редактировать')
+    expect(listingListActionLabel('pending_review')).toBe('Открыть')
+    expect(listingListActionLabel('published')).toBe('Открыть')
+  })
+})
+
+describe('parseImportFromSourceError', () => {
+  it('reads listing_id from structured 409 detail', () => {
+    const err = new AxiosError('Conflict')
+    err.response = {
+      status: 409,
+      data: {
+        detail: {
+          message: 'Объявление по этому источнику уже есть (статус «draft»).',
+          listing_id: 'listing-42',
+          status: 'draft',
+        },
+      },
+      statusText: 'Conflict',
+      headers: {},
+      config: { headers: {} },
+    }
+    expect(parseImportFromSourceError(err)).toEqual({
+      message: 'Объявление по этому источнику уже есть (статус «draft»).',
+      listingId: 'listing-42',
+    })
+  })
+
+  it('falls back for plain 409', () => {
+    const err = new AxiosError('Conflict')
+    err.response = {
+      status: 409,
+      data: {},
+      statusText: 'Conflict',
+      headers: {},
+      config: { headers: {} },
+    }
+    const parsed = parseImportFromSourceError(err)
+    expect(parsed.listingId).toBeNull()
+    expect(parsed.message.toLowerCase()).toContain('уже')
+  })
+})
+
+describe('listingSourceLinkLabel', () => {
+  it('labels inventory and shipment source links', () => {
+    expect(listingSourceLinkLabel('inventory')).toMatch(/складом/i)
+    expect(listingSourceLinkLabel('shipment')).toMatch(/отгруз/i)
+    expect(listingSourceLinkLabel('manual')).toBeNull()
+  })
+})
+
+describe('isSourceLinkedListing', () => {
+  it('detects source mode and source_type+id', () => {
+    expect(isSourceLinkedListing({ quantity_mode: 'source' })).toBe(true)
+    expect(
+      isSourceLinkedListing({
+        quantity_mode: 'manual',
+        source_type: 'inventory',
+        source_id: 'x',
+      }),
+    ).toBe(true)
+    expect(isSourceLinkedListing({ quantity_mode: 'manual', source_type: 'manual' })).toBe(false)
+  })
+})
+
+describe('listingQtyListCaption', () => {
+  it('keeps manual qty plain and marks source sync', () => {
+    expect(
+      listingQtyListCaption({
+        quantity_available: 5,
+        unit: 'кг',
+        quantity_mode: 'manual',
+      }),
+    ).toBe('5 кг')
+    expect(
+      listingQtyListCaption({
+        quantity_available: 12,
+        unit: 'л',
+        quantity_mode: 'source',
+        source_type: 'inventory',
+        source_id: 'i1',
+      }),
+    ).toMatch(/синхр\. со складом/)
+    expect(
+      listingQtyListCaption({
+        quantity_available: 0,
+        unit: 'кг',
+        quantity_mode: 'source',
+        source_type: 'shipment',
+        source_id: 's1',
+        source_missing: true,
+      }),
+    ).toMatch(/источник недоступен/)
   })
 })

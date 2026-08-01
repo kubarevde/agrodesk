@@ -3,6 +3,10 @@ import {
   averageRating,
   flattenCategories,
   formatMarketPrice,
+  formatMarketPriceAmount,
+  isListingInStock,
+  publicStockLabel,
+  publicStockShort,
   sortListings,
 } from './lib'
 import type { PublicCategoryNode, PublicListingCard } from './types'
@@ -38,6 +42,8 @@ describe('marketplace-public lib', () => {
   it('formats price with unit', () => {
     expect(formatMarketPrice(350, 'кг')).toContain('350')
     expect(formatMarketPrice(350, 'кг')).toContain('кг')
+    expect(formatMarketPriceAmount(350)).toContain('350')
+    expect(formatMarketPriceAmount(350)).toContain('₽')
   })
 
   it('sorts by price and date', () => {
@@ -75,5 +81,14 @@ describe('marketplace-public lib', () => {
   it('averages ratings', () => {
     expect(averageRating([{ rating: 5 }, { rating: 4 }])).toBe(4.5)
     expect(averageRating([])).toBeNull()
+  })
+
+  it('formats buyer stock labels without internals', () => {
+    expect(isListingInStock(0)).toBe(false)
+    expect(isListingInStock('3')).toBe(true)
+    expect(publicStockLabel(0, 'кг')).toBe('Сейчас нет в наличии')
+    expect(publicStockLabel(12, 'л')).toBe('В наличии: 12 л')
+    expect(publicStockShort(0, 'кг')).toBe('Нет в наличии')
+    expect(publicStockShort(5, 'кг')).toBe('В наличии 5 кг')
   })
 })

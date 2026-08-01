@@ -53,6 +53,9 @@ class MarketListingResponse(BaseModel):
     price: Decimal
     unit: str
     quantity_available: Decimal
+    """Effective qty: live from source when quantity_mode='source', else stored."""
+    quantity_mode: Literal['manual', 'source'] = 'manual'
+    source_missing: bool = False
     photos: list = Field(default_factory=list)
     status: str
     source_type: str | None
@@ -148,6 +151,7 @@ class PublicListingCard(BaseModel):
     description: str | None
     price: Decimal
     unit: str
+    """Effective available qty from backend (live for source-linked listings)."""
     quantity_available: Decimal
     photos: list = Field(default_factory=list)
     category_id: UUID | None
@@ -222,6 +226,8 @@ class ModerationListingItem(BaseModel):
     price: Decimal
     unit: str
     quantity_available: Decimal
+    quantity_mode: Literal['manual', 'source'] = 'manual'
+    source_missing: bool = False
     photos: list = Field(default_factory=list)
     status: str
     rejection_reason: str | None

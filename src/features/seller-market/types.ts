@@ -29,6 +29,9 @@ export interface SellerListing {
   price: number | string
   unit: string
   quantity_available: number | string
+  /** Effective qty mode from backend: stored vs live source. */
+  quantity_mode?: 'manual' | 'source'
+  source_missing?: boolean
   photos: string[]
   status: ListingStatus
   source_type: string | null
@@ -83,21 +86,5 @@ export interface ImportSources {
   shipments: ImportShipmentSource[]
 }
 
-export interface ListingFormValues {
-  title: string
-  description: string
-  price: number
-  unit: string
-  quantity_available: number
-  category_id: string
-  photos: string[]
-}
-
-export interface PublicCategoryNode {
-  id: string
-  name: string
-  slug: string
-  icon: string | null
-  sort_order: number
-  children: PublicCategoryNode[]
-}
+/** Categories from public marketplace tree (same JSON shape as /api/public/marketplace/categories). */
+export type { PublicCategoryNode } from '@/features/marketplace-public/types'

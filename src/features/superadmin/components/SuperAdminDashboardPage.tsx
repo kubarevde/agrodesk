@@ -8,6 +8,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { superadminHelp } from '@/features/help/content'
 import { OrgModal } from '@/features/superadmin/components/OrgModal'
 import { OrganizationsTable } from '@/features/superadmin/components/OrganizationsTable'
+import { OverviewKpiCard } from '@/features/superadmin/components/OverviewKpiCard'
+import { PlatformAttentionList } from '@/features/superadmin/components/PlatformAttentionList'
+import { PlatformOverviewPanels } from '@/features/superadmin/components/PlatformOverviewPanels'
 import { TempPasswordDialog } from '@/features/superadmin/components/TempPasswordDialog'
 import {
   useDeleteOrganization,
@@ -28,7 +31,7 @@ export function SuperAdminDashboardPage() {
   const [created, setCreated] = useState<OrganizationCreateResult | null>(null)
 
   const stats = statsQuery.data
-  const loading = statsQuery.isLoading || orgsQuery.isLoading
+  const statsLoading = statsQuery.isLoading
 
   const openCreate = () => {
     setEditing(null)
@@ -65,7 +68,12 @@ export function SuperAdminDashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Организации</h1>
+        <div>
+          <h1 className="text-2xl font-semibold">Платформа</h1>
+          <p className="text-sm text-muted-foreground">
+            Superadmin overview — не holding dashboard и не tenant KPI
+          </p>
+        </div>
         <Button type="button" onClick={openCreate} className="bg-primary text-primary-foreground">
           <Plus className="size-4" />
           Добавить организацию
@@ -74,24 +82,42 @@ export function SuperAdminDashboardPage() {
 
       <SectionHelp section="суперадмин" items={superadminHelp} />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {loading || !stats ? (
-          Array.from({ length: 4 }).map((_, i) => (
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        {statsLoading || !stats ? (
+          Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-24 rounded-xl" />
           ))
         ) : (
           <>
-            <KpiCard title="Всего орг" value={stats.totalOrgs} />
-            <KpiCard title="Активных" value={stats.activeOrgs} />
-            <KpiCard title="Trial" value={stats.trialOrgs} />
-            <KpiCard title="Сотрудников" value={stats.totalEmployees} />
+            <OverviewKpiCard title="Организаций" value={stats.totalOrgs} />
+            <OverviewKpiCard title="Активных" value={stats.activeOrgs} />
+            <OverviewKpiCard title="Сотрудников" value={stats.totalEmployees} />
+            <OverviewKpiCard title="Смен сегодня" value={stats.totalShiftsToday} />
+            <OverviewKpiCard title="Тикеты (unread)" value={stats.supportUnread} />
+            <OverviewKpiCard
+              title="Marketplace org"
+              value={stats.marketplaceOrgs}
+              hint="Отдельный feature flag"
+            />
           </>
         )}
       </div>
 
+      {statsLoading || !stats ? (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <Skeleton className="h-48 rounded-xl" />
+          <Skeleton className="h-48 rounded-xl" />
+        </div>
+      ) : (
+        <>
+          <PlatformOverviewPanels stats={stats} />
+          <PlatformAttentionList items={stats.attention} />
+        </>
+      )}
+
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Список организаций</CardTitle>
+          <CardTitle className="text-base">Организации</CardTitle>
         </CardHeader>
         <CardContent>
           {orgsQuery.isLoading ? (
@@ -126,18 +152,5 @@ export function SuperAdminDashboardPage() {
       />
       <TempPasswordDialog result={created} onClose={() => setCreated(null)} />
     </div>
-  )
-}
-
-function KpiCard({ title, value }: { title: string; value: number }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-3xl font-semibold tabular-nums">{value}</p>
-      </CardContent>
-    </Card>
   )
 }

@@ -1,11 +1,9 @@
-"""Marketplace import from warehouse / shipments — one-way snapshot only.
+"""Marketplace import from warehouse / shipments.
 
-IMPORTANT (MVP contract):
-- ``market_listings.quantity_available`` is a **snapshot** taken at import/publish time.
-  It is NOT a live link to ``inventory_items.current_stock`` or shipment tonnes.
-- Changing warehouse stock after import does **not** auto-update the listing;
-  the seller updates the listing manually. No reserve/write-off on import.
-- This module only SELECTs from inventory_items / shipments — never UPDATE/INSERT there.
+Import creates a draft with a soft ``(source_type, source_id)`` link.
+Displayed ``quantity_available`` for source-linked listings is resolved live
+on read via ``marketplace_quantity`` (warehouse remains source of truth).
+This module only SELECTs from inventory_items / shipments — never UPDATE/INSERT there.
 """
 
 from __future__ import annotations
@@ -28,13 +26,26 @@ from app.schemas.marketplace import (
     MarketListingResponse,
 )
 from app.services.marketplace_category_mapping import resolve_market_category_id
+from app.services.marketplace_quantity import (
+    ResolvedQuantity,
+    resolve_listing_quantities,
+    resolve_listing_quantity,
+)
 
 # Active listing statuses that block re-import of the same source.
 _ACTIVE_IMPORT_STATUSES = ('draft', 'pending_review', 'published')
 
 
-def listing_to_response(row: MarketListing) -> MarketListingResponse:
+def listing_to_response(
+    row: MarketListing,
+    qty: ResolvedQuantity | None = None,
+) -> MarketListingResponse:
     photos = row.photos if isinstance(row.photos, list) else []
+    resolved = qty or ResolvedQuantity(
+        quantity_available=Decimal(str(row.quantity_available or 0)),
+        quantity_mode='manual',
+        source_missing=False,
+    )
     return MarketListingResponse(
         id=row.id,
         org_id=row.org_id,
@@ -44,7 +55,9 @@ def listing_to_response(row: MarketListing) -> MarketListingResponse:
         description=row.description,
         price=Decimal(str(row.price)),
         unit=row.unit,
-        quantity_available=Decimal(str(row.quantity_available)),
+        quantity_available=resolved.quantity_available,
+        quantity_mode=resolved.quantity_mode,  # type: ignore[arg-type]
+        source_missing=resolved.source_missing,
         photos=photos,
         status=row.status,
         source_type=row.source_type,
@@ -54,6 +67,22 @@ def listing_to_response(row: MarketListing) -> MarketListingResponse:
         updated_at=row.updated_at,
         published_at=row.published_at,
     )
+
+
+async def listing_to_response_async(
+    db: AsyncSession,
+    row: MarketListing,
+) -> MarketListingResponse:
+    qty = await resolve_listing_quantity(db, row)
+    return listing_to_response(row, qty)
+
+
+async def listings_to_response(
+    db: AsyncSession,
+    rows: list[MarketListing],
+) -> list[MarketListingResponse]:
+    qty_map = await resolve_listing_quantities(db, rows)
+    return [listing_to_response(row, qty_map[row.id]) for row in rows]
 
 
 async def _imported_source_ids(
@@ -175,7 +204,7 @@ async def create_listing_from_source(
     source_type: str,
     source_id: UUID,
 ) -> MarketListing:
-    """Create draft listing from inventory/shipment SELECT snapshot (no warehouse writes)."""
+    """Create draft listing from inventory/shipment (seed + soft link; no warehouse writes)."""
     existing = await find_active_import(db, org_id, source_type, source_id)
     if existing is not None:
         raise HTTPException(
@@ -205,13 +234,13 @@ async def create_listing_from_source(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail='Позиция склада не найдена',
             )
-        # Snapshot only — quantity_available is frozen at import time (MVP).
+        # Seed stored qty from source; responses resolve live qty via marketplace_quantity.
         title = item.name
         unit = item.unit
         quantity = Decimal(str(item.current_stock))
         description = (
-            f'Импорт со склада (snapshot). Категория ТМЦ: {item.category}. '
-            'Остаток на витрине не синхронизируется со складом автоматически.'
+            f'Импорт со склада. Категория ТМЦ: {item.category}. '
+            'Количество на витрине синхронизируется с остатком склада (без списания при заявке).'
         )
         # Optional mapping — never mutates inventory_items; seller may override.
         mapped_category_id = await resolve_market_category_id(db, item.category)
@@ -234,7 +263,7 @@ async def create_listing_from_source(
         if row.destination:
             bits.append(f'Направление: {row.destination}.')
         bits.append(
-            'Количество на витрине — snapshot; KPI-отгрузки не списываются.'
+            'Количество на витрине берётся из записи отгрузки; KPI-отгрузки не списываются.'
         )
         description = ' '.join(bits)
         mapped_category_id = None

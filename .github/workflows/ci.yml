@@ -31,5 +31,8 @@ jobs:
       - name: oxlint
         run: npm run lint
 
+      - name: Typecheck
+        run: npx tsc -b --pretty false
+
       - name: Vitest
         run: npm test

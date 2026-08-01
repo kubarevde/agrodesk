@@ -31,11 +31,23 @@ const listing: PublicListingCard = {
 }
 
 describe('ListingCard', () => {
-  it('renders title, price and seller', () => {
+  it('renders title, price, stock and seller', () => {
     const html = renderToStaticMarkup(createElement(ListingCard, { listing }))
     expect(html).toContain('Подсолнечное масло')
     expect(html).toContain('Маслодельня Юг')
     expect(html).toContain('л')
+    expect(html).toContain('В наличии 12 л')
+    expect(html).toContain('Смотреть')
     expect(html).toContain('data-testid="listing-card"')
+  })
+
+  it('shows honest empty stock', () => {
+    const html = renderToStaticMarkup(
+      createElement(ListingCard, {
+        listing: { ...listing, quantity_available: 0 },
+      }),
+    )
+    expect(html).toContain('Нет в наличии')
+    expect(html).not.toContain('source_')
   })
 })

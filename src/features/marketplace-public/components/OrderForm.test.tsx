@@ -39,6 +39,19 @@ describe('OrderForm + public order API', () => {
     expect(html).toContain('data-testid="order-form"')
   })
 
+  it('hides form when stock is zero', () => {
+    const html = renderToStaticMarkup(
+      createElement(OrderForm, {
+        listingId: 'listing-1',
+        maxQuantity: 0,
+        unit: 'кг',
+      }),
+    )
+    expect(html).toContain('data-testid="order-unavailable"')
+    expect(html).toContain('нет в наличии')
+    expect(html).not.toContain('data-testid="order-form"')
+  })
+
   it('posts order payload without Authorization client', async () => {
     post.mockResolvedValue({
       data: {

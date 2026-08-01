@@ -57,7 +57,7 @@ test.describe('marketplace e2e', () => {
     const buyerPhone = `+7900${String(Date.now()).slice(-7)}`
 
     await loginOrgAdmin(page, org)
-    await page.getByRole('link', { name: /Создать вручную|Создать объявление/ }).first().click()
+    await page.getByRole('link', { name: /^Создать( объявление)?$/ }).first().click()
     await expect(page.getByTestId('listing-form')).toBeVisible({ timeout: 15_000 })
     await fillListingForm(page, { title, categoryName })
     await page.getByRole('button', { name: 'Сохранить' }).click()
@@ -138,7 +138,7 @@ test.describe('marketplace e2e', () => {
     const reason = `E2E причина отклонения ${Date.now()}`
 
     await loginOrgAdmin(page, org)
-    await page.getByRole('link', { name: /Создать вручную|Создать объявление/ }).first().click()
+    await page.getByRole('link', { name: /^Создать( объявление)?$/ }).first().click()
     await expect(page.getByTestId('listing-form')).toBeVisible({ timeout: 15_000 })
     await fillListingForm(page, { title, categoryName })
     await page.getByRole('button', { name: 'Сохранить' }).click()
@@ -176,7 +176,7 @@ test.describe('marketplace e2e', () => {
     const row = page.locator('li').filter({ hasText: title })
     await expect(row).toBeVisible({ timeout: 20_000 })
     await expect(row.getByText('Отклонён')).toBeVisible()
-    await row.getByRole('link', { name: 'Открыть' }).click()
+    await row.getByRole('link', { name: /Исправить|Открыть/ }).click()
     await expect(page.getByTestId('rejection-reason')).toContainText(reason, {
       timeout: 15_000,
     })

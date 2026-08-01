@@ -42,14 +42,18 @@ export async function loginSuperAdminApi(
 }
 
 export async function loginSuperAdminUi(page: Page) {
+  // Prefer API token + localStorage: UI form login flakes under serial e2e load.
+  const res = await page.request.post(`${API}/superadmin/api/auth/login`, {
+    data: { email: SUPERADMIN_EMAIL, password: SUPERADMIN_PASSWORD },
+  })
+  expect(res.ok(), await res.text()).toBeTruthy()
+  const body = (await res.json()) as { access_token: string }
   await page.goto('/superadmin/login')
-  if (!page.url().includes('/superadmin/login')) {
-    return
-  }
-  await page.locator('#email').fill(SUPERADMIN_EMAIL)
-  await page.locator('#password').fill(SUPERADMIN_PASSWORD)
-  await page.getByRole('button', { name: /Войти/i }).click()
-  await expect(page).not.toHaveURL(/\/superadmin\/login/, { timeout: 30_000 })
+  await page.evaluate((token) => {
+    localStorage.setItem('superadmin_token', token)
+  }, body.access_token)
+  await page.goto('/superadmin/marketplace')
+  await expect(page).not.toHaveURL(/\/superadmin\/login/, { timeout: 20_000 })
 }
 
 export async function createDisposableMarketplaceOrg(

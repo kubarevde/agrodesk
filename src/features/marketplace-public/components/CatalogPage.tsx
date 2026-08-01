@@ -35,6 +35,7 @@ export function CatalogPage() {
     page,
   })
 
+  // Sort applies to the current API page (server filters; no second catalog query).
   const items = useMemo(
     () => sortListings(listingsQuery.data?.items ?? [], sort),
     [listingsQuery.data?.items, sort],
@@ -43,6 +44,8 @@ export function CatalogPage() {
   const total = listingsQuery.data?.total ?? 0
   const pageSize = listingsQuery.data?.page_size ?? 24
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const hasActiveFilters = Boolean(debouncedQ || categoryId)
+  const showResultsMeta = !listingsQuery.isLoading && !listingsQuery.isError
 
   const resetFilters = () => {
     setCategoryId(null)
@@ -52,25 +55,26 @@ export function CatalogPage() {
     setPage(1)
   }
 
-  const emptyTitle = debouncedQ || categoryId ? 'Ничего не найдено' : 'Пока нет товаров'
-  const emptyDescription = debouncedQ || categoryId
+  const emptyTitle = hasActiveFilters ? 'Ничего не найдено' : 'Пока нет объявлений'
+  const emptyDescription = hasActiveFilters
     ? 'Измените поиск или категорию — или сбросьте фильтры.'
-    : 'Хозяйства ещё не опубликовали объявления. Загляните позже.'
+    : 'Хозяйства ещё не опубликовали товары. Загляните позже.'
 
   return (
     <MarketShell title="Витрина">
       <div className="space-y-5 sm:space-y-6">
-        <div>
-          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-primary">
-            Экопродукция
+        <header className="space-y-2 border-b border-border pb-5">
+          <p className="text-[11px] font-medium tracking-[0.14em] text-primary uppercase">
+            Доска объявлений
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-            Витрина от хозяйств
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            Экопродукция от хозяйств
           </h1>
-          <p className="mt-1.5 max-w-xl text-sm text-muted-foreground sm:text-base">
-            Покупайте напрямую у производителей. Вход в учёт КФХ здесь не нужен.
+          <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+            Смотрите объявления и оставляйте заявку продавцу. Оплата и договорённости — напрямую с
+            хозяйством, без входа в учёт КФХ.
           </p>
-        </div>
+        </header>
 
         <CatalogToolbar
           categories={categoriesQuery.data ?? []}
@@ -82,10 +86,38 @@ export function CatalogPage() {
           onSortChange={setSort}
         />
 
+        {showResultsMeta ? (
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-sm text-muted-foreground">
+              {total === 0
+                ? 'Нет объявлений по выбранным условиям'
+                : `Найдено: ${total.toLocaleString('ru-RU')}`}
+            </p>
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                Сбросить фильтры
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
         {listingsQuery.isError ? (
-          <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            Не удалось загрузить каталог. Проверьте соединение и обновите страницу.
-          </p>
+          <div className="flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-destructive">
+              Не удалось загрузить каталог. Проверьте соединение и попробуйте снова.
+            </p>
+            <button
+              type="button"
+              onClick={() => void listingsQuery.refetch()}
+              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'shrink-0')}
+            >
+              Повторить
+            </button>
+          </div>
         ) : null}
 
         <ListingGrid
@@ -93,16 +125,19 @@ export function CatalogPage() {
           isLoading={listingsQuery.isLoading}
           emptyTitle={emptyTitle}
           emptyDescription={emptyDescription}
-          onResetFilters={debouncedQ || categoryId ? resetFilters : undefined}
+          onResetFilters={hasActiveFilters ? resetFilters : undefined}
         />
 
-        {totalPages > 1 && !listingsQuery.isLoading ? (
+        {totalPages > 1 && !listingsQuery.isLoading && !listingsQuery.isError ? (
           <div className="flex items-center justify-center gap-3 pt-2">
             <button
               type="button"
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'disabled:opacity-40')}
+              className={cn(
+                buttonVariants({ variant: 'outline', size: 'sm' }),
+                'min-h-10 disabled:opacity-40',
+              )}
             >
               Назад
             </button>
@@ -113,7 +148,10 @@ export function CatalogPage() {
               type="button"
               disabled={page >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'disabled:opacity-40')}
+              className={cn(
+                buttonVariants({ variant: 'outline', size: 'sm' }),
+                'min-h-10 disabled:opacity-40',
+              )}
             >
               Далее
             </button>

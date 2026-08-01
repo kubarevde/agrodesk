@@ -1,4 +1,3 @@
-from datetime import date
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -17,6 +16,10 @@ from app.schemas.superadmin import (
     OrganizationCreateResponse,
     OrganizationResponse,
     OrganizationUpdate,
+    OrgHierarchyAttachRequest,
+    OrgHierarchyCandidateResponse,
+    OrgHierarchyChildResponse,
+    OrgHierarchyParentResponse,
     SuperAdminLoginRequest,
     SuperAdminSeedRequest,
     SuperAdminStatsResponse,
@@ -24,6 +27,15 @@ from app.schemas.superadmin import (
 )
 from app.services.auth import create_access_token, hash_password, verify_password
 from app.services.org_features import MARKETPLACE_ENABLED_KEY, marketplace_enabled, settings_dict
+from app.services.org_hierarchy import (
+    OrgHierarchyError,
+    attach_child,
+    detach_child,
+    get_parent_for_child,
+    list_attach_candidates,
+    list_children_for_head,
+)
+from app.services.superadmin_stats import build_superadmin_stats
 
 router = APIRouter()
 
@@ -231,40 +243,139 @@ async def delete_organization(
     await db.commit()
 
 
+@router.get(
+    '/organizations/{org_id}/children',
+    response_model=list[OrgHierarchyChildResponse],
+)
+async def list_organization_children(
+    org_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: SuperAdminUser = Depends(require_superadmin),
+) -> list[OrgHierarchyChildResponse]:
+    await get_org_or_404(db, org_id)
+    views = await list_children_for_head(db, org_id)
+    return [
+        OrgHierarchyChildResponse(
+            id=v.id,
+            head_org_id=v.head_org_id,
+            child_org_id=v.child_org_id,
+            child_name=v.child_name,
+            child_slug=v.child_slug,
+            child_is_active=v.child_is_active,
+        )
+        for v in views
+    ]
+
+
+@router.get(
+    '/organizations/{org_id}/parent',
+    response_model=OrgHierarchyParentResponse | None,
+)
+async def get_organization_parent(
+    org_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: SuperAdminUser = Depends(require_superadmin),
+) -> OrgHierarchyParentResponse | None:
+    """Return head link if this org is a child; null if standalone / head-only."""
+    await get_org_or_404(db, org_id)
+    view = await get_parent_for_child(db, org_id)
+    if view is None:
+        return None
+    return OrgHierarchyParentResponse(
+        link_id=view.link_id,
+        head_org_id=view.head_org_id,
+        head_name=view.head_name,
+        head_slug=view.head_slug,
+        head_is_active=view.head_is_active,
+    )
+
+
+@router.get(
+    '/organizations/{org_id}/children/available',
+    response_model=list[OrgHierarchyCandidateResponse],
+)
+async def list_organization_children_available(
+    org_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: SuperAdminUser = Depends(require_superadmin),
+) -> list[OrgHierarchyCandidateResponse]:
+    try:
+        candidates = await list_attach_candidates(db, org_id)
+    except OrgHierarchyError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    return [
+        OrgHierarchyCandidateResponse(id=c.id, name=c.name, slug=c.slug)
+        for c in candidates
+    ]
+
+
+@router.post(
+    '/organizations/{org_id}/children',
+    response_model=OrgHierarchyChildResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def attach_organization_child(
+    org_id: UUID,
+    payload: OrgHierarchyAttachRequest,
+    db: AsyncSession = Depends(get_db),
+    _: SuperAdminUser = Depends(require_superadmin),
+) -> OrgHierarchyChildResponse:
+    try:
+        link = await attach_child(
+            db,
+            head_org_id=org_id,
+            child_org_id=payload.child_org_id,
+        )
+        await db.commit()
+        await db.refresh(link)
+    except OrgHierarchyError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail='Не удалось создать связь организаций',
+        ) from None
+
+    views = await list_children_for_head(db, org_id)
+    match = next((v for v in views if v.child_org_id == payload.child_org_id), None)
+    if match is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Связь создана, но не найдена при чтении',
+        )
+    return OrgHierarchyChildResponse(
+        id=match.id,
+        head_org_id=match.head_org_id,
+        child_org_id=match.child_org_id,
+        child_name=match.child_name,
+        child_slug=match.child_slug,
+        child_is_active=match.child_is_active,
+    )
+
+
+@router.delete(
+    '/organizations/{org_id}/children/{child_org_id}',
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def detach_organization_child(
+    org_id: UUID,
+    child_org_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: SuperAdminUser = Depends(require_superadmin),
+) -> None:
+    try:
+        await detach_child(db, head_org_id=org_id, child_org_id=child_org_id)
+        await db.commit()
+    except OrgHierarchyError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+
 @router.get('/stats', response_model=SuperAdminStatsResponse)
 async def stats(
     db: AsyncSession = Depends(get_db),
     _: SuperAdminUser = Depends(require_superadmin),
 ) -> SuperAdminStatsResponse:
-    total_orgs = int(await db.scalar(select(func.count()).select_from(Organization)) or 0)
-    active_orgs = int(
-        await db.scalar(
-            select(func.count())
-            .select_from(Organization)
-            .where(Organization.is_active.is_(True))
-        )
-        or 0
-    )
-    trial_orgs = int(
-        await db.scalar(
-            select(func.count())
-            .select_from(Organization)
-            .where(Organization.plan == 'trial')
-        )
-        or 0
-    )
-    total_employees = int(await db.scalar(select(func.count()).select_from(Employee)) or 0)
-    today = date.today()
-    total_shifts_today = int(
-        await db.scalar(
-            select(func.count()).select_from(Shift).where(Shift.date == today)
-        )
-        or 0
-    )
-    return SuperAdminStatsResponse(
-        total_orgs=total_orgs,
-        active_orgs=active_orgs,
-        trial_orgs=trial_orgs,
-        total_employees=total_employees,
-        total_shifts_today=total_shifts_today,
-    )
+    return await build_superadmin_stats(db)

@@ -35,6 +35,6 @@ describe('CatalogToolbar', () => {
     expect(html).toContain('value="масло"')
     expect(html).toContain('Мёд')
     expect(html).toContain('Все')
-    expect(html).toContain('Цена ↑')
+    expect(html).toContain('Дешевле')
   })
 })

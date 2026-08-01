@@ -10,6 +10,7 @@ export interface PublicListingCard {
   description: string | null
   price: number | string
   unit: string
+  /** Effective availability from backend (live for source-linked listings). */
   quantity_available: number | string
   photos: string[]
   category_id: string | null

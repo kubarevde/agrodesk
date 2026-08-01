@@ -9,9 +9,16 @@ import {
   useSubmitSellerListing,
   useUpdateSellerListing,
 } from '../hooks'
-import { isListingFormReady, listingRejectionVisible } from '../labels'
+import {
+  isListingFormReady,
+  isSourceLinkedListing,
+  listingCanSubmitForReview,
+  listingRejectionVisible,
+  listingSourceLinkLabel,
+  LISTING_STATUS_HINTS,
+} from '../labels'
 import type { SellerListing } from '../types'
-import { RejectionBanner } from './ListingStatusBadge'
+import { ListingStatusBadge, RejectionBanner } from './ListingStatusBadge'
 import {
   ListingFormFields,
   listingFormPayload,
@@ -31,6 +38,7 @@ export function SellerListingForm({
   const createMut = useCreateSellerListing()
   const updateMut = useUpdateSellerListing()
   const submitMut = useSubmitSellerListing()
+  const quantityLinked = listing ? isSourceLinkedListing(listing) : false
 
   const form = useForm<ListingFormValues>({
     resolver: zodResolver(listingFormSchema),
@@ -59,12 +67,15 @@ export function SellerListingForm({
   }, [listing, form])
 
   const canSubmitReview =
-    mode === 'create' || (listing != null && ['draft', 'rejected'].includes(listing.status))
+    mode === 'create' || listingCanSubmitForReview(listing?.status)
 
   const saveDraft = form.handleSubmit(async (values) => {
-    const payload = listingFormPayload(values)
     if (mode === 'create') {
-      const row = await createMut.mutateAsync(payload)
+      const payload = listingFormPayload(values)
+      const row = await createMut.mutateAsync({
+        ...payload,
+        quantity_available: values.quantity_available,
+      })
       void navigate({
         to: '/seller-market/listings/$listingId',
         params: { listingId: row.id },
@@ -72,6 +83,7 @@ export function SellerListingForm({
       return
     }
     if (!listing) return
+    const payload = listingFormPayload(values, { omitQuantity: quantityLinked })
     await updateMut.mutateAsync({ id: listing.id, payload })
   })
 
@@ -88,9 +100,12 @@ export function SellerListingForm({
       return
     }
     form.clearErrors('root')
-    const payload = listingFormPayload(values)
     if (mode === 'create') {
-      const row = await createMut.mutateAsync(payload)
+      const payload = listingFormPayload(values)
+      const row = await createMut.mutateAsync({
+        ...payload,
+        quantity_available: values.quantity_available,
+      })
       await submitMut.mutateAsync(row.id)
       void navigate({
         to: '/seller-market/listings/$listingId',
@@ -99,33 +114,74 @@ export function SellerListingForm({
       return
     }
     if (!listing) return
+    const payload = listingFormPayload(values, { omitQuantity: quantityLinked })
     await updateMut.mutateAsync({ id: listing.id, payload })
     await submitMut.mutateAsync(listing.id)
   })
 
   const busy = createMut.isPending || updateMut.isPending || submitMut.isPending
   const rejection = listing ? listingRejectionVisible(listing) : null
+  const sourceLabel = listingSourceLinkLabel(listing?.source_type)
+  const submitLabel =
+    listing?.status === 'rejected' ? 'Исправить и отправить на модерацию' : 'Отправить на модерацию'
 
   return (
     <form onSubmit={saveDraft} className="mx-auto max-w-xl space-y-4" data-testid="listing-form">
-      {rejection ? <RejectionBanner reason={rejection} /> : null}
-      <ListingFormFields form={form} categories={categories.data ?? []} />
+      {listing ? (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <ListingStatusBadge status={listing.status} />
+            <span className="text-xs text-muted-foreground">{LISTING_STATUS_HINTS[listing.status]}</span>
+          </div>
+          {sourceLabel ? (
+            <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              {sourceLabel}. Карточка объявления и модерация отдельные; заявка со витрины склад не
+              списывает.
+              {listing.source_missing
+                ? ' Источник остатка сейчас недоступен — доступное количество 0.'
+                : null}
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Сохраните черновик или сразу отправьте на модерацию. На витрину попадёт только после
+          одобрения.
+        </p>
+      )}
+
+      {rejection ? <RejectionBanner reason={rejection} showFixHint /> : null}
+
+      <ListingFormFields
+        form={form}
+        categories={categories.data ?? []}
+        quantityLinked={quantityLinked}
+        sourceMissing={Boolean(listing?.source_missing)}
+      />
+
       {form.formState.errors.root ? (
         <p className="text-sm text-destructive" data-testid="listing-form-errors">
           {form.formState.errors.root.message}
         </p>
       ) : null}
-      <div className="flex flex-wrap gap-2">
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Button
           type="submit"
           disabled={busy}
-          className="bg-primary text-primary-foreground hover:bg-primary-hover"
+          className="min-h-11 bg-primary text-primary-foreground hover:bg-primary-hover sm:min-h-10"
         >
           Сохранить
         </Button>
         {canSubmitReview ? (
-          <Button type="button" variant="outline" disabled={busy} onClick={() => void submitReview()}>
-            Отправить на модерацию
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            className="min-h-11 sm:min-h-10"
+            onClick={() => void submitReview()}
+          >
+            {submitLabel}
           </Button>
         ) : null}
       </div>

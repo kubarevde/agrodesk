@@ -7,6 +7,8 @@ import { ForecastDashboardWidget } from '@/features/analytics/components/Forecas
 import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
 import { GuideNudgeBanner } from '@/features/help/components/GuideNudgeBanner'
 import { dashboardHelp } from '@/features/help/content'
+import { HoldingOverviewSection } from '@/features/holding/components/HoldingOverviewSection'
+import { useCanViewHolding, useHoldingOverview } from '@/features/holding/hooks'
 import { ActiveRepairsWidget } from '@/features/repair-journal/components/ActiveRepairsWidget'
 import { useOrgTimezone } from '@/features/settings/useOrgTimezone'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
@@ -39,6 +41,11 @@ export function DashboardPage() {
         timezone,
       )
     : '—'
+
+  const canViewHolding = useCanViewHolding()
+  const holdingQuery = useHoldingOverview(canViewHolding)
+  const showHoldingScope =
+    canViewHolding && holdingQuery.data != null && !holdingQuery.isError
 
   if (!isOnline && (!stats || isError)) {
     return (
@@ -81,6 +88,12 @@ export function DashboardPage() {
           title="Показаны последние загруженные данные"
           description="Нет сети — цифры могут быть устаревшими. Смены по-прежнему можно вести офлайн."
         />
+      ) : null}
+
+      <HoldingOverviewSection />
+
+      {showHoldingScope ? (
+        <h2 className="text-sm font-medium text-muted-foreground">Эта организация</h2>
       ) : null}
 
       {isLoading || !stats ? <KpiCardsSkeleton /> : <KpiCards stats={stats} />}
