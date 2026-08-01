@@ -33,17 +33,14 @@ export function ShipmentsPage({ initialRequestId = null }: { initialRequestId?: 
   const canManage = (user?.role === 'admin' || user?.role === 'manager') && isOnline
   const canDelete = user?.role === 'admin' && isOnline
 
-  const monthRange = useMemo(() => getDefaultMonthRange(), [])
-  const [from, setFrom] = useState(monthRange.from)
-  const [to, setTo] = useState(monthRange.to)
+  // Default = current calendar month; same from/to drive list, chart, and summary KPIs.
+  const defaultRange = useMemo(() => getDefaultMonthRange(), [])
+  const [from, setFrom] = useState(defaultRange.from)
+  const [to, setTo] = useState(defaultRange.to)
   const [cropType, setCropType] = useState<string | undefined>()
+  // Backend filters by Shipment.date (хозяйственная дата отгрузки), inclusive from/to.
   const filters = useMemo(() => ({ from, to, cropType }), [cropType, from, to])
 
-  const {
-    data: monthShipments = [],
-    isLoading: monthLoading,
-    isError: monthError,
-  } = useShipments(monthRange)
   const { data: shipments = [], isLoading, isError } = useShipments(filters)
   const deleteShipment = useDeleteShipment()
   const [formOpen, setFormOpen] = useState(Boolean(initialRequestId))
@@ -58,12 +55,13 @@ export function ShipmentsPage({ initialRequestId = null }: { initialRequestId?: 
     }
   }, [initialRequestId])
 
-  const monthTotals = useMemo(() => sumShipments(monthShipments), [monthShipments])
+  // KPI from the same filtered set as table/chart (not a separate month-only query).
+  const periodTotals = useMemo(() => sumShipments(shipments), [shipments])
   const chartData = useMemo(() => groupShipmentsByCrop(shipments), [shipments])
 
   useEffect(() => {
-    if (isError || monthError) toast.error('Не удалось загрузить отгрузки')
-  }, [isError, monthError])
+    if (isError) toast.error('Не удалось загрузить отгрузки')
+  }, [isError])
 
   const openCreate = () => {
     setEditingShipment(null)
@@ -88,21 +86,21 @@ export function ShipmentsPage({ initialRequestId = null }: { initialRequestId?: 
           description="Без сети создать отгрузку нельзя. Смены доступны офлайн в «Рабочем времени»."
         />
       ) : null}
-      <ShipmentKpiCards
-        totalKg={monthTotals.totalKg}
-        totalRevenue={monthTotals.totalSum}
-        tripsCount={monthShipments.length}
-        isLoading={monthLoading}
-      />
       <ShipmentsFilters
         from={from}
         to={to}
         cropType={cropType}
         onRangeChange={({ from: nextFrom, to: nextTo }) => {
-          setFrom(nextFrom ?? monthRange.from)
-          setTo(nextTo ?? monthRange.to)
+          setFrom(nextFrom ?? defaultRange.from)
+          setTo(nextTo ?? defaultRange.to)
         }}
         onCropChange={setCropType}
+      />
+      <ShipmentKpiCards
+        totalKg={periodTotals.totalKg}
+        totalRevenue={periodTotals.totalSum}
+        tripsCount={shipments.length}
+        isLoading={isLoading}
       />
       <ShipmentsByCropChart data={chartData} isLoading={isLoading} />
       {isLoading ? (

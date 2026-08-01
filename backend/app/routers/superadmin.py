@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.database import get_db
 from app.dependencies.superadmin import require_superadmin
@@ -22,6 +23,7 @@ from app.schemas.superadmin import (
     SuperAdminTokenResponse,
 )
 from app.services.auth import create_access_token, hash_password, verify_password
+from app.services.org_features import MARKETPLACE_ENABLED_KEY, marketplace_enabled, settings_dict
 
 router = APIRouter()
 
@@ -55,6 +57,7 @@ async def org_to_response(db: AsyncSession, org: Organization) -> OrganizationRe
         max_employees=org.max_employees,
         employees_count=await _employees_count(db, org.id),
         active_shifts_count=await _active_shifts_count(db, org.id),
+        marketplace_enabled=marketplace_enabled(org.settings),
     )
 
 
@@ -202,8 +205,14 @@ async def update_organization(
 ) -> OrganizationResponse:
     org = await get_org_or_404(db, org_id)
     data = payload.model_dump(exclude_unset=True)
+    market_flag = data.pop('marketplace_enabled', None)
     for field, value in data.items():
         setattr(org, field, value)
+    if market_flag is not None:
+        bag = settings_dict(org.settings)
+        bag[MARKETPLACE_ENABLED_KEY] = bool(market_flag)
+        org.settings = dict(bag)
+        flag_modified(org, 'settings')
     db.add(org)
     await db.commit()
     await db.refresh(org)

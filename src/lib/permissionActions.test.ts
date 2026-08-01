@@ -20,6 +20,7 @@ const BACKEND_ACTION_KEYS = [
   'support.view_org_tickets',
   'shipment_requests.manage',
   'shipment_requests.execute',
+  'marketplace.manage',
 ] as const
 
 describe('permissionActions', () => {

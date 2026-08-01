@@ -344,10 +344,15 @@ tail -f /var/log/agrodesk-backup.log
 
 ```bash
 docker exec agrodesk_api du -sh /app/uploads
+docker exec agrodesk_api du -sh /app/uploads/marketplace
 docker exec agrodesk_api find /app/uploads -type f | wc -l
 ```
 
-Типичный прирост — единицы–десятки МБ в неделю (фото 0.2–2 МБ). **Ежедневный** бэкап достаточен; при росте каталога до сотен МБ добавьте второй носитель.
+Типичный прирост без витрины — единицы–десятки МБ в неделю. **Маркетплейс** (до 8 фото на объявление, JPEG после Pillow ≤ ~1–2 МБ) может ускорить рост: следите за `/app/uploads/marketplace`.
+
+- **Ежедневный** бэкап (`KEEP_COUNT=14` по умолчанию) остаётся достаточным — не нужен почасовой.
+- Когда `du -sh /app/uploads` приближается к сотням МБ — обязательно `BACKUP_OFFSITE_TARGET` и запас места ≈ `14 × размер дерева uploads`.
+- Скрипт `backup_uploads.sh` печатает отдельно размер каталога `marketplace`.
 
 ### Копия на второй диск / другой сервер
 

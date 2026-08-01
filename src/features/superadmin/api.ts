@@ -15,6 +15,7 @@ type ApiOrg = {
   max_employees: number
   employees_count: number
   active_shifts_count: number
+  marketplace_enabled?: boolean
 }
 
 type ApiStats = {
@@ -26,7 +27,8 @@ type ApiStats = {
 }
 
 const rawBase = (import.meta.env.VITE_API_URL as string | undefined)?.trim()
-const superadminApi = axios.create({
+/** Shared SuperAdmin axios client (JWT from localStorage.superadmin_token). */
+export const superadminApi = axios.create({
   baseURL: rawBase && rawBase.length > 0 ? rawBase.replace(/\/$/, '') : '',
 })
 
@@ -66,6 +68,7 @@ function mapOrg(raw: ApiOrg): Organization {
     maxEmployees: raw.max_employees,
     employeesCount: raw.employees_count,
     activeShiftsCount: raw.active_shifts_count,
+    marketplaceEnabled: raw.marketplace_enabled === true,
   }
 }
 
@@ -124,6 +127,9 @@ export async function updateOrganization(
   if (payload.plan !== undefined) body.plan = payload.plan
   if (payload.maxEmployees !== undefined) body.max_employees = payload.maxEmployees
   if (payload.trialEndsAt !== undefined) body.trial_ends_at = payload.trialEndsAt
+  if (payload.marketplaceEnabled !== undefined) {
+    body.marketplace_enabled = payload.marketplaceEnabled
+  }
 
   const { data } = await superadminApi.patch<ApiOrg>(
     `/superadmin/api/organizations/${id}`,

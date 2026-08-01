@@ -18,6 +18,9 @@ class Organization(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     trial_ends_at = Column(Date, nullable=True)
     max_employees = Column(Integer, nullable=False, default=10, server_default='10')
+    # JSONB bag. Known optional keys (additive, no schema migration):
+    # - marketplace_enabled: bool — when true, org may use seller cabinet / publish listings.
+    #   Default/absent = false. Managed later via settings API + marketplace.manage action.
     settings = Column(JSONB, nullable=False, default=dict, server_default='{}')
 
 

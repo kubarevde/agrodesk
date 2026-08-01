@@ -53,7 +53,21 @@
 | Переменная | Описание |
 |------------|----------|
 | `SMOKE_TELEGRAM_ID` | ID для `scripts/self_check.py` |
-| `SHEETS_MIRROR_ENABLED` | `false` — зеркало Google Sheets (по умолчанию выкл.) |
+| `SHEETS_MIRROR_ENABLED` | `true` — зеркало смен в Google Sheets (по умолчанию `false`) |
+| `GOOGLE_SHEETS_NAME` | Имя книги Google Sheets (например `agrodesk_work_log`) |
+| `GOOGLE_CREDS_JSON` | JSON service account одной строкой (предпочтительно на bothost) |
+| `GOOGLE_CREDS_PATH` | Альтернатива: путь к файлу ключа |
+
+#### Таблицаца для зеркала (новая книга, не трогать старый бот)
+
+1. Создайте **новую** Google Sheets книгу (например `agrodesk_work_log`).
+2. Переименуйте первый лист в **`work_log`**.
+3. Первая строка — заголовки строго:
+
+`id | date | employee_code | employee_name | telegram_id | start_time | end_time | work_type | location | equipment | description | comment | status | duration_raw | duration_rounded | latitude | longitude`
+
+4. Service account → доступ **Редактор** к книге.
+5. На bothost: `SHEETS_MIRROR_ENABLED=true`, `GOOGLE_SHEETS_NAME=agrodesk_work_log`, `GOOGLE_CREDS_JSON=...` → Redeploy.
 
 Шаблоны: `bot/.env.example`, `bot/bot.env.example`.
 

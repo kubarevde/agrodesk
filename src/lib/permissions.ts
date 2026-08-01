@@ -19,6 +19,9 @@ export function sectionForPath(pathname: string): string | null {
   if (normalized === '/messenger' || normalized.startsWith('/messenger/')) {
     return null
   }
+  if (normalized === '/seller-market' || normalized.startsWith('/seller-market/')) {
+    return null
+  }
   if (normalized === NO_ACCESS_ROUTE || normalized.startsWith(`${NO_ACCESS_ROUTE}/`)) {
     return null
   }

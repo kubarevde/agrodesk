@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { toNumber } from '@/lib/transformers'
@@ -206,21 +207,37 @@ export function useLinkTelegram() {
     mutationFn: async ({
       employeeId,
       telegramId,
+      forceTransfer = false,
     }: {
       employeeId: string
-      telegramId: number
+      telegramId: number | null
+      forceTransfer?: boolean
     }) => {
       const { data } = await api.patch<ApiRecord>(
         `/api/employees/${employeeId}/link-telegram`,
-        { telegram_id: telegramId },
+        {
+          telegram_id: telegramId,
+          force_transfer: forceTransfer,
+        },
       )
       return data
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
-      toast.success('Telegram привязан')
+      toast.success(
+        variables.telegramId == null ? 'Telegram отвязан' : 'Telegram привязан',
+      )
     },
-    onError: () => toast.error('Не удалось привязать Telegram'),
+    onError: (error: unknown) => {
+      if (isAxiosError(error) && error.response?.status === 409) {
+        // Caller may offer force_transfer confirm — skip generic toast.
+        return
+      }
+      const detail = isAxiosError(error)
+        ? String(error.response?.data?.detail || '')
+        : ''
+      toast.error(detail || 'Не удалось изменить привязку Telegram')
+    },
   })
 }
 

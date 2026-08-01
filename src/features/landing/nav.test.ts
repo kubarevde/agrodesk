@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LANDING_IMAGES, LANDING_NAV } from '@/features/landing/nav'
+import { LANDING_IMAGES, LANDING_NAV, LANDING_SEGMENTS } from '@/features/landing/nav'
 
 describe('landing nav', () => {
   it('exposes section anchors used by header and footer', () => {
@@ -9,6 +9,14 @@ describe('landing nav', () => {
       'modules',
       'telegram',
     ])
+  })
+
+  it('keeps farm login CTA and adds eco market segment without replacing nav', () => {
+    expect(LANDING_SEGMENTS).toEqual([
+      { id: 'farm', label: 'Управление хозяйством', to: '/login' },
+      { id: 'eco', label: 'Купить экопродукцию', to: '/market' },
+    ])
+    expect(LANDING_NAV.some((item) => item.id === 'audience')).toBe(false)
   })
 
   it('resolves public image URLs under /landing/', () => {

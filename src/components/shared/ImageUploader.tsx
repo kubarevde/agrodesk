@@ -16,6 +16,7 @@ export type UploadFolder =
   | 'purchase-planner'
   | 'support'
   | 'shipment-requests'
+  | 'marketplace'
 
 
 const MAX_BYTES = 5 * 1024 * 1024

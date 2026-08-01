@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { FieldDaySection } from '@/features/landing/FieldDaySection'
+import { LandingAudienceSegment } from '@/features/landing/LandingAudienceSegment'
 import { LandingCta } from '@/features/landing/LandingCta'
 import { LandingFooter } from '@/features/landing/LandingFooter'
 import { LandingHeader } from '@/features/landing/LandingHeader'
@@ -40,6 +41,7 @@ export function LandingPage() {
     <div className="landing-root min-h-screen overflow-x-hidden bg-background text-foreground">
       <LandingHeader />
       <main>
+        <LandingAudienceSegment />
         <LandingHero />
         <FieldDaySection />
         <RolesFlow />

@@ -28,3 +28,6 @@ class SlidingWindowLimiter:
 
 # Protect bot-token from brute-force of secret / telegram_id enumeration
 bot_token_limiter = SlidingWindowLimiter(max_hits=30, window_seconds=60.0)
+
+# Public marketplace order spam protection (per client IP)
+marketplace_order_limiter = SlidingWindowLimiter(max_hits=10, window_seconds=60.0)

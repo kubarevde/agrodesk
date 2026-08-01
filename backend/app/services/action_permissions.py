@@ -34,7 +34,9 @@ from app.services.permissions import (
     get_org_permissions,
 )
 from app.services.org_features import (
+    marketplace_enabled,
     shipment_requests_enabled,
+    strip_marketplace_manage_actions,
     strip_shipment_request_actions,
 )
 
@@ -51,6 +53,7 @@ ACTION_KEYS: tuple[str, ...] = (
     'support.view_org_tickets',
     'shipment_requests.manage',
     'shipment_requests.execute',
+    'marketplace.manage',
 )
 
 ACTION_LABELS: dict[str, str] = {
@@ -65,6 +68,7 @@ ACTION_LABELS: dict[str, str] = {
     'support.view_org_tickets': 'Видеть все обращения организации',
     'shipment_requests.manage': 'Управлять заявками на отгрузку ТМЦ',
     'shipment_requests.execute': 'Исполнять заявки на отгрузку ТМЦ',
+    'marketplace.manage': 'Управлять витриной маркетплейса (импорт и объявления)',
 }
 
 # Actions implied by having a section (employee-safe baselines only).
@@ -79,6 +83,8 @@ SECTION_IMPLIED_ACTIONS: dict[str, tuple[str, ...]] = {
 }
 
 # Extra actions for manager/admin roles when using role defaults (no group).
+# marketplace.manage is intentionally NOT here — only via access-group checkbox
+# (or admin). Keeps the vitrine out of default farm-ops manager grants.
 MANAGER_EXTRA_ACTIONS: tuple[str, ...] = (
     'inventory.manage_items',
     'purchase.manage',
@@ -164,10 +170,14 @@ async def _org_settings(db: AsyncSession, org_id: UUID) -> dict[str, Any]:
 
 
 def _apply_feature_flags(effective: dict[str, Any], settings: dict[str, Any]) -> dict[str, Any]:
-    """Strip shipment-request actions when org feature flag is off."""
-    if shipment_requests_enabled(settings):
+    """Strip module actions when the matching org feature flag is off."""
+    actions = list(effective.get('actions') or [])
+    if not shipment_requests_enabled(settings):
+        actions = strip_shipment_request_actions(actions)
+    if not marketplace_enabled(settings):
+        actions = strip_marketplace_manage_actions(actions)
+    if actions == list(effective.get('actions') or []):
         return effective
-    actions = strip_shipment_request_actions(list(effective.get('actions') or []))
     return {**effective, 'actions': actions}
 
 

@@ -46,6 +46,7 @@ export function SidebarNav({ collapsed, onNavigate }: SidebarNavProps) {
 
   const navGroups = getNavGroups(user?.role, perms?.allowedSections, perms?.actions, {
     shipmentRequestsEnabled: orgSettings?.shipmentRequestsEnabled !== false,
+    marketplaceEnabled: orgSettings?.marketplaceEnabled === true,
   })
 
   return (

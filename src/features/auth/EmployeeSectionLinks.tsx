@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { useOrganizationSettings } from '@/features/settings/hooks'
 import { useUserPermissions } from '@/features/settings/permissionsHooks'
 import { getNavItems } from '@/components/layout/navigation'
 
@@ -7,6 +8,7 @@ import { getNavItems } from '@/components/layout/navigation'
 export function EmployeeSectionLinks() {
   const { data: user } = useCurrentUser()
   const { data: perms, isPending } = useUserPermissions(Boolean(user))
+  const { data: orgSettings } = useOrganizationSettings()
 
   if (!user || user.role !== 'employee') return null
 
@@ -20,9 +22,10 @@ export function EmployeeSectionLinks() {
     )
   }
 
-  const items = getNavItems(user.role, perms?.allowedSections, perms?.actions).filter(
-    (item) => item.to !== '/my-shift',
-  )
+  const items = getNavItems(user.role, perms?.allowedSections, perms?.actions, {
+    shipmentRequestsEnabled: orgSettings?.shipmentRequestsEnabled !== false,
+    marketplaceEnabled: orgSettings?.marketplaceEnabled === true,
+  }).filter((item) => item.to !== '/my-shift')
 
   if (items.length === 0) return null
 

@@ -104,7 +104,6 @@ export function ShipmentRequestFormDialog({
     if (!inventoryItemId || !customerName.trim() || !(qty > 0) || !(priceNum >= 0) || !plannedLocal) {
       return
     }
-    if (overStock) return
     await create.mutateAsync({
       inventoryItemId,
       customerName: customerName.trim(),
@@ -159,12 +158,13 @@ export function ShipmentRequestFormDialog({
                 step="any"
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
-                aria-invalid={overStock}
                 required
               />
               {overStock && availableStock != null ? (
-                <p className="text-xs text-destructive">
-                  Максимум {availableStock.toLocaleString('ru-RU')}
+                <p className="text-xs text-muted-foreground">
+                  На складе недостаточно остатка для выполнения сейчас (
+                  {availableStock.toLocaleString('ru-RU')} {selectedItem?.unit}). Заявку можно
+                  сохранить и выполнить позже.
                 </p>
               ) : null}
             </div>
@@ -214,7 +214,7 @@ export function ShipmentRequestFormDialog({
             <Button type="button" variant="outline" onClick={onClose}>
               Отмена
             </Button>
-            <Button type="submit" disabled={create.isPending || overStock}>
+            <Button type="submit" disabled={create.isPending}>
               Создать
             </Button>
           </DialogFooter>

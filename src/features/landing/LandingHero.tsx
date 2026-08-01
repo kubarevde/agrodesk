@@ -7,8 +7,10 @@ import { cn } from '@/lib/utils'
 /** Full-bleed hero: brand + one promise + CTA + dominant field photo. */
 export function LandingHero() {
   return (
-    <section className="relative isolate min-h-[min(92vh,52rem)] overflow-hidden bg-foreground text-primary-foreground">
-      <img
+    <section
+      id="landing-hero"
+      className="relative isolate min-h-[min(92vh,52rem)] overflow-hidden bg-foreground text-primary-foreground"
+    >      <img
         src={LANDING_IMAGES.hero}
         alt=""
         className="absolute inset-0 size-full object-cover object-[center_45%]"

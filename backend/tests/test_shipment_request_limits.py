@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import httpx
+import pytest
 
 
 def _planned() -> str:
@@ -35,16 +36,18 @@ def _create_item(
     return res.json()
 
 
-def test_create_request_rejects_over_stock(
+def test_create_request_allows_over_stock(
     client: httpx.Client,
     admin_headers: dict[str, str],
 ) -> None:
+    """Future shipment: create succeeds even when qty > current stock (no write-off)."""
     item = _create_item(client, admin_headers, stock=5)
+    stock_before = float(item['current_stock'])
     res = client.post(
         '/api/shipment-requests',
         headers=admin_headers,
         json={
-            'customer_name': 'Buyer',
+            'customer_name': 'Buyer future',
             'inventory_item_id': item['id'],
             'quantity': 6,
             'price': 10,
@@ -52,8 +55,13 @@ def test_create_request_rejects_over_stock(
             'priority': 'normal',
         },
     )
-    assert res.status_code == 400, res.text
-    assert 'доступно' in res.json().get('detail', '').lower()
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body['status'] == 'new'
+    assert body.get('inventory_operation_id') is None
+    after = client.get(f"/api/inventory/{item['id']}", headers=admin_headers)
+    assert after.status_code == 200
+    assert float(after.json()['current_stock']) == pytest.approx(stock_before)
 
 
 def test_create_request_allows_equal_stock_and_assignee(
@@ -80,6 +88,34 @@ def test_create_request_allows_equal_stock_and_assignee(
     )
     assert res.status_code == 201, res.text
     assert res.json().get('assigned_to') == assignee
+
+
+def test_update_request_allows_over_stock(
+    client: httpx.Client,
+    admin_headers: dict[str, str],
+) -> None:
+    item = _create_item(client, admin_headers, stock=2)
+    created = client.post(
+        '/api/shipment-requests',
+        headers=admin_headers,
+        json={
+            'customer_name': 'Buyer edit',
+            'inventory_item_id': item['id'],
+            'quantity': 1,
+            'price': 10,
+            'planned_at': _planned(),
+            'priority': 'normal',
+        },
+    )
+    assert created.status_code == 201, created.text
+    req_id = created.json()['id']
+    updated = client.patch(
+        f'/api/shipment-requests/{req_id}',
+        headers=admin_headers,
+        json={'quantity': 50},
+    )
+    assert updated.status_code == 200, updated.text
+    assert float(updated.json()['quantity']) == pytest.approx(50)
 
 
 def test_cancel_requires_reason(

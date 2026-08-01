@@ -140,6 +140,8 @@ export type OrganizationSettings = {
   timezone: string
   available_timezones: string[]
   shipmentRequestsEnabled: boolean
+  /** Read-only for org UI — primary enablement is platform/superadmin. */
+  marketplaceEnabled: boolean
 }
 
 export function useOrganizationSettings() {
@@ -150,11 +152,13 @@ export function useOrganizationSettings() {
         timezone: string
         available_timezones: string[]
         shipment_requests_enabled?: boolean
+        marketplace_enabled?: boolean
       }>('/api/settings/organization')
       return {
         timezone: data.timezone || 'Asia/Bangkok',
         available_timezones: data.available_timezones ?? [],
         shipmentRequestsEnabled: data.shipment_requests_enabled !== false,
+        marketplaceEnabled: data.marketplace_enabled === true,
       }
     },
   })
@@ -176,11 +180,13 @@ export function useUpdateOrganizationSettings() {
         timezone: string
         available_timezones: string[]
         shipment_requests_enabled?: boolean
+        marketplace_enabled?: boolean
       }>('/api/settings/organization', body)
       return {
         timezone: data.timezone,
         available_timezones: data.available_timezones ?? [],
         shipmentRequestsEnabled: data.shipment_requests_enabled !== false,
+        marketplaceEnabled: data.marketplace_enabled === true,
       } satisfies OrganizationSettings
     },
     onSuccess: async () => {
