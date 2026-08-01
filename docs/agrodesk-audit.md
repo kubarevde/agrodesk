@@ -582,6 +582,7 @@ Backend локально: uvicorn на `:8000`, docs `/docs`.
 | Offline / PWA / syncQueue | Частично | Shell + смены; остальное online/cache-read |
 | Интеграции (кадастр и т.п.) | Планы / нет | Кадастр осознанно отсутствует |
 | Telegram-бот | Реализовано | `bot/` + bot-token API; bothost/Compose |
+| **Маркетплейс (витрина)** | **Реализовано (MVP, 2026)** | Доска объявлений; без эквайринга; склад = snapshot-импорт; см. `docs/marketplace.md` |
 | Object Storage uploads бэка | Планы | boto3 в requirements закомментирован |
 | MSW-моки фронта | Планы / рудимент | Флаг есть, кода моков нет |
 
@@ -589,13 +590,14 @@ Backend локально: uvicorn на `:8000`, docs `/docs`.
 
 ## Приложение A. Карта основных роутов фронта
 
-`/`, `/landing/`, `/login`, `/dashboard`, `/my-shift/`, `/worktime/`, `/agro-calendar/`, `/fields/`, `/equipment/`, `/equipment/$id`, `/implements/`, `/implements/$id`, `/maintenance/`, `/purchase-planner/`, `/inventory/`, `/shipments/`, `/expenses/`, `/analytics/forecast/`, `/reports/`, `/employees/`, `/audit-log/`, `/settings/`, `/sharing/`, `/notifications/`, `/profile/`, `/no-access/`, `/support/`, `/support/new`, `/support/$ticketId`, `/support/guide`, `/superadmin/login`, `/superadmin/dashboard`, `/superadmin/support/`, `/superadmin/support/$ticketId`.
+`/`, `/landing/`, `/login`, `/dashboard`, `/my-shift/`, `/worktime/`, `/agro-calendar/`, `/fields/`, `/equipment/`, `/equipment/$id`, `/implements/`, `/implements/$id`, `/maintenance/`, `/purchase-planner/`, `/inventory/`, `/shipments/`, `/expenses/`, `/analytics/forecast/`, `/reports/`, `/employees/`, `/audit-log/`, `/settings/`, `/sharing/`, `/notifications/`, `/profile/`, `/no-access/`, `/support/`, `/support/new`, `/support/$ticketId`, `/support/guide`, `/seller-market/`, `/market/`, `/superadmin/login`, `/superadmin/dashboard`, `/superadmin/marketplace/`, `/superadmin/support/`, `/superadmin/support/$ticketId`.
 
 ## Приложение B. Документы, связанные с этим отчётом
 
 | Документ | Тема |
 |----------|------|
 | `README.md` | Быстрый старт, env, архитектура |
+| `docs/marketplace.md` | Маркетплейс MVP: витрина, кабинет, границы, фаза 2 |
 | `docs/PROD-UPDATE.md` | Операции на VPS |
 | `docs/DEPLOY.md` | Первичный деплой |
 | `docs/offline.md` | Границы PWA/offline |

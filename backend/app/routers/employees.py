@@ -12,6 +12,7 @@ from app.models.employee import Employee, EmployeeRole
 from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate, LinkTelegramRequest
 from app.services.audit import log_change, model_snapshot
 from app.services.auth import hash_password
+from app.services.telegram_binding import TelegramBindError, assign_telegram_id
 
 router = APIRouter()
 
@@ -38,6 +39,12 @@ async def get_employee_or_404(db: AsyncSession, employee_id: UUID, org_id: UUID)
     if employee is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Сотрудник не найден')
     return employee
+
+
+def _integrity_detail(touched_telegram: bool) -> str:
+    if touched_telegram:
+        return 'Этот Telegram ID уже привязан к другому сотруднику'
+    return 'Сотрудник с таким кодом уже существует'
 
 
 @router.get('', response_model=list[EmployeeResponse])
@@ -95,28 +102,35 @@ async def link_telegram(
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(require_manager),
 ) -> EmployeeResponse:
+    """Bind, transfer (force_transfer), or unlink (telegram_id=null) Telegram ID."""
     org_id = get_org_id(request)
     employee = await get_employee_or_404(db, employee_id, org_id)
+    before = model_snapshot(employee)
 
-    existing = await db.execute(
-        select(Employee).where(
-            Employee.org_id == org_id,
-            Employee.telegram_id == payload.telegram_id,
-            Employee.id != employee_id,
+    try:
+        await assign_telegram_id(
+            db,
+            employee,
+            payload.telegram_id,
+            force_transfer=payload.force_transfer,
         )
-    )
-    if existing.scalar_one_or_none() is not None:
+    except TelegramBindError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail='Этот Telegram ID уже привязан к другому сотруднику',
-        )
+            detail=exc.detail,
+        ) from None
 
-    before = model_snapshot(employee)
-    employee.telegram_id = payload.telegram_id
-    db.add(employee)
     try:
-        await log_change(db, org_id=org_id, entity_type='employee', entity_id=employee.id,
-                         action='update', changed_by=current.id, before=before, after=model_snapshot(employee))
+        await log_change(
+            db,
+            org_id=org_id,
+            entity_type='employee',
+            entity_id=employee.id,
+            action='update',
+            changed_by=current.id,
+            before=before,
+            after=model_snapshot(employee),
+        )
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -148,8 +162,15 @@ async def create_employee(
     db.add(employee)
     try:
         await db.flush()
-        await log_change(db, org_id=employee.org_id, entity_type='employee', entity_id=employee.id,
-                         action='create', changed_by=current.id, after=model_snapshot(employee))
+        await log_change(
+            db,
+            org_id=employee.org_id,
+            entity_type='employee',
+            entity_id=employee.id,
+            action='create',
+            changed_by=current.id,
+            after=model_snapshot(employee),
+        )
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -177,19 +198,47 @@ async def update_employee(
     if password is not None:
         employee.password_hash = hash_password(password)
 
+    telegram_id_set = 'telegram_id' in update_data
+    telegram_id_value = update_data.pop('telegram_id', None) if telegram_id_set else None
+    becoming_inactive = 'is_active' in update_data and update_data['is_active'] is False
+
     for field, value in update_data.items():
         setattr(employee, field, value)
 
+    if becoming_inactive:
+        employee.telegram_id = None
+    elif telegram_id_set:
+        try:
+            await assign_telegram_id(
+                db,
+                employee,
+                telegram_id_value,
+                force_transfer=False,
+            )
+        except TelegramBindError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=exc.detail,
+            ) from None
+
     db.add(employee)
     try:
-        await log_change(db, org_id=employee.org_id, entity_type='employee', entity_id=employee.id,
-                         action='update', changed_by=current.id, before=before, after=model_snapshot(employee))
+        await log_change(
+            db,
+            org_id=employee.org_id,
+            entity_type='employee',
+            entity_id=employee.id,
+            action='update',
+            changed_by=current.id,
+            before=before,
+            after=model_snapshot(employee),
+        )
         await db.commit()
     except IntegrityError:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail='Сотрудник с таким кодом уже существует',
+            detail=_integrity_detail(telegram_id_set),
         ) from None
     await db.refresh(employee)
     return employee_to_response(employee)
@@ -211,7 +260,16 @@ async def delete_employee(
     employee = await get_employee_or_404(db, employee_id, get_org_id(request))
     before = model_snapshot(employee)
     employee.is_active = False
+    employee.telegram_id = None
     db.add(employee)
-    await log_change(db, org_id=employee.org_id, entity_type='employee', entity_id=employee.id,
-                     action='delete', changed_by=current.id, before=before, after=model_snapshot(employee))
+    await log_change(
+        db,
+        org_id=employee.org_id,
+        entity_type='employee',
+        entity_id=employee.id,
+        action='delete',
+        changed_by=current.id,
+        before=before,
+        after=model_snapshot(employee),
+    )
     await db.commit()

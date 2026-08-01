@@ -8,6 +8,14 @@ from app.models.equipment_log import EquipmentMaintenance, EquipmentMeterLog, Ma
 from app.models.expense import Expense
 from app.models.implement import Implement, ImplementMaintenance
 from app.models.inventory import InventoryItem, InventoryOperation
+from app.models.marketplace import (
+    MarketCategory,
+    MarketCategoryMapping,
+    MarketListing,
+    MarketOrder,
+    MarketReview,
+    MarketSellerProfile,
+)
 from app.models.notification import Notification
 from app.models.organization import Organization, SuperAdminUser
 from app.models.purchase_planner import PurchasePlannerItem
@@ -44,6 +52,12 @@ __all__ = [
     'ImplementMaintenance',
     'InventoryItem',
     'InventoryOperation',
+    'MarketCategory',
+    'MarketCategoryMapping',
+    'MarketListing',
+    'MarketOrder',
+    'MarketReview',
+    'MarketSellerProfile',
     'Location',
     'Notification',
     'Organization',

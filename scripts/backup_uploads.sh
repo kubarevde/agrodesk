@@ -39,7 +39,11 @@ if ! docker exec "$CONTAINER" test -d "$UPLOADS_IN_CONTAINER"; then
 fi
 
 SIZE_BEFORE="$(docker exec "$CONTAINER" du -sh "$UPLOADS_IN_CONTAINER" 2>/dev/null | cut -f1 || echo '?')"
-echo "==> tar.gz $UPLOADS_IN_CONTAINER from $CONTAINER (${SIZE_BEFORE}) → $FILE"
+MARKET_SIZE="$(docker exec "$CONTAINER" du -sh "$UPLOADS_IN_CONTAINER/marketplace" 2>/dev/null | cut -f1 || echo '0')"
+echo "==> tar.gz $UPLOADS_IN_CONTAINER from $CONTAINER (total ${SIZE_BEFORE}, marketplace ${MARKET_SIZE}) → $FILE"
+# Marketplace listings can add many photos (up to 8 per listing, JPEG ≤5MB after Pillow).
+# Daily schedule is enough; watch disk: KEEP_COUNT archives × full tree size.
+# Prefer BACKUP_OFFSITE_TARGET when marketplace dir grows past a few hundred MB.
 docker exec "$CONTAINER" tar -C "$UPLOADS_IN_CONTAINER" -czf - . > "$FILE"
 echo "Wrote $FILE ($(du -h "$FILE" | cut -f1))"
 

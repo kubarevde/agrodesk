@@ -5,6 +5,12 @@ export const LANDING_NAV = [
   { id: 'telegram', label: 'Telegram' },
 ] as const
 
+/** Segment CTAs on the landing — keep data-landing-segment hooks for analytics. */
+export const LANDING_SEGMENTS = [
+  { id: 'farm', label: 'Управление хозяйством', to: '/login' },
+  { id: 'eco', label: 'Купить экопродукцию', to: '/market' },
+] as const
+
 export const LANDING_IMAGES = {
   hero: `${import.meta.env.BASE_URL}landing/hero-field.webp`,
   /** Field-day narrative photo — must stay distinct from module cards. */

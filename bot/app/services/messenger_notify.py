@@ -60,3 +60,27 @@ async def send_messenger_notice(
     except Exception:
         logger.exception('messenger_notify failed telegram_id=%s', telegram_id)
         return False
+
+
+def format_new_market_order_notice(
+    *,
+    listing_title: str,
+    buyer_name: str,
+    buyer_phone: str,
+    quantity: str,
+    unit: str,
+    web_base: str | None = None,
+) -> str:
+    """Format-only helper for market-order Telegram (no shift handlers)."""
+    path = '/seller-market/orders'
+    link = f'{web_base.rstrip("/")}{path}' if web_base else path
+    return '\n'.join(
+        [
+            'Новая заявка с витрины AgroDesk',
+            f'Товар: {listing_title}',
+            f'Количество: {quantity} {unit}',
+            f'Покупатель: {buyer_name}',
+            f'Телефон: {buyer_phone}',
+            f'Открыть: {link}',
+        ]
+    )

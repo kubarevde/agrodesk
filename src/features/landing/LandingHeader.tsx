@@ -22,7 +22,14 @@ export function LandingHeader() {
     const onScroll = () => {
       const y = window.scrollY
       setScrolled(y > 8)
-      setOverHero(y < window.innerHeight * 0.55)
+      const hero = document.getElementById('landing-hero')
+      if (!hero) {
+        setOverHero(false)
+        return
+      }
+      const rect = hero.getBoundingClientRect()
+      // Transparent only while the dark hero photo sits under the sticky header.
+      setOverHero(rect.top < 72 && rect.bottom > 96)
     }
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })

@@ -47,6 +47,16 @@ async def get_current_employee(
     if token_org_id is not None and employee.org_id != token_org_id:
         raise credentials_exception
 
+    # Bot JWTs carry telegram_id; reject stale tokens after rebind/unlink.
+    token_tg = payload.get('telegram_id')
+    if token_tg is not None:
+        try:
+            claimed_tg = int(token_tg)
+        except (TypeError, ValueError):
+            raise credentials_exception from None
+        if employee.telegram_id is None or int(employee.telegram_id) != claimed_tg:
+            raise credentials_exception
+
     return employee
 
 

@@ -14,6 +14,7 @@ import {
   Package,
   Settings,
   ShoppingCart,
+  Store,
   Tractor,
   TrendingUp,
   Truck,
@@ -86,6 +87,12 @@ const FINANCE_ITEMS: NavItem[] = [
     icon: ClipboardList,
     requiredAction: 'shipment_requests.manage',
   },
+  {
+    to: '/seller-market',
+    label: 'Магазин',
+    icon: Store,
+    requiredAction: 'marketplace.manage',
+  },
   { to: '/expenses', label: 'Затраты', icon: DollarSign },
   { to: '/analytics/forecast', label: 'Прогноз и оптимизация', icon: TrendingUp },
   { to: '/reports', label: 'Отчёты', icon: BarChart2 },
@@ -119,9 +126,11 @@ export function getNavGroups(
   role?: CurrentUser['role'],
   allowedSections?: string[],
   actions?: string[],
-  options?: { shipmentRequestsEnabled?: boolean },
+  options?: { shipmentRequestsEnabled?: boolean; marketplaceEnabled?: boolean },
 ): NavGroup[] {
   const shipmentRequestsEnabled = options?.shipmentRequestsEnabled !== false
+  // Default off — hide until org settings explicitly enable marketplace.
+  const marketplaceEnabled = options?.marketplaceEnabled === true
   if (role === 'employee' && allowedSections === undefined) {
     return [{ title: 'Операционные', items: [MY_SHIFT_ITEM, MESSENGER_ITEM, SHARING_ITEM] }]
   }
@@ -135,6 +144,9 @@ export function getNavGroups(
       ) {
         return false
       }
+      if (!marketplaceEnabled && item.requiredAction === 'marketplace.manage') {
+        return false
+      }
       if (!item.requiredAction) return true
       return hasAction(actions, item.requiredAction, role)
     }),
@@ -145,7 +157,7 @@ export function getNavItems(
   role?: CurrentUser['role'],
   allowedSections?: string[],
   actions?: string[],
-  options?: { shipmentRequestsEnabled?: boolean },
+  options?: { shipmentRequestsEnabled?: boolean; marketplaceEnabled?: boolean },
 ): NavItem[] {
   return getNavGroups(role, allowedSections, actions, options).flatMap((group) => group.items)
 }
@@ -173,6 +185,9 @@ export function getPageTitle(pathname: string): string {
       return 'Мои заявки ТМЦ'
     }
     return 'Заявки на отгрузку'
+  }
+  if (normalized === '/seller-market' || normalized.startsWith('/seller-market/')) {
+    return 'Магазин'
   }
   const item = NAV_ITEMS.find(
     (nav) => normalized === nav.to || normalized.startsWith(`${nav.to}/`),

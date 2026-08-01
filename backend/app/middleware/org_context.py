@@ -20,7 +20,9 @@ from app.models.organization import Organization
 from app.services.auth import ALGORITHM
 
 _SKIP_EXACT = {'/', '/health', '/api/health'}
-_SKIP_PREFIXES = ('/superadmin', '/api/auth')
+# Public anonymous APIs must be listed here — same pattern as /api/auth.
+# Do NOT add org-scoped seller routes (/api/marketplace/*) to this list.
+_SKIP_PREFIXES = ('/superadmin', '/api/auth', '/api/public')
 
 
 def get_org_id(request: Request) -> UUID:

@@ -212,18 +212,19 @@ def add_attachments(
         )
 
 
-async def assert_quantity_within_stock(
+async def assert_stock_sufficient_for_complete(
     item: InventoryItem,
     quantity: Decimal,
 ) -> None:
+    """Hard gate for complete only — create/update may exceed current stock (future harvest)."""
     stock = Decimal(str(item.current_stock or 0))
     qty = Decimal(str(quantity))
     if qty > stock:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                f'Нельзя создать заявку на количество {qty}, '
-                f'на складе доступно {stock}'
+                'Недостаточно товара для выполнения заявки: '
+                f'доступно {stock}, требуется {qty}'
             ),
         )
 
@@ -235,13 +236,17 @@ async def create_request(
     current: Employee,
     payload: ShipmentRequestCreate,
 ) -> ShipmentRequest:
+    """Create intent only — no stock write-off and no stock sufficiency check.
+
+    Quantity may exceed current_stock (e.g. planned shipment after harvest).
+    Stock is enforced on complete.
+    """
     item = await get_inventory_item_or_400(db, payload.inventory_item_id, org_id)
     if not item.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Позиция ТМЦ неактивна',
         )
-    await assert_quantity_within_stock(item, payload.quantity)
     category = str(item.category) if item.category is not None else None
     if category is not None and hasattr(item.category, 'value'):
         category = str(item.category.value)
@@ -273,6 +278,7 @@ async def update_request(
     row: ShipmentRequest,
     payload: ShipmentRequestUpdate,
 ) -> ShipmentRequest:
+    """Edit intent fields — quantity is not limited by current stock (same as create)."""
     if row.status not in EDITABLE_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -280,8 +286,6 @@ async def update_request(
         )
     data = payload.model_dump(exclude_unset=True)
     if 'quantity' in data and data['quantity'] is not None:
-        item = await get_inventory_item_or_400(db, row.inventory_item_id, row.org_id)
-        await assert_quantity_within_stock(item, Decimal(str(data['quantity'])))
         row.quantity = Decimal(str(data['quantity']))
     if 'customer_name' in data and data['customer_name'] is not None:
         row.customer_name = str(data['customer_name']).strip()
@@ -382,6 +386,7 @@ async def complete_request(
 
     item = await get_inventory_item_or_400(db, row.inventory_item_id, row.org_id)
     qty = Decimal(str(row.quantity))
+    await assert_stock_sufficient_for_complete(item, qty)
     unit_price = Decimal(str(row.price))
     total_cost = (qty * unit_price).quantize(Decimal('0.01'))
 

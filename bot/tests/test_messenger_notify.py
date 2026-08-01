@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from app.services.messenger_notify import format_new_message_notice, send_messenger_notice
+from app.services.messenger_notify import (
+    format_new_market_order_notice,
+    format_new_message_notice,
+    send_messenger_notice,
+)
 
 
 def test_format_new_message_notice_includes_deep_link() -> None:
@@ -18,6 +22,21 @@ def test_format_new_message_notice_includes_deep_link() -> None:
     assert 'Иванов' in text
     assert 'Привет' in text
     assert 'https://app.example/messenger/11111111-1111-1111-1111-111111111111' in text
+
+
+def test_format_new_market_order_notice() -> None:
+    text = format_new_market_order_notice(
+        listing_title='Мёд',
+        buyer_name='Покупатель',
+        buyer_phone='+79001112233',
+        quantity='2',
+        unit='кг',
+        web_base='https://app.example',
+    )
+    assert 'Новая заявка с витрины' in text
+    assert 'Мёд' in text
+    assert '+79001112233' in text
+    assert 'https://app.example/seller-market/orders' in text
 
 
 @pytest.mark.asyncio

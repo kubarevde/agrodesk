@@ -29,6 +29,8 @@ from app.routers import (
     implements,
     inventory,
     maintenance,
+    marketplace,
+    marketplace_public,
     messenger,
     notifications,
     references,
@@ -41,6 +43,7 @@ from app.routers import (
     shipments,
     shifts,
     superadmin,
+    superadmin_marketplace,
     superadmin_support,
     support,
     uploads,
@@ -156,7 +159,17 @@ async def api_health() -> dict[str, object]:
 
 app.include_router(superadmin.router, prefix='/superadmin/api', tags=['superadmin'])
 app.include_router(superadmin_support.router, prefix='/superadmin/api', tags=['superadmin-support'])
+app.include_router(
+    superadmin_marketplace.router,
+    prefix='/superadmin/api',
+    tags=['superadmin-marketplace'],
+)
 app.include_router(auth.router, prefix='/api/auth', tags=['auth'])
+app.include_router(
+    marketplace_public.router,
+    prefix='/api/public/marketplace',
+    tags=['marketplace-public'],
+)
 app.include_router(support.router, prefix='/api/support', tags=['support'])
 app.include_router(messenger.router, prefix='/api/messenger', tags=['messenger'])
 app.include_router(agro_plan.router, prefix='/api/agro-plan', tags=['agro-plan'])
@@ -176,6 +189,7 @@ app.include_router(purchase_planner.router, prefix='/api/purchase-planner', tags
 app.include_router(references.equipment_router, prefix='/api/equipment', tags=['equipment'])
 app.include_router(equipment_logs.router, prefix='/api/equipment', tags=['equipment-logs'])
 app.include_router(inventory.router, prefix='/api/inventory', tags=['inventory'])
+app.include_router(marketplace.router, prefix='/api/marketplace', tags=['marketplace'])
 app.include_router(shipment_requests.router, prefix='/api/shipment-requests', tags=['shipment-requests'])
 app.include_router(shipments.router, prefix='/api/shipments', tags=['shipments'])
 app.include_router(expenses.router, prefix='/api/expenses', tags=['expenses'])

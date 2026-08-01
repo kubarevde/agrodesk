@@ -12,7 +12,9 @@ import { Route as rootRouteImport } from './app/routes/__root'
 import { Route as LoginRouteImport } from './app/routes/login'
 import { Route as LayoutRouteImport } from './app/routes/_layout'
 import { Route as SuperadminRouteRouteImport } from './app/routes/superadmin/route'
+import { Route as MarketRouteRouteImport } from './app/routes/market/route'
 import { Route as IndexRouteImport } from './app/routes/index'
+import { Route as MarketIndexRouteImport } from './app/routes/market/index'
 import { Route as LandingIndexRouteImport } from './app/routes/landing/index'
 import { Route as SuperadminLoginRouteImport } from './app/routes/superadmin/login'
 import { Route as SuperadminAuthenticatedRouteImport } from './app/routes/superadmin/_authenticated'
@@ -23,6 +25,7 @@ import { Route as LayoutShipmentsIndexRouteImport } from './app/routes/_layout/s
 import { Route as LayoutShipmentRequestsIndexRouteImport } from './app/routes/_layout/shipment-requests/index'
 import { Route as LayoutSharingIndexRouteImport } from './app/routes/_layout/sharing/index'
 import { Route as LayoutSettingsIndexRouteImport } from './app/routes/_layout/settings/index'
+import { Route as LayoutSellerMarketIndexRouteImport } from './app/routes/_layout/seller-market/index'
 import { Route as LayoutReportsIndexRouteImport } from './app/routes/_layout/reports/index'
 import { Route as LayoutPurchasePlannerIndexRouteImport } from './app/routes/_layout/purchase-planner/index'
 import { Route as LayoutProfileIndexRouteImport } from './app/routes/_layout/profile/index'
@@ -40,6 +43,8 @@ import { Route as LayoutEmployeesIndexRouteImport } from './app/routes/_layout/e
 import { Route as LayoutAuditLogIndexRouteImport } from './app/routes/_layout/audit-log/index'
 import { Route as LayoutAgroCalendarIndexRouteImport } from './app/routes/_layout/agro-calendar/index'
 import { Route as SuperadminAuthenticatedDashboardRouteImport } from './app/routes/superadmin/_authenticated/dashboard'
+import { Route as MarketSellerIdRouteImport } from './app/routes/market/seller/$id'
+import { Route as MarketProductIdRouteImport } from './app/routes/market/product/$id'
 import { Route as LayoutSupportNewRouteImport } from './app/routes/_layout/support/new'
 import { Route as LayoutSupportGuideRouteImport } from './app/routes/_layout/support/guide'
 import { Route as LayoutSupportTicketIdRouteImport } from './app/routes/_layout/support/$ticketId'
@@ -49,8 +54,17 @@ import { Route as LayoutMessengerChatIdRouteImport } from './app/routes/_layout/
 import { Route as LayoutImplementsImplementIdRouteImport } from './app/routes/_layout/implements/$implementId'
 import { Route as LayoutEquipmentEquipmentIdRouteImport } from './app/routes/_layout/equipment/$equipmentId'
 import { Route as SuperadminAuthenticatedSupportIndexRouteImport } from './app/routes/superadmin/_authenticated/support/index'
+import { Route as SuperadminAuthenticatedMarketplaceIndexRouteImport } from './app/routes/superadmin/_authenticated/marketplace/index'
+import { Route as LayoutSellerMarketProfileIndexRouteImport } from './app/routes/_layout/seller-market/profile/index'
+import { Route as LayoutSellerMarketOrdersIndexRouteImport } from './app/routes/_layout/seller-market/orders/index'
+import { Route as LayoutSellerMarketListingsIndexRouteImport } from './app/routes/_layout/seller-market/listings/index'
 import { Route as LayoutAnalyticsForecastIndexRouteImport } from './app/routes/_layout/analytics/forecast/index'
 import { Route as SuperadminAuthenticatedSupportTicketIdRouteImport } from './app/routes/superadmin/_authenticated/support/$ticketId'
+import { Route as SuperadminAuthenticatedMarketplaceSellersRouteImport } from './app/routes/superadmin/_authenticated/marketplace/sellers'
+import { Route as SuperadminAuthenticatedMarketplaceOrdersRouteImport } from './app/routes/superadmin/_authenticated/marketplace/orders'
+import { Route as SuperadminAuthenticatedMarketplaceCategoriesRouteImport } from './app/routes/superadmin/_authenticated/marketplace/categories'
+import { Route as LayoutSellerMarketListingsNewRouteImport } from './app/routes/_layout/seller-market/listings/new'
+import { Route as LayoutSellerMarketListingsListingIdRouteImport } from './app/routes/_layout/seller-market/listings/$listingId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -66,10 +80,20 @@ const SuperadminRouteRoute = SuperadminRouteRouteImport.update({
   path: '/superadmin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MarketRouteRoute = MarketRouteRouteImport.update({
+  id: '/market',
+  path: '/market',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const MarketIndexRoute = MarketIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => MarketRouteRoute,
 } as any)
 const LandingIndexRoute = LandingIndexRouteImport.update({
   id: '/landing/',
@@ -119,6 +143,11 @@ const LayoutSharingIndexRoute = LayoutSharingIndexRouteImport.update({
 const LayoutSettingsIndexRoute = LayoutSettingsIndexRouteImport.update({
   id: '/settings/',
   path: '/settings/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutSellerMarketIndexRoute = LayoutSellerMarketIndexRouteImport.update({
+  id: '/seller-market/',
+  path: '/seller-market/',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutReportsIndexRoute = LayoutReportsIndexRouteImport.update({
@@ -209,6 +238,16 @@ const SuperadminAuthenticatedDashboardRoute =
     path: '/dashboard',
     getParentRoute: () => SuperadminAuthenticatedRoute,
   } as any)
+const MarketSellerIdRoute = MarketSellerIdRouteImport.update({
+  id: '/seller/$id',
+  path: '/seller/$id',
+  getParentRoute: () => MarketRouteRoute,
+} as any)
+const MarketProductIdRoute = MarketProductIdRouteImport.update({
+  id: '/product/$id',
+  path: '/product/$id',
+  getParentRoute: () => MarketRouteRoute,
+} as any)
 const LayoutSupportNewRoute = LayoutSupportNewRouteImport.update({
   id: '/support/new',
   path: '/support/new',
@@ -259,6 +298,30 @@ const SuperadminAuthenticatedSupportIndexRoute =
     path: '/support/',
     getParentRoute: () => SuperadminAuthenticatedRoute,
   } as any)
+const SuperadminAuthenticatedMarketplaceIndexRoute =
+  SuperadminAuthenticatedMarketplaceIndexRouteImport.update({
+    id: '/marketplace/',
+    path: '/marketplace/',
+    getParentRoute: () => SuperadminAuthenticatedRoute,
+  } as any)
+const LayoutSellerMarketProfileIndexRoute =
+  LayoutSellerMarketProfileIndexRouteImport.update({
+    id: '/seller-market/profile/',
+    path: '/seller-market/profile/',
+    getParentRoute: () => LayoutRoute,
+  } as any)
+const LayoutSellerMarketOrdersIndexRoute =
+  LayoutSellerMarketOrdersIndexRouteImport.update({
+    id: '/seller-market/orders/',
+    path: '/seller-market/orders/',
+    getParentRoute: () => LayoutRoute,
+  } as any)
+const LayoutSellerMarketListingsIndexRoute =
+  LayoutSellerMarketListingsIndexRouteImport.update({
+    id: '/seller-market/listings/',
+    path: '/seller-market/listings/',
+    getParentRoute: () => LayoutRoute,
+  } as any)
 const LayoutAnalyticsForecastIndexRoute =
   LayoutAnalyticsForecastIndexRouteImport.update({
     id: '/analytics/forecast/',
@@ -271,14 +334,46 @@ const SuperadminAuthenticatedSupportTicketIdRoute =
     path: '/support/$ticketId',
     getParentRoute: () => SuperadminAuthenticatedRoute,
   } as any)
+const SuperadminAuthenticatedMarketplaceSellersRoute =
+  SuperadminAuthenticatedMarketplaceSellersRouteImport.update({
+    id: '/marketplace/sellers',
+    path: '/marketplace/sellers',
+    getParentRoute: () => SuperadminAuthenticatedRoute,
+  } as any)
+const SuperadminAuthenticatedMarketplaceOrdersRoute =
+  SuperadminAuthenticatedMarketplaceOrdersRouteImport.update({
+    id: '/marketplace/orders',
+    path: '/marketplace/orders',
+    getParentRoute: () => SuperadminAuthenticatedRoute,
+  } as any)
+const SuperadminAuthenticatedMarketplaceCategoriesRoute =
+  SuperadminAuthenticatedMarketplaceCategoriesRouteImport.update({
+    id: '/marketplace/categories',
+    path: '/marketplace/categories',
+    getParentRoute: () => SuperadminAuthenticatedRoute,
+  } as any)
+const LayoutSellerMarketListingsNewRoute =
+  LayoutSellerMarketListingsNewRouteImport.update({
+    id: '/seller-market/listings/new',
+    path: '/seller-market/listings/new',
+    getParentRoute: () => LayoutRoute,
+  } as any)
+const LayoutSellerMarketListingsListingIdRoute =
+  LayoutSellerMarketListingsListingIdRouteImport.update({
+    id: '/seller-market/listings/$listingId',
+    path: '/seller-market/listings/$listingId',
+    getParentRoute: () => LayoutRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/market': typeof MarketRouteRouteWithChildren
   '/superadmin': typeof SuperadminRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/dashboard': typeof LayoutDashboardRoute
   '/superadmin/login': typeof SuperadminLoginRoute
   '/landing/': typeof LandingIndexRoute
+  '/market/': typeof MarketIndexRoute
   '/equipment/$equipmentId': typeof LayoutEquipmentEquipmentIdRoute
   '/implements/$implementId': typeof LayoutImplementsImplementIdRoute
   '/messenger/$chatId': typeof LayoutMessengerChatIdRoute
@@ -287,6 +382,8 @@ export interface FileRoutesByFullPath {
   '/support/$ticketId': typeof LayoutSupportTicketIdRoute
   '/support/guide': typeof LayoutSupportGuideRoute
   '/support/new': typeof LayoutSupportNewRoute
+  '/market/product/$id': typeof MarketProductIdRoute
+  '/market/seller/$id': typeof MarketSellerIdRoute
   '/superadmin/dashboard': typeof SuperadminAuthenticatedDashboardRoute
   '/agro-calendar/': typeof LayoutAgroCalendarIndexRoute
   '/audit-log/': typeof LayoutAuditLogIndexRoute
@@ -304,14 +401,24 @@ export interface FileRoutesByFullPath {
   '/profile/': typeof LayoutProfileIndexRoute
   '/purchase-planner/': typeof LayoutPurchasePlannerIndexRoute
   '/reports/': typeof LayoutReportsIndexRoute
+  '/seller-market/': typeof LayoutSellerMarketIndexRoute
   '/settings/': typeof LayoutSettingsIndexRoute
   '/sharing/': typeof LayoutSharingIndexRoute
   '/shipment-requests/': typeof LayoutShipmentRequestsIndexRoute
   '/shipments/': typeof LayoutShipmentsIndexRoute
   '/support/': typeof LayoutSupportIndexRoute
   '/worktime/': typeof LayoutWorktimeIndexRoute
+  '/seller-market/listings/$listingId': typeof LayoutSellerMarketListingsListingIdRoute
+  '/seller-market/listings/new': typeof LayoutSellerMarketListingsNewRoute
+  '/superadmin/marketplace/categories': typeof SuperadminAuthenticatedMarketplaceCategoriesRoute
+  '/superadmin/marketplace/orders': typeof SuperadminAuthenticatedMarketplaceOrdersRoute
+  '/superadmin/marketplace/sellers': typeof SuperadminAuthenticatedMarketplaceSellersRoute
   '/superadmin/support/$ticketId': typeof SuperadminAuthenticatedSupportTicketIdRoute
   '/analytics/forecast/': typeof LayoutAnalyticsForecastIndexRoute
+  '/seller-market/listings/': typeof LayoutSellerMarketListingsIndexRoute
+  '/seller-market/orders/': typeof LayoutSellerMarketOrdersIndexRoute
+  '/seller-market/profile/': typeof LayoutSellerMarketProfileIndexRoute
+  '/superadmin/marketplace/': typeof SuperadminAuthenticatedMarketplaceIndexRoute
   '/superadmin/support/': typeof SuperadminAuthenticatedSupportIndexRoute
 }
 export interface FileRoutesByTo {
@@ -321,6 +428,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof LayoutDashboardRoute
   '/superadmin/login': typeof SuperadminLoginRoute
   '/landing': typeof LandingIndexRoute
+  '/market': typeof MarketIndexRoute
   '/equipment/$equipmentId': typeof LayoutEquipmentEquipmentIdRoute
   '/implements/$implementId': typeof LayoutImplementsImplementIdRoute
   '/messenger/$chatId': typeof LayoutMessengerChatIdRoute
@@ -329,6 +437,8 @@ export interface FileRoutesByTo {
   '/support/$ticketId': typeof LayoutSupportTicketIdRoute
   '/support/guide': typeof LayoutSupportGuideRoute
   '/support/new': typeof LayoutSupportNewRoute
+  '/market/product/$id': typeof MarketProductIdRoute
+  '/market/seller/$id': typeof MarketSellerIdRoute
   '/superadmin/dashboard': typeof SuperadminAuthenticatedDashboardRoute
   '/agro-calendar': typeof LayoutAgroCalendarIndexRoute
   '/audit-log': typeof LayoutAuditLogIndexRoute
@@ -346,19 +456,30 @@ export interface FileRoutesByTo {
   '/profile': typeof LayoutProfileIndexRoute
   '/purchase-planner': typeof LayoutPurchasePlannerIndexRoute
   '/reports': typeof LayoutReportsIndexRoute
+  '/seller-market': typeof LayoutSellerMarketIndexRoute
   '/settings': typeof LayoutSettingsIndexRoute
   '/sharing': typeof LayoutSharingIndexRoute
   '/shipment-requests': typeof LayoutShipmentRequestsIndexRoute
   '/shipments': typeof LayoutShipmentsIndexRoute
   '/support': typeof LayoutSupportIndexRoute
   '/worktime': typeof LayoutWorktimeIndexRoute
+  '/seller-market/listings/$listingId': typeof LayoutSellerMarketListingsListingIdRoute
+  '/seller-market/listings/new': typeof LayoutSellerMarketListingsNewRoute
+  '/superadmin/marketplace/categories': typeof SuperadminAuthenticatedMarketplaceCategoriesRoute
+  '/superadmin/marketplace/orders': typeof SuperadminAuthenticatedMarketplaceOrdersRoute
+  '/superadmin/marketplace/sellers': typeof SuperadminAuthenticatedMarketplaceSellersRoute
   '/superadmin/support/$ticketId': typeof SuperadminAuthenticatedSupportTicketIdRoute
   '/analytics/forecast': typeof LayoutAnalyticsForecastIndexRoute
+  '/seller-market/listings': typeof LayoutSellerMarketListingsIndexRoute
+  '/seller-market/orders': typeof LayoutSellerMarketOrdersIndexRoute
+  '/seller-market/profile': typeof LayoutSellerMarketProfileIndexRoute
+  '/superadmin/marketplace': typeof SuperadminAuthenticatedMarketplaceIndexRoute
   '/superadmin/support': typeof SuperadminAuthenticatedSupportIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/market': typeof MarketRouteRouteWithChildren
   '/superadmin': typeof SuperadminRouteRouteWithChildren
   '/_layout': typeof LayoutRouteWithChildren
   '/login': typeof LoginRoute
@@ -366,6 +487,7 @@ export interface FileRoutesById {
   '/superadmin/_authenticated': typeof SuperadminAuthenticatedRouteWithChildren
   '/superadmin/login': typeof SuperadminLoginRoute
   '/landing/': typeof LandingIndexRoute
+  '/market/': typeof MarketIndexRoute
   '/_layout/equipment/$equipmentId': typeof LayoutEquipmentEquipmentIdRoute
   '/_layout/implements/$implementId': typeof LayoutImplementsImplementIdRoute
   '/_layout/messenger/$chatId': typeof LayoutMessengerChatIdRoute
@@ -374,6 +496,8 @@ export interface FileRoutesById {
   '/_layout/support/$ticketId': typeof LayoutSupportTicketIdRoute
   '/_layout/support/guide': typeof LayoutSupportGuideRoute
   '/_layout/support/new': typeof LayoutSupportNewRoute
+  '/market/product/$id': typeof MarketProductIdRoute
+  '/market/seller/$id': typeof MarketSellerIdRoute
   '/superadmin/_authenticated/dashboard': typeof SuperadminAuthenticatedDashboardRoute
   '/_layout/agro-calendar/': typeof LayoutAgroCalendarIndexRoute
   '/_layout/audit-log/': typeof LayoutAuditLogIndexRoute
@@ -391,25 +515,37 @@ export interface FileRoutesById {
   '/_layout/profile/': typeof LayoutProfileIndexRoute
   '/_layout/purchase-planner/': typeof LayoutPurchasePlannerIndexRoute
   '/_layout/reports/': typeof LayoutReportsIndexRoute
+  '/_layout/seller-market/': typeof LayoutSellerMarketIndexRoute
   '/_layout/settings/': typeof LayoutSettingsIndexRoute
   '/_layout/sharing/': typeof LayoutSharingIndexRoute
   '/_layout/shipment-requests/': typeof LayoutShipmentRequestsIndexRoute
   '/_layout/shipments/': typeof LayoutShipmentsIndexRoute
   '/_layout/support/': typeof LayoutSupportIndexRoute
   '/_layout/worktime/': typeof LayoutWorktimeIndexRoute
+  '/_layout/seller-market/listings/$listingId': typeof LayoutSellerMarketListingsListingIdRoute
+  '/_layout/seller-market/listings/new': typeof LayoutSellerMarketListingsNewRoute
+  '/superadmin/_authenticated/marketplace/categories': typeof SuperadminAuthenticatedMarketplaceCategoriesRoute
+  '/superadmin/_authenticated/marketplace/orders': typeof SuperadminAuthenticatedMarketplaceOrdersRoute
+  '/superadmin/_authenticated/marketplace/sellers': typeof SuperadminAuthenticatedMarketplaceSellersRoute
   '/superadmin/_authenticated/support/$ticketId': typeof SuperadminAuthenticatedSupportTicketIdRoute
   '/_layout/analytics/forecast/': typeof LayoutAnalyticsForecastIndexRoute
+  '/_layout/seller-market/listings/': typeof LayoutSellerMarketListingsIndexRoute
+  '/_layout/seller-market/orders/': typeof LayoutSellerMarketOrdersIndexRoute
+  '/_layout/seller-market/profile/': typeof LayoutSellerMarketProfileIndexRoute
+  '/superadmin/_authenticated/marketplace/': typeof SuperadminAuthenticatedMarketplaceIndexRoute
   '/superadmin/_authenticated/support/': typeof SuperadminAuthenticatedSupportIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/market'
     | '/superadmin'
     | '/login'
     | '/dashboard'
     | '/superadmin/login'
     | '/landing/'
+    | '/market/'
     | '/equipment/$equipmentId'
     | '/implements/$implementId'
     | '/messenger/$chatId'
@@ -418,6 +554,8 @@ export interface FileRouteTypes {
     | '/support/$ticketId'
     | '/support/guide'
     | '/support/new'
+    | '/market/product/$id'
+    | '/market/seller/$id'
     | '/superadmin/dashboard'
     | '/agro-calendar/'
     | '/audit-log/'
@@ -435,14 +573,24 @@ export interface FileRouteTypes {
     | '/profile/'
     | '/purchase-planner/'
     | '/reports/'
+    | '/seller-market/'
     | '/settings/'
     | '/sharing/'
     | '/shipment-requests/'
     | '/shipments/'
     | '/support/'
     | '/worktime/'
+    | '/seller-market/listings/$listingId'
+    | '/seller-market/listings/new'
+    | '/superadmin/marketplace/categories'
+    | '/superadmin/marketplace/orders'
+    | '/superadmin/marketplace/sellers'
     | '/superadmin/support/$ticketId'
     | '/analytics/forecast/'
+    | '/seller-market/listings/'
+    | '/seller-market/orders/'
+    | '/seller-market/profile/'
+    | '/superadmin/marketplace/'
     | '/superadmin/support/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -452,6 +600,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/superadmin/login'
     | '/landing'
+    | '/market'
     | '/equipment/$equipmentId'
     | '/implements/$implementId'
     | '/messenger/$chatId'
@@ -460,6 +609,8 @@ export interface FileRouteTypes {
     | '/support/$ticketId'
     | '/support/guide'
     | '/support/new'
+    | '/market/product/$id'
+    | '/market/seller/$id'
     | '/superadmin/dashboard'
     | '/agro-calendar'
     | '/audit-log'
@@ -477,18 +628,29 @@ export interface FileRouteTypes {
     | '/profile'
     | '/purchase-planner'
     | '/reports'
+    | '/seller-market'
     | '/settings'
     | '/sharing'
     | '/shipment-requests'
     | '/shipments'
     | '/support'
     | '/worktime'
+    | '/seller-market/listings/$listingId'
+    | '/seller-market/listings/new'
+    | '/superadmin/marketplace/categories'
+    | '/superadmin/marketplace/orders'
+    | '/superadmin/marketplace/sellers'
     | '/superadmin/support/$ticketId'
     | '/analytics/forecast'
+    | '/seller-market/listings'
+    | '/seller-market/orders'
+    | '/seller-market/profile'
+    | '/superadmin/marketplace'
     | '/superadmin/support'
   id:
     | '__root__'
     | '/'
+    | '/market'
     | '/superadmin'
     | '/_layout'
     | '/login'
@@ -496,6 +658,7 @@ export interface FileRouteTypes {
     | '/superadmin/_authenticated'
     | '/superadmin/login'
     | '/landing/'
+    | '/market/'
     | '/_layout/equipment/$equipmentId'
     | '/_layout/implements/$implementId'
     | '/_layout/messenger/$chatId'
@@ -504,6 +667,8 @@ export interface FileRouteTypes {
     | '/_layout/support/$ticketId'
     | '/_layout/support/guide'
     | '/_layout/support/new'
+    | '/market/product/$id'
+    | '/market/seller/$id'
     | '/superadmin/_authenticated/dashboard'
     | '/_layout/agro-calendar/'
     | '/_layout/audit-log/'
@@ -521,19 +686,30 @@ export interface FileRouteTypes {
     | '/_layout/profile/'
     | '/_layout/purchase-planner/'
     | '/_layout/reports/'
+    | '/_layout/seller-market/'
     | '/_layout/settings/'
     | '/_layout/sharing/'
     | '/_layout/shipment-requests/'
     | '/_layout/shipments/'
     | '/_layout/support/'
     | '/_layout/worktime/'
+    | '/_layout/seller-market/listings/$listingId'
+    | '/_layout/seller-market/listings/new'
+    | '/superadmin/_authenticated/marketplace/categories'
+    | '/superadmin/_authenticated/marketplace/orders'
+    | '/superadmin/_authenticated/marketplace/sellers'
     | '/superadmin/_authenticated/support/$ticketId'
     | '/_layout/analytics/forecast/'
+    | '/_layout/seller-market/listings/'
+    | '/_layout/seller-market/orders/'
+    | '/_layout/seller-market/profile/'
+    | '/superadmin/_authenticated/marketplace/'
     | '/superadmin/_authenticated/support/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  MarketRouteRoute: typeof MarketRouteRouteWithChildren
   SuperadminRouteRoute: typeof SuperadminRouteRouteWithChildren
   LayoutRoute: typeof LayoutRouteWithChildren
   LoginRoute: typeof LoginRoute
@@ -563,12 +739,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SuperadminRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/market': {
+      id: '/market'
+      path: '/market'
+      fullPath: '/market'
+      preLoaderRoute: typeof MarketRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/market/': {
+      id: '/market/'
+      path: '/'
+      fullPath: '/market/'
+      preLoaderRoute: typeof MarketIndexRouteImport
+      parentRoute: typeof MarketRouteRoute
     }
     '/landing/': {
       id: '/landing/'
@@ -638,6 +828,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings/'
       preLoaderRoute: typeof LayoutSettingsIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/seller-market/': {
+      id: '/_layout/seller-market/'
+      path: '/seller-market'
+      fullPath: '/seller-market/'
+      preLoaderRoute: typeof LayoutSellerMarketIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/reports/': {
@@ -759,6 +956,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SuperadminAuthenticatedDashboardRouteImport
       parentRoute: typeof SuperadminAuthenticatedRoute
     }
+    '/market/seller/$id': {
+      id: '/market/seller/$id'
+      path: '/seller/$id'
+      fullPath: '/market/seller/$id'
+      preLoaderRoute: typeof MarketSellerIdRouteImport
+      parentRoute: typeof MarketRouteRoute
+    }
+    '/market/product/$id': {
+      id: '/market/product/$id'
+      path: '/product/$id'
+      fullPath: '/market/product/$id'
+      preLoaderRoute: typeof MarketProductIdRouteImport
+      parentRoute: typeof MarketRouteRoute
+    }
     '/_layout/support/new': {
       id: '/_layout/support/new'
       path: '/support/new'
@@ -822,6 +1033,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SuperadminAuthenticatedSupportIndexRouteImport
       parentRoute: typeof SuperadminAuthenticatedRoute
     }
+    '/superadmin/_authenticated/marketplace/': {
+      id: '/superadmin/_authenticated/marketplace/'
+      path: '/marketplace'
+      fullPath: '/superadmin/marketplace/'
+      preLoaderRoute: typeof SuperadminAuthenticatedMarketplaceIndexRouteImport
+      parentRoute: typeof SuperadminAuthenticatedRoute
+    }
+    '/_layout/seller-market/profile/': {
+      id: '/_layout/seller-market/profile/'
+      path: '/seller-market/profile'
+      fullPath: '/seller-market/profile/'
+      preLoaderRoute: typeof LayoutSellerMarketProfileIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/seller-market/orders/': {
+      id: '/_layout/seller-market/orders/'
+      path: '/seller-market/orders'
+      fullPath: '/seller-market/orders/'
+      preLoaderRoute: typeof LayoutSellerMarketOrdersIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/seller-market/listings/': {
+      id: '/_layout/seller-market/listings/'
+      path: '/seller-market/listings'
+      fullPath: '/seller-market/listings/'
+      preLoaderRoute: typeof LayoutSellerMarketListingsIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/analytics/forecast/': {
       id: '/_layout/analytics/forecast/'
       path: '/analytics/forecast'
@@ -836,12 +1075,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SuperadminAuthenticatedSupportTicketIdRouteImport
       parentRoute: typeof SuperadminAuthenticatedRoute
     }
+    '/superadmin/_authenticated/marketplace/sellers': {
+      id: '/superadmin/_authenticated/marketplace/sellers'
+      path: '/marketplace/sellers'
+      fullPath: '/superadmin/marketplace/sellers'
+      preLoaderRoute: typeof SuperadminAuthenticatedMarketplaceSellersRouteImport
+      parentRoute: typeof SuperadminAuthenticatedRoute
+    }
+    '/superadmin/_authenticated/marketplace/orders': {
+      id: '/superadmin/_authenticated/marketplace/orders'
+      path: '/marketplace/orders'
+      fullPath: '/superadmin/marketplace/orders'
+      preLoaderRoute: typeof SuperadminAuthenticatedMarketplaceOrdersRouteImport
+      parentRoute: typeof SuperadminAuthenticatedRoute
+    }
+    '/superadmin/_authenticated/marketplace/categories': {
+      id: '/superadmin/_authenticated/marketplace/categories'
+      path: '/marketplace/categories'
+      fullPath: '/superadmin/marketplace/categories'
+      preLoaderRoute: typeof SuperadminAuthenticatedMarketplaceCategoriesRouteImport
+      parentRoute: typeof SuperadminAuthenticatedRoute
+    }
+    '/_layout/seller-market/listings/new': {
+      id: '/_layout/seller-market/listings/new'
+      path: '/seller-market/listings/new'
+      fullPath: '/seller-market/listings/new'
+      preLoaderRoute: typeof LayoutSellerMarketListingsNewRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/seller-market/listings/$listingId': {
+      id: '/_layout/seller-market/listings/$listingId'
+      path: '/seller-market/listings/$listingId'
+      fullPath: '/seller-market/listings/$listingId'
+      preLoaderRoute: typeof LayoutSellerMarketListingsListingIdRouteImport
+      parentRoute: typeof LayoutRoute
+    }
   }
 }
 
+interface MarketRouteRouteChildren {
+  MarketIndexRoute: typeof MarketIndexRoute
+  MarketProductIdRoute: typeof MarketProductIdRoute
+  MarketSellerIdRoute: typeof MarketSellerIdRoute
+}
+
+const MarketRouteRouteChildren: MarketRouteRouteChildren = {
+  MarketIndexRoute: MarketIndexRoute,
+  MarketProductIdRoute: MarketProductIdRoute,
+  MarketSellerIdRoute: MarketSellerIdRoute,
+}
+
+const MarketRouteRouteWithChildren = MarketRouteRoute._addFileChildren(
+  MarketRouteRouteChildren,
+)
+
 interface SuperadminAuthenticatedRouteChildren {
   SuperadminAuthenticatedDashboardRoute: typeof SuperadminAuthenticatedDashboardRoute
+  SuperadminAuthenticatedMarketplaceCategoriesRoute: typeof SuperadminAuthenticatedMarketplaceCategoriesRoute
+  SuperadminAuthenticatedMarketplaceOrdersRoute: typeof SuperadminAuthenticatedMarketplaceOrdersRoute
+  SuperadminAuthenticatedMarketplaceSellersRoute: typeof SuperadminAuthenticatedMarketplaceSellersRoute
   SuperadminAuthenticatedSupportTicketIdRoute: typeof SuperadminAuthenticatedSupportTicketIdRoute
+  SuperadminAuthenticatedMarketplaceIndexRoute: typeof SuperadminAuthenticatedMarketplaceIndexRoute
   SuperadminAuthenticatedSupportIndexRoute: typeof SuperadminAuthenticatedSupportIndexRoute
 }
 
@@ -849,8 +1143,16 @@ const SuperadminAuthenticatedRouteChildren: SuperadminAuthenticatedRouteChildren
   {
     SuperadminAuthenticatedDashboardRoute:
       SuperadminAuthenticatedDashboardRoute,
+    SuperadminAuthenticatedMarketplaceCategoriesRoute:
+      SuperadminAuthenticatedMarketplaceCategoriesRoute,
+    SuperadminAuthenticatedMarketplaceOrdersRoute:
+      SuperadminAuthenticatedMarketplaceOrdersRoute,
+    SuperadminAuthenticatedMarketplaceSellersRoute:
+      SuperadminAuthenticatedMarketplaceSellersRoute,
     SuperadminAuthenticatedSupportTicketIdRoute:
       SuperadminAuthenticatedSupportTicketIdRoute,
+    SuperadminAuthenticatedMarketplaceIndexRoute:
+      SuperadminAuthenticatedMarketplaceIndexRoute,
     SuperadminAuthenticatedSupportIndexRoute:
       SuperadminAuthenticatedSupportIndexRoute,
   }
@@ -900,13 +1202,19 @@ interface LayoutRouteChildren {
   LayoutProfileIndexRoute: typeof LayoutProfileIndexRoute
   LayoutPurchasePlannerIndexRoute: typeof LayoutPurchasePlannerIndexRoute
   LayoutReportsIndexRoute: typeof LayoutReportsIndexRoute
+  LayoutSellerMarketIndexRoute: typeof LayoutSellerMarketIndexRoute
   LayoutSettingsIndexRoute: typeof LayoutSettingsIndexRoute
   LayoutSharingIndexRoute: typeof LayoutSharingIndexRoute
   LayoutShipmentRequestsIndexRoute: typeof LayoutShipmentRequestsIndexRoute
   LayoutShipmentsIndexRoute: typeof LayoutShipmentsIndexRoute
   LayoutSupportIndexRoute: typeof LayoutSupportIndexRoute
   LayoutWorktimeIndexRoute: typeof LayoutWorktimeIndexRoute
+  LayoutSellerMarketListingsListingIdRoute: typeof LayoutSellerMarketListingsListingIdRoute
+  LayoutSellerMarketListingsNewRoute: typeof LayoutSellerMarketListingsNewRoute
   LayoutAnalyticsForecastIndexRoute: typeof LayoutAnalyticsForecastIndexRoute
+  LayoutSellerMarketListingsIndexRoute: typeof LayoutSellerMarketListingsIndexRoute
+  LayoutSellerMarketOrdersIndexRoute: typeof LayoutSellerMarketOrdersIndexRoute
+  LayoutSellerMarketProfileIndexRoute: typeof LayoutSellerMarketProfileIndexRoute
 }
 
 const LayoutRouteChildren: LayoutRouteChildren = {
@@ -935,13 +1243,20 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutProfileIndexRoute: LayoutProfileIndexRoute,
   LayoutPurchasePlannerIndexRoute: LayoutPurchasePlannerIndexRoute,
   LayoutReportsIndexRoute: LayoutReportsIndexRoute,
+  LayoutSellerMarketIndexRoute: LayoutSellerMarketIndexRoute,
   LayoutSettingsIndexRoute: LayoutSettingsIndexRoute,
   LayoutSharingIndexRoute: LayoutSharingIndexRoute,
   LayoutShipmentRequestsIndexRoute: LayoutShipmentRequestsIndexRoute,
   LayoutShipmentsIndexRoute: LayoutShipmentsIndexRoute,
   LayoutSupportIndexRoute: LayoutSupportIndexRoute,
   LayoutWorktimeIndexRoute: LayoutWorktimeIndexRoute,
+  LayoutSellerMarketListingsListingIdRoute:
+    LayoutSellerMarketListingsListingIdRoute,
+  LayoutSellerMarketListingsNewRoute: LayoutSellerMarketListingsNewRoute,
   LayoutAnalyticsForecastIndexRoute: LayoutAnalyticsForecastIndexRoute,
+  LayoutSellerMarketListingsIndexRoute: LayoutSellerMarketListingsIndexRoute,
+  LayoutSellerMarketOrdersIndexRoute: LayoutSellerMarketOrdersIndexRoute,
+  LayoutSellerMarketProfileIndexRoute: LayoutSellerMarketProfileIndexRoute,
 }
 
 const LayoutRouteWithChildren =
@@ -949,6 +1264,7 @@ const LayoutRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  MarketRouteRoute: MarketRouteRouteWithChildren,
   SuperadminRouteRoute: SuperadminRouteRouteWithChildren,
   LayoutRoute: LayoutRouteWithChildren,
   LoginRoute: LoginRoute,

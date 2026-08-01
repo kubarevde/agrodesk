@@ -5,6 +5,7 @@ import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { Button } from '@/components/ui/button'
 import { resolveDictionaryLabel } from '@/features/dictionaries/labels'
 import { useDictionary } from '@/features/dictionaries/hooks'
+import { useInventory } from '@/features/inventory/hooks'
 import { useShipments } from '@/features/shipments/hooks'
 import { formatKg, formatMoney, sumShipments } from '@/features/shipments/utils'
 import { useShipmentRequest } from '../hooks'
@@ -17,6 +18,7 @@ export function ShipmentRequestDetailPage({ requestId }: Props) {
   const navigate = useNavigate()
   const { data: row, isLoading, isError } = useShipmentRequest(requestId)
   const { data: crops = [] } = useDictionary('crop')
+  const { data: inventory = [] } = useInventory({ enabled: Boolean(requestId) })
   const { data: linked = [], isLoading: linkedLoading } = useShipments({
     shipmentRequestId: requestId,
   })
@@ -35,6 +37,11 @@ export function ShipmentRequestDetailPage({ requestId }: Props) {
   }
 
   const canCreateCropShipment = row.kind === 'harvest' && row.status === 'done'
+  const stockItem = inventory.find((item) => item.id === row.inventoryItemId)
+  const stockShortfall =
+    (row.status === 'new' || row.status === 'in_progress') &&
+    stockItem != null &&
+    row.quantity > stockItem.currentStock
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -76,6 +83,12 @@ export function ShipmentRequestDetailPage({ requestId }: Props) {
         <p className="text-xs text-muted-foreground">
           Склад: {row.inventoryOperationId ? 'списан при выполнении' : 'ещё не списан'}
         </p>
+        {stockShortfall && stockItem ? (
+          <p className="text-xs text-muted-foreground">
+            На складе сейчас {stockItem.currentStock.toLocaleString('ru-RU')} {stockItem.unit} —
+            выполнить заявку нельзя, пока не появится достаточный остаток.
+          </p>
+        ) : null}
       </section>
 
       <section className="space-y-3">

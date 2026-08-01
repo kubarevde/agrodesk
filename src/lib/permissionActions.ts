@@ -19,6 +19,7 @@ export const ACTION_KEYS = [
   'support.view_org_tickets',
   'shipment_requests.manage',
   'shipment_requests.execute',
+  'marketplace.manage',
 ] as const
 
 export type PermissionAction = (typeof ACTION_KEYS)[number]
@@ -35,6 +36,7 @@ export const ACTION_LABELS: Record<PermissionAction, string> = {
   'support.view_org_tickets': 'Видеть все обращения организации',
   'shipment_requests.manage': 'Управлять заявками на отгрузку ТМЦ',
   'shipment_requests.execute': 'Исполнять заявки на отгрузку ТМЦ',
+  'marketplace.manage': 'Управлять витриной маркетплейса (импорт и объявления)',
 }
 
 /** Employee-safe baselines when a section is granted (matches backend SECTION_IMPLIED_ACTIONS). */

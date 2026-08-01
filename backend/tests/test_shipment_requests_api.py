@@ -99,7 +99,7 @@ def test_complete_creates_inventory_expense(
 def test_complete_blocked_when_insufficient_stock(
     client: httpx.Client, admin_headers: dict[str, str]
 ) -> None:
-    """Create ok when stock covers qty; complete fails if stock was reduced meanwhile."""
+    """Complete fails if stock dropped after create/start; request stays in_progress."""
     item_id = _create_item(client, admin_headers, stock=20)
     row = _create_request(client, admin_headers, item_id=item_id, quantity=20)
     assert (
@@ -107,7 +107,7 @@ def test_complete_blocked_when_insufficient_stock(
         == 200
     )
 
-    # Drain stock after request is in progress (create already validated against 20).
+    # Drain stock after request is in progress.
     drain = client.post(
         '/api/inventory/operations',
         headers=admin_headers,
@@ -127,7 +127,8 @@ def test_complete_blocked_when_insufficient_stock(
         json={},
     )
     assert failed.status_code == 400, failed.text
-    assert 'Недостаточно запасов' in failed.text
+    detail = failed.json().get('detail', '')
+    assert 'Недостаточно товара для выполнения заявки' in detail or 'Недостаточно запасов' in detail
 
     again = client.get(f"/api/shipment-requests/{row['id']}", headers=admin_headers)
     assert again.status_code == 200
@@ -136,6 +137,84 @@ def test_complete_blocked_when_insufficient_stock(
 
     item = client.get(f'/api/inventory/{item_id}', headers=admin_headers)
     assert float(item.json()['current_stock']) == pytest.approx(5)
+
+
+def test_create_with_zero_stock_no_expense_complete_after_income(
+    client: httpx.Client, admin_headers: dict[str, str]
+) -> None:
+    """Harvest-later: create at zero stock → complete blocked → income → complete ok once."""
+    item_id = _create_item(client, admin_headers, stock=0)
+    row = _create_request(client, admin_headers, item_id=item_id, quantity=40, price=15)
+    assert row['status'] == 'new'
+    assert row.get('inventory_operation_id') is None
+
+    stock0 = client.get(f'/api/inventory/{item_id}', headers=admin_headers)
+    assert float(stock0.json()['current_stock']) == pytest.approx(0)
+
+    ops_before = client.get(
+        '/api/inventory/operations',
+        headers=admin_headers,
+        params={'item_id': item_id, 'type': 'expense'},
+    )
+    assert ops_before.status_code == 200
+    assert not any(op.get('purpose') == 'shipment_request' for op in ops_before.json())
+
+    assert (
+        client.post(f"/api/shipment-requests/{row['id']}/start", headers=admin_headers).status_code
+        == 200
+    )
+
+    blocked = client.post(
+        f"/api/shipment-requests/{row['id']}/complete",
+        headers=admin_headers,
+        json={},
+    )
+    assert blocked.status_code == 400, blocked.text
+    assert 'Недостаточно товара для выполнения заявки' in blocked.json().get('detail', '')
+
+    income = client.post(
+        '/api/inventory/operations',
+        headers=admin_headers,
+        json={
+            'item_id': item_id,
+            'type': 'income',
+            'quantity': 40,
+            'purpose': 'general',
+            'date': datetime.now(timezone.utc).date().isoformat(),
+        },
+    )
+    assert income.status_code == 201, income.text
+
+    done = client.post(
+        f"/api/shipment-requests/{row['id']}/complete",
+        headers=admin_headers,
+        json={},
+    )
+    assert done.status_code == 200, done.text
+    body = done.json()
+    assert body['status'] == 'done'
+    op_id = body['inventory_operation_id']
+    assert op_id
+
+    ops = client.get(
+        '/api/inventory/operations',
+        headers=admin_headers,
+        params={'item_id': item_id, 'type': 'expense'},
+    )
+    matches = [op for op in ops.json() if op['id'] == op_id]
+    assert len(matches) == 1
+    assert float(matches[0]['quantity']) == 40
+    assert matches[0]['purpose'] == 'shipment_request'
+
+    stock_after = client.get(f'/api/inventory/{item_id}', headers=admin_headers)
+    assert float(stock_after.json()['current_stock']) == pytest.approx(0)
+
+    second = client.post(
+        f"/api/shipment-requests/{row['id']}/complete",
+        headers=admin_headers,
+        json={},
+    )
+    assert second.status_code in (400, 409)
 
 
 def test_shipment_requests_org_isolation(

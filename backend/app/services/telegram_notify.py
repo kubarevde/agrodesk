@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from decimal import Decimal
 from uuid import UUID
 
 import httpx
@@ -35,6 +36,31 @@ def format_messenger_telegram_text(
         lines.append(preview)
     lines.append(f'Открыть: {link}')
     return '\n'.join(lines)
+
+
+def format_new_market_order_telegram_text(
+    *,
+    listing_title: str,
+    buyer_name: str,
+    buyer_phone: str,
+    quantity: Decimal | str | int | float,
+    unit: str,
+    web_base: str | None = None,
+) -> str:
+    """Text for optional Telegram push about a public vitrine order."""
+    path = '/seller-market/orders'
+    link = f'{web_base.rstrip("/")}{path}' if web_base else path
+    qty = Decimal(str(quantity))
+    return '\n'.join(
+        [
+            'Новая заявка с витрины AgroDesk',
+            f'Товар: {listing_title}',
+            f'Количество: {qty} {unit}',
+            f'Покупатель: {buyer_name}',
+            f'Телефон: {buyer_phone}',
+            f'Открыть: {link}',
+        ]
+    )
 
 
 class TelegramNotifier:

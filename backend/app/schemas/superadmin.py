@@ -33,6 +33,8 @@ class OrganizationUpdate(BaseModel):
     plan: str | None = None
     max_employees: int | None = Field(default=None, ge=1)
     trial_ends_at: date | None = None
+    # Platform toggle for seller cabinet / public vitrine (JSONB settings key).
+    marketplace_enabled: bool | None = None
 
 
 class OrganizationResponse(BaseModel):
@@ -49,6 +51,7 @@ class OrganizationResponse(BaseModel):
     max_employees: int
     employees_count: int = 0
     active_shifts_count: int = 0
+    marketplace_enabled: bool = False
 
 
 class OrganizationCreateResponse(BaseModel):

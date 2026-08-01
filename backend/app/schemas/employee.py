@@ -41,4 +41,8 @@ class EmployeeResponse(BaseModel):
 
 
 class LinkTelegramRequest(BaseModel):
-    telegram_id: int
+    """Bind Telegram ID. Pass null to unlink. force_transfer clears previous holder."""
+
+    telegram_id: int | None = None
+    force_transfer: bool = False
+

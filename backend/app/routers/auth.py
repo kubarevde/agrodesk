@@ -174,7 +174,11 @@ async def bot_token(
         )
 
     access_token = create_access_token(
-        {'sub': str(employee.id), 'org_id': str(employee.org_id)}
+        {
+            'sub': str(employee.id),
+            'org_id': str(employee.org_id),
+            'telegram_id': int(employee.telegram_id),
+        }
     )
     return TokenResponse(access_token=access_token, employee=employee_to_me(employee))
 

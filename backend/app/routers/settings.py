@@ -25,6 +25,7 @@ from app.services.audit import log_change, model_snapshot
 from app.services.org_timezone import DEFAULT_TIMEZONE, timezone_from_settings
 from app.services.org_features import (
     SHIPMENT_REQUESTS_ENABLED_KEY,
+    marketplace_enabled,
     shipment_requests_enabled,
 )
 from app.services.permissions import (
@@ -54,12 +55,14 @@ class OrgSettingsResponse(BaseModel):
     available_timezones: list[str] = Field(default_factory=lambda: list(COMMON_TIMEZONES))
     # Documented Organization.settings key; absent → true (backward compatible).
     shipment_requests_enabled: bool = True
+    # Read-only for org UI — primary enablement is platform/superadmin (settings JSONB).
+    marketplace_enabled: bool = False
 
 
 class OrgSettingsUpdate(BaseModel):
     timezone: str | None = Field(default=None, min_length=1, max_length=64)
     shipment_requests_enabled: bool | None = None
-
+    # marketplace_enabled is intentionally not writable here.
 
 
 async def _get_org(db: AsyncSession, org_id: UUID) -> Organization:
@@ -86,6 +89,7 @@ async def get_organization_settings(
     return OrgSettingsResponse(
         timezone=timezone_from_settings(settings),
         shipment_requests_enabled=shipment_requests_enabled(settings),
+        marketplace_enabled=marketplace_enabled(settings),
     )
 
 
@@ -129,6 +133,7 @@ async def update_organization_settings(
     return OrgSettingsResponse(
         timezone=tz,
         shipment_requests_enabled=shipment_requests_enabled(settings),
+        marketplace_enabled=marketplace_enabled(settings),
     )
 
 

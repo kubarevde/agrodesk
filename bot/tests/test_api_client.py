@@ -211,3 +211,34 @@ def test_parse_and_classify_helpers():
     classified = classify_shift_response(resp)
     assert classified.kind == ShiftOpKind.VALIDATION
     assert 'поле' in (classified.detail or '')
+
+
+@pytest.mark.asyncio
+async def test_resolve_access_rejects_mismatched_telegram_id():
+    """Cached JWT for wrong employee must not keep serving after TG rebind."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/api/employees/me':
+            return _json_response(
+                200,
+                {
+                    'id': EMP_ID,
+                    'full_name': 'Old',
+                    'role': 'employee',
+                    'telegram_id': None,
+                },
+            )
+        return _json_response(404, {'detail': 'not found'})
+
+    api = _make_client(handler)
+
+    async def token_then_fail(tg_id: int):
+        if tg_id in api._tokens:
+            return api._tokens[tg_id], None
+        return None, AccessError.NOT_LINKED
+
+    api._get_token_result = token_then_fail  # type: ignore[method-assign]
+    result = await api.resolve_access(TG_ID)
+    assert result.employee is None
+    assert result.error == AccessError.NOT_LINKED
+    assert TG_ID not in api._tokens

@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.services.telegram_notify import TelegramNotifier, format_messenger_telegram_text
+from app.services.telegram_notify import TelegramNotifier, format_messenger_telegram_text, format_new_market_order_telegram_text
 
 
 def test_format_messenger_telegram_text() -> None:
@@ -20,6 +20,18 @@ def test_format_messenger_telegram_text() -> None:
     assert 'У вас новое сообщение в AgroDesk' in text
     assert 'Петров' in text
     assert f'http://localhost:5173/messenger/{chat_id}' in text
+
+
+def test_format_new_market_order_telegram_text_optional() -> None:
+    text = format_new_market_order_telegram_text(
+        listing_title='Урожай',
+        buyer_name='Клиент',
+        buyer_phone='+7111',
+        quantity='5',
+        unit='т',
+    )
+    assert '/seller-market/orders' in text
+    assert 'Клиент' in text
 
 
 @pytest.mark.asyncio

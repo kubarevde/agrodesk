@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ImageUploader } from '@/components/shared/ImageUploader'
+import { useInventory } from '@/features/inventory/hooks'
 import { useCompleteShipmentRequest } from '../hooks'
 import type { ShipmentRequest } from '../types'
 
@@ -20,12 +21,19 @@ type Props = {
 
 export function MyShipmentCompleteDialog({ row, open, onClose }: Props) {
   const complete = useCompleteShipmentRequest()
+  const { data: inventory = [] } = useInventory({ enabled: open && Boolean(row) })
   const [images, setImages] = useState<string[]>([])
 
   useEffect(() => {
     if (!open) return
     setImages([])
   }, [open, row?.id])
+
+  const stockItem = row
+    ? inventory.find((item) => item.id === row.inventoryItemId)
+    : undefined
+  const stockShortfall =
+    row != null && stockItem != null && row.quantity > stockItem.currentStock
 
   const handleConfirm = async () => {
     if (!row) return
@@ -54,6 +62,12 @@ export function MyShipmentCompleteDialog({ row, open, onClose }: Props) {
               {' · '}
               {row.customerName}
             </p>
+            {stockShortfall && stockItem ? (
+              <p className="text-sm text-muted-foreground">
+                На складе сейчас {stockItem.currentStock.toLocaleString('ru-RU')}{' '}
+                {stockItem.unit} — выполнить заявку нельзя, пока не появится достаточный остаток.
+              </p>
+            ) : null}
             <ImageUploader
               folder="shipment-requests"
               value={images}

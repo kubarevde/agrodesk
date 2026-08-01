@@ -41,7 +41,7 @@
 | Блок | Содержание |
 |------|------------|
 | Harvest‑флоу | Поле → `POST /fields/{id}/harvest` → склад `harvest_income` + `field_id`; harvest‑SKU с обязательным `crop_code` |
-| Заявки | `kind` inventory/harvest; списание при complete; `cancel_reason` (038); лимит qty ≤ остатка при create |
+| Заявки | `kind` inventory/harvest; списание при complete; `cancel_reason` (038); create без лимита по остатку, stock-check только на complete |
 | Shipments | KPI‑контур культур; связь с done harvest‑заявкой; без дублирования складского списания |
 | ТМЦ | Поиск, UI Select культуры, человекочитаемые имена культур, guard против stale API без `crop_code` |
 | Мессенджер | Чаты/сообщения/статусы доставки‑прочтения (032+) |
@@ -90,7 +90,7 @@
 |-------|-----------|-------------|
 | `pytest tests/` | **227 passed**, 1 warning (statsmodels ConvergenceWarning) | Полный backend; не собирать `backend/scripts/` (ломает collection) |
 | Harvest / field harvest / inventory SKU | Covered в полном прогоне | Ранее зелёные в unify‑review |
-| Shipment requests / cancel / stock | Зелёные после обновления тестов под `cancel.reason` + stock‑check на create | Не регрессия API — устаревшие asserts |
+| Shipment requests / cancel / stock | Create без stock-gate; complete режет нехватку; сценарий «сток упал после start» и «create при нуле → income → complete» | |
 | Messenger API / realtime | В полном `tests/` | Отдельных fail нет |
 | Vitest | **242 passed** / 54 files | После фикса 3 тестов (см. ниже) |
 | oxlint (`npm run lint`) | **exit 0**, warnings only | Fast‑refresh / exhaustive‑deps — tech debt, не блокер |
@@ -102,7 +102,7 @@
 1. **Vitest** `apiError.test.ts` — ожидание под фактическое поведение: `Error.message` предпочитается fallback.
 2. **Vitest** `ShipmentRequestsList.test.ts` — mock `useDictionary` + QueryClient (карточки/таблица резолвят имя культуры).
 3. **Pytest** cancel без body → 422: тесты передают `{"reason": "..."}` (контракт 038).
-4. **Pytest** `test_complete_blocked_when_insufficient_stock`: create теперь режет qty > stock → сценарий «сток упал после start» через expense.
+4. **Pytest** `test_complete_blocked_when_insufficient_stock`: сценарий «сток упал после start» через expense; create при qty > stock разрешён.
 
 ### 3.3 Не блокеры
 

@@ -2,6 +2,7 @@
 
 from app.services.action_permissions import (
     ACTION_KEYS,
+    MANAGER_EXTRA_ACTIONS,
     SUPPLIER_PRESET_ACTIONS,
     SUPPLIER_PRESET_SECTIONS,
     actions_from_sections,
@@ -31,8 +32,22 @@ def test_actions_from_sections_manager_extras():
     assert 'purchase.manage' in actions
     assert 'shipment_requests.manage' in actions
     assert 'shipment_requests.execute' in actions
+    # Marketplace is opt-in via access groups — not a default manager grant.
+    assert 'marketplace.manage' not in actions
     assert 'support.view_org_tickets' not in actions
 
+
+def test_employee_never_gets_marketplace_manage_from_role_defaults():
+    actions = actions_from_sections(
+        list(SECTION_KEYS),
+        'employee',
+    )
+    assert 'marketplace.manage' not in actions
+
+
+def test_marketplace_manage_in_catalog():
+    assert 'marketplace.manage' in ACTION_KEYS
+    assert 'marketplace.manage' not in MANAGER_EXTRA_ACTIONS
 
 def test_worktime_does_not_imply_others_for_employee():
     actions = actions_from_sections(['my-shift', 'worktime'], 'employee')
