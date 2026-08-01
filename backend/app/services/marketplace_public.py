@@ -6,7 +6,8 @@ Visibility rules (every query):
 - organizations.settings.marketplace_enabled = true
 - market_seller_profiles.is_active = true
 
-Never expose warehouse stock, purchase costs, source_id, or other internal org data.
+Never expose warehouse stock costs, source_id, quantity_mode, or other internal org data.
+Buyer sees effective quantity_available only.
 """
 
 from __future__ import annotations
@@ -36,6 +37,11 @@ from app.schemas.marketplace import (
     PublicSellerProfileResponse,
 )
 from app.services.org_features import MARKETPLACE_ENABLED_KEY
+from app.services.marketplace_quantity import (
+    ResolvedQuantity,
+    resolve_listing_quantities,
+    resolve_listing_quantity,
+)
 from app.services.marketplace_order_notify import notify_new_market_order
 
 
@@ -58,15 +64,21 @@ def _published_listing_filters():
 def listing_to_public_card(
     listing: MarketListing,
     seller: MarketSellerProfile,
+    qty: ResolvedQuantity | None = None,
 ) -> PublicListingCard:
     photos = listing.photos if isinstance(listing.photos, list) else []
+    resolved = qty or ResolvedQuantity(
+        quantity_available=Decimal(str(listing.quantity_available or 0)),
+        quantity_mode='manual',
+        source_missing=False,
+    )
     return PublicListingCard(
         id=listing.id,
         title=listing.title,
         description=listing.description,
         price=Decimal(str(listing.price)),
         unit=listing.unit,
-        quantity_available=Decimal(str(listing.quantity_available)),
+        quantity_available=resolved.quantity_available,
         photos=photos,
         category_id=listing.category_id,
         published_at=listing.published_at,
@@ -136,7 +148,12 @@ async def list_published_listings(
         )
     ).all()
 
-    items = [listing_to_public_card(listing, seller) for listing, seller in rows]
+    listings = [listing for listing, _seller in rows]
+    qty_map = await resolve_listing_quantities(db, listings)
+    items = [
+        listing_to_public_card(listing, seller, qty_map[listing.id])
+        for listing, seller in rows
+    ]
     return PublicListingListResponse(
         items=items,
         total=int(total or 0),
@@ -169,7 +186,8 @@ async def get_published_listing(
             detail='Объявление не найдено',
         )
     listing, seller = row
-    return listing_to_public_card(listing, seller)
+    qty = await resolve_listing_quantity(db, listing)
+    return listing_to_public_card(listing, seller, qty)
 
 
 async def list_category_tree(db: AsyncSession) -> list[PublicCategoryNode]:
@@ -234,6 +252,12 @@ async def get_public_seller(
         )
     ).scalars().all()
 
+    qty_map = await resolve_listing_quantities(db, list(listing_rows))
+    listing_cards = [
+        listing_to_public_card(listing, seller, qty_map[listing.id])
+        for listing in listing_rows
+    ]
+
     review_rows = (
         await db.execute(
             select(MarketReview)
@@ -253,7 +277,7 @@ async def get_public_seller(
         logo_url=seller.logo_url,
         phone=seller.phone,
         is_verified=bool(seller.is_verified),
-        listings=[listing_to_public_card(row, seller) for row in listing_rows],
+        listings=listing_cards,
         reviews=[
             PublicReviewCard(
                 id=rev.id,
@@ -297,7 +321,8 @@ async def create_public_order(
             detail='Объявление не найдено или недоступно',
         )
 
-    available = Decimal(str(row.quantity_available))
+    available_resolved = await resolve_listing_quantity(db, row)
+    available = available_resolved.quantity_available
     if quantity > available:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

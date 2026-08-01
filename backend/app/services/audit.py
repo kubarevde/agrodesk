@@ -51,12 +51,15 @@ ENTITY_TYPE_LABELS: dict[str, str] = {
     'purchase_planner': 'Планировщик закупок',
     'organization': 'Организация',
     'chat': 'Чат',
+    'holding_session': 'Сессия холдинга',
 }
 
 ACTION_LABELS: dict[str, str] = {
     'create': 'Создание',
     'update': 'Изменение',
     'delete': 'Удаление',
+    'holding.switch': 'Переключение в КФХ',
+    'holding.switch_back': 'Возврат в головную',
 }
 
 # Humanize values used inside generic audit summaries.

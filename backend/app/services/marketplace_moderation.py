@@ -33,6 +33,11 @@ from app.schemas.marketplace import (
     AdminSellerUpdate,
     ModerationListingItem,
 )
+from app.services.marketplace_quantity import (
+    ResolvedQuantity,
+    resolve_listing_quantities,
+    resolve_listing_quantity,
+)
 
 
 def listing_to_moderation_item(
@@ -40,8 +45,14 @@ def listing_to_moderation_item(
     *,
     org_name: str,
     seller_display_name: str,
+    qty: ResolvedQuantity | None = None,
 ) -> ModerationListingItem:
     photos = listing.photos if isinstance(listing.photos, list) else []
+    resolved = qty or ResolvedQuantity(
+        quantity_available=Decimal(str(listing.quantity_available or 0)),
+        quantity_mode='manual',
+        source_missing=False,
+    )
     return ModerationListingItem(
         id=listing.id,
         org_id=listing.org_id,
@@ -53,7 +64,9 @@ def listing_to_moderation_item(
         description=listing.description,
         price=Decimal(str(listing.price)),
         unit=listing.unit,
-        quantity_available=Decimal(str(listing.quantity_available)),
+        quantity_available=resolved.quantity_available,
+        quantity_mode=resolved.quantity_mode,  # type: ignore[arg-type]
+        source_missing=resolved.source_missing,
         photos=photos,
         status=listing.status,
         rejection_reason=listing.rejection_reason,
@@ -112,9 +125,14 @@ async def list_moderation_listings(
     rows = (
         await db.execute(query.order_by(MarketListing.updated_at.desc()))
     ).all()
+    listings = [listing for listing, _, _ in rows]
+    qty_map = await resolve_listing_quantities(db, listings)
     return [
         listing_to_moderation_item(
-            listing, org_name=org_name, seller_display_name=seller_name
+            listing,
+            org_name=org_name,
+            seller_display_name=seller_name,
+            qty=qty_map[listing.id],
         )
         for listing, org_name, seller_name in rows
     ]
@@ -144,10 +162,12 @@ async def approve_listing(db: AsyncSession, listing_id: UUID) -> ModerationListi
         body=f'«{listing.title}» прошло модерацию и опубликовано на витрине.',
         listing_id=listing.id,
     )
+    qty = await resolve_listing_quantity(db, listing)
     return listing_to_moderation_item(
         listing,
         org_name=org.name if org else '',
         seller_display_name=seller.display_name if seller else '',
+        qty=qty,
     )
 
 
@@ -179,10 +199,12 @@ async def reject_listing(
         body=f'«{listing.title}» отклонено. Причина: {listing.rejection_reason}',
         listing_id=listing.id,
     )
+    qty = await resolve_listing_quantity(db, listing)
     return listing_to_moderation_item(
         listing,
         org_name=org.name if org else '',
         seller_display_name=seller.display_name if seller else '',
+        qty=qty,
     )
 
 

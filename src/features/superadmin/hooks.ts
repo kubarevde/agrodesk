@@ -1,7 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  attachOrgChild,
   createOrganization,
   deleteOrganization,
+  detachOrgChild,
+  fetchOrgChildren,
+  fetchOrgChildrenAvailable,
+  fetchOrgParent,
   fetchOrganizations,
   fetchSuperAdminStats,
   loginSuperAdmin,
@@ -13,6 +18,12 @@ import type { OrganizationCreatePayload, OrganizationUpdatePayload } from './typ
 const orgKeys = {
   all: ['superadmin', 'organizations'] as const,
   stats: ['superadmin', 'stats'] as const,
+  children: (headOrgId: string) =>
+    ['superadmin', 'organizations', headOrgId, 'children'] as const,
+  childrenAvailable: (headOrgId: string) =>
+    ['superadmin', 'organizations', headOrgId, 'children-available'] as const,
+  parent: (orgId: string) =>
+    ['superadmin', 'organizations', orgId, 'parent'] as const,
 }
 
 export function useSuperAdminLogin() {
@@ -36,6 +47,73 @@ export function useSuperAdminStats() {
   return useQuery({
     queryKey: orgKeys.stats,
     queryFn: fetchSuperAdminStats,
+  })
+}
+
+export function useOrgChildren(headOrgId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: orgKeys.children(headOrgId ?? ''),
+    queryFn: () => {
+      if (!headOrgId) {
+        throw new Error('headOrgId is required')
+      }
+      return fetchOrgChildren(headOrgId)
+    },
+    enabled: Boolean(headOrgId) && enabled,
+  })
+}
+
+export function useOrgChildrenAvailable(headOrgId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: orgKeys.childrenAvailable(headOrgId ?? ''),
+    queryFn: () => {
+      if (!headOrgId) {
+        throw new Error('headOrgId is required')
+      }
+      return fetchOrgChildrenAvailable(headOrgId)
+    },
+    enabled: Boolean(headOrgId) && enabled,
+  })
+}
+
+export function useOrgParent(orgId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: orgKeys.parent(orgId ?? ''),
+    queryFn: () => {
+      if (!orgId) {
+        throw new Error('orgId is required')
+      }
+      return fetchOrgParent(orgId)
+    },
+    enabled: Boolean(orgId) && enabled,
+  })
+}
+
+export function useAttachOrgChild(headOrgId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (childOrgId: string) => attachOrgChild(headOrgId, childOrgId),
+    onSuccess: async (_data, childOrgId) => {
+      await queryClient.invalidateQueries({ queryKey: orgKeys.children(headOrgId) })
+      await queryClient.invalidateQueries({
+        queryKey: orgKeys.childrenAvailable(headOrgId),
+      })
+      await queryClient.invalidateQueries({ queryKey: orgKeys.parent(childOrgId) })
+    },
+  })
+}
+
+export function useDetachOrgChild(headOrgId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (childOrgId: string) => detachOrgChild(headOrgId, childOrgId),
+    onSuccess: async (_data, childOrgId) => {
+      await queryClient.invalidateQueries({ queryKey: orgKeys.children(headOrgId) })
+      await queryClient.invalidateQueries({
+        queryKey: orgKeys.childrenAvailable(headOrgId),
+      })
+      await queryClient.invalidateQueries({ queryKey: orgKeys.parent(childOrgId) })
+    },
   })
 }
 

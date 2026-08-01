@@ -17,6 +17,7 @@ PWA + FastAPI + Telegram-бот для учёта работ в КФХ: муль
 | Мессенджер | Реализовано | [messenger.md](docs/messenger.md) |
 | Поддержка | Реализовано | — |
 | **Маркетплейс** (витрина + кабинет продавца) | **Реализовано (MVP, 2026)** — новый модуль | [marketplace.md](docs/marketplace.md) |
+| Головная org → КФХ (holding) | **Phase 3:** overview + auditable switch | [org-holding.md](docs/org-holding.md) |
 
 Маркетплейс по умолчанию **выключен** (`marketplace_enabled`), не входит в отчёты/KPI КФХ; склад — только источник быстрого импорта (snapshot), не live-остаток.
 

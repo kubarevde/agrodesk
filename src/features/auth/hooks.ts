@@ -1,14 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { api } from '@/lib/api'
+import { applyAuthSession } from '@/features/auth/applySession'
 import { resetLocalDatabase } from '@/lib/db'
 import { currentUserFromApi } from '@/lib/transformers'
 import {
   AUTH_PERMISSIONS_QUERY_KEY,
-  cacheCurrentUser,
   clearAuthStorage,
   fetchCurrentUser,
-  fetchUserPermissions,
   isRecoverableAuthFailure,
   readCachedCurrentUser,
   resolveHomeRoute,
@@ -83,23 +82,14 @@ export function useLogin() {
       return data
     },
     onSuccess: async (data) => {
-      // Drop previous account IndexedDB (EMP001 → EMP000) before caching the new session.
-      try {
-        await resetLocalDatabase()
-      } catch {
-        // Dexie wipe is best-effort; token/user cache still overwrites below.
-      }
-      queryClient.clear()
-      localStorage.setItem(TOKEN_KEY, data.access_token)
+      await applyAuthSession(queryClient, data, { holdingContext: null })
       const user = currentUserFromApi(data.employee)
-      cacheCurrentUser(user)
-      queryClient.setQueryData(['auth', 'me'], user)
-      queryClient.removeQueries({ queryKey: AUTH_PERMISSIONS_QUERY_KEY })
-      const perms = await queryClient.fetchQuery({
-        queryKey: AUTH_PERMISSIONS_QUERY_KEY,
-        queryFn: fetchUserPermissions,
+      const perms = queryClient.getQueryData<{ allowedSections: string[] }>(
+        AUTH_PERMISSIONS_QUERY_KEY,
+      )
+      void navigate({
+        to: resolveHomeRoute(user.role, perms?.allowedSections ?? []),
       })
-      void navigate({ to: resolveHomeRoute(user.role, perms.allowedSections) })
     },
   })
 }

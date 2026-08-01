@@ -40,10 +40,59 @@ export type OrganizationCreateResult = {
   tempPassword: string
 }
 
+export type SuperAdminAttentionItem = {
+  code: string
+  severity: 'info' | 'warning'
+  count: number
+  message: string
+}
+
 export type SuperAdminStats = {
   totalOrgs: number
   activeOrgs: number
   trialOrgs: number
   totalEmployees: number
   totalShiftsToday: number
+  inactiveOrgs: number
+  basicOrgs: number
+  proOrgs: number
+  trialsExpiringSoon: number
+  trialsExpiredActive: number
+  activeEmployees: number
+  openShifts: number
+  openShiftsToday: number
+  supportTotal: number
+  supportUnread: number
+  supportNew: number
+  supportInProgress: number
+  marketplaceOrgs: number
+  hierarchyLinks: number
+  hierarchyHeads: number
+  listingsPendingReview: number
+  listingsPublished: number
+  ordersNew: number
+  attention: SuperAdminAttentionItem[]
+}
+
+export type OrgHierarchyChild = {
+  id: string
+  headOrgId: string
+  childOrgId: string
+  childName: string
+  childSlug: string
+  childIsActive: boolean
+}
+
+export type OrgHierarchyCandidate = {
+  id: string
+  name: string
+  slug: string
+}
+
+export type OrgHierarchyParent = {
+  linkId: string
+  headOrgId: string
+  headName: string
+  headSlug: string
+  headIsActive: boolean
 }

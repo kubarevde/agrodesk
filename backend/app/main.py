@@ -26,6 +26,7 @@ from app.routers import (
     equipment_logs,
     expenses,
     fields,
+    holding,
     implements,
     inventory,
     maintenance,
@@ -194,6 +195,7 @@ app.include_router(shipment_requests.router, prefix='/api/shipment-requests', ta
 app.include_router(shipments.router, prefix='/api/shipments', tags=['shipments'])
 app.include_router(expenses.router, prefix='/api/expenses', tags=['expenses'])
 app.include_router(dashboard.router, prefix='/api/dashboard', tags=['dashboard'])
+app.include_router(holding.router, prefix='/api/holding', tags=['holding'])
 app.include_router(reports.router, prefix='/api/reports', tags=['reports'])
 app.include_router(settings_router.router, prefix='/api/settings', tags=['settings'])
 app.include_router(access_groups.router, prefix='/api/settings', tags=['access-groups'])

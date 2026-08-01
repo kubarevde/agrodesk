@@ -49,6 +49,17 @@ def test_marketplace_manage_in_catalog():
     assert 'marketplace.manage' in ACTION_KEYS
     assert 'marketplace.manage' not in MANAGER_EXTRA_ACTIONS
 
+
+def test_holding_actions_in_catalog_not_default_manager():
+    assert 'holding.view' in ACTION_KEYS
+    assert 'holding.switch' in ACTION_KEYS
+    assert 'holding.view' not in MANAGER_EXTRA_ACTIONS
+    assert 'holding.switch' not in MANAGER_EXTRA_ACTIONS
+    actions = actions_from_sections(list(SECTION_KEYS), 'manager')
+    assert 'holding.view' not in actions
+    assert 'holding.switch' not in actions
+
+
 def test_worktime_does_not_imply_others_for_employee():
     actions = actions_from_sections(['my-shift', 'worktime'], 'employee')
     assert 'shift.open_own' in actions

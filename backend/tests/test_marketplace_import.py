@@ -1,5 +1,6 @@
-﻿"""Marketplace one-way import from inventory/shipments (snapshot only).
+﻿"""Marketplace one-way import from inventory/shipments.
 
+Creates a source-linked draft; displayed qty is live on read.
 Does not mutate warehouse rows; re-import of an active source returns 409.
 """
 
@@ -77,7 +78,7 @@ def test_import_sources_lists_inventory(
     assert match['already_imported'] is False
 
 
-def test_import_from_inventory_creates_snapshot_without_mutating_stock(
+def test_import_from_inventory_creates_source_link_without_mutating_stock(
     client: httpx.Client, admin_headers: dict[str, str], demo_org_id: str
 ) -> None:
     asyncio.run(_with_session(lambda db: _enable_marketplace(db, UUID(demo_org_id))))
@@ -97,6 +98,8 @@ def test_import_from_inventory_creates_snapshot_without_mutating_stock(
     assert listing['source_id'] == item_id
     assert listing['title'] == item['name']
     assert listing['unit'] == 'л'
+    assert listing['quantity_mode'] == 'source'
+    assert listing['source_missing'] is False
     assert Decimal(str(listing['quantity_available'])) == stock_before
     assert listing['category_id'] is None
     assert Decimal(str(listing['price'])) == Decimal('0')

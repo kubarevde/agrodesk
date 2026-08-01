@@ -17,6 +17,7 @@ from app.models.marketplace import (
     MarketSellerProfile,
 )
 from app.models.notification import Notification
+from app.models.org_hierarchy import OrgHierarchyLink
 from app.models.organization import Organization, SuperAdminUser
 from app.models.purchase_planner import PurchasePlannerItem
 from app.models.reference import Equipment, Location, WorkType
@@ -61,6 +62,7 @@ __all__ = [
     'Location',
     'Notification',
     'Organization',
+    'OrgHierarchyLink',
     'SharingListing',
     'SharingRequest',
     'Shift',

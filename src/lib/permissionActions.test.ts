@@ -21,6 +21,8 @@ const BACKEND_ACTION_KEYS = [
   'shipment_requests.manage',
   'shipment_requests.execute',
   'marketplace.manage',
+  'holding.view',
+  'holding.switch',
 ] as const
 
 describe('permissionActions', () => {

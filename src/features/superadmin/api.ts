@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { ticketFromApi } from '@/features/support/api'
 import type { SupportTicket } from '@/features/support/types'
-import { SUPERADMIN_TOKEN_KEY, type Organization, type OrganizationCreatePayload, type OrganizationCreateResult, type OrganizationUpdatePayload, type SuperAdminStats } from './types'
+import { SUPERADMIN_TOKEN_KEY, type Organization, type OrganizationCreatePayload, type OrganizationCreateResult, type OrganizationUpdatePayload, type OrgHierarchyCandidate, type OrgHierarchyChild, type OrgHierarchyParent, type SuperAdminStats } from './types'
 
 type ApiOrg = {
   id: string
@@ -24,6 +24,30 @@ type ApiStats = {
   trial_orgs: number
   total_employees: number
   total_shifts_today: number
+  inactive_orgs?: number
+  basic_orgs?: number
+  pro_orgs?: number
+  trials_expiring_soon?: number
+  trials_expired_active?: number
+  active_employees?: number
+  open_shifts?: number
+  open_shifts_today?: number
+  support_total?: number
+  support_unread?: number
+  support_new?: number
+  support_in_progress?: number
+  marketplace_orgs?: number
+  hierarchy_links?: number
+  hierarchy_heads?: number
+  listings_pending_review?: number
+  listings_published?: number
+  orders_new?: number
+  attention?: {
+    code: string
+    severity: 'info' | 'warning'
+    count: number
+    message: string
+  }[]
 }
 
 const rawBase = (import.meta.env.VITE_API_URL as string | undefined)?.trim()
@@ -93,6 +117,30 @@ export async function fetchSuperAdminStats(): Promise<SuperAdminStats> {
     trialOrgs: data.trial_orgs,
     totalEmployees: data.total_employees,
     totalShiftsToday: data.total_shifts_today,
+    inactiveOrgs: data.inactive_orgs ?? 0,
+    basicOrgs: data.basic_orgs ?? 0,
+    proOrgs: data.pro_orgs ?? 0,
+    trialsExpiringSoon: data.trials_expiring_soon ?? 0,
+    trialsExpiredActive: data.trials_expired_active ?? 0,
+    activeEmployees: data.active_employees ?? 0,
+    openShifts: data.open_shifts ?? 0,
+    openShiftsToday: data.open_shifts_today ?? 0,
+    supportTotal: data.support_total ?? 0,
+    supportUnread: data.support_unread ?? 0,
+    supportNew: data.support_new ?? 0,
+    supportInProgress: data.support_in_progress ?? 0,
+    marketplaceOrgs: data.marketplace_orgs ?? 0,
+    hierarchyLinks: data.hierarchy_links ?? 0,
+    hierarchyHeads: data.hierarchy_heads ?? 0,
+    listingsPendingReview: data.listings_pending_review ?? 0,
+    listingsPublished: data.listings_published ?? 0,
+    ordersNew: data.orders_new ?? 0,
+    attention: (data.attention ?? []).map((item) => ({
+      code: item.code,
+      severity: item.severity,
+      count: item.count,
+      message: item.message,
+    })),
   }
 }
 
@@ -140,6 +188,95 @@ export async function updateOrganization(
 
 export async function deleteOrganization(id: string): Promise<void> {
   await superadminApi.delete(`/superadmin/api/organizations/${id}`)
+}
+
+type ApiHierarchyChild = {
+  id: string
+  head_org_id: string
+  child_org_id: string
+  child_name: string
+  child_slug: string
+  child_is_active: boolean
+}
+
+type ApiHierarchyCandidate = {
+  id: string
+  name: string
+  slug: string
+}
+
+function mapHierarchyChild(raw: ApiHierarchyChild): OrgHierarchyChild {
+  return {
+    id: raw.id,
+    headOrgId: raw.head_org_id,
+    childOrgId: raw.child_org_id,
+    childName: raw.child_name,
+    childSlug: raw.child_slug,
+    childIsActive: raw.child_is_active,
+  }
+}
+
+export async function fetchOrgChildren(headOrgId: string): Promise<OrgHierarchyChild[]> {
+  const { data } = await superadminApi.get<ApiHierarchyChild[]>(
+    `/superadmin/api/organizations/${headOrgId}/children`,
+  )
+  return data.map(mapHierarchyChild)
+}
+
+export async function fetchOrgChildrenAvailable(
+  headOrgId: string,
+): Promise<OrgHierarchyCandidate[]> {
+  const { data } = await superadminApi.get<ApiHierarchyCandidate[]>(
+    `/superadmin/api/organizations/${headOrgId}/children/available`,
+  )
+  return data.map((raw) => ({ id: raw.id, name: raw.name, slug: raw.slug }))
+}
+
+type ApiHierarchyParent = {
+  link_id: string
+  head_org_id: string
+  head_name: string
+  head_slug: string
+  head_is_active: boolean
+}
+
+export async function fetchOrgParent(orgId: string): Promise<OrgHierarchyParent | null> {
+  const { data } = await superadminApi.get<ApiHierarchyParent | null>(
+    `/superadmin/api/organizations/${orgId}/parent`,
+  )
+  if (!data) return null
+  return {
+    linkId: data.link_id,
+    headOrgId: data.head_org_id,
+    headName: data.head_name,
+    headSlug: data.head_slug,
+    headIsActive: data.head_is_active,
+  }
+}
+
+export async function attachOrgChild(
+  headOrgId: string,
+  childOrgId: string,
+): Promise<OrgHierarchyChild> {
+  const { data } = await superadminApi.post<ApiHierarchyChild>(
+    `/superadmin/api/organizations/${headOrgId}/children`,
+    { child_org_id: childOrgId },
+  )
+  return mapHierarchyChild(data)
+}
+
+export async function detachOrgChild(headOrgId: string, childOrgId: string): Promise<void> {
+  await superadminApi.delete(
+    `/superadmin/api/organizations/${headOrgId}/children/${childOrgId}`,
+  )
+}
+
+export function superadminApiErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    const detail = error.response?.data?.detail
+    if (typeof detail === 'string' && detail.trim()) return detail
+  }
+  return fallback
 }
 
 type ApiRecord = Record<string, unknown>

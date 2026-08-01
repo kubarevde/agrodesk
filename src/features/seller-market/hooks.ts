@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { apiErrorMessage } from '@/lib/apiError'
 import * as api from './api'
+import { parseImportFromSourceError } from './labels'
 
 export const sellerMarketKeys = {
   profile: ['seller-market', 'profile'] as const,
@@ -118,9 +119,14 @@ export function useImportFromSource() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['seller-market', 'listings'] })
       await qc.invalidateQueries({ queryKey: sellerMarketKeys.importSources })
-      toast.success('Черновик импортирован')
+      toast.success(
+        'Черновик создан. Количество будет синхронизироваться со складом; склад не изменён.',
+      )
     },
-    onError: (e) => toast.error(apiErrorMessage(e, 'Импорт не выполнен')),
+    onError: (e) => {
+      const info = parseImportFromSourceError(e)
+      toast.error(info.message)
+    },
   })
 }
 

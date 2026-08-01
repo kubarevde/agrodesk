@@ -54,6 +54,10 @@ ACTION_KEYS: tuple[str, ...] = (
     'shipment_requests.manage',
     'shipment_requests.execute',
     'marketplace.manage',
+    # Holding overlay (head org). Not in MANAGER_EXTRA / role defaults —
+    # grant via access group (or admin). Endpoints also require org is a head.
+    'holding.view',
+    'holding.switch',
 )
 
 ACTION_LABELS: dict[str, str] = {
@@ -69,6 +73,8 @@ ACTION_LABELS: dict[str, str] = {
     'shipment_requests.manage': 'Управлять заявками на отгрузку ТМЦ',
     'shipment_requests.execute': 'Исполнять заявки на отгрузку ТМЦ',
     'marketplace.manage': 'Управлять витриной маркетплейса (импорт и объявления)',
+    'holding.view': 'Обзор дочерних КФХ (holding)',
+    'holding.switch': 'Переключение в дочернюю КФХ (holding)',
 }
 
 # Actions implied by having a section (employee-safe baselines only).
@@ -83,8 +89,8 @@ SECTION_IMPLIED_ACTIONS: dict[str, tuple[str, ...]] = {
 }
 
 # Extra actions for manager/admin roles when using role defaults (no group).
-# marketplace.manage is intentionally NOT here — only via access-group checkbox
-# (or admin). Keeps the vitrine out of default farm-ops manager grants.
+# marketplace.manage and holding.* are intentionally NOT here — only via
+# access-group checkbox (or admin). Keeps holding out of default farm-ops grants.
 MANAGER_EXTRA_ACTIONS: tuple[str, ...] = (
     'inventory.manage_items',
     'purchase.manage',

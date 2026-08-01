@@ -20,6 +20,8 @@ export const ACTION_KEYS = [
   'shipment_requests.manage',
   'shipment_requests.execute',
   'marketplace.manage',
+  'holding.view',
+  'holding.switch',
 ] as const
 
 export type PermissionAction = (typeof ACTION_KEYS)[number]
@@ -37,6 +39,8 @@ export const ACTION_LABELS: Record<PermissionAction, string> = {
   'shipment_requests.manage': 'Управлять заявками на отгрузку ТМЦ',
   'shipment_requests.execute': 'Исполнять заявки на отгрузку ТМЦ',
   'marketplace.manage': 'Управлять витриной маркетплейса (импорт и объявления)',
+  'holding.view': 'Обзор дочерних КФХ (holding)',
+  'holding.switch': 'Переключение в дочернюю КФХ (holding)',
 }
 
 /** Employee-safe baselines when a section is granted (matches backend SECTION_IMPLIED_ACTIONS). */

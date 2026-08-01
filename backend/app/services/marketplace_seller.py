@@ -24,11 +24,16 @@ from app.schemas.marketplace import (
     SellerProfileResponse,
     SellerProfileUpdate,
 )
-from app.services.marketplace_import import get_or_create_seller_profile, listing_to_response
+from app.services.marketplace_import import (
+    get_or_create_seller_profile,
+    listing_to_response_async,
+    listings_to_response,
+)
 from app.services.marketplace_media import (
     normalize_listing_photos,
     normalize_marketplace_logo,
 )
+from app.services.marketplace_quantity import is_source_linked, resolve_listing_quantity
 from app.services.org_features import marketplace_enabled
 
 ORDER_TRANSITIONS: dict[str, frozenset[str]] = {
@@ -146,8 +151,9 @@ async def list_org_listings(
             .order_by(MarketListing.updated_at.desc())
         )
     ).scalars().all()
+    items = await listings_to_response(db, list(rows))
     return MarketListingListResponse(
-        items=[listing_to_response(row) for row in rows],
+        items=items,
         total=int(total or 0),
     )
 
@@ -194,7 +200,7 @@ async def create_manual_listing(
     )
     db.add(listing)
     await db.flush()
-    return listing_to_response(listing)
+    return await listing_to_response_async(db, listing)
 
 
 async def update_listing(
@@ -211,6 +217,14 @@ async def update_listing(
             detail='Архивное объявление нельзя редактировать',
         )
     data = payload.model_dump(exclude_unset=True)
+    if 'quantity_available' in data and is_source_linked(listing):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                'Количество синхронизируется с источником (склад/отгрузка). '
+                'Измените остаток на складе или архивируйте объявление.'
+            ),
+        )
     if 'category_id' in data:
         await _ensure_category(db, data['category_id'])
     if 'photos' in data and data['photos'] is not None:
@@ -223,10 +237,10 @@ async def update_listing(
         setattr(listing, key, value)
     await db.flush()
     await db.refresh(listing)
-    return listing_to_response(listing)
+    return await listing_to_response_async(db, listing)
 
 
-def _validate_ready_for_review(listing: MarketListing) -> None:
+async def _validate_ready_for_review(db: AsyncSession, listing: MarketListing) -> None:
     errors: list[str] = []
     photos = listing.photos if isinstance(listing.photos, list) else []
     if not photos:
@@ -235,8 +249,12 @@ def _validate_ready_for_review(listing: MarketListing) -> None:
         errors.append('укажите категорию')
     if Decimal(str(listing.price)) <= 0:
         errors.append('цена должна быть больше 0')
-    if Decimal(str(listing.quantity_available)) <= 0:
-        errors.append('количество должно быть больше 0')
+    qty = await resolve_listing_quantity(db, listing)
+    if qty.quantity_available <= 0:
+        if qty.quantity_mode == 'source' and qty.source_missing:
+            errors.append('источник остатка недоступен (склад/отгрузка)')
+        else:
+            errors.append('количество должно быть больше 0')
     if not (listing.title or '').strip():
         errors.append('укажите название')
     if errors:
@@ -261,12 +279,12 @@ async def submit_listing(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f'Нельзя отправить на модерацию из статуса «{listing.status}»',
         )
-    _validate_ready_for_review(listing)
+    await _validate_ready_for_review(db, listing)
     listing.status = 'pending_review'
     listing.rejection_reason = None
     await db.flush()
     await db.refresh(listing)
-    return listing_to_response(listing)
+    return await listing_to_response_async(db, listing)
 
 
 async def archive_listing(
@@ -277,11 +295,11 @@ async def archive_listing(
     await require_marketplace_enabled(db, org_id)
     listing = await get_org_listing(db, org_id, listing_id)
     if listing.status == 'archived':
-        return listing_to_response(listing)
+        return await listing_to_response_async(db, listing)
     listing.status = 'archived'
     await db.flush()
     await db.refresh(listing)
-    return listing_to_response(listing)
+    return await listing_to_response_async(db, listing)
 
 
 async def list_org_orders(

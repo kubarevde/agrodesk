@@ -1,19 +1,39 @@
 import type { CatalogSort, PublicCategoryNode, PublicListingCard } from './types'
 
-export function formatMarketPrice(value: number | string, unit: string): string {
+function formatNumeric(value: number | string): string {
   const num = typeof value === 'number' ? value : Number(value)
-  const formatted = Number.isFinite(num)
-    ? num.toLocaleString('ru-RU', { maximumFractionDigits: 2, minimumFractionDigits: 0 })
-    : String(value)
-  return `${formatted} ₽ / ${unit}`
+  if (!Number.isFinite(num)) return String(value)
+  return num.toLocaleString('ru-RU', { maximumFractionDigits: 2, minimumFractionDigits: 0 })
+}
+
+export function formatMarketPriceAmount(value: number | string): string {
+  return `${formatNumeric(value)} ₽`
+}
+
+export function formatMarketPrice(value: number | string, unit: string): string {
+  return `${formatMarketPriceAmount(value)} / ${unit}`
 }
 
 export function formatMarketQty(value: number | string, unit: string): string {
+  return `${formatNumeric(value)} ${unit}`
+}
+
+/** Buyer-facing: use only backend quantity_available (no source internals). */
+export function isListingInStock(value: number | string): boolean {
   const num = typeof value === 'number' ? value : Number(value)
-  const formatted = Number.isFinite(num)
-    ? num.toLocaleString('ru-RU', { maximumFractionDigits: 2, minimumFractionDigits: 0 })
-    : String(value)
-  return `${formatted} ${unit}`
+  return Number.isFinite(num) && num > 0
+}
+
+/** Product / detail: «В наличии: N ед.» or honest empty. */
+export function publicStockLabel(value: number | string, unit: string): string {
+  if (!isListingInStock(value)) return 'Сейчас нет в наличии'
+  return `В наличии: ${formatMarketQty(value, unit)}`
+}
+
+/** Catalog card: short line without technical wording. */
+export function publicStockShort(value: number | string, unit: string): string {
+  if (!isListingInStock(value)) return 'Нет в наличии'
+  return `В наличии ${formatMarketQty(value, unit)}`
 }
 
 export function flattenCategories(

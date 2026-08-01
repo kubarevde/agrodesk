@@ -20,8 +20,10 @@ export type PermissionsCache = {
   cachedAt: number
 }
 
-/** Decode JWT payload `sub` without verifying signature (client identity binding only). */
-export function readAccessTokenSubject(token: string | null | undefined): string | null {
+/** Decode JWT payload without verifying signature (client UI / cache binding only). */
+export function readAccessTokenPayload(
+  token: string | null | undefined,
+): Record<string, unknown> | null {
   if (!token) return null
   try {
     const parts = token.split('.')
@@ -29,11 +31,19 @@ export function readAccessTokenSubject(token: string | null | undefined): string
     const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
     const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4))
     const json = atob(b64 + pad)
-    const data = JSON.parse(json) as { sub?: unknown }
-    return typeof data.sub === 'string' && data.sub.length > 0 ? data.sub : null
+    const data = JSON.parse(json) as unknown
+    if (!data || typeof data !== 'object') return null
+    return data as Record<string, unknown>
   } catch {
     return null
   }
+}
+
+/** Decode JWT payload `sub` without verifying signature (client identity binding only). */
+export function readAccessTokenSubject(token: string | null | undefined): string | null {
+  const data = readAccessTokenPayload(token)
+  const sub = data?.sub
+  return typeof sub === 'string' && sub.length > 0 ? sub : null
 }
 
 export function cacheCurrentUser(user: CurrentUser): void {
@@ -61,11 +71,18 @@ export function readCachedCurrentUser(): CurrentUser | null {
   }
 }
 
+import { HOLDING_CONTEXT_KEY } from '@/features/holding/keys'
+
 export function clearAuthStorage(): void {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_CACHE_KEY)
   localStorage.removeItem(ALLOWED_SECTIONS_CACHE_KEY)
   localStorage.removeItem(PERMISSIONS_CACHE_KEY)
+  try {
+    localStorage.removeItem(HOLDING_CONTEXT_KEY)
+  } catch {
+    // ignore
+  }
 }
 
 export function getLoginHref(): string {

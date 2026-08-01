@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { OfflineBanner } from '@/components/shared/OfflineBanner'
+import { HoldingContextBanner } from '@/features/holding/components/HoldingContextBanner'
 import { useLayoutStore } from '@/stores/layoutStore'
 import { AppHeader } from './AppHeader'
 import { AppSidebar } from './AppSidebar'
@@ -36,6 +37,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <div className="flex min-w-0 flex-1 flex-col">
           <AppHeader />
           <OfflineBanner />
+          <HoldingContextBanner />
           <main className="min-w-0 flex-1 overflow-x-hidden p-4 md:p-6">{children}</main>
         </div>
       </div>
