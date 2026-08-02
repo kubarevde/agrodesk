@@ -21,10 +21,11 @@ HEALTH_PUBLIC="${HEALTH_PUBLIC:-http://127.0.0.1:3010/api/health}"
 # Backup considered "fresh" if younger than this (minutes)
 MAX_BACKUP_AGE_MINUTES="${MAX_BACKUP_AGE_MINUTES:-180}"
 
-log() { printf '%s\n' "$*"; }
+# Status lines go to stderr so command substitution never pollutes JSON bodies.
+log() { printf '%s\n' "$*" >&2; }
 err() { printf 'ERROR: %s\n' "$*" >&2; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
-ok() { printf 'OK: %s\n' "$*"; }
+ok() { printf 'OK: %s\n' "$*" >&2; }
 
 die() {
   err "$*"
@@ -58,11 +59,21 @@ curl_json() {
   curl -sf --max-time 15 "$url"
 }
 
+# Prefer first {...} object if the string has a human prefix (defensive).
+_health_json_slice() {
+  python3 -c '
+import sys
+raw = sys.stdin.read()
+start, end = raw.find("{"), raw.rfind("}")
+sys.stdout.write(raw[start : end + 1] if start >= 0 and end > start else raw)
+'
+}
+
 # Returns 0 if JSON has "db_up_to_date": true (tolerant of spacing).
 health_db_up_to_date() {
   local json="$1"
   if command -v python3 >/dev/null 2>&1; then
-    printf '%s' "$json" | python3 -c '
+    printf '%s' "$json" | _health_json_slice | python3 -c '
 import json,sys
 d=json.load(sys.stdin)
 sys.exit(0 if d.get("db_up_to_date") is True else 1)
@@ -75,7 +86,7 @@ sys.exit(0 if d.get("db_up_to_date") is True else 1)
 health_field() {
   local json="$1" field="$2"
   if command -v python3 >/dev/null 2>&1; then
-    printf '%s' "$json" | python3 -c '
+    printf '%s' "$json" | _health_json_slice | python3 -c '
 import json,sys
 d=json.load(sys.stdin)
 v=d.get(sys.argv[1])
