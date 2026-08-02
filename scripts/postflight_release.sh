@@ -42,24 +42,28 @@ check_container "$NGINX_CONTAINER" "$REQUIRE_NGINX"
 # bot may live on bothost
 check_container "${BOT_CONTAINER:-agrodesk_bot}" 0
 
-fetch_health() {
+# Writes JSON into nameref; status lines must not go to that variable.
+fetch_health_into() {
   local url="$1" label="$2"
+  local -n _out="$3"
   local body
   if body="$(curl_json "$url")"; then
     ok "$label reachable"
-    printf '%s\n' "$body"
+    _out="$body"
   else
     err "$label failed: $url"
     failed=1
-    printf ''
+    _out=""
   fi
 }
 
 log "==> health direct ($HEALTH_DIRECT)"
-direct_json="$(fetch_health "$HEALTH_DIRECT" "direct /health" || true)"
+direct_json=""
+fetch_health_into "$HEALTH_DIRECT" "direct /health" direct_json
 
 log "==> health public ($HEALTH_PUBLIC)"
-public_json="$(fetch_health "$HEALTH_PUBLIC" "public /api/health" || true)"
+public_json=""
+fetch_health_into "$HEALTH_PUBLIC" "public /api/health" public_json
 
 json="${public_json:-$direct_json}"
 if [[ -n "$json" ]]; then
@@ -71,11 +75,15 @@ if [[ -n "$json" ]]; then
   else
     if [[ "$REQUIRE_DB_UP_TO_DATE" == "1" ]]; then
       err "db_up_to_date is not true — alembic may be behind code_head"
+      err "raw health: ${json:0:200}"
       failed=1
     else
       warn "db_up_to_date is not true"
     fi
   fi
+else
+  err "no health JSON from direct or public URL"
+  failed=1
 fi
 
 if container_running "$API_CONTAINER"; then
