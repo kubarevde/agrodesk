@@ -14,7 +14,7 @@ export function SupportGuideCard() {
         <div className="space-y-1">
           <p className="text-sm font-medium text-foreground">Как пользоваться системой</p>
           <p className="text-sm text-muted-foreground">
-            Пошаговый гайд: меню, смена, склад, календарь и куда писать, если застряли.
+            Пошаговые сценарии: смена, склад, урожай, отчёты и куда писать, если застряли.
             {progress.completedAt ? ' Можно пройти ещё раз.' : ''}
           </p>
         </div>

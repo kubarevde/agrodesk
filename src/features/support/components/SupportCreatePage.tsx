@@ -1,4 +1,4 @@
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useState } from 'react'
@@ -14,8 +14,10 @@ import { apiErrorMessage } from '@/lib/apiError'
 import { filenameFromUploadUrl } from '../api'
 import { useCreateSupportTicket } from '../hooks'
 import {
+  categoryHint,
   supportCategoryOptions,
   supportPriorityOptions,
+  SUPPORT_TICKET_BODY_PLACEHOLDER,
 } from '../labels'
 import type { SupportCategory, SupportPriority } from '../types'
 
@@ -37,8 +39,9 @@ export function SupportCreatePage() {
   const [attachmentUrls, setAttachmentUrls] = useState<string[]>([])
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { category: 'bug', priority: 'normal', subject: '', body: '' },
+    defaultValues: { category: 'how_to', priority: 'normal', subject: '', body: '' },
   })
+  const category = form.watch('category')
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
@@ -64,19 +67,30 @@ export function SupportCreatePage() {
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold text-foreground">Новое обращение</h1>
         <p className="text-sm text-muted-foreground">
-          Коротко сформулируйте тему. В описании укажите раздел, шаги и что ожидали увидеть.
+          Пишите, если сломался экран, нет доступа или данные неверны. Ставки и график — к
+          руководителю. Непонятно как работать? Сначала{' '}
+          <Link
+            to="/support/guide"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
+            откройте гайд
+          </Link>
+          .
         </p>
       </div>
 
       <form onSubmit={onSubmit} className="space-y-4">
-        <LabeledSelect
-          label="Категория"
-          value={form.watch('category')}
-          options={CATEGORY_OPTIONS}
-          onValueChange={(v) => {
-            if (v) form.setValue('category', v as FormValues['category'])
-          }}
-        />
+        <div className="space-y-1">
+          <LabeledSelect
+            label="Категория"
+            value={category}
+            options={CATEGORY_OPTIONS}
+            onValueChange={(v) => {
+              if (v) form.setValue('category', v as FormValues['category'])
+            }}
+          />
+          <p className="text-xs text-muted-foreground">{categoryHint(category)}</p>
+        </div>
 
         <div className="space-y-1">
           <LabeledSelect
@@ -88,7 +102,7 @@ export function SupportCreatePage() {
             }}
           />
           <p className="text-xs text-muted-foreground">
-            «Высокий» — когда система мешает работать прямо сейчас.
+            «Высокий» — только когда система мешает работать прямо сейчас.
           </p>
         </div>
 
@@ -108,8 +122,8 @@ export function SupportCreatePage() {
           <Label htmlFor="body">Описание</Label>
           <Textarea
             id="body"
-            rows={6}
-            placeholder="Что произошло, в каком разделе, что уже пробовали сделать"
+            rows={8}
+            placeholder={SUPPORT_TICKET_BODY_PLACEHOLDER}
             {...form.register('body')}
           />
           {form.formState.errors.body ? (

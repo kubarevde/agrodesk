@@ -28,4 +28,11 @@ bash "$ROOT/deploy.sh"
 
 echo "==> alembic after deploy:"
 docker exec agrodesk_api alembic current || true
+
+if [[ "${SKIP_POSTFLIGHT:-0}" != "1" && -f "$ROOT/scripts/postflight_release.sh" ]]; then
+  echo "==> postflight"
+  bash "$ROOT/scripts/postflight_release.sh"
+fi
+
 echo "Deploy+backup wrapper finished at $(date -Is 2>/dev/null || date)"
+echo "Next: ./scripts/release_smoke.sh"

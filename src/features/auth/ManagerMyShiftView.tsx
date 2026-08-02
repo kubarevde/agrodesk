@@ -10,7 +10,9 @@ import { ActiveShiftLiveDuration } from '@/features/dashboard/components/ActiveS
 import { useDashboardStats } from '@/features/dashboard/hooks'
 import { useFields } from '@/features/fields/hooks'
 import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
+import { GuideNudgeBanner } from '@/features/help/components/GuideNudgeBanner'
 import { myShiftHelp } from '@/features/help/content'
+import { useImplements } from '@/features/implements/hooks'
 import { useUserPermissions } from '@/features/settings/permissionsHooks'
 import { OpenShiftModal } from '@/features/worktime/OpenShiftModal'
 import { useShifts } from '@/features/worktime/hooks'
@@ -20,6 +22,7 @@ import {
   useLocations,
   useWorkTypes,
 } from '@/features/worktime/referenceHooks'
+import { StaleCacheNotice } from '@/components/shared/StaleCacheNotice'
 import { formatShiftTime, getDefaultMonthRange } from '@/features/worktime/utils'
 import { hasAction, hasSection } from '@/lib/permissionActions'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
@@ -49,6 +52,7 @@ export function ManagerMyShiftView() {
   useEquipment()
   useEmployees()
   useFields()
+  useImplements()
   const monthRange = useMemo(() => getDefaultMonthRange(), [])
   const { data: cachedOpenShifts = [] } = useShifts(
     { from: monthRange.from, to: monthRange.to, status: 'open' },
@@ -81,6 +85,7 @@ export function ManagerMyShiftView() {
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
+      <GuideNudgeBanner />
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Моя смена</h1>
         <p className="text-sm text-muted-foreground">
@@ -122,7 +127,8 @@ export function ManagerMyShiftView() {
           <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base font-semibold">Кто сейчас работает</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            <StaleCacheNotice detail="Офлайн: показан кэш открытых смен — актуальный дашборд только онлайн." />
             {isLoading && isOnline ? (
               <SkeletonTable rows={3} columns={3} />
             ) : activeShifts.length === 0 ? (

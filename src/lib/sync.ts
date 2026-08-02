@@ -15,6 +15,8 @@ export interface FlushSyncResult {
   failed: number
   skipped: number
   conflicts: number
+  /** Shift queue items dropped as already-resolved server conflicts (HTTP 409). */
+  discarded: number
 }
 
 export type FlushSyncOptions = {
@@ -51,7 +53,9 @@ async function handleSuccessfulShiftCreate(
   await remapQueuedCloseUrls(item.idempotencyKey, serverShift.id)
 }
 
-async function processSyncItem(item: SyncQueueItem): Promise<'done' | 'retry' | 'skip'> {
+async function processSyncItem(
+  item: SyncQueueItem,
+): Promise<'done' | 'retry' | 'skip' | 'discarded'> {
   try {
     const response = await api.request<unknown>({
       method: item.method,
@@ -69,8 +73,9 @@ async function processSyncItem(item: SyncQueueItem): Promise<'done' | 'retry' | 
     }
 
     if (response.status === 409) {
+      // Server already has an open shift / conflict — drop local duplicate without retry.
       await db.syncQueue.delete(item.id)
-      return 'done'
+      return 'discarded'
     }
 
     if (response.status === 400 || response.status === 404) {
@@ -95,7 +100,7 @@ async function processSyncItem(item: SyncQueueItem): Promise<'done' | 'retry' | 
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 409) {
       await db.syncQueue.delete(item.id)
-      return 'done'
+      return 'discarded'
     }
     const retries = (item.retries ?? 0) + 1
     await db.syncQueue.update(item.id, {
@@ -110,7 +115,7 @@ export { processInventoryQueueItem }
 
 async function runFlush(options: FlushSyncOptions = {}): Promise<FlushSyncResult> {
   if (!navigator.onLine) {
-    return { synced: 0, failed: 0, skipped: 0, conflicts: 0 }
+    return { synced: 0, failed: 0, skipped: 0, conflicts: 0, discarded: 0 }
   }
 
   if (options.includeFailed) {
@@ -159,11 +164,13 @@ async function runFlush(options: FlushSyncOptions = {}): Promise<FlushSyncResult
   let failed = 0
   let skipped = 0
   let conflicts = 0
+  let discarded = 0
 
   for (const job of jobs) {
     if (job.kind === 'shift') {
       const result = await processSyncItem(job.item)
       if (result === 'done') synced += 1
+      if (result === 'discarded') discarded += 1
       if (result === 'skip') skipped += 1
       if (result === 'retry') {
         const updated = await db.syncQueue.get(job.item.id)
@@ -181,7 +188,7 @@ async function runFlush(options: FlushSyncOptions = {}): Promise<FlushSyncResult
     }
   }
 
-  return { synced, failed, skipped, conflicts }
+  return { synced, failed, skipped, conflicts, discarded }
 }
 
 export async function flushSyncQueue(options: FlushSyncOptions = {}): Promise<FlushSyncResult> {

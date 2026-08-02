@@ -3,7 +3,11 @@
 > **Обновление прода (фронт / бэк / бот) — короткая шпаргалка:**  
 > **[docs/PROD-UPDATE.md](PROD-UPDATE.md)** — обычный апдейт, точечные rebuild, bothost, чеклист.
 
-**Единственный канал доставки:** репозиторий → GitHub (`main`) → зелёный CI → ручной `./deploy.sh` на VPS.  
+**Единственный канал доставки:** репозиторий → GitHub (`main`) → зелёный CI → ручной деплой на VPS.  
+Каноническая сборка/миграции: `./deploy.sh`.  
+Рекомендуемый безопасный оркестратор: `WITH_BACKUP=1 ./scripts/release.sh` (preflight → backup → deploy → postflight → smoke).  
+Подробности: **[docs/PROD-UPDATE.md](PROD-UPDATE.md)**.
+
 Нет Object Storage / S3 / Yandex Cloud sync для фронта. Нет SSH-деплоя из GitHub Actions.
 
 Целевой сервер: **http://213.183.104.142:3010**  
@@ -120,14 +124,19 @@ docker compose --env-file .env.production up -d db api nginx
 
 ```bash
 cd /opt/agrodesk
+# рекомендуется:
+WITH_BACKUP=1 ./scripts/release.sh
+# или канон сборки:
 ./deploy.sh
 ```
 
-Скрипт: `git pull` → build → `up -d` (без удаления volumes) → проверка health → **`alembic upgrade head`** (обязательно) → `alembic current`.
+`deploy.sh`: optional backup → `git pull` → build → `up -d` → health → **`alembic upgrade head`** → `alembic current` → **postflight** (`db_up_to_date`).
 
 Миграции также выполняются при старте контейнера `api` (`alembic upgrade head` в `docker-compose.yml`).  
 Единственная точка доставки фронта и бэка — **эта VPS** (образ nginx + API).  
 Отдельного Object Storage / S3 / Yandex Cloud канала **нет и не будет** без явного решения сменить архитектуру.
+
+После деплоя: `./scripts/release_smoke.sh`. Откат: `./scripts/rollback_hint.sh` (restore, не auto-downgrade).
 
 ---
 
@@ -136,8 +145,9 @@ cd /opt/agrodesk
 Порядок релиза:
 
 ```
-локальная разработка → push / PR в main → зелёный CI → ssh на VPS → ./deploy.sh
+локальная разработка → push / PR в main → зелёный CI → ssh на VPS → WITH_BACKUP=1 ./scripts/release.sh
 ```
+(альтернатива: `./deploy.sh` + `./scripts/postflight_release.sh` + `./scripts/release_smoke.sh`)
 
 CI **не** деплоит на прод и **не** ходит на VPS по SSH. Только проверки:
 
@@ -152,7 +162,7 @@ CI **не** деплоит на прод и **не** ходит на VPS по SS
 Прод-миграции по-прежнему применяются на VPS при старте `api` / в `./deploy.sh`, не из GitHub Actions.
 
 Секреты облачного деплоя (`YC_*`, bucket sync) и SSH auto-deploy из CI **не используются**.  
-После зелёного CI оператор сам заходит на VPS и запускает `./deploy.sh`.
+После зелёного CI оператор сам заходит на VPS и запускает `WITH_BACKUP=1 ./scripts/release.sh` или `./deploy.sh`.
 
 ---
 

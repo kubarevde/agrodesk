@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { OnlineOnlyNotice } from '@/components/shared/OnlineOnlyNotice'
 import { SectionHelp } from '@/components/shared/SectionHelp'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { messengerHelp } from '@/features/help/content'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { cn } from '@/lib/utils'
 import { setMessengerPollInterval, useChats, useCreateDirectChat, useCreateGroupChat, useUpdateGroupChat } from '../hooks'
 import type { ChatListItem } from '../types'
@@ -17,6 +19,7 @@ interface MessengerPageProps {
 
 export function MessengerPage({ chatId }: MessengerPageProps) {
   const navigate = useNavigate()
+  const isOnline = useOnlineStatus()
   const { data: user } = useCurrentUser()
   const isAdmin = user?.role === 'admin'
   const { data: chats = [], isLoading } = useChats()
@@ -52,6 +55,19 @@ export function MessengerPage({ chatId }: MessengerPageProps) {
     return (
       <div className="p-6 text-sm text-muted-foreground" aria-busy="true">
         Загрузка…
+      </div>
+    )
+  }
+
+  if (!isOnline) {
+    return (
+      <div className="space-y-3">
+        <SectionHelp section="мессенджер" items={messengerHelp} />
+        <OnlineOnlyNotice
+          title="Мессенджер доступен только онлайн"
+          description="Чаты и сообщения требуют связь с сервером. Смены и склад можно вести офлайн."
+          hideWhenOnline={false}
+        />
       </div>
     )
   }

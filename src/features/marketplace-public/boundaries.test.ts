@@ -58,4 +58,12 @@ describe('marketplace module boundaries (FE)', () => {
       }
     }
   })
+
+  it('farm REPORT_DEFINITIONS has no marketplace entry', async () => {
+    const { REPORT_DEFINITIONS } = await import('../reports/reportDefinitions')
+    expect(REPORT_DEFINITIONS.some((r) => /market/i.test(r.id))).toBe(false)
+    expect(
+      REPORT_DEFINITIONS.some((r) => r.endpoint.includes('marketplace')),
+    ).toBe(false)
+  })
 })

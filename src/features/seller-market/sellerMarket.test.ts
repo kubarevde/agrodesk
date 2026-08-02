@@ -187,3 +187,16 @@ describe('listingQtyListCaption', () => {
     ).toMatch(/источник недоступен/)
   })
 })
+
+describe('orders report period helpers', () => {
+  it('defaultReportPeriod returns local ISO month-to-date', async () => {
+    const { defaultReportPeriod } = await import(
+      './components/OrdersReportPanel'
+    )
+    const { from, to } = defaultReportPeriod()
+    expect(from).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(to).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(from <= to).toBe(true)
+    expect(from.slice(8)).toBe('01')
+  })
+})

@@ -60,6 +60,44 @@ export interface SellerOrder {
   updated_at: string
 }
 
+export interface MarketOrdersStatusBucket {
+  status: OrderStatus
+  label: string
+  orders_count: number
+  quantity_sum: number | string
+  estimated_amount_sum: number | string
+}
+
+export interface MarketOrdersReportRow {
+  order_id: string
+  created_at: string
+  updated_at: string
+  status: OrderStatus
+  listing_id: string
+  listing_title: string
+  listing_unit: string
+  listing_price: number | string
+  quantity: number | string
+  estimated_amount: number | string
+  buyer_name: string
+  buyer_phone: string
+  buyer_comment: string | null
+  seller_display_name: string
+}
+
+export interface MarketOrdersReport {
+  from_date: string
+  to_date: string
+  org_id: string
+  seller_display_name: string
+  orders_count: number
+  quantity_sum: number | string
+  estimated_amount_sum: number | string
+  status_breakdown: MarketOrdersStatusBucket[]
+  rows: MarketOrdersReportRow[]
+  amount_disclaimer: string
+}
+
 export interface ImportInventorySource {
   source_type: 'inventory'
   source_id: string

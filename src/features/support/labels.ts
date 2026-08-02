@@ -63,6 +63,52 @@ export function supportSortOptions(): SelectOption[] {
   ])
 }
 
+/** Tenant list focus: API statuses + client-side unread. */
+export function supportListFocusOptions(): SelectOption[] {
+  return selectOptions([
+    { value: 'all', label: 'Все обращения' },
+    { value: 'unread', label: 'С новым ответом' },
+    { value: 'waiting_user', label: 'Ждёт вашего ответа' },
+    { value: 'new', label: 'Новые' },
+    { value: 'in_progress', label: 'В работе' },
+    { value: 'resolved', label: 'Решённые' },
+    { value: 'closed', label: 'Закрытые' },
+  ])
+}
+
+export function filterSupportTicketsByFocus<
+  T extends { unreadForUser: boolean; status: string },
+>(tickets: T[], focus: string): T[] {
+  if (focus === 'all') return tickets
+  if (focus === 'unread') return tickets.filter((t) => t.unreadForUser)
+  return tickets.filter((t) => t.status === focus)
+}
+
+export function categoryHint(category: string): string {
+  switch (category) {
+    case 'bug':
+      return 'Экран сломался, ошибка или странное поведение системы.'
+    case 'access':
+      return 'Нет нужного раздела в меню или не хватает прав.'
+    case 'data':
+      return 'Данные пропали, дублируются или выглядят неверно.'
+    case 'how_to':
+      return 'Непонятно, как сделать действие. Сначала загляните в гайд — часто этого достаточно.'
+    case 'suggestion':
+      return 'Идея, как улучшить АгроДеск. Не срочный сбой.'
+    case 'other':
+      return 'Если ни одна категория не подходит — опишите ситуацию своими словами.'
+    default:
+      return ''
+  }
+}
+
+export const SUPPORT_TICKET_BODY_PLACEHOLDER = `1) Раздел (например: Поля, Склад, Моя смена)
+2) Что сделали по шагам
+3) Что ожидали увидеть
+4) Что увидели вместо этого
+5) Уже смотрели гайд или справку «?» — да/нет`
+
 export function supportScopeOptions(): SelectOption[] {
   return selectOptions([
     { value: 'all', label: 'Все обращения' },

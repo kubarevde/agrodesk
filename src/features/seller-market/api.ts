@@ -1,6 +1,7 @@
 import { api } from '@/lib/api'
 import type {
   ImportSources,
+  MarketOrdersReport,
   PublicCategoryNode,
   SellerListing,
   SellerListingList,
@@ -93,6 +94,45 @@ export async function updateSellerOrderStatus(
 ): Promise<SellerOrder> {
   const { data } = await api.patch<SellerOrder>(`${BASE}/orders/${id}`, { status })
   return data
+}
+
+export async function fetchOrdersReport(params: {
+  from_date: string
+  to_date: string
+  status?: string
+}): Promise<MarketOrdersReport> {
+  const { data } = await api.get<MarketOrdersReport>(`${BASE}/reports/orders`, {
+    params: {
+      from_date: params.from_date,
+      to_date: params.to_date,
+      ...(params.status ? { status: params.status } : {}),
+    },
+  })
+  return data
+}
+
+/** Local blob download — do not import from features/reports (module boundary). */
+export async function downloadOrdersReportExcel(params: {
+  from_date: string
+  to_date: string
+  status?: string
+  filename: string
+}): Promise<void> {
+  const response = await api.post<Blob>(
+    `${BASE}/reports/orders/export`,
+    {
+      from_date: params.from_date,
+      to_date: params.to_date,
+      ...(params.status ? { status: params.status } : {}),
+    },
+    { responseType: 'blob' },
+  )
+  const link = document.createElement('a')
+  const objectUrl = URL.createObjectURL(response.data)
+  link.href = objectUrl
+  link.download = params.filename
+  link.click()
+  URL.revokeObjectURL(objectUrl)
 }
 
 /** Categories come from the public taxonomy (no JWT required on that path). */

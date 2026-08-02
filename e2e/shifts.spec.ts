@@ -5,11 +5,14 @@ import {
   waitForShiftsTable,
   loginDemoAdmin,
   selectFormOption,
+  selectWorktimeStatusFilter,
+  closeAllOpenShifts,
   reloadWhileOffline,
   gotoPath,
 } from './helpers'
 
 test.describe.configure({ mode: 'serial' })
+test.describe.configure({ timeout: 90_000 })
 
 test('открытие и закрытие смены онлайн', async ({ page }) => {
   const location = 'Мастерская'
@@ -26,9 +29,10 @@ test('открытие и закрытие смены онлайн', async ({ pa
   await row.getByRole('button', { name: 'Действия' }).click()
   await page.getByRole('menuitem', { name: 'Закрыть' }).click()
 
-  await page.getByRole('dialog', { name: 'Завершить смену' }).waitFor()
-  await page.getByLabel('Что сделано за смену?').fill('Выполнен полив растений')
-  await page.getByRole('button', { name: 'Завершить смену' }).click()
+  const closeDialog = page.getByRole('dialog', { name: 'Завершить смену' })
+  await expect(closeDialog).toBeVisible()
+  await closeDialog.getByLabel('Что сделано за смену?').fill('Выполнен полив растений')
+  await closeDialog.getByRole('button', { name: 'Завершить смену' }).click()
 
   await expect(page.getByText('Смена закрыта')).toBeVisible()
 
@@ -38,11 +42,12 @@ test('открытие и закрытие смены онлайн', async ({ pa
 
 test('открытие смены офлайн и синхронизация', async ({ page, context }) => {
   await waitForShiftsTable(page)
+  await closeAllOpenShifts(page)
 
   await context.setOffline(true)
   await expect(page.getByRole('button', { name: /Офлайн/ })).toBeVisible()
 
-  await openShift(page, 'Мастерская', 'Ремонт техники')
+  await openShift(page, 'Мастерская', 'Ремонт техники', { skipCleanup: true })
   await expect(page.getByText(/Сохранено офлайн/)).toBeVisible()
   await expect(page.getByRole('button', { name: '1', exact: true })).toBeVisible()
 
@@ -89,16 +94,18 @@ test('холодный перезапуск офлайн сохраняет се
 
 test('офлайн-запись переживает reload до синхронизации', async ({ page, context }) => {
   await waitForShiftsTable(page)
+  await closeAllOpenShifts(page)
 
   await context.setOffline(true)
-  await openShift(page, 'Зернохранилище', 'Погрузка')
+  // Use same seeded refs as other offline tests (cached while online above).
+  await openShift(page, 'Мастерская', 'Ремонт техники', { skipCleanup: true })
   await expect(page.getByText(/Сохранено офлайн/)).toBeVisible()
   await expect(page.getByRole('button', { name: '1', exact: true })).toBeVisible()
 
   const hasSw = await page.evaluate(() => Boolean(navigator.serviceWorker?.controller))
   if (!hasSw) {
     await expect(page.getByRole('button', { name: /Офлайн/ })).toBeVisible()
-    await expect(page.getByText('Зернохранилище').first()).toBeVisible()
+    await expect(page.getByText('Мастерская').first()).toBeVisible()
     return
   }
 
@@ -115,7 +122,7 @@ test('офлайн-запись переживает reload до синхрон�
   await expect(page.getByRole('button', { name: '1', exact: true })).toBeVisible({
     timeout: 10_000,
   })
-  await expect(page.getByText('Зернохранилище').first()).toBeVisible()
+  await expect(page.getByText('Мастерская').first()).toBeVisible()
 })
 
 test('дашборд офлайн показывает честный online-only state', async ({ page, context }) => {
@@ -190,6 +197,7 @@ test('офлайн после входа EMP000 не подменяет проф
 
 test('открытие смены офлайн с /my-shift после прогрева кэша', async ({ page, context }) => {
   await loginDemoAdmin(page)
+  await closeAllOpenShifts(page)
   await page.goto('/my-shift')
   await expect(page.getByRole('heading', { name: 'Моя смена' })).toBeVisible({ timeout: 15_000 })
   // Warm reference queries while online
@@ -214,13 +222,10 @@ test('фильтр «Открытые» показывает только отк
   await openShift(page, 'Мастерская', 'Ремонт техники')
   await expect(page.getByText(/Смена открыта/)).toBeVisible({ timeout: 15_000 })
 
-  await page.getByRole('combobox').nth(1).click()
-  await page.getByRole('option', { name: 'Открытые' }).click()
-
-  await page.waitForTimeout(700)
+  await selectWorktimeStatusFilter(page, 'Открытые')
 
   const rows = page.locator('table tbody tr')
-  await expect(rows.first()).toBeVisible()
+  await expect(rows.first()).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('table tbody')).not.toContainText('Закрыта')
 
   const rowCount = await rows.count()

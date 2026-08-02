@@ -9,6 +9,8 @@ export const sellerMarketKeys = {
   listings: (status?: string) => ['seller-market', 'listings', status ?? 'all'] as const,
   listing: (id: string) => ['seller-market', 'listing', id] as const,
   orders: (status?: string) => ['seller-market', 'orders', status ?? 'all'] as const,
+  ordersReport: (from: string, to: string, status?: string) =>
+    ['seller-market', 'orders-report', from, to, status ?? 'all'] as const,
   importSources: ['seller-market', 'import-sources'] as const,
   categories: ['seller-market', 'categories'] as const,
 }
@@ -138,6 +140,29 @@ export function useSellerOrders(status?: string, enabled = true) {
   })
 }
 
+export function useOrdersReport(
+  params: { from_date: string; to_date: string; status?: string },
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: sellerMarketKeys.ordersReport(
+      params.from_date,
+      params.to_date,
+      params.status,
+    ),
+    queryFn: () => api.fetchOrdersReport(params),
+    enabled: enabled && Boolean(params.from_date && params.to_date),
+  })
+}
+
+export function useExportOrdersReport() {
+  return useMutation({
+    mutationFn: api.downloadOrdersReportExcel,
+    onSuccess: () => toast.success('Excel заявок витрины скачан'),
+    onError: (e) => toast.error(apiErrorMessage(e, 'Не удалось скачать отчёт')),
+  })
+}
+
 export function useUpdateSellerOrder() {
   const qc = useQueryClient()
   return useMutation({
@@ -145,6 +170,7 @@ export function useUpdateSellerOrder() {
       api.updateSellerOrderStatus(id, status),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['seller-market', 'orders'] })
+      await qc.invalidateQueries({ queryKey: ['seller-market', 'orders-report'] })
       toast.success('Статус заявки обновлён')
     },
     onError: (e) => toast.error(apiErrorMessage(e, 'Не удалось сменить статус')),

@@ -27,6 +27,10 @@ export function SyncStatusIndicator() {
       await queryClient.invalidateQueries()
       if (result.synced > 0) {
         toast.success(`Синхронизировано: ${result.synced}`)
+      } else if (result.discarded > 0) {
+        toast.message(
+          'Локальная смена не отправлена: на сервере уже есть открытая смена. Проверьте «Рабочее время».',
+        )
       } else if (result.conflicts > 0) {
         toast.message(`Конфликтов склада: ${result.conflicts}. Проверьте раздел «Склад».`)
       } else if (result.failed > 0) {
@@ -52,7 +56,7 @@ export function SyncStatusIndicator() {
         <TooltipContent>
           {isOnline
             ? 'Есть связь с сервером'
-            : 'Нет сети. Смены сохраняются локально (жёлтый счётчик) и уходят на сервер при «Онлайн».'}
+            : 'Нет сети. Смены и склад сохраняются локально (жёлтый счётчик) и уходят на сервер при «Онлайн». Мессенджер и отчёты — только онлайн.'}
         </TooltipContent>
       </Tooltip>
 

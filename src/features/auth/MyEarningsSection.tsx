@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { OnlineOnlyNotice } from '@/components/shared/OnlineOnlyNotice'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -15,8 +16,10 @@ import {
 import { useMyEarnings } from '@/features/employees/salaryHooks'
 import { formatMoney, formatIsoDateRu } from '@/features/employees/salaryUtils'
 import { getCurrentMonthValue } from '@/features/reports/utils'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 
 export function MyEarningsSection() {
+  const isOnline = useOnlineStatus()
   const [month, setMonth] = useState(getCurrentMonthValue())
   const { data, isLoading } = useMyEarnings(month)
 
@@ -37,11 +40,19 @@ export function MyEarningsSection() {
             value={month}
             onChange={(event) => setMonth(event.target.value)}
             className="w-full sm:w-44"
+            disabled={!isOnline}
           />
         </div>
       </div>
 
-      {isLoading || !data ? (
+      {!isOnline ? (
+        <OnlineOnlyNotice
+          title="Начисления доступны только онлайн"
+          description="Расчёт зарплаты считается на сервере. Список смен за месяц по-прежнему виден выше — из локальных данных."
+          hideWhenOnline={false}
+          showWorktimeLink={false}
+        />
+      ) : isLoading || !data ? (
         <div className="grid grid-cols-3 gap-3">
           <Skeleton className="h-24" />
           <Skeleton className="h-24" />

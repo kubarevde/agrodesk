@@ -17,8 +17,8 @@ export function GuideNudgeBanner() {
         <div className="space-y-1">
           <p className="text-sm font-medium text-foreground">Как пользоваться системой?</p>
           <p className="text-sm text-muted-foreground">
-            Короткий гайд: куда заходить каждый день, как открыть смену и куда писать, если что-то
-            непонятно.
+            Короткий гайд под вашу роль: куда заходить каждый день, как открыть смену и куда
+            писать, если что-то непонятно.
           </p>
         </div>
       </div>

@@ -13,14 +13,16 @@ export function OfflineBanner() {
     <div
       role="status"
       className="flex items-start gap-2 border-b border-border bg-muted/60 px-4 py-2 text-sm text-foreground"
+      data-testid="offline-banner"
     >
       <WifiOff className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
       <div className="min-w-0">
         <p className="font-medium">Нет сети — режим офлайн</p>
         <p className="text-xs text-muted-foreground">
-          Смены: открытие и закрытие сохраняются локально
-          {pendingCount > 0 ? ` (в очереди: ${pendingCount})` : ''} и уйдут на сервер при появлении
-          интернета. Дашборд, отчёты, затраты и отгрузки — только онлайн.
+          Офлайн-запись: смены и операции склада
+          {pendingCount > 0 ? ` (${pendingCount} в очереди на синхронизацию)` : ''}. Мессенджер,
+          начисления, дашборд, отчёты, затраты и отгрузки — только онлайн. Часть списков может
+          показываться из кэша устройства.
         </p>
       </div>
     </div>

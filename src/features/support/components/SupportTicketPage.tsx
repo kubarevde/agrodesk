@@ -89,6 +89,18 @@ export function SupportTicketPage({ ticketId }: SupportTicketPageProps) {
 
       <SupportMessageThread messages={ticket.messages ?? []} perspective="user" />
 
+      {isAuthor && ticket.status === 'waiting_user' ? (
+        <div className="rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2.5 text-sm text-foreground">
+          Поддержка ждёт ваш ответ. Напишите ниже в переписке — статус обновится после сообщения.
+        </div>
+      ) : null}
+
+      {ticket.unreadForUser && isAuthor && ticket.status !== 'waiting_user' ? (
+        <div className="rounded-lg border border-primary/25 bg-primary/5 px-3 py-2.5 text-sm text-foreground">
+          Есть новый ответ поддержки. Прочитайте переписку ниже.
+        </div>
+      ) : null}
+
       {canReply ? (
         <SupportReplyForm
           pending={reply.isPending}
