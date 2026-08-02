@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { SkeletonTable } from '@/components/shared/SkeletonTable'
+import { StaleCacheNotice } from '@/components/shared/StaleCacheNotice'
 import { Button } from '@/components/ui/button'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
@@ -129,6 +130,8 @@ export function WorktimePage() {
       </div>
 
       <RoleSectionHelp section="смены" items={worktimeHelp} guideSection="worktime" />
+
+      <StaleCacheNotice detail="Офлайн: список смен из кэша устройства. Новые открытие/закрытие уйдут на сервер при появлении сети." />
 
       <ShiftsFilters
         from={from}

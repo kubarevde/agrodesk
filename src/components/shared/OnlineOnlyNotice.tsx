@@ -9,6 +9,8 @@ type OnlineOnlyNoticeProps = {
   description?: string
   /** When true, render nothing if online */
   hideWhenOnline?: boolean
+  /** Show shortcut to worktime (offline-capable). Default true. */
+  showWorktimeLink?: boolean
 }
 
 /**
@@ -16,8 +18,9 @@ type OnlineOnlyNoticeProps = {
  */
 export function OnlineOnlyNotice({
   title = 'Раздел доступен только онлайн',
-  description = 'Подключитесь к интернету, чтобы загрузить актуальные данные. Смены можно вести офлайн в разделе «Рабочее время».',
+  description = 'Подключитесь к интернету, чтобы загрузить актуальные данные. Смены и склад можно вести офлайн.',
   hideWhenOnline = true,
+  showWorktimeLink = true,
 }: OnlineOnlyNoticeProps) {
   const isOnline = useOnlineStatus()
   if (hideWhenOnline && isOnline) return null
@@ -26,6 +29,7 @@ export function OnlineOnlyNotice({
     <div
       role="status"
       className="flex flex-col items-start gap-3 rounded-lg border border-border bg-muted/40 px-4 py-5"
+      data-testid="online-only-notice"
     >
       <div className="flex items-start gap-3">
         <WifiOff className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden />
@@ -34,9 +38,11 @@ export function OnlineOnlyNotice({
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
       </div>
-      <Link to="/worktime" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
-        Открыть смены (офлайн)
-      </Link>
+      {showWorktimeLink ? (
+        <Link to="/worktime" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
+          Открыть смены (офлайн)
+        </Link>
+      ) : null}
     </div>
   )
 }

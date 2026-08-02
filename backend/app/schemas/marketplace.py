@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class MarketImportInventorySource(BaseModel):
@@ -134,6 +134,66 @@ class SellerOrderResponse(BaseModel):
 
 class SellerOrderUpdate(BaseModel):
     status: OrderStatus
+
+
+class MarketOrdersReportRequest(BaseModel):
+    """Period filter for showcase orders report (not farm Excel reports)."""
+
+    from_date: date
+    to_date: date
+    status: OrderStatus | None = None
+
+    @model_validator(mode='after')
+    def validate_range(self) -> MarketOrdersReportRequest:
+        if self.to_date < self.from_date:
+            raise ValueError('to_date must be >= from_date')
+        return self
+
+
+class MarketOrdersStatusBucket(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    status: str
+    label: str
+    orders_count: int
+    quantity_sum: Decimal
+    estimated_amount_sum: Decimal
+
+
+class MarketOrdersReportRow(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    order_id: UUID
+    created_at: datetime
+    updated_at: datetime
+    status: str
+    listing_id: UUID
+    listing_title: str
+    listing_unit: str
+    listing_price: Decimal
+    quantity: Decimal
+    estimated_amount: Decimal
+    buyer_name: str
+    buyer_phone: str
+    buyer_comment: str | None
+    seller_display_name: str
+
+
+class MarketOrdersReportResponse(BaseModel):
+    """Showcase orders report — estimated amounts are not farm revenue."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    from_date: date
+    to_date: date
+    org_id: UUID
+    seller_display_name: str
+    orders_count: int
+    quantity_sum: Decimal
+    estimated_amount_sum: Decimal
+    status_breakdown: list[MarketOrdersStatusBucket]
+    rows: list[MarketOrdersReportRow]
+    amount_disclaimer: str
 
 
 # --- Public vitrine (no JWT; no internal org / warehouse fields) ---

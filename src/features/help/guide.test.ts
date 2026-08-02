@@ -47,6 +47,7 @@ describe('GUIDE_CATALOG_IDS', () => {
       'calendar',
       'fields',
       'inventory',
+      'harvest-flow',
       'equipment',
       'people',
       'reports',
@@ -60,6 +61,18 @@ describe('GUIDE_CATALOG_IDS', () => {
       expect(GUIDE_CATALOG_IDS).toContain(id)
     }
     expect(GUIDE_CATALOG_IDS.length).toBeGreaterThanOrEqual(16)
+  })
+
+  it('avoids machine jargon in user-facing guide copy', () => {
+    const steps = getGuideStepsForUser('admin', undefined)
+    const blob = steps
+      .flatMap((s) => [s.body, ...(s.tips ?? []), s.example ?? '', ...(s.mistakes ?? [])])
+      .join('\n')
+      .toLowerCase()
+    for (const banned of ['harvest-sku', 'harvest‑sku', 'nominatim', ' kpi', 'sse', 'holding.view']) {
+      expect(blob.includes(banned)).toBe(false)
+    }
+    expect(blob.includes('complete →')).toBe(false)
   })
 })
 
@@ -94,7 +107,7 @@ describe('getGuideStepsForUser', () => {
     expect(steps.map((s) => s.id)).toContain('inventory')
   })
 
-  it('gives manager/admin 10–15 steps with broad access', () => {
+  it('gives manager/admin 10–16 steps with broad access', () => {
     const sections = [
       'dashboard',
       'my-shift',
@@ -109,12 +122,18 @@ describe('getGuideStepsForUser', () => {
     const manager = getGuideStepsForUser('manager', sections)
     const admin = getGuideStepsForUser('admin', [...sections, 'settings'])
     expect(manager.length).toBeGreaterThanOrEqual(10)
-    expect(manager.length).toBeLessThanOrEqual(15)
+    expect(manager.length).toBeLessThanOrEqual(16)
     expect(admin.length).toBeGreaterThanOrEqual(10)
-    expect(admin.length).toBeLessThanOrEqual(16)
+    expect(admin.length).toBeLessThanOrEqual(17)
     expect(admin.map((s) => s.id)).toContain('settings')
+    expect(manager.map((s) => s.id)).toContain('harvest-flow')
     expect(manager.map((s) => s.id)).not.toContain('settings')
     expect(manager.map((s) => s.id)).not.toContain('today-employee')
+  })
+
+  it('hides harvest-flow when inventory section is not allowed', () => {
+    const steps = getGuideStepsForUser('manager', ['dashboard', 'worktime'])
+    expect(steps.map((s) => s.id)).not.toContain('harvest-flow')
   })
 
   it('always keeps my-shift for non-admin even if not listed', () => {
@@ -132,6 +151,9 @@ describe('findGuideStepIndex', () => {
     )
     expect(findGuideStepIndex(steps, 'help')).toBe(
       steps.findIndex((s) => s.id === 'help'),
+    )
+    expect(findGuideStepIndex(steps, 'урожай')).toBe(
+      steps.findIndex((s) => s.id === 'harvest-flow'),
     )
     expect(findGuideStepIndex(steps, 'unknown-xyz')).toBe(-1)
   })

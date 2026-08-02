@@ -2,7 +2,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { LifeBuoy, Plus } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { Badge } from '@/components/ui/badge'
@@ -17,15 +17,16 @@ import { hasAction } from '@/lib/permissionActions'
 import { useMySupportTickets, useOrgSupportTickets } from '../hooks'
 import {
   categoryLabel,
+  filterSupportTicketsByFocus,
   priorityBadgeClass,
   priorityLabel,
   statusBadgeClass,
   statusLabel,
+  supportListFocusOptions,
   supportSortOptions,
-  supportStatusOptions,
 } from '../labels'
 
-const STATUS_OPTIONS = supportStatusOptions('user', true)
+const FOCUS_OPTIONS = supportListFocusOptions()
 const SORT_OPTIONS = supportSortOptions()
 
 export function SupportListPage() {
@@ -33,15 +34,18 @@ export function SupportListPage() {
   const { data: user } = useCurrentUser()
   const { data: perms } = useUserPermissions()
   const canViewOrg = hasAction(perms?.actions, 'support.view_org_tickets', user?.role)
-  const [status, setStatus] = useState('all')
+  const [focus, setFocus] = useState('all')
   const [sort, setSort] = useState<'updated' | 'status'>('updated')
-  const filters = {
-    status: status === 'all' ? undefined : status,
-    sort,
-  }
+  const apiStatus =
+    focus === 'all' || focus === 'unread' ? undefined : focus
+  const filters = { status: apiStatus, sort }
   const mineQuery = useMySupportTickets(filters)
   const orgQuery = useOrgSupportTickets(canViewOrg, filters)
   const { data: tickets = [], isLoading } = canViewOrg ? orgQuery : mineQuery
+  const visible = useMemo(
+    () => filterSupportTicketsByFocus(tickets, focus),
+    [tickets, focus],
+  )
 
   return (
     <div className="space-y-6">
@@ -50,8 +54,8 @@ export function SupportListPage() {
           <h1 className="text-2xl font-semibold text-foreground">Поддержка</h1>
           <p className="max-w-xl text-sm text-muted-foreground">
             {canViewOrg
-              ? 'Обращения организации в техподдержку. Ответ придёт в переписку автора.'
-              : 'Ваши обращения в техподдержку. Ответ придёт в переписку и отметится значком в меню.'}
+              ? 'Обращения организации. Отвечать может только автор; ответ приходит в его переписку.'
+              : 'Ваши обращения. Новый ответ отметится в меню и меткой в списке.'}
           </p>
         </div>
         <Button
@@ -69,11 +73,11 @@ export function SupportListPage() {
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <LabeledSelect
-          className="sm:w-52"
-          value={status}
-          options={STATUS_OPTIONS}
-          placeholder="Статус"
-          onValueChange={(v) => v && setStatus(v)}
+          className="sm:w-56"
+          value={focus}
+          options={FOCUS_OPTIONS}
+          placeholder="Фильтр"
+          onValueChange={(v) => v && setFocus(v)}
         />
         <LabeledSelect
           className="sm:w-52"
@@ -88,19 +92,30 @@ export function SupportListPage() {
 
       {isLoading ? (
         <PageSkeleton />
-      ) : tickets.length === 0 ? (
+      ) : visible.length === 0 ? (
         <EmptyState
           icon={LifeBuoy}
-          title="Обращений пока нет"
-          description="Если что-то не работает — создайте обращение. Или сначала откройте гайд выше."
-          action={{
-            label: 'Создать обращение',
-            onClick: () => void navigate({ to: '/support/new' }),
-          }}
+          title={tickets.length === 0 ? 'Обращений пока нет' : 'Нет обращений по фильтру'}
+          description={
+            tickets.length === 0
+              ? 'Если что-то не работает — создайте обращение. Или сначала откройте гайд выше.'
+              : 'Смените фильтр или откройте «Все обращения».'
+          }
+          action={
+            tickets.length === 0
+              ? {
+                  label: 'Создать обращение',
+                  onClick: () => void navigate({ to: '/support/new' }),
+                }
+              : {
+                  label: 'Сбросить фильтр',
+                  onClick: () => setFocus('all'),
+                }
+          }
         />
       ) : (
         <ul className="space-y-3">
-          {tickets.map((ticket) => (
+          {visible.map((ticket) => (
             <li key={ticket.id}>
               <Link
                 to="/support/$ticketId"

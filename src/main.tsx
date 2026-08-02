@@ -36,6 +36,13 @@ async function runSyncFlush(reason: string): Promise<void> {
   if (result.synced > 0) {
     toast.success(`Синхронизировано: ${result.synced}`)
   }
+  if (result.discarded > 0) {
+    toast.message(
+      result.discarded === 1
+        ? 'Локальная смена не отправлена: на сервере уже есть открытая смена по этому сотруднику.'
+        : `Часть локальных смен не отправлена (${result.discarded}): конфликт с уже открытой сменой на сервере.`,
+    )
+  }
   if (result.failed > 0) {
     toast.error(`Не удалось синхронизировать: ${result.failed}. Нажмите «Повторить» в шапке.`)
   }

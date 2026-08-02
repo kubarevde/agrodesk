@@ -8,15 +8,27 @@ import { useSellerOrders, useUpdateSellerOrder } from '../hooks'
 import type { OrderStatus } from '../types'
 import { ORDER_STATUS_LABELS, ORDER_TRANSITIONS } from '../labels'
 import { SellerMarketShell } from './SellerMarketShell'
+import { OrdersReportPanel, defaultReportPeriod } from './OrdersReportPanel'
 
 export function SellerOrdersPage() {
   const [status, setStatus] = useState<string>('')
+  const period0 = defaultReportPeriod()
+  const [fromDate, setFromDate] = useState(period0.from)
+  const [toDate, setToDate] = useState(period0.to)
   const orders = useSellerOrders(status || undefined)
   const update = useUpdateSellerOrder()
 
   return (
     <SellerMarketShell>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <OrdersReportPanel
+        fromDate={fromDate}
+        toDate={toDate}
+        status={status}
+        onFromChange={setFromDate}
+        onToChange={setToDate}
+      />
+
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <select
           className="h-9 rounded-lg border border-input bg-background px-3 text-sm"
           value={status}

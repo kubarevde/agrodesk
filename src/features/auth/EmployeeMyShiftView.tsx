@@ -4,6 +4,7 @@ import type { Shift } from '@/types'
 import { CloseShiftModal } from '@/features/worktime/CloseShiftModal'
 import { OpenShiftModal } from '@/features/worktime/OpenShiftModal'
 import { ShiftDetailModal } from '@/features/worktime/ShiftDetailModal'
+import { useImplements } from '@/features/implements/hooks'
 import { useShifts } from '@/features/worktime/hooks'
 import {
   useEquipment,
@@ -11,6 +12,7 @@ import {
   useWorkTypes,
 } from '@/features/worktime/referenceHooks'
 import { useFields } from '@/features/fields/hooks'
+import { StaleCacheNotice } from '@/components/shared/StaleCacheNotice'
 import { getDefaultMonthRange } from '@/features/worktime/utils'
 import { GuideNudgeBanner } from '@/features/help/components/GuideNudgeBanner'
 import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
@@ -45,6 +47,7 @@ export function EmployeeMyShiftView({ user }: EmployeeMyShiftViewProps) {
   useWorkTypes()
   useEquipment()
   useFields()
+  useImplements()
 
   const { data: openShifts = [], isLoading: openLoading } = useShifts(openFilters)
   const { data: monthShifts = [], isLoading: monthLoading } = useShifts(monthFilters)
@@ -67,6 +70,8 @@ export function EmployeeMyShiftView({ user }: EmployeeMyShiftViewProps) {
       <GuideNudgeBanner />
 
       <RoleSectionHelp section="моя смена" items={myShiftHelp} guideSection="my-shift" />
+
+      <StaleCacheNotice detail="Список смен с устройства — может быть неполным до следующего онлайн-обновления." />
 
       <CurrentShiftCard
         shift={activeShift}

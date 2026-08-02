@@ -44,6 +44,18 @@ def test_reports_service_does_not_import_marketplace() -> None:
     assert not any('marketplace' in n or 'market_order' in n for n in names)
 
 
+def test_marketplace_reports_service_is_isolated_module() -> None:
+    """Showcase report lives in its own service; farm reports stay clean."""
+    path = BACKEND_APP / 'services' / 'marketplace_reports.py'
+    assert path.is_file()
+    names = _imported_module_names(path)
+    assert 'app.models.marketplace' in names
+    assert not any('dashboard' in n for n in names)
+    # Builder uses excel_styles only — not farm report builders.
+    assert 'app.services.reports' not in names
+    assert 'app.services.excel_styles' in names
+
+
 def test_dashboard_service_does_not_import_marketplace() -> None:
     names = _imported_module_names(BACKEND_APP / 'services' / 'dashboard.py')
     assert not any('marketplace' in n or 'market_order' in n for n in names)

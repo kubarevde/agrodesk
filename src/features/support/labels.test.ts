@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  categoryHint,
+  filterSupportTicketsByFocus,
   categoryLabel,
   priorityLabel,
   statusLabel,
   supportCategoryOptions,
+  supportListFocusOptions,
   supportPriorityOptions,
   supportSortOptions,
   supportStatusOptions,
@@ -18,6 +21,14 @@ describe('support labels', () => {
       expect(label.length).toBeGreaterThan(2)
     }
     expect(categoryLabel('bug')).toBe('Ошибка в системе')
+  })
+
+  it('gives plain-Russian category hints', () => {
+    for (const code of Object.keys(SUPPORT_CATEGORIES)) {
+      expect(categoryHint(code).length).toBeGreaterThan(10)
+    }
+    expect(categoryHint('how_to').toLowerCase()).toContain('гайд')
+    expect(categoryHint('bug').toLowerCase()).toMatch(/ошибк|слома/)
   })
 
   it('maps statuses for user and staff audiences', () => {
@@ -55,5 +66,26 @@ describe('support labels', () => {
 
     const sort = supportSortOptions()
     expect(sort.find((o) => o.value === 'updated')?.label).toBe('По дате обновления')
+
+    const focus = supportListFocusOptions()
+    expect(focus.find((o) => o.value === 'unread')?.label).toContain('новым ответом')
+    expect(focus.find((o) => o.value === 'waiting_user')?.label).toContain('вашего ответа')
+  })
+})
+
+describe('tenant list focus filter', () => {
+  it('keeps unread and waiting semantics without changing ticket access', () => {
+    const tickets = [
+      { id: '1', unreadForUser: true, status: 'in_progress' },
+      { id: '2', unreadForUser: false, status: 'waiting_user' },
+      { id: '3', unreadForUser: false, status: 'resolved' },
+    ]
+    expect(filterSupportTicketsByFocus(tickets, 'unread').map((t) => t.id)).toEqual([
+      '1',
+    ])
+    expect(
+      filterSupportTicketsByFocus(tickets, 'waiting_user').map((t) => t.id),
+    ).toEqual(['2'])
+    expect(filterSupportTicketsByFocus(tickets, 'all')).toHaveLength(3)
   })
 })

@@ -35,11 +35,11 @@
 4. Миграции БД **обязательны**: `./deploy.sh` вызывает `alembic upgrade head`; то же при старте `api`. После деплоя проверяйте `alembic current`.
 5. **Один** процесс Telegram polling на один `BOT_TOKEN`. Не держите бота и в Docker на VPS, и на bothost одновременно.
 6. `BOT_INTERNAL_SECRET` на VPS (`.env.production`) и на bothost **должен совпадать**.
-7. Перед рискованным релизом — бэкап БД и uploads: `./scripts/backup_db.sh` и `./scripts/backup_uploads.sh` (или `./scripts/run_nightly_backup.sh`).
+7. Перед рискованным релизом — бэкап БД и uploads: `./scripts/backup_db.sh` и `./scripts/backup_uploads.sh`, или `WITH_BACKUP=1 ./scripts/release.sh` / `WITH_BACKUP=1 ./deploy.sh`.
 8. В Git **не** коммитьте: `.env`, `.env.production`, секреты, `node_modules`, дампы БД, архивы `backups/`.
 9. Фронт отдаётся только с VPS (nginx). **Object Storage / S3 / Yandex Cloud для статики не используются.** Uploads — volume `uploads_data` на диске VPS (`/api/uploads`).
-10. CI (GitHub Actions) только валидирует PR/push; на прод **не** деплоит. После зелёного CI: `ssh` → `/opt/agrodesk` → `./deploy.sh`.
-
+10. CI (GitHub Actions) только валидирует PR/push; на прод **не** деплоит. После зелёного CI: `ssh` → `/opt/agrodesk` → предпочтительно `WITH_BACKUP=1 ./scripts/release.sh` (или `./deploy.sh`).
+11. Откат = **restore из backup** (`./scripts/rollback_hint.sh`), не слепой `alembic downgrade` на проде.
 
 ---
 
@@ -126,28 +126,64 @@ bot → HTTP → API  (БД боту не нужна)
 
 Сначала должен быть выполнен **§1 (push на GitHub)** и зелёный CI. Иначе `git pull` на сервере ничего нового не подтянет / выкатите непроверенный код.
 
-Делайте **на сервере**, из каталога репозитория:
+Делайте **на сервере**, из каталога репозитория.
+
+### Рекомендуемый путь (preflight + backup + deploy + проверки)
 
 ```bash
 ssh user@213.183.104.142
 cd /opt/agrodesk
+chmod +x deploy.sh scripts/*.sh scripts/lib/*.sh
 
-# (опционально, перед крупным релизом)
+# Один оркестратор: preflight → backup → deploy.sh → postflight → smoke
+WITH_BACKUP=1 ./scripts/release.sh
+```
+
+Эквивалент по шагам:
+
+```bash
+./scripts/preflight_release.sh
+./scripts/backup_db.sh
+./scripts/backup_uploads.sh
+./deploy.sh                    # git pull → build → up → alembic → postflight
+./scripts/release_smoke.sh     # HTTP checks + печать ручного чеклиста
+```
+
+Флаги:
+
+| Переменная | Где | Смысл |
+|------------|-----|--------|
+| `WITH_BACKUP=1` | `release.sh` / `deploy.sh` | Снять DB + uploads **до** `git pull` |
+| `REQUIRE_BACKUP=1` | preflight / deploy | Упасть, если нет свежего `agrodesk_*.sql` |
+| `SKIP_SMOKE=1` | `release.sh` | Только checklist на печать |
+| `SKIP_POSTFLIGHT=1` | `deploy.sh` | Не вызывать postflight (не рекомендуется) |
+| `DRY_RUN=1` | `release.sh` / preflight | Только проверки, без деплоя |
+
+### Минимальный путь (как раньше)
+
+`deploy.sh` остаётся каноническим entrypoint сборки/миграций:
+
+```bash
+cd /opt/agrodesk
+
+# (желательно перед крупным релизом)
 ./scripts/backup_db.sh
 ./scripts/backup_uploads.sh
 
-# Главная команда
 ./deploy.sh
+# или: WITH_BACKUP=1 ./deploy.sh
 ```
 
-Скрипт делает по порядку:
+Скрипт `./deploy.sh` делает по порядку:
 
-1. `git pull`
-2. `docker compose … build` — пересобирает **api**, **nginx (фронт)**, **bot**
-3. `up -d` — пересоздаёт контейнеры, **volumes не трогает**
-4. Ждёт `/health` у API
-5. `alembic upgrade head` (обязательно; при ошибке деплой падает)
-6. Печатает `alembic current`
+1. (опционально) backup при `WITH_BACKUP=1`
+2. `git pull`
+3. `docker compose … build` — пересобирает **api**, **nginx (фронт)**, **bot**
+4. `up -d` — пересоздаёт контейнеры, **volumes не трогает**
+5. Ждёт `/health` у API (`:8000`)
+6. `alembic upgrade head` (обязательно; при ошибке деплой падает)
+7. Печатает `alembic current`
+8. `./scripts/postflight_release.sh` — контейнеры + `/api/health` + `db_up_to_date`
 
 Эквивалент вручную:
 
@@ -158,7 +194,10 @@ docker compose --env-file .env.production build
 docker compose --env-file .env.production up -d --remove-orphans
 curl -sf http://127.0.0.1:3010/api/health
 docker exec agrodesk_api alembic current
+./scripts/postflight_release.sh
 ```
+
+**Rollback не автоматический.** При провале: `./scripts/rollback_hint.sh` (restore из backup, не alembic downgrade).
 
 ### Если бот на bothost (не в Docker)
 
@@ -256,7 +295,14 @@ BOT_RUN_MODE=polling
 
 ## 6. Проверка после любого обновления
 
-С VPS:
+Автоматически (на VPS):
+
+```bash
+./scripts/postflight_release.sh   # контейнеры + /api/health + db_up_to_date
+./scripts/release_smoke.sh        # HTTP smoke + печать ручного чеклиста
+```
+
+Или вручную:
 
 ```bash
 docker compose --env-file .env.production ps
@@ -265,13 +311,17 @@ docker exec agrodesk_api alembic current
 docker logs --tail=50 agrodesk_api
 ```
 
-Снаружи / в браузере:
+Снаружи / в браузере (то же печатает `release_smoke.sh`):
 
 - [ ] http://213.183.104.142:3010 — открывается UI
-- [ ] http://213.183.104.142:3010/api/health — OK, желательно `"db_up_to_date": true`
+- [ ] http://213.183.104.142:3010/api/health — OK и `"db_up_to_date": true` (`db_revision` == `code_head`)
 - [ ] Логин менеджера / суперадмина
-- [ ] Сценарий из релиза (создать задачу календаря, смена, и т.д.)
-- [ ] Telegram: `/start` у бота, открытие/закрытие смены
+- [ ] Сценарий из релиза (смена, календарь, склад, …)
+- [ ] `/support` и `/support/guide`
+- [ ] Telegram: `/start` у бота (если релиз трогал бота/API)
+
+Релиз успешен, только если **postflight PASSED** и ручной чеклист закрыт.  
+При провале — не объявлять успех; см. `./scripts/rollback_hint.sh`.
 
 Логи:
 
@@ -460,19 +510,20 @@ docker exec agrodesk_api alembic current
 
 === 2. Прод (VPS) ===
 [ ] ssh → cd /opt/agrodesk
-[ ] (обязательно для 025/026) ./scripts/backup_db.sh
-[ ] ./deploy.sh   ИЛИ точечный build api/nginx/bot
-[ ] curl /api/health → db_revision = 026_inventory_stock_repair
-[ ] alembic current
+[ ] WITH_BACKUP=1 ./scripts/release.sh
+    ИЛИ: ./scripts/backup_db.sh + backup_uploads.sh → ./deploy.sh
+[ ] postflight PASSED (в конце deploy / release.sh)
+[ ] curl /api/health → db_up_to_date true, db_revision == code_head
+[ ] ./scripts/release_smoke.sh (если не вызывали через release.sh)
 
 === 3. Бот (если bothost) ===
 [ ] push в репо бота (если отдельный)
 [ ] Redeploy на bothost + логи OK
 
 === 4. Смоук ===
-[ ] логин admin/manager/employee/снабженец
-[ ] смены (свои), закупки (без ложных 403), ТМЦ приход/расход/корректировка
-[ ] календарь + погода, настройки/доступы (mobile 375), история
+[ ] логин admin/manager/employee
+[ ] сценарий релиза + /support/guide
+[ ] смены / склад / нужный модуль
 ```
 
-Готово. Порядок на каждый день: **push на GitHub → `./deploy.sh` на VPS** (+ Redeploy бота на bothost при необходимости).
+Готово. Порядок на каждый день: **push на GitHub → на VPS `WITH_BACKUP=1 ./scripts/release.sh`** (+ Redeploy бота на bothost при необходимости).

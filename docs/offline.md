@@ -76,14 +76,23 @@
 | Смены | Да* | **Да** | Dexie `syncQueue`; RQ `networkMode: always` на create/close |
 | Склад (операции) | Да* | **Да** | Dexie `inventoryQueue` + optimistic RQ; conflict при расхождении остатка |
 | Справочники (объекты, типы работ…) | Да* | Нет | греются с «Моя смена» / форма открытия |
-| Техника / поля | Частично* | Нет | локальный кэш при наличии |
+| Техника / поля / орудия | Частично* | Нет | локальный кэш; орудия греются с «Моя смена» |
 | Создание позиций ТМЦ | Нет | Нет | online only |
 | Затраты / отгрузки | Нет / UI-заглушка | Нет | online only |
+| Мессенджер | Нет | Нет | честный `OnlineOnlyNotice` |
+| Мои начисления | Нет | Нет | online only; список смен месяца из Dexie остаётся |
 | Дашборд | Нет / last stats | Нет | online only |
 | Отчёты | Нет | Нет | online only |
 | Финансы KPI | Нет | Нет | через dashboard API |
 
 \* Зависит от предварительного кэширования при работе онлайн.
+
+### UX честности (офлайн)
+- Баннер в шапке: что пишется офлайн (смены + склад) и что только онлайн.
+- Индикатор ● Онлайн / Офлайн + очередь (pending / failed / conflict).
+- На экранах с Dexie-списками — `StaleCacheNotice` («данные с устройства могут быть устаревшими»).
+- Мессенджер / начисления / отчёты / дашборд — `OnlineOnlyNotice`, без ложных обещаний.
+- Конфликт открытия смены (HTTP **409** при flush): элемент снимается с очереди (`discarded`), пользователю toast — проверить «Рабочее время».
 
 ### Техническая причина бага (июль 2026)
 
@@ -100,6 +109,8 @@ npm run build && npm run preview
 # Network → Offline → reload (сессия не должна уходить на /login)
 # Application → IndexedDB → agrodesk → locations / workTypes / syncQueue
 npm test -- src/features/auth/authOffline.test.ts
+npm test -- src/lib/syncFlush.test.ts src/lib/syncDiscarded.test.ts
+npm test -- src/components/shared/offlineNotices.test.tsx
 npm run test:e2e -- e2e/shifts.spec.ts
 cd backend && python -m pytest tests/test_close_shift_online.py -q
 ```
@@ -107,7 +118,7 @@ cd backend && python -m pytest tests/test_close_shift_online.py -q
 ### Важно
 - Service worker **только в production** (`build` / `preview` / деплой), не в `npm run dev`.
 - Auth: `agrodesk_user_cache` + токен; офлайн не вызывает `/api/auth/me`.
-- `flushSyncQueue` — mutex (startup + online + retry не гоняются параллельно).
+- `flushSyncQueue` — mutex (startup + online + retry не гоняются параллельно); результат включает `discarded` (409 смены).
 - Retry вручную: `includeFailed: true` переводит failed → pending.
 - Nginx на VPS: отдельные `location` для `index.html`, `sw.js`, `manifest.webmanifest` с `Cache-Control: no-cache` (см. `nginx/agrodesk*.conf`).
 
@@ -115,7 +126,7 @@ cd backend && python -m pytest tests/test_close_shift_online.py -q
 1. `sw.js` / `index.html` с долгим cache → старый shell / вечный старый SW.
 2. `VITE_BASE_PATH` без relative manifest → сломан install/start_url.
 3. Auth снова дергает `/me` без fallback → logout офлайн.
-4. Ожидание offline write вне **смен и склада** — не реализовано (затраты, отгрузки, планы и т.д.).
+4. Ожидание offline write вне **смен и склада** — не реализовано (затраты, отгрузки, мессенджер, планы и т.д.).
 5. Backend API без рестарта после фикса close → offline close queue снова получает 500.
 6. Склад офлайн без предварительного онлайн-открытия раздела → нет кэша позиций / optimistic UI пустой.
 
@@ -124,10 +135,13 @@ cd backend && python -m pytest tests/test_close_shift_online.py -q
 - [ ] Установка PWA / Add to Home Screen.
 - [ ] Открыть из иконки онлайн.
 - [ ] Выключить сеть → открыть из иконки → **не** `/login`.
-- [ ] Баннер офлайн виден.
+- [ ] Баннер офлайн виден (смены+склад / online-only модули названы).
+- [ ] Мессенджер / начисления офлайн → честный online-only notice.
+- [ ] «Рабочее время» / «Моя смена» офлайн → StaleCacheNotice.
 - [ ] Открыть смену офлайн → очередь +1 → reload → запись на месте.
 - [ ] Закрыть смену офлайн → очередь.
 - [ ] Включить сеть → очередь очищается / Retry работает.
+- [ ] При 409 (уже открыта смена на сервере) — toast о discarded, очередь не зацикливается.
 - [ ] Закрытие смены **онлайн** с техникой `shift_hours` → 200, не 500.
 - [ ] На складе: приход/расход офлайн → очередь / optimistic; после сети — flush; конфликт остатка → «Проверка» + «Повторить».
 - [ ] Дашборд/Отчёты офлайн показывают честный online-only notice.

@@ -57,7 +57,6 @@ export async function gotoPath(page: Page, path: string) {
       return
     } catch (error) {
       lastError = error
-      await page.waitForTimeout(500)
     }
   }
   throw lastError
@@ -70,64 +69,143 @@ export async function waitForShiftsTable(page: Page) {
   await page.locator('table tbody tr').first().waitFor({ timeout: 15_000 })
 }
 
-/** Close leftover open shifts so openShift is not blocked by API 409. */
-export async function closeAllOpenShifts(page: Page) {
-  const statusCombobox = page.getByRole('combobox').nth(1)
-  await statusCombobox.click()
-  await page.getByRole('option', { name: 'Открытые' }).click()
-  await page.waitForTimeout(500)
-
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const openRow = page.locator('table tbody tr').filter({ hasText: 'Открыта' }).first()
-    if ((await openRow.count()) === 0) {
-      break
-    }
-
-    await openRow.getByRole('button', { name: 'Действия' }).click()
-    await page.getByRole('menuitem', { name: 'Закрыть' }).click()
-    await page.getByRole('dialog', { name: 'Завершить смену' }).waitFor()
-    await page.getByLabel('Что сделано за смену?').fill('e2e cleanup')
-    await page.getByRole('button', { name: 'Завершить смену' }).click()
-    await expect(page.getByText(/Смена закрыта/)).toBeVisible({ timeout: 15_000 })
-    await page.waitForTimeout(400)
+async function authHeaders(page: Page): Promise<Record<string, string>> {
+  const token = await page.evaluate(() => localStorage.getItem('agrodesk_token'))
+  if (!token) {
+    throw new Error('agrodesk_token отсутствует — сначала выполните loginDemoAdmin')
   }
+  return { Authorization: `Bearer ${token}` }
+}
 
-  await statusCombobox.click()
-  await page.getByRole('option', { name: 'Все' }).click()
-  await page.locator('table tbody tr').first().waitFor({ timeout: 15_000 }).catch(() => undefined)
-  await page.waitForTimeout(300)
+/**
+ * Close all open shifts via API (no month UI filter).
+ * UI cleanup is unsafe: Worktime defaults to current month and can miss older open shifts,
+ * leaving EMP001 blocked with HTTP 409 on the next open.
+ */
+export async function closeAllOpenShifts(page: Page) {
+  const headers = await authHeaders(page)
+  const list = await page.request.get('/api/shifts?status=open', { headers })
+  expect(list.ok(), `GET open shifts failed: ${await list.text()}`).toBeTruthy()
+  const opens = (await list.json()) as Array<{ id: string }>
+
+  for (const shift of opens) {
+    const closed = await page.request.post(`/api/shifts/${shift.id}/close`, {
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      data: { description: 'e2e cleanup open shift', comment: null },
+    })
+    expect(
+      closed.ok(),
+      `POST close ${shift.id} failed: ${await closed.text()}`,
+    ).toBeTruthy()
+  }
+  // No page.reload — full reload races with the next modal interaction in serial e2e.
+}
+
+/** Status filter on /worktime — avoid fragile combobox.nth(N). */
+export async function selectWorktimeStatusFilter(
+  page: Page,
+  option: 'Все' | 'Открытые' | 'Закрытые',
+) {
+  // Filters row: employee + status LabeledSelects (DateRangePicker is not a combobox).
+  const triggers = page.locator('[data-slot="select-trigger"]')
+  await expect(triggers).toHaveCount(2, { timeout: 10_000 })
+  await triggers.nth(1).click()
+  await page.getByRole('option', { name: option, exact: true }).click()
 }
 
 export async function selectFormOption(page: Page, label: string, option: string) {
-  const field = page.locator('.space-y-2').filter({
-    has: page.getByText(label, { exact: true }),
-  })
+  const dialog = page.getByRole('dialog').filter({ hasText: /Открыть смену|Начать смену/ })
+  const root = (await dialog.count()) > 0 ? dialog.first() : page
+  // :has() keeps matching relative to each field block (avoid absolute dialog.locator in `has`).
+  const field = root.locator(
+    `div.space-y-2:has([data-slot="label"]:text-is("${label}"))`,
+  )
+  await expect(field).toBeVisible({ timeout: 10_000 })
   await field.getByRole('combobox').click()
-  await page.getByRole('option', { name: option }).click()
+  await page.getByRole('option', { name: option, exact: true }).click()
 }
 
-export async function openShift(page: Page, location: string, workType: string) {
-  // Avoid API 409 when a previous run left EMP001 with an open shift.
-  await closeAllOpenShifts(page)
+export type OpenShiftOptions = {
+  /** Skip API cleanup (caller already cleaned while online). */
+  skipCleanup?: boolean
+  employeeName?: RegExp
+}
+
+export async function openShift(
+  page: Page,
+  location: string,
+  workType: string,
+  options: OpenShiftOptions = {},
+) {
+  const online = await page.evaluate(() => navigator.onLine)
+  if (!options.skipCleanup && online) {
+    await closeAllOpenShifts(page)
+  }
 
   await page.getByRole('button', { name: 'Открыть смену' }).first().click()
   const dialog = page.getByRole('dialog', { name: /Открыть смену/ })
-  await dialog.waitFor()
-
-  const employeeField = dialog.locator('.space-y-2').filter({
-    has: page.getByText('Сотрудник', { exact: true }),
-  })
-  if ((await employeeField.count()) > 0) {
-    await employeeField.getByRole('combobox').click()
-    const employeeOption = page.getByRole('option').filter({ hasText: /Иванов/ }).first()
-    await expect(employeeOption).toBeVisible({ timeout: 10_000 })
-    await employeeOption.click()
-  }
+  await expect(dialog).toBeVisible({ timeout: 10_000 })
 
   await selectFormOption(page, 'Объект', location)
   await selectFormOption(page, 'Тип работ', workType)
 
-  await page.getByRole('button', { name: 'Начать смену' }).click()
+  const employeeField = dialog.locator(
+    'div.space-y-2:has([data-slot="label"]:text-is("Сотрудник"))',
+  )
+  if (await employeeField.isVisible().catch(() => false)) {
+    // Select employee last — earlier selects can leave Base UI focus in a bad state.
+    await employeeField.getByRole('combobox').click()
+    const employeeOption = page
+      .getByRole('option')
+      .filter({ hasText: options.employeeName ?? /EMP001/ })
+      .first()
+    await expect(employeeOption).toBeVisible({ timeout: 10_000 })
+    await employeeOption.click()
+    await expect(employeeField.getByRole('combobox')).toContainText(/EMP001/, {
+      timeout: 5_000,
+    })
+  }
+
+  const createWait = online
+    ? page.waitForResponse(
+        (res) => {
+          if (res.request().method() !== 'POST') return false
+          const url = res.url()
+          if (!url.includes('/api/shifts')) return false
+          if (url.includes('/close') || url.includes('/manual')) return false
+          return true
+        },
+        { timeout: 20_000 },
+      )
+    : null
+
+  await dialog.getByRole('button', { name: 'Начать смену' }).click()
+
+  if (createWait) {
+    const createRes = await createWait.catch(async (err: unknown) => {
+      const validation = dialog.locator('.text-destructive, [aria-invalid="true"]')
+      const toast = page.getByText(/уже есть открытая смена|Не удалось открыть|Выберите|Для полевой/i)
+      const bits = [
+        (await validation.count()) ? `validation=${await validation.allTextContents()}` : '',
+        (await toast.count()) ? `toast=${await toast.first().innerText()}` : '',
+        `dialogVisible=${await dialog.isVisible()}`,
+      ].filter(Boolean)
+      throw new Error(
+        `Open shift: no POST /api/shifts within timeout. ${bits.join('; ') || 'no UI error'}. ${String(err)}`,
+      )
+    })
+    if (!createRes.ok()) {
+      const body = await createRes.text()
+      const toast = page.getByText(/уже есть открытая смена|Не удалось открыть|ошибк/i).first()
+      const toastText = (await toast.isVisible().catch(() => false))
+        ? await toast.innerText()
+        : '(toast not visible)'
+      throw new Error(
+        `Open shift API ${createRes.status()}: ${body}. UI: ${toastText}`,
+      )
+    }
+  }
+
   await expect(dialog).toBeHidden({ timeout: 15_000 })
 }
 
@@ -169,7 +247,6 @@ export async function findShiftRow(page: Page, location: string): Promise<Locato
   const backButton = page.getByRole('button', { name: 'Назад' })
   while (await backButton.isEnabled()) {
     await backButton.click()
-    await page.waitForTimeout(200)
   }
 
   const row = page.locator('table tbody tr').filter({ hasText: location })
@@ -182,7 +259,6 @@ export async function findShiftRow(page: Page, location: string): Promise<Locato
     const nextButton = page.getByRole('button', { name: 'Вперёд' })
     if (await nextButton.isEnabled()) {
       await nextButton.click()
-      await page.waitForTimeout(300)
     } else {
       break
     }
