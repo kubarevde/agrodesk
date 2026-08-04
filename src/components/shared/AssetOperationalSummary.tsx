@@ -9,6 +9,7 @@ import {
   STATUS_LABELS,
 } from '@/features/repair-journal/lib/labels'
 import { AssetOperationalStatus } from './AssetOperationalStatus'
+import { plannedPositionsLabel } from './AssetPurchasePlannerHint'
 
 const ACTIVE_STATUSES = new Set(['in_progress', 'waiting_parts'])
 
@@ -112,14 +113,17 @@ export function AssetOperationalSummary({
       ) : null}
 
       {openPurchases.length > 0 ? (
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground">К покупке</p>
+        <div className="space-y-2">
+          <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+            <ShoppingCart className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+            {plannedPositionsLabel(openPurchases.length)}
+          </p>
           <ul className="space-y-1">
             {[...repairPurchases, ...otherPurchases].slice(0, 4).map((item) => (
-              <li key={item.id} className="text-sm text-foreground">
+              <li key={item.id} className="text-sm text-muted-foreground">
                 · {item.title}
                 {item.maintenanceId ? (
-                  <span className="text-xs text-muted-foreground"> (для ремонта)</span>
+                  <span className="text-xs"> (для ремонта)</span>
                 ) : null}
               </li>
             ))}
@@ -130,9 +134,9 @@ export function AssetOperationalSummary({
           <Link
             to="/purchase-planner"
             search={plannerLinkSearch}
-            className="text-sm text-primary hover:underline"
+            className="inline-flex min-h-11 items-center text-sm text-primary hover:underline sm:min-h-0"
           >
-            Весь список закупок
+            Открыть планировщик
           </Link>
         </div>
       ) : null}

@@ -1,12 +1,12 @@
-import { List, Map as MapIcon, Plus, Tractor } from 'lucide-react'
+import { Plus, Tractor } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
+import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCurrentUser } from '@/features/auth/hooks'
 import {
   useCreateEquipment,
@@ -19,8 +19,14 @@ import { equipmentHelp } from '@/features/help/content'
 import { useImplements } from '@/features/implements/hooks'
 import { EquipmentCard } from './EquipmentCard'
 import { EquipmentFormDialog } from './EquipmentFormDialog'
+import { EquipmentHubShell } from './EquipmentHubShell'
 import { EquipmentMap } from './EquipmentMap'
 import { EquipmentSharingModal } from './EquipmentSharingModal'
+
+const VIEW_OPTIONS = [
+  { value: 'list' as const, label: 'Список' },
+  { value: 'map' as const, label: 'Карта' },
+]
 
 export function EquipmentPage() {
   const navigate = useNavigate()
@@ -61,13 +67,14 @@ export function EquipmentPage() {
   if (isLoading) return <PageSkeleton />
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-semibold text-foreground">Техника</h1>
-        {canManage ? (
+    <EquipmentHubShell
+      active="equipment"
+      title="Техника и приспособления"
+      actions={
+        canManage ? (
           <Button
             type="button"
-            className="bg-primary hover:bg-primary-hover text-primary-foreground"
+            className="min-h-11 w-full bg-primary text-primary-foreground hover:bg-primary-hover sm:min-h-10 sm:w-auto"
             onClick={() => {
               setEditing(null)
               setFormOpen(true)
@@ -76,24 +83,22 @@ export function EquipmentPage() {
             <Plus className="size-4" />
             Добавить технику
           </Button>
-        ) : null}
-      </div>
-
+        ) : null
+      }
+    >
       <RoleSectionHelp section="техника" items={equipmentHelp} guideSection="equipment" />
 
-      <Tabs value={view} onValueChange={(value) => setView(value as 'list' | 'map')}>
-        <TabsList>
-          <TabsTrigger value="list">
-            <List className="size-4" />
-            Список
-          </TabsTrigger>
-          <TabsTrigger value="map">
-            <MapIcon className="size-4" />
-            Карта
-          </TabsTrigger>
-        </TabsList>
+      <SegmentedControl
+        value={view}
+        onChange={setView}
+        options={VIEW_OPTIONS}
+        size="lg"
+        ariaLabel="Вид техники"
+        className="max-w-md"
+      />
 
-        <TabsContent value="list" className="mt-4">
+      {view === 'list' ? (
+        <div className="mt-1">
           {items.length === 0 ? (
             <EmptyState
               icon={Tractor}
@@ -101,7 +106,7 @@ export function EquipmentPage() {
               description="Добавьте первую единицу техники для учёта счётчиков и ТО."
             />
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
               {items.map((item) => (
                 <EquipmentCard
                   key={item.id}
@@ -132,12 +137,12 @@ export function EquipmentPage() {
               ))}
             </div>
           )}
-        </TabsContent>
-
-        <TabsContent value="map" className="mt-4">
+        </div>
+      ) : (
+        <div className="mt-1">
           <EquipmentMap items={items} implementsByEquipment={implementsByEquipment} />
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
 
       <EquipmentFormDialog
         open={formOpen}
@@ -153,6 +158,6 @@ export function EquipmentPage() {
         }}
         item={shareItem}
       />
-    </div>
+    </EquipmentHubShell>
   )
 }

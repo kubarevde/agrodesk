@@ -65,6 +65,15 @@ DEFAULTS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+# code → (icon key, color key) for seeded implement categories
+IMPLEMENT_CATEGORY_STYLE_DEFAULTS: dict[str, tuple[str, str]] = {
+    'sowing': ('sprout', 'success'),
+    'spraying': ('droplets', 'blue'),
+    'tillage': ('tractor', 'amber'),
+    'harvest': ('wheat', 'orange'),
+    'transport': ('truck', 'violet'),
+}
+
 
 class OrgDictionary(Base):
     __tablename__ = 'org_dictionaries'

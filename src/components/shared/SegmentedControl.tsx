@@ -42,7 +42,7 @@ export function SegmentedControl<T extends string>({
             role="tab"
             aria-selected={active}
             className={cn(
-              'flex-1 rounded-lg font-medium transition-colors',
+              'min-w-0 flex-1 truncate rounded-lg font-medium transition-colors',
               size === 'lg' ? 'min-h-11 px-3 py-2.5 text-sm' : 'min-h-9 px-2 py-1.5 text-xs sm:text-sm',
               active
                 ? 'bg-background text-foreground shadow-sm ring-1 ring-border/60'

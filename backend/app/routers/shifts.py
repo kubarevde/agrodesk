@@ -308,6 +308,10 @@ async def list_shifts(
     from_date: date | None = Query(None),
     to_date: date | None = Query(None),
     employee_id: UUID | None = Query(None),
+    field_id: UUID | None = Query(
+        None,
+        description='Optional: only shifts linked to this field (Location id).',
+    ),
     # Accept 'all' from older clients / UI filters — treat as no status filter.
     status: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
@@ -326,6 +330,8 @@ async def list_shifts(
         query = query.where(Shift.date >= from_date)
     if to_date is not None:
         query = query.where(Shift.date <= to_date)
+    if field_id is not None:
+        query = query.where(Shift.field_id == field_id)
     if status in (ShiftStatus.open.value, ShiftStatus.closed.value):
         query = query.where(Shift.status == ShiftStatus(status))
 

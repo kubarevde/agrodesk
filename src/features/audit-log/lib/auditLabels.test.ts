@@ -14,7 +14,7 @@ describe('auditLabels', () => {
   it('maps section codes to Russian labels', () => {
     expect(getAuditSectionLabel('all')).toBe('Все разделы')
     expect(getAuditSectionLabel('employee')).toBe('Сотрудники')
-    expect(getAuditSectionLabel('equipment')).toBe('Техника')
+    expect(getAuditSectionLabel('equipment')).toBe('Техника и приспособления')
   })
 
   it('maps action codes including aliases', () => {

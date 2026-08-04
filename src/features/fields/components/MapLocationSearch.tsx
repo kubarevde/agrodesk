@@ -21,7 +21,7 @@ type MapLocationSearchProps = {
 export function MapLocationSearch({
   onSelect,
   className,
-  hint = 'Начните с поиска ближайшего населённого пункта',
+  hint = 'Поиск населённого пункта или координат',
   placeholder = 'Населённый пункт, адрес или lat, lng',
 }: MapLocationSearchProps) {
   const listId = useId()

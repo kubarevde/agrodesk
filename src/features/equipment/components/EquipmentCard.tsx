@@ -1,9 +1,14 @@
+import { Ban, HardHat, Pencil, Share2, Tractor } from 'lucide-react'
+import { useNavigate } from '@tanstack/react-router'
+import { useMemo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { AssetOperationalStatus } from '@/components/shared/AssetOperationalStatus'
+import { AssetPurchasePlannerHint } from '@/components/shared/AssetPurchasePlannerHint'
+import { CardActionsMenu, type CardActionItem } from '@/components/shared/CardActionsMenu'
 import type { ImplementResponse } from '@/features/implements/types'
 import { mediaUrl } from '@/lib/media'
-import { Tractor } from 'lucide-react'
 import {
   hoursToNextService,
   meterProgress,
@@ -12,7 +17,6 @@ import {
   type EquipmentDetail,
 } from '../types'
 import { ToStatusBadge } from './ToStatusBadge'
-import { AssetOperationalStatus } from '@/components/shared/AssetOperationalStatus'
 
 type EquipmentCardProps = {
   item: EquipmentDetail
@@ -35,6 +39,7 @@ export function EquipmentCard({
   onShare,
   onDeactivate,
 }: EquipmentCardProps) {
+  const navigate = useNavigate()
   const progress = meterProgress(item.current_meter, item.next_to_at, item.maintenance)
   const nextAt = nextServiceHours(item.next_to_at, item.maintenance)
   const remaining = hoursToNextService(item.current_meter, item.next_to_at, item.maintenance)
@@ -42,56 +47,106 @@ export function EquipmentCard({
   const visible = attached.slice(0, 3)
   const extra = attached.length - visible.length
 
+  const actions = useMemo((): CardActionItem[] => {
+    const list: CardActionItem[] = []
+    if (canManage) {
+      list.push({
+        id: 'edit',
+        label: 'Редактировать',
+        icon: Pencil,
+        onSelect: () => onEdit(item),
+      })
+      list.push({
+        id: 'share',
+        label: 'Шеринг',
+        icon: Share2,
+        onSelect: () => onShare(item),
+      })
+    }
+    if (canDeactivate && item.is_active) {
+      list.push({
+        id: 'deactivate',
+        label: 'Деактивировать',
+        icon: Ban,
+        variant: 'destructive',
+        onSelect: () => onDeactivate(item),
+      })
+    }
+    return list
+  }, [canDeactivate, canManage, item, onDeactivate, onEdit, onShare])
+
   return (
-    <Card className="flex flex-col overflow-hidden">
+    <Card
+      className="flex cursor-pointer flex-col overflow-hidden transition-colors hover:border-primary/40"
+      data-testid="equipment-card"
+      role="link"
+      tabIndex={0}
+      onClick={() => onDetails(item)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onDetails(item)
+        }
+      }}
+    >
       {item.image_url ? (
-        <div className="flex h-40 w-full items-center justify-center bg-muted">
+        <div className="flex h-28 w-full items-center justify-center bg-muted sm:h-32">
           <img
             src={mediaUrl(item.image_url)}
             alt={item.name}
-            className="max-h-40 w-full object-contain"
+            className="max-h-28 w-full object-contain sm:max-h-32"
           />
         </div>
       ) : (
-        <div className="flex h-40 w-full items-center justify-center bg-muted text-muted-foreground">
-          <Tractor className="size-10 opacity-50" />
+        <div className="flex h-24 w-full items-center justify-center bg-muted text-muted-foreground sm:h-28">
+          <Tractor className="size-8 opacity-50" />
         </div>
       )}
-      <CardHeader className="space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <CardTitle className="text-lg font-semibold text-foreground">{item.name}</CardTitle>
-          {item.type ? <Badge variant="secondary">{item.type}</Badge> : null}
+
+      <CardHeader className="space-y-2 pb-2">
+        <div className="flex items-start justify-between gap-2">
+          <CardTitle className="min-w-0 text-lg font-semibold leading-snug break-words text-foreground">
+            {item.name}
+          </CardTitle>
+          {actions.length > 0 ? <CardActionsMenu actions={actions} title={item.name} /> : null}
         </div>
-        <ToStatusBadge status={status} />
-        <AssetOperationalStatus equipmentId={item.id} compact />
 
-        {nextAt != null ? (
-          <div className="space-y-1.5">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-primary transition-[width]"
-                style={{ width: `${progress}%` }} // dynamic width for progress fill
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {item.current_meter} {item.meter_label} → {nextAt} {item.meter_label}
-              {remaining != null ? ` (осталось ${remaining})` : ''}
+        <div className="flex flex-wrap items-center gap-2">
+          {item.type ? <Badge variant="secondary">{item.type}</Badge> : null}
+          <ToStatusBadge status={status} />
+          <AssetOperationalStatus equipmentId={item.id} compact showPurchases={false} />
+        </div>
+      </CardHeader>
+
+      <CardContent className="flex flex-1 flex-col gap-3">
+        <div className="space-y-1">
+          {nextAt != null ? (
+            <>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-[width]"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {item.current_meter} {item.meter_label} → {nextAt} {item.meter_label}
+                {remaining != null ? ` (осталось ${remaining})` : ''}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm font-medium tabular-nums text-foreground">
+              {item.current_meter} {item.meter_label}
             </p>
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            {item.current_meter} {item.meter_label}
-          </p>
-        )}
-
-        {item.meter_type === 'shift_hours' ? (
-          <p className="text-xs text-muted-foreground">Автозапись из смен</p>
-        ) : null}
+          )}
+          {item.meter_type === 'shift_hours' ? (
+            <p className="hidden text-xs text-muted-foreground sm:block">Автозапись из смен</p>
+          ) : null}
+        </div>
 
         {attached.length > 0 ? (
           <div className="flex flex-wrap gap-1.5">
             {visible.map((row) => (
-              <Badge key={row.id} variant="outline">
+              <Badge key={row.id} variant="outline" className="max-w-full truncate">
                 {row.name}
               </Badge>
             ))}
@@ -101,34 +156,32 @@ export function EquipmentCard({
               </Badge>
             ) : null}
           </div>
-        ) : null}
-      </CardHeader>
+        ) : (
+          <p className="text-xs text-muted-foreground">Без приспособлений</p>
+        )}
 
-      <CardContent className="mt-auto flex flex-wrap gap-2">
-        <Button type="button" size="sm" variant="outline" onClick={() => onDetails(item)}>
-          Детали
-        </Button>
-        {canManage ? (
-          <Button type="button" size="sm" variant="outline" onClick={() => onEdit(item)}>
-            Редактировать
-          </Button>
-        ) : null}
-        {canManage ? (
-          <Button type="button" size="sm" variant="outline" onClick={() => onShare(item)}>
-            Шеринг
-          </Button>
-        ) : null}
-        {canDeactivate && item.is_active ? (
+        <AssetPurchasePlannerHint equipmentId={item.id} />
+
+        <div
+          className="mt-auto"
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
           <Button
             type="button"
-            size="sm"
             variant="outline"
-            className="text-destructive"
-            onClick={() => onDeactivate(item)}
+            className="min-h-11 w-full sm:min-h-10"
+            onClick={() => {
+              void navigate({
+                to: '/maintenance',
+                search: { equipmentId: item.id },
+              })
+            }}
           >
-            Деактивировать
+            <HardHat className="size-4" />
+            Ремонт и обслуживание
           </Button>
-        ) : null}
+        </div>
       </CardContent>
     </Card>
   )

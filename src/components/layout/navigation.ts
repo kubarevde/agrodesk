@@ -19,7 +19,6 @@ import {
   TrendingUp,
   Truck,
   Users,
-  Wrench,
 } from 'lucide-react'
 import type { CurrentUser } from '@/lib/transformers'
 import { hasAction, type PermissionAction } from '@/lib/permissionActions'
@@ -31,6 +30,11 @@ export interface NavItem {
   icon: LucideIcon
   /** When set, item is hidden unless the user has this action (admin always sees it). */
   requiredAction?: PermissionAction
+  /**
+   * Extra section keys that also unlock this nav item
+   * (e.g. Техника hub covers implements via top tabs).
+   */
+  alsoSections?: string[]
 }
 
 export interface NavGroup {
@@ -72,8 +76,7 @@ const OPERATIONS_ITEMS: NavItem[] = [
 
 const RESOURCES_ITEMS: NavItem[] = [
   { to: '/fields', label: 'Поля', icon: Map },
-  { to: '/equipment', label: 'Техника', icon: Tractor },
-  { to: '/implements', label: 'Приспособления', icon: Wrench },
+  { to: '/equipment', label: 'Техника', icon: Tractor, alsoSections: ['implements'] },
   { to: '/maintenance', label: 'Ремонт и обслуживание', icon: HardHat },
   { to: '/purchase-planner', label: 'Планировщик закупок', icon: ShoppingCart },
   { to: '/inventory', label: 'ТМЦ', icon: Package },
@@ -188,6 +191,12 @@ export function getPageTitle(pathname: string): string {
   }
   if (normalized === '/seller-market' || normalized.startsWith('/seller-market/')) {
     return 'Магазин'
+  }
+  if (normalized === '/implements' || normalized.startsWith('/implements/')) {
+    return 'Приспособления'
+  }
+  if (normalized === '/equipment' || normalized.startsWith('/equipment/')) {
+    return 'Техника'
   }
   const item = NAV_ITEMS.find(
     (nav) => normalized === nav.to || normalized.startsWith(`${nav.to}/`),

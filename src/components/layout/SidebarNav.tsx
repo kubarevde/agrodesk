@@ -62,7 +62,11 @@ export function SidebarNav({ collapsed, onNavigate }: SidebarNavProps) {
             const isActive =
               pathname === to ||
               pathname === `${to}/` ||
-              pathname.startsWith(`${to}/`)
+              pathname.startsWith(`${to}/`) ||
+              (to === '/equipment' &&
+                (pathname === '/implements' ||
+                  pathname === '/implements/' ||
+                  pathname.startsWith('/implements/')))
             const showMessengerBadge = to === '/messenger' && messengerUnread > 0
 
             const link = (

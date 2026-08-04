@@ -27,6 +27,11 @@ from app.services.dictionary_usage import (
     dictionary_usage_count,
     format_crop_usage_detail,
 )
+from app.services.implement_category_styles import (
+    load_org_style_overrides,
+    resolve_style,
+    upsert_category_style,
+)
 
 router = APIRouter()
 
@@ -63,12 +68,16 @@ class DictionaryItemCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     code: str | None = Field(default=None, max_length=80)
     sort_order: int | None = None
+    icon: str | None = Field(default=None, max_length=40)
+    color: str | None = Field(default=None, max_length=40)
 
 
 class DictionaryItemUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     is_active: bool | None = None
     sort_order: int | None = None
+    icon: str | None = Field(default=None, max_length=40)
+    color: str | None = Field(default=None, max_length=40)
 
 
 class DictionaryItemResponse(BaseModel):
@@ -80,9 +89,19 @@ class DictionaryItemResponse(BaseModel):
     code: str
     is_active: bool
     sort_order: int
+    # Computed: Organization.settings overrides → code defaults → null.
+    icon: str | None = None
+    color: str | None = None
 
 
-def _to_response(item: OrgDictionary) -> DictionaryItemResponse:
+def _to_response(
+    item: OrgDictionary,
+    overrides: dict[str, dict[str, str]] | None = None,
+) -> DictionaryItemResponse:
+    icon: str | None = None
+    color: str | None = None
+    if item.type == 'implement_category':
+        icon, color = resolve_style(item.code, overrides)
     return DictionaryItemResponse(
         id=item.id,
         type=item.type,
@@ -90,6 +109,8 @@ def _to_response(item: OrgDictionary) -> DictionaryItemResponse:
         code=item.code,
         is_active=bool(item.is_active),
         sort_order=int(item.sort_order or 0),
+        icon=icon,
+        color=color,
     )
 
 
@@ -121,7 +142,10 @@ async def list_dictionary(
     if is_active is not None:
         query = query.where(OrgDictionary.is_active == is_active)
     result = await db.execute(query)
-    return [_to_response(row) for row in result.scalars().all()]
+    overrides = (
+        await load_org_style_overrides(db, org_id) if dict_type == 'implement_category' else None
+    )
+    return [_to_response(row, overrides) for row in result.scalars().all()]
 
 
 @router.post(
@@ -151,8 +175,23 @@ async def create_dictionary_item(
         sort_order=payload.sort_order if payload.sort_order is not None else 100,
     )
     db.add(item)
+    overrides: dict[str, dict[str, str]] | None = None
     try:
         await db.flush()
+        if dict_type == 'implement_category' and (payload.icon is not None or payload.color is not None):
+            try:
+                overrides = await upsert_category_style(
+                    db,
+                    org_id,
+                    code,
+                    icon=payload.icon,
+                    color=payload.color,
+                )
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(exc),
+                ) from exc
         await log_change(db, org_id=org_id, entity_type='dictionary_item', entity_id=item.id,
                          action='create', changed_by=current.id, after=model_snapshot(item))
         await db.commit()
@@ -163,7 +202,9 @@ async def create_dictionary_item(
             detail='Запись с таким названием или кодом уже есть',
         ) from None
     await db.refresh(item)
-    return _to_response(item)
+    if overrides is None and dict_type == 'implement_category':
+        overrides = await load_org_style_overrides(db, org_id)
+    return _to_response(item, overrides)
 
 
 @router.patch('/{dict_type}/{item_id}', response_model=DictionaryItemResponse)
@@ -190,6 +231,9 @@ async def update_dictionary_item(
     before = model_snapshot(item)
 
     updates = payload.model_dump(exclude_unset=True)
+    style_icon = updates.pop('icon', None) if 'icon' in updates else ...
+    style_color = updates.pop('color', None) if 'color' in updates else ...
+
     if updates.get('is_active') is False and item.is_active:
         await _assert_can_deactivate(db, org_id=org_id, item=item)
     if 'name' in updates and updates['name'] is not None:
@@ -197,7 +241,23 @@ async def update_dictionary_item(
     for key, value in updates.items():
         setattr(item, key, value)
     db.add(item)
+
+    overrides = None
     try:
+        if dict_type == 'implement_category' and (style_icon is not ... or style_color is not ...):
+            try:
+                overrides = await upsert_category_style(
+                    db,
+                    org_id,
+                    item.code,
+                    icon=None if style_icon is ... else style_icon,
+                    color=None if style_color is ... else style_color,
+                )
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(exc),
+                ) from exc
         await log_change(db, org_id=org_id, entity_type='dictionary_item', entity_id=item.id,
                          action='update', changed_by=current.id, before=before, after=model_snapshot(item))
         await db.commit()
@@ -208,7 +268,9 @@ async def update_dictionary_item(
             detail='Запись с таким названием уже есть',
         ) from None
     await db.refresh(item)
-    return _to_response(item)
+    if overrides is None and dict_type == 'implement_category':
+        overrides = await load_org_style_overrides(db, org_id)
+    return _to_response(item, overrides)
 
 
 @router.delete('/{dict_type}/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response)

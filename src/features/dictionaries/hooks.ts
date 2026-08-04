@@ -16,6 +16,8 @@ export type DictionaryItem = {
   code: string
   is_active: boolean
   sort_order: number
+  icon: string | null
+  color: string | null
 }
 
 const LABELS: Record<DictionaryType, string> = {
@@ -37,6 +39,8 @@ function mapItem(raw: Record<string, unknown>): DictionaryItem {
     code: String(raw.code ?? ''),
     is_active: raw.is_active !== false,
     sort_order: Number(raw.sort_order ?? 0),
+    icon: raw.icon != null && raw.icon !== '' ? String(raw.icon) : null,
+    color: raw.color != null && raw.color !== '' ? String(raw.color) : null,
   }
 }
 
@@ -52,6 +56,9 @@ export function useDictionary(
       const { data } = await api.get<Record<string, unknown>[]>(`/api/dictionaries/${type}`, {
         params: activeOnly ? { is_active: true } : undefined,
       })
+      if (!Array.isArray(data)) {
+        throw new Error('Некорректный ответ справочника')
+      }
       return data.map(mapItem)
     },
   })
@@ -60,7 +67,11 @@ export function useDictionary(
 export function useCreateDictionaryItem(type: DictionaryType) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { name: string }) => {
+    mutationFn: async (payload: {
+      name: string
+      icon?: string | null
+      color?: string | null
+    }) => {
       const { data } = await api.post<Record<string, unknown>>(`/api/dictionaries/${type}`, payload)
       return mapItem(data)
     },
@@ -79,6 +90,8 @@ export function useUpdateDictionaryItem(type: DictionaryType) {
       id: string
       name?: string
       is_active?: boolean
+      icon?: string | null
+      color?: string | null
     }) => {
       const { id, ...body } = payload
       const { data } = await api.patch<Record<string, unknown>>(

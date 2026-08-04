@@ -36,7 +36,11 @@ export function RepairHistorySection({
               + На ремонт
             </Button>
           ) : null}
-          <Link to="/maintenance" className="text-sm text-primary hover:underline">
+          <Link
+            to="/maintenance"
+            search={equipmentId ? { equipmentId } : undefined}
+            className="text-sm text-primary hover:underline"
+          >
             Все записи
           </Link>
         </div>

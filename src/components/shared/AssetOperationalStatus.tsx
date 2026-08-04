@@ -14,26 +14,32 @@ type AssetOperationalStatusProps = {
   equipmentId?: string
   implementId?: string
   compact?: boolean
+  /** When false, only repair badge is shown (purchases handled elsewhere). Default true. */
+  showPurchases?: boolean
 }
 
 export function AssetOperationalStatus({
   equipmentId,
   implementId,
   compact = false,
+  showPurchases = true,
 }: AssetOperationalStatusProps) {
   const { data: repairs = [] } = useRepairs({
     equipmentId,
     implementId,
     includeDone: false,
   })
-  const { data: purchases = [] } = usePurchaseItems({
-    status: 'planned',
-    equipmentId,
-    implementId,
-  })
+  const { data: purchases = [] } = usePurchaseItems(
+    {
+      status: 'planned',
+      equipmentId,
+      implementId,
+    },
+    showPurchases,
+  )
 
   const activeRepair = repairs.find((r) => ACTIVE_REPAIR_STATUSES.has(r.status))
-  const plannedCount = purchases.length
+  const plannedCount = showPurchases ? purchases.length : 0
   const urgentCount = purchases.filter((p) => p.urgency === 'urgent').length
 
   if (!activeRepair && plannedCount === 0) return null

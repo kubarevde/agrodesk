@@ -8,7 +8,14 @@ const WorktimePage = lazy(() =>
   })),
 )
 
+type WorktimeSearch = {
+  field_id?: string
+}
+
 export const Route = createFileRoute('/_layout/worktime/')({
   beforeLoad: makeSectionBeforeLoad('worktime'),
+  validateSearch: (search: Record<string, unknown>): WorktimeSearch => ({
+    field_id: typeof search.field_id === 'string' && search.field_id ? search.field_id : undefined,
+  }),
   component: WorktimePage,
 })
