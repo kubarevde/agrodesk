@@ -8,7 +8,17 @@ const MaintenancePage = lazy(() =>
   })),
 )
 
+type MaintenanceSearch = {
+  equipmentId?: string
+}
+
 export const Route = createFileRoute('/_layout/maintenance/')({
   beforeLoad: makeSectionBeforeLoad('maintenance'),
+  validateSearch: (search: Record<string, unknown>): MaintenanceSearch => ({
+    equipmentId:
+      typeof search.equipmentId === 'string' && search.equipmentId
+        ? search.equipmentId
+        : undefined,
+  }),
   component: MaintenancePage,
 })

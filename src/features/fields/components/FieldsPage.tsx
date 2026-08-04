@@ -1,10 +1,10 @@
-import { List, Map as MapIcon, MapPinned, Plus } from 'lucide-react'
+import { MapPinned, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
+import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
 import { fieldsHelp } from '@/features/help/content'
@@ -21,6 +21,11 @@ import { FieldFormDialog } from './FieldFormDialog'
 import { FieldHarvestModal } from './FieldHarvestModal'
 import { FieldsMap } from './FieldsMap'
 import { SharingCreateModal } from './SharingCreateModal'
+
+const VIEW_OPTIONS = [
+  { value: 'list' as const, label: 'Список' },
+  { value: 'map' as const, label: 'Карта' },
+]
 
 export function FieldsPage() {
   const { data: user } = useCurrentUser()
@@ -58,13 +63,18 @@ export function FieldsPage() {
   if (isLoading) return <PageSkeleton />
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-semibold text-foreground">Поля</h1>
+    <div className="space-y-5 overflow-x-hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-1">
+          <h1 className="text-2xl font-semibold text-foreground">Поля</h1>
+          <p className="text-sm text-muted-foreground">
+            Список и карта участков: культура, площадь, контур и сбор урожая.
+          </p>
+        </div>
         {canManage ? (
           <Button
             type="button"
-            className="bg-primary hover:bg-primary-hover text-primary-foreground"
+            className="min-h-11 w-full shrink-0 bg-primary text-primary-foreground hover:bg-primary-hover sm:min-h-10 sm:w-auto"
             onClick={openCreate}
           >
             <Plus className="size-4" />
@@ -73,30 +83,33 @@ export function FieldsPage() {
         ) : null}
       </div>
 
-      <RoleSectionHelp section="поля" items={fieldsHelp} guideSection="fields" />
+      <RoleSectionHelp
+        section="поля"
+        items={fieldsHelp}
+        guideSection="fields"
+        summary="Откройте поле в списке или на карте. Основные действия — урожай и редактирование; остальное — в «Ещё»."
+      />
 
-      <Tabs value={view} onValueChange={(value) => setView(value as 'list' | 'map')}>
-        <TabsList>
-          <TabsTrigger value="list">
-            <List className="size-4" />
-            Список
-          </TabsTrigger>
-          <TabsTrigger value="map">
-            <MapIcon className="size-4" />
-            Карта
-          </TabsTrigger>
-        </TabsList>
+      <SegmentedControl
+        value={view}
+        onChange={setView}
+        options={VIEW_OPTIONS}
+        size="lg"
+        ariaLabel="Вид полей"
+        className="max-w-md"
+      />
 
-        <TabsContent value="list" className="mt-4">
+      {view === 'list' ? (
+        <div className="mt-1">
           {fields.length === 0 ? (
             <EmptyState
               icon={MapPinned}
               title="Пока нет полей"
-              description="Добавьте первое поле, чтобы вести учёт культуры и площади."
+              description="Добавьте первое поле — название, культура и площадь."
               action={canManage ? { label: 'Добавить поле', onClick: openCreate } : undefined}
             />
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))]">
               {fields.map((field) => (
                 <FieldCard
                   key={field.id}
@@ -118,20 +131,20 @@ export function FieldsPage() {
               ))}
             </div>
           )}
-        </TabsContent>
-
-        <TabsContent value="map" className="mt-4">
+        </div>
+      ) : (
+        <div className="mt-1">
           {fields.length === 0 ? (
             <EmptyState
-              icon={MapIcon}
+              icon={MapPinned}
               title="Нет полей для карты"
-              description="Добавьте поле с координатами."
+              description="Добавьте поле с контуром или точкой."
             />
           ) : (
             <FieldsMap fields={fields} />
           )}
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
 
       <FieldFormDialog
         open={formOpen}

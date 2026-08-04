@@ -77,7 +77,7 @@ export function FieldsMap({ fields }: FieldsMapProps) {
       <MapLocationSearch
         className="max-w-xl"
         onSelect={setFlyTo}
-        hint="Начните с поиска ближайшего населённого пункта — карта переместится туда"
+        hint="Поиск населённого пункта или координат"
       />
       <MapView
         height="min(70vh, 600px)"

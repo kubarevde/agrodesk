@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { MapPin } from 'lucide-react'
+import { ChevronDown, MapPin } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -70,6 +70,7 @@ export function FieldFormDialog({
   const [lngText, setLngText] = useState('')
   const [areaText, setAreaText] = useState('')
   const [mapEpoch, setMapEpoch] = useState(0)
+  const [extrasOpen, setExtrasOpen] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -89,9 +90,16 @@ export function FieldFormDialog({
     setLatText(formatCoord(next.latitude))
     setLngText(formatCoord(next.longitude))
     setAreaText(formatCoord(next.area_ha))
+    setExtrasOpen(false)
     setMapEpoch((n) => n + 1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [field?.id, open])
+
+  const latError = form.formState.errors.latitude
+  const lngError = form.formState.errors.longitude
+  useEffect(() => {
+    if (latError || lngError) setExtrasOpen(true)
+  }, [latError, lngError])
 
   const fillGeolocation = () => {
     if (!navigator.geolocation) {
@@ -143,12 +151,12 @@ export function FieldFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[92vh] overflow-y-auto overflow-x-hidden sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{field ? 'Редактировать поле' : 'Добавить поле'}</DialogTitle>
         </DialogHeader>
         <form
-          className="space-y-4"
+          className="space-y-5"
           onSubmit={form.handleSubmit(async (values: FieldFormValues) => {
             await onSubmit({
               ...values,
@@ -159,12 +167,15 @@ export function FieldFormDialog({
             onOpenChange(false)
           })}
         >
-          <section className="space-y-3">
-            <p className="text-sm font-medium text-foreground">Основные данные</p>
+          <section className="space-y-3" aria-labelledby="field-form-main">
+            <h3 id="field-form-main" className="text-sm font-medium text-foreground">
+              Основное
+            </h3>
             <div className="space-y-2">
               <Label htmlFor="field-name">Название поля</Label>
               <Input
                 id="field-name"
+                className="min-h-11 sm:min-h-10"
                 placeholder="Например: 1815 компост"
                 {...form.register('name')}
               />
@@ -191,7 +202,7 @@ export function FieldFormDialog({
                     }}
                     items={cropItems}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="min-h-11 w-full sm:min-h-10">
                       <SelectValue placeholder="Выберите культуру" />
                     </SelectTrigger>
                     <SelectContent alignItemWithTrigger={false}>
@@ -211,6 +222,7 @@ export function FieldFormDialog({
               <Label htmlFor="field-area">Площадь (га)</Label>
               <Input
                 id="field-area"
+                className="min-h-11 sm:min-h-10"
                 inputMode="decimal"
                 placeholder="Например: 12,5"
                 value={areaText}
@@ -226,14 +238,9 @@ export function FieldFormDialog({
                 <p className="text-xs text-destructive">{form.formState.errors.area_ha.message}</p>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Можно ввести вручную или получить из контура на карте.
+                  Вручную или из контура на карте.
                 </p>
               )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="field-description">Описание</Label>
-              <Textarea id="field-description" rows={2} {...form.register('description')} />
             </div>
           </section>
 
@@ -261,58 +268,95 @@ export function FieldFormDialog({
             />
           ) : null}
 
-          <section className="space-y-3">
-            <p className="text-sm font-medium text-foreground">Погодная точка</p>
-            <p className="text-xs text-muted-foreground">
-              Одна точка для прогноза погоды. Заполняется из контура автоматически или вручную.
-              Допустима запятая в дробной части.
-            </p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <details
+            className="rounded-lg border border-border bg-muted/10 open:pb-3"
+            open={extrasOpen}
+            onToggle={(e) => setExtrasOpen(e.currentTarget.open)}
+          >
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">
+              <span>Дополнительно</span>
+              <ChevronDown
+                className={`size-4 shrink-0 text-muted-foreground transition-transform ${extrasOpen ? 'rotate-180' : ''}`}
+                aria-hidden
+              />
+            </summary>
+            <div className="space-y-4 border-t border-border px-3 pt-3">
               <div className="space-y-2">
-                <Label htmlFor="field-lat">Широта</Label>
-                <Input
-                  id="field-lat"
-                  inputMode="decimal"
-                  placeholder="51,5"
-                  value={latText}
-                  onChange={(e) => syncCoordField('latitude', e.target.value)}
+                <Label htmlFor="field-description">Описание</Label>
+                <Textarea
+                  id="field-description"
+                  rows={2}
+                  {...form.register('description')}
                 />
-                {form.formState.errors.latitude ? (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.latitude.message}
-                  </p>
-                ) : null}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="field-lng">Долгота</Label>
-                <Input
-                  id="field-lng"
-                  inputMode="decimal"
-                  placeholder="36,5"
-                  value={lngText}
-                  onChange={(e) => syncCoordField('longitude', e.target.value)}
-                />
-                {form.formState.errors.longitude ? (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.longitude.message}
+
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">Погодная точка</p>
+                  <p className="text-xs text-muted-foreground">
+                    Одна точка для прогноза. Обычно берётся из центра контура.
                   </p>
-                ) : null}
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="field-lat">Широта</Label>
+                    <Input
+                      id="field-lat"
+                      className="min-h-11 sm:min-h-10"
+                      inputMode="decimal"
+                      placeholder="51,5"
+                      value={latText}
+                      onChange={(e) => syncCoordField('latitude', e.target.value)}
+                    />
+                    {form.formState.errors.latitude ? (
+                      <p className="text-xs text-destructive">
+                        {form.formState.errors.latitude.message}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="field-lng">Долгота</Label>
+                    <Input
+                      id="field-lng"
+                      className="min-h-11 sm:min-h-10"
+                      inputMode="decimal"
+                      placeholder="36,5"
+                      value={lngText}
+                      onChange={(e) => syncCoordField('longitude', e.target.value)}
+                    />
+                    {form.formState.errors.longitude ? (
+                      <p className="text-xs text-destructive">
+                        {form.formState.errors.longitude.message}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-11 w-full sm:min-h-10 sm:w-auto"
+                  onClick={fillGeolocation}
+                >
+                  <MapPin className="size-4" />
+                  Мои координаты
+                </Button>
               </div>
             </div>
-            <Button type="button" variant="outline" onClick={fillGeolocation}>
-              <MapPin className="size-4" />
-              Мои координаты
-            </Button>
-          </section>
+          </details>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11 sm:min-h-10"
+              onClick={() => onOpenChange(false)}
+            >
               Отмена
             </Button>
             <Button
               type="submit"
               disabled={isPending}
-              className="bg-primary hover:bg-primary-hover text-primary-foreground"
+              className="min-h-11 bg-primary text-primary-foreground hover:bg-primary-hover sm:min-h-10"
             >
               {field ? 'Сохранить' : 'Добавить'}
             </Button>

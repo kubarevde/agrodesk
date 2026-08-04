@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { getRouteApi } from '@tanstack/react-router'
 import { Wrench } from 'lucide-react'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { SectionHelp } from '@/components/shared/SectionHelp'
@@ -29,18 +30,29 @@ const STATUS_FILTER = selectOptions([
   { value: 'done', label: 'Готово' },
 ])
 
+const maintenanceRoute = getRouteApi('/_layout/maintenance/')
+
 export function MaintenancePage() {
   const { data: user } = useCurrentUser()
   const canManage = user?.role === 'admin' || user?.role === 'manager'
+  const { equipmentId } = maintenanceRoute.useSearch()
+  const navigate = maintenanceRoute.useNavigate()
   const [status, setStatus] = useState('all')
   const [createOpen, setCreateOpen] = useState(false)
   const [selected, setSelected] = useState<RepairJournalEntry | null>(null)
   const { data = [], isLoading, isError, error } = useRepairs({
     status: status === 'all' ? undefined : status,
+    equipmentId,
   })
-  const { data: inProgress = [] } = useRepairs({ status: 'in_progress' })
-  const { data: waitingParts = [] } = useRepairs({ status: 'waiting_parts' })
-  const { data: doneRepairs = [] } = useRepairs({ status: 'done' })
+  const { data: inProgress = [] } = useRepairs({
+    status: 'in_progress',
+    equipmentId,
+  })
+  const { data: waitingParts = [] } = useRepairs({
+    status: 'waiting_parts',
+    equipmentId,
+  })
+  const { data: doneRepairs = [] } = useRepairs({ status: 'done', equipmentId })
 
   const urgentCount = [...inProgress, ...waitingParts].filter((r) => r.priority === 'urgent')
     .length
@@ -69,6 +81,20 @@ export function MaintenancePage() {
           </Button>
         ) : null}
       </div>
+
+      {equipmentId ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-muted-foreground">
+          <span>Показаны записи по выбранной технике.</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => void navigate({ search: { equipmentId: undefined }, replace: true })}
+          >
+            Показать все
+          </Button>
+        </div>
+      ) : null}
 
       <div className="grid gap-2 sm:grid-cols-4">
         <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-3">
@@ -107,7 +133,11 @@ export function MaintenancePage() {
       <RepairList items={data} onOpen={setSelected} />
 
       {canManage ? (
-        <RepairCreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+        <RepairCreateDialog
+          open={createOpen}
+          onClose={() => setCreateOpen(false)}
+          defaultEquipmentId={equipmentId}
+        />
       ) : null}
       <RepairDetailDialog
         entry={selected}

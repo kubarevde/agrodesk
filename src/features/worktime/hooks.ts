@@ -47,6 +47,10 @@ async function getShiftsFromDexie(filters: ShiftFilters): Promise<Shift[]> {
     shifts = shifts.filter((shift) => shift.status === filters.status)
   }
 
+  if (filters.fieldId) {
+    shifts = shifts.filter((shift) => shift.fieldId === filters.fieldId)
+  }
+
   return shifts
 }
 

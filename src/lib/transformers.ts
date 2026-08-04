@@ -206,6 +206,7 @@ export function shiftFiltersToApi(filters: ShiftFilters): ApiRecord {
     ...(filters.from ? { from_date: displayDateToIso(filters.from) } : {}),
     ...(filters.to ? { to_date: displayDateToIso(filters.to) } : {}),
     ...(filters.employeeId ? { employee_id: filters.employeeId } : {}),
+    ...(filters.fieldId ? { field_id: filters.fieldId } : {}),
     ...(filters.status && filters.status !== 'all' ? { status: filters.status } : {}),
   }
 }

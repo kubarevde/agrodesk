@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge'
+import { useDictionary } from '@/features/dictionaries/hooks'
 import { cn } from '@/lib/utils'
-import { getImplementCategoryConfig } from '../categoryConfig'
+import { findDictionaryCategory, getImplementCategoryConfig } from '../categoryConfig'
 
 type ImplementCategoryBadgeProps = {
   category: string
@@ -8,7 +9,9 @@ type ImplementCategoryBadgeProps = {
 }
 
 export function ImplementCategoryBadge({ category, className }: ImplementCategoryBadgeProps) {
-  const config = getImplementCategoryConfig(category)
+  const { data: dictionary = [] } = useDictionary('implement_category')
+  const dictItem = findDictionaryCategory(category, dictionary)
+  const config = getImplementCategoryConfig(category, dictItem)
   const Icon = config.icon
 
   return (

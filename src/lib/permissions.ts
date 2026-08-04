@@ -49,13 +49,23 @@ export function canAccessPath(
   return allowedSections.includes(section)
 }
 
-export function filterNavBySections<T extends { to: string }>(
+export function filterNavBySections<T extends { to: string; alsoSections?: string[] }>(
   items: T[],
   allowedSections: string[] | undefined,
   role: 'admin' | 'manager' | 'employee' | undefined,
 ): T[] {
   if (role === 'admin') return items
-  return items.filter((item) => canAccessPath(item.to, role, allowedSections))
+  return items.filter((item) => {
+    if (canAccessPath(item.to, role, allowedSections)) return true
+    if (!item.alsoSections?.length) return false
+    if (!allowedSections) {
+      return (
+        role !== 'employee' ||
+        item.alsoSections.some((section) => DEFAULT_EMPLOYEE_SECTIONS.includes(section))
+      )
+    }
+    return item.alsoSections.some((section) => allowedSections.includes(section))
+  })
 }
 
 /**

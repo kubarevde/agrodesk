@@ -52,38 +52,39 @@ export function EquipmentDetailHeader({
       )}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-foreground">{item.name}</h1>
+        <div className="min-w-0 space-y-2">
+          <h1 className="text-2xl font-semibold break-words text-foreground">{item.name}</h1>
           <div className="flex flex-wrap gap-2">
             {item.type ? <Badge variant="secondary">{item.type}</Badge> : null}
             <ToStatusBadge status={status} />
           </div>
-          <AssetOperationalSummary equipmentId={item.id} equipmentName={item.name} />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
           <EntityHistoryButton entityType="equipment" entityId={item.id} />
           {canManage ? (
-            <Button type="button" variant="outline" onClick={onEdit}>
+            <Button type="button" variant="outline" className="min-h-11 sm:min-h-10" onClick={onEdit}>
               Редактировать
             </Button>
           ) : null}
           {canManage ? (
-            <Button type="button" variant="outline" onClick={onMeterLog}>
+            <Button type="button" variant="outline" className="min-h-11 sm:min-h-10" onClick={onMeterLog}>
               Внести показания
             </Button>
           ) : null}
           {canManage ? (
-            <Button type="button" variant="outline" onClick={onMaintenance}>
+            <Button type="button" variant="outline" className="min-h-11 sm:min-h-10" onClick={onMaintenance}>
               Записать ТО
             </Button>
           ) : null}
           {canManage && onStock ? (
-            <Button type="button" variant="outline" onClick={onStock}>
+            <Button type="button" variant="outline" className="min-h-11 sm:min-h-10" onClick={onStock}>
               Заправка / ТМЦ
             </Button>
           ) : null}
         </div>
       </div>
+
+      <AssetOperationalSummary equipmentId={item.id} equipmentName={item.name} />
 
       <section className="space-y-3 rounded-lg border border-border bg-surface p-4">
         <h2 className="text-lg font-semibold text-foreground">Счётчик</h2>

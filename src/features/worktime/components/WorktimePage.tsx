@@ -1,5 +1,6 @@
 import { Clock, Download, Play, Plus } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { getRouteApi } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { SkeletonTable } from '@/components/shared/SkeletonTable'
@@ -23,15 +24,20 @@ import { useWorktimePageActions } from './useWorktimePageActions'
 import { WorktimeModals } from './WorktimeModals'
 
 const TIMESHEET_REPORT = REPORT_DEFINITIONS.find((report) => report.id === 'timesheet')
+const worktimeRoute = getRouteApi('/_layout/worktime/')
 
 export function WorktimePage() {
   const { data: user } = useCurrentUser()
   const isManager = user?.role === 'admin' || user?.role === 'manager'
   const isAdmin = user?.role === 'admin'
+  const { field_id: fieldIdFromSearch } = worktimeRoute.useSearch()
+  const navigate = worktimeRoute.useNavigate()
+
   const {
     from,
     to,
     employeeId,
+    fieldId,
     status,
     filters,
     hasActiveFilters,
@@ -40,7 +46,7 @@ export function WorktimePage() {
     setEmployeeId,
     setStatus,
     resetFilters,
-  } = useWorktimeFilters()
+  } = useWorktimeFilters({ fieldId: fieldIdFromSearch })
 
   const { data: shifts = [], isLoading, isError } = useShifts(filters)
   const safeShifts = Array.isArray(shifts) ? shifts : []
@@ -72,6 +78,13 @@ export function WorktimePage() {
   useEffect(() => {
     if (isError) toast.error('Ошибка: Не удалось загрузить смены')
   }, [isError])
+
+  const handleResetFilters = () => {
+    resetFilters()
+    if (fieldIdFromSearch) {
+      void navigate({ search: { field_id: undefined }, replace: true })
+    }
+  }
 
   const handleExport = async () => {
     if (!TIMESHEET_REPORT) return
@@ -133,6 +146,12 @@ export function WorktimePage() {
 
       <StaleCacheNotice detail="Офлайн: список смен из кэша устройства. Новые открытие/закрытие уйдут на сервер при появлении сети." />
 
+      {fieldId ? (
+        <p className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-muted-foreground">
+          Показаны смены только по выбранному полю. Сбросить фильтры — чтобы увидеть все смены.
+        </p>
+      ) : null}
+
       <ShiftsFilters
         from={from}
         to={to}
@@ -144,7 +163,7 @@ export function WorktimePage() {
         onToChange={(value) => setTo(value ?? to)}
         onEmployeeChange={setEmployeeId}
         onStatusChange={setStatus}
-        onReset={resetFilters}
+        onReset={handleResetFilters}
       />
 
       {isLoading ? (
@@ -152,9 +171,17 @@ export function WorktimePage() {
       ) : safeShifts.length === 0 ? (
         <EmptyState
           icon={Clock}
-          title="Смен за период нет"
-          description="Откройте первую смену или измените фильтры"
-          action={{ label: 'Открыть смену', onClick: () => setOpenShiftOpen(true) }}
+          title={fieldId ? 'Для этого поля пока нет смен' : 'Смен за период нет'}
+          description={
+            fieldId
+              ? 'За выбранный период смен с этим полем нет — измените даты или сбросьте фильтр.'
+              : 'Откройте первую смену или измените фильтры'
+          }
+          action={
+            fieldId
+              ? { label: 'Сбросить фильтр поля', onClick: handleResetFilters }
+              : { label: 'Открыть смену', onClick: () => setOpenShiftOpen(true) }
+          }
         />
       ) : (
         <>

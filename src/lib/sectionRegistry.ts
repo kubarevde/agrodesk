@@ -76,7 +76,7 @@ export const SECTION_REGISTRY: readonly SectionDefinition[] = [
   },
   {
     key: 'equipment',
-    title: 'Техника',
+    title: 'Техника и приспособления',
     route: '/equipment',
     showInSidebar: true,
     showInEmployeeHome: true,

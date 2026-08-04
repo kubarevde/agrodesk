@@ -38,7 +38,7 @@ export const AUDIT_SECTION_LABELS = {
   expenses: 'Затраты',
   shipment: 'Отгрузки',
   shipments: 'Отгрузки',
-  equipment: 'Техника',
+  equipment: 'Техника и приспособления',
   equipment_maintenance: 'Ремонт и ТО',
   equipment_meter_log: 'Показания',
   implement: 'Приспособления',

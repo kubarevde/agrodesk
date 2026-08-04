@@ -132,11 +132,9 @@ export function FieldContourEditor({
   return (
     <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
       <div className="space-y-1">
-        <p className="text-sm font-medium text-foreground">Контур на карте</p>
+        <p className="text-sm font-medium text-foreground">Контур</p>
         <p className="text-xs text-muted-foreground">
-          Сначала найдите населённый пункт, приблизьте карту, затем ставьте точки по меже
-          (не меньше 3). На телефоне — «Начать рисовать» и тап по карте; замкните контур
-          кнопкой «Завершить» или тапом по первой точке.
+          Найдите место на карте → «Начать рисовать» → точки по меже (от 3) → «Завершить».
         </p>
       </div>
 
@@ -207,8 +205,7 @@ export function FieldContourEditor({
       <p className="text-xs text-muted-foreground">{statusText}</p>
       {safeWeather ? (
         <p className="text-xs text-muted-foreground">
-          Погодная точка: {safeWeather[0].toFixed(5)}, {safeWeather[1].toFixed(5)}
-          {normalized ? ' (центр контура или ручной ввод)' : ''}
+          Погода: {safeWeather[0].toFixed(5)}, {safeWeather[1].toFixed(5)}
         </p>
       ) : null}
     </div>

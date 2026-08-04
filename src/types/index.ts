@@ -321,6 +321,8 @@ export interface ShiftFilters {
   from?: string
   to?: string
   employeeId?: string
+  /** Optional: only shifts linked to this field (API `field_id`). */
+  fieldId?: string
   status?: 'open' | 'closed' | 'all'
 }
 

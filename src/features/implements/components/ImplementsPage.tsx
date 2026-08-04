@@ -1,5 +1,6 @@
 import { Plus, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
@@ -14,6 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { EquipmentHubShell } from '@/features/equipment/components/EquipmentHubShell'
 import { implementsHelp } from '@/features/help/content'
 import {
   useCreateImplement,
@@ -32,6 +34,7 @@ import { ImplementMaintenanceModal } from './ImplementMaintenanceModal'
 import { ImplementSharingModal } from './ImplementSharingModal'
 
 export function ImplementsPage() {
+  const navigate = useNavigate()
   const { data: user } = useCurrentUser()
   const canManage = user?.role === 'admin' || user?.role === 'manager'
   const canDelete = user?.role === 'admin'
@@ -64,13 +67,14 @@ export function ImplementsPage() {
   if (isLoading) return <PageSkeleton />
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-semibold text-foreground">Приспособления</h1>
-        {canManage ? (
+    <EquipmentHubShell
+      active="implements"
+      title="Приспособления"
+      actions={
+        canManage ? (
           <Button
             type="button"
-            className="bg-primary hover:bg-primary-hover text-primary-foreground"
+            className="min-h-11 w-full bg-primary text-primary-foreground hover:bg-primary-hover sm:min-h-10 sm:w-auto"
             onClick={() => {
               setEditing(null)
               setFormOpen(true)
@@ -79,12 +83,12 @@ export function ImplementsPage() {
             <Plus className="size-4" />
             Добавить приспособление
           </Button>
-        ) : null}
-      </div>
-
+        ) : null
+      }
+    >
       <SectionHelp section="приспособления" items={implementsHelp} />
 
-      <div className="space-y-2 max-w-xs">
+      <div className="w-full max-w-xs space-y-2">
         <Label>Категория</Label>
         <Select
           value={category ?? 'all'}
@@ -94,7 +98,7 @@ export function ImplementsPage() {
             ...categoryOptions.map((option) => ({ value: option.name, label: option.name })),
           ]}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="min-h-11 w-full sm:min-h-10">
             <SelectValue placeholder="Все" />
           </SelectTrigger>
           <SelectContent alignItemWithTrigger={false}>
@@ -122,6 +126,12 @@ export function ImplementsPage() {
               item={item}
               canManage={canManage}
               canDelete={canDelete}
+              onDetails={(row) => {
+                void navigate({
+                  to: '/implements/$implementId',
+                  params: { implementId: row.id },
+                })
+              }}
               onEdit={(row) => {
                 setEditing(row)
                 setFormOpen(true)
@@ -172,6 +182,6 @@ export function ImplementsPage() {
         }}
         item={shareItem}
       />
-    </div>
+    </EquipmentHubShell>
   )
 }
