@@ -12,17 +12,16 @@ History was rewritten to remove that path from all reachable commits.
 
 ## Rewritten refs
 
-| Ref | Notes |
-|-----|--------|
-| `main` | History rewritten |
-| `release/payroll-workspace-fields-2026-08` | History rewritten; product commits preserved |
-| `harvest-unify-baseline` (tag) | History rewritten |
-
-Exact new hashes: see operator report / `git rev-parse` after cleanup.
+| Ref | Old tip (pre-cleanup) | New tip (post-cleanup) |
+|-----|----------------------|-------------------------|
+| `main` | `2f3722240bf1f3cd254f924721737e9716a5e35e` | `3f0ab409848cab52e3bbf41ec9c82f4b1a3f4a14` |
+| `release/payroll-workspace-fields-2026-08` | `ffbb254fcbb24f69461a8676707b784be04b112c` | `fee5bad1cb21ac398ff9d1fc1d9e26563b61d731` |
+| tag `harvest-unify-baseline` | `64dff57359ebdf5f4c125045108deef770e9a61e` | `5701f4bf1e05516d31b60a14ef34718574d28bdb` |
 
 Local emergency backup (do **not** push to GitHub):
 
 - `../agrodesk-before-secret-cleanup.bundle` (created and verified before rewrite)
+- `../agrodesk-refs-before-secret-cleanup.txt` (ref map only; no secret values)
 
 ## Required follow-ups (incident NOT closed)
 
