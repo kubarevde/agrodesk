@@ -32,6 +32,20 @@ legacy/
 # Local uploads / backups
 backend/uploads/
 backups/
+*.sql
+!backend/**/fixtures/**/*.sql
+
+# Local QA run artifacts (never commit)
+_qa_*.txt
+_e2e_*.txt
+_qa_database_url.txt
+
+# Playwright / Vite local artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+dev-dist/
 
 # TanStack Router temp
 .tanstack/
