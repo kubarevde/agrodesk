@@ -11,7 +11,11 @@ from app.services.dual_writer import DualWriter
 from app.states.workday import StartWork
 from app.utils.menu import menu_for_user
 from app.utils.org_time import now_in_org
-from app.utils.references import find_by_name, is_field_work_type
+from app.utils.references import (
+    apply_field_work_location,
+    find_by_name,
+    is_field_work_type,
+)
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -162,6 +166,37 @@ async def ask_location(message: Message, state: FSMContext, locations: list[dict
     )
 
 
+async def ask_geo(message: Message, state: FSMContext) -> None:
+    await state.set_state(StartWork.geo)
+    await message.answer(
+        '📍 Отправь геометку или нажми «Пропустить» '
+        '(как в веб-версии — можно начать без геопозиции):',
+        reply_markup=geo_keyboard(),
+    )
+
+
+async def bind_field_work_location_or_fail(
+    message: Message,
+    state: FSMContext,
+    api: ApiClient,
+    locations: list[dict],
+) -> bool:
+    """For field work, use system location «Полевая работа» (web/API parity)."""
+    bound = apply_field_work_location(locations)
+    if bound is None:
+        tg_id = message.from_user.id
+        await message.answer(
+            'Для полевой работы нужен системный объект «Полевая работа». '
+            'Обратитесь к менеджеру.',
+            reply_markup=await menu_for_user_safe(api, tg_id),
+        )
+        await state.clear()
+        return False
+    location_id, location_name = bound
+    await state.update_data(location_id=location_id, location_name=location_name)
+    return True
+
+
 async def prompt_comment(message: Message, state: FSMContext) -> None:
     await state.set_state(StartWork.comment)
     await message.answer(
@@ -293,6 +328,14 @@ async def work_start_agro_plan(
         implement_id=str(implement_id) if implement_id is not None else None,
         _from_plan=True,
     )
+
+    # Web: field work auto-binds system location «Полевая работа»
+    if is_field:
+        if not await bind_field_work_location_or_fail(message, state, api, locations):
+            return
+        await ask_geo(message, state)
+        return
+
     await ask_location(message, state, locations)
 
 
@@ -320,11 +363,7 @@ async def work_start_location(
         location_id=str(item['id']),
         location_name=str(item.get('name', '')),
     )
-    await state.set_state(StartWork.geo)
-    await message.answer(
-        '📍 Отправь геометку или нажми «Пропустить»:',
-        reply_markup=geo_keyboard(),
-    )
+    await ask_geo(message, state)
 
 
 async def continue_after_geo(
@@ -450,6 +489,9 @@ async def work_start_type(
     )
 
     if is_field:
+        locations: list[dict] = data.get('_locations') or []
+        if not await bind_field_work_location_or_fail(message, state, api, locations):
+            return
         await prompt_field_or_fail(message, state, api, tg_id)
         return
 
@@ -603,6 +645,23 @@ async def finish_open_shift(
         await prompt_field_or_fail(message, state, api, tg_id)
         return
 
+    # Safety: field work must use system location (same as OpenShiftModal)
+    if needs_field:
+        locations: list[dict] = data.get('_locations') or []
+        bound = apply_field_work_location(locations)
+        if bound is not None:
+            location_id, location_name = bound
+            await state.update_data(location_id=location_id, location_name=location_name)
+            data = await state.get_data()
+        elif not data.get('location_id'):
+            await message.answer(
+                'Для полевой работы нужен системный объект «Полевая работа». '
+                'Обратитесь к менеджеру.',
+                reply_markup=menu_for_user(is_admin),
+            )
+            await state.clear()
+            return
+
     result = await dual.open_shift(
         tg_id=tg_id,
         location_id=str(data.get('location_id')),
@@ -618,6 +677,7 @@ async def finish_open_shift(
         field_id=field_id,
         agro_plan_id=data.get('agro_plan_id'),
         start_comment=start_comment or None,
+        implement_id=data.get('implement_id'),
     )
 
     if (

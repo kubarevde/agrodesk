@@ -18,7 +18,7 @@ from app.keyboards.main_menu import admin_menu_keyboard, cancel_keyboard
 from app.services.api_client import ApiClient, shift_op_user_message
 from app.services.dual_writer import DualWriter
 from app.states.workday import AdminAddShift, AdminBroadcast, AdminCloseShift
-from app.utils.references import find_by_name, is_field_work_type
+from app.utils.references import apply_field_work_location, find_by_name, is_field_work_type
 
 router = Router()
 TZ = ZoneInfo("Asia/Bangkok")
@@ -591,6 +591,18 @@ async def admin_add_shift_work_type(message: Message, state: FSMContext, api: Ap
     )
 
     if is_field:
+        locations: list[dict] = data.get("_locations") or []
+        bound = apply_field_work_location(locations)
+        if bound is None:
+            await state.clear()
+            await message.answer(
+                "Для полевой работы нужен системный объект «Полевая работа».",
+                reply_markup=admin_menu_keyboard(),
+            )
+            return
+        location_id, location_name = bound
+        await state.update_data(location_id=location_id, location_name=location_name)
+
         fields = await api.get_fields(tg_id)
         if not fields:
             await state.clear()
