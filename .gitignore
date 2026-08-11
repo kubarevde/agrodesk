@@ -11,14 +11,15 @@ node_modules
 dist
 dist-ssr
 *.local
-backend/.env
-bot/.env
-bot/bothost.env
+
+# Environment secrets (never commit real env files)
 .env
 .env.*
 !.env.example
-!.env.development
-!.env.production.example
+!.env.*.example
+backend/.env
+bot/.env
+bot/bothost.env
 
 # Legacy Sheets-only bot copies (do not use)
 bot-main/
@@ -29,9 +30,25 @@ legacy/
 **/__pycache__/
 *.py[cod]
 
-# Local uploads / backups
+# Local uploads / backups / dumps
 backend/uploads/
 backups/
+*.sql
+*.dump
+*.backup
+!backend/**/fixtures/**/*.sql
+
+# Local QA run artifacts (never commit)
+_qa_*.txt
+_e2e_*.txt
+_qa_database_url.txt
+
+# Playwright / Vite local artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+dev-dist/
 
 # TanStack Router temp
 .tanstack/
@@ -46,10 +63,3 @@ backups/
 *.njsproj
 *.sln
 *.sw?
-
-gitignore
-# Секреты
-.env
-.env.*
-!.env.production.example
-!.env.example
