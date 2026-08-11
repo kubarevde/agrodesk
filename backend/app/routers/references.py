@@ -29,10 +29,33 @@ from app.schemas.reference import (
 from app.services.audit import log_change, model_snapshot
 
 from app.services.equipment_meters import calc_meter_label
+from app.services.field_work_location import (
+    ensure_field_work_location,
+    raise_if_system_location_locked,
+)
 from app.services.maintenance import (
     build_maintenance_summary,
-    calculate_next_service_hours,
+    resolve_next_to_at,
 )
+
+
+def _coord(value: Any) -> float | None:
+    if value is None:
+        return None
+    return float(value)
+
+
+def location_to_response(item: Location) -> LocationResponse:
+    return LocationResponse(
+        id=item.id,
+        name=item.name,
+        description=item.description,
+        is_active=bool(item.is_active),
+        code=item.code,
+        is_system=bool(getattr(item, 'is_system', False)),
+        latitude=_coord(item.latitude),
+        longitude=_coord(item.longitude),
+    )
 
 
 def equipment_to_response(item: Equipment) -> EquipmentResponse:
@@ -71,19 +94,19 @@ def equipment_to_response(item: Equipment) -> EquipmentResponse:
     )
 
 
-def resolve_next_to_at(
+def resolve_equipment_next_to_at(
     *,
     current_meter: float | Decimal | None,
     to_interval: float | Decimal | None,
     next_to_at: float | Decimal | None = None,
 ) -> Decimal | None:
-    """Prefer ceil formula from interval; explicit next_to_at only if no interval."""
-    if to_interval is not None and float(to_interval) > 0:
-        nxt = calculate_next_service_hours(current_meter, to_interval)
-        return Decimal(str(nxt)) if nxt is not None else None
-    if next_to_at is not None:
-        return Decimal(str(next_to_at))
-    return None
+    """Absolute next reading — same as maintenance.resolve_next_to_at."""
+    resolved = resolve_next_to_at(
+        meter_at=current_meter,
+        next_to_at=next_to_at,
+        next_to_interval=to_interval,
+    )
+    return Decimal(str(resolved)) if resolved is not None else None
 
 
 def build_reference_router(
@@ -236,7 +259,7 @@ def build_equipment_router() -> APIRouter:
     ) -> EquipmentResponse:
         data = payload.model_dump()
         data['org_id'] = get_org_id(request)
-        data['next_to_at'] = resolve_next_to_at(
+        data['next_to_at'] = resolve_equipment_next_to_at(
             current_meter=data.get('current_meter'),
             to_interval=data.get('to_interval'),
             next_to_at=data.get('next_to_at'),
@@ -289,7 +312,7 @@ def build_equipment_router() -> APIRouter:
             setattr(item, field, value)
 
         if 'next_to_at' not in updates and item.next_to_at is None and item.to_interval is not None:
-            item.next_to_at = resolve_next_to_at(
+            item.next_to_at = resolve_equipment_next_to_at(
                 current_meter=item.current_meter,
                 to_interval=item.to_interval,
                 next_to_at=None,
@@ -343,22 +366,17 @@ async def list_locations(
 ) -> list[LocationResponse]:
     """Work objects only by default — fields live under /api/fields."""
     org_id = get_org_id(request)
+    # Self-heal system location for 8.4 (kind=object) — never creates a field.
+    await ensure_field_work_location(db, org_id)
+    await db.commit()
     query = select(Location).where(Location.org_id == org_id)
     if is_active is not None:
         query = query.where(Location.is_active == is_active)
     if kind and kind != 'all':
         query = query.where(Location.kind == kind)
-    query = query.order_by(Location.name)
+    query = query.order_by(Location.is_system.desc(), Location.name)
     result = await db.execute(query)
-    return [
-        LocationResponse(
-            id=row.id,
-            name=row.name,
-            description=row.description,
-            is_active=bool(row.is_active),
-        )
-        for row in result.scalars().all()
-    ]
+    return [location_to_response(row) for row in result.scalars().all()]
 
 
 @locations_router.get('/{item_id}', response_model=LocationResponse)
@@ -369,12 +387,7 @@ async def get_location(
     _: Employee = Depends(get_current_employee),
 ) -> LocationResponse:
     item = await _get_item_or_404(db, Location, item_id, get_org_id(request))
-    return LocationResponse(
-        id=item.id,
-        name=item.name,
-        description=item.description,
-        is_active=bool(item.is_active),
-    )
+    return location_to_response(item)
 
 
 @locations_router.post('', response_model=LocationResponse, status_code=status.HTTP_201_CREATED)
@@ -393,6 +406,9 @@ async def create_location(
         description=payload.description,
         kind='object',
         is_active=True,
+        is_system=False,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
     )
     db.add(item)
     try:
@@ -407,12 +423,7 @@ async def create_location(
             detail='Объект с таким названием уже существует',
         ) from None
     await db.refresh(item)
-    return LocationResponse(
-        id=item.id,
-        name=item.name,
-        description=item.description,
-        is_active=bool(item.is_active),
-    )
+    return location_to_response(item)
 
 
 @locations_router.patch('/{item_id}', response_model=LocationResponse)
@@ -430,6 +441,7 @@ async def update_location(
     updates = payload.model_dump(exclude_unset=True)
     if 'name' in updates and updates['name'] is not None:
         updates['name'] = normalize_name(updates['name'])
+    raise_if_system_location_locked(item, updates=updates)
     for key, value in updates.items():
         setattr(item, key, value)
     db.add(item)
@@ -444,12 +456,7 @@ async def update_location(
             detail='Объект с таким названием уже существует',
         ) from None
     await db.refresh(item)
-    return LocationResponse(
-        id=item.id,
-        name=item.name,
-        description=item.description,
-        is_active=bool(item.is_active),
-    )
+    return location_to_response(item)
 
 
 @locations_router.delete('/{item_id}', status_code=status.HTTP_204_NO_CONTENT)
@@ -460,6 +467,7 @@ async def delete_location(
     current: Employee = Depends(require_manager),
 ) -> None:
     item = await _get_item_or_404(db, Location, item_id, get_org_id(request))
+    raise_if_system_location_locked(item, deleting=True)
     before = model_snapshot(item)
     item.is_active = False
     db.add(item)

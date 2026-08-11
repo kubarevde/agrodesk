@@ -4,13 +4,35 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pydantic import BaseModel, Field
+
 from app.database import get_db
 from app.dependencies.auth import get_current_employee
 from app.models.employee import Employee
 from app.models.notification import Notification
 from app.schemas.notification import NotificationCountResponse, NotificationResponse
+from app.services.notification_prefs import (
+    catalog_with_state,
+    save_employee_prefs,
+)
 
 router = APIRouter()
+
+
+class NotificationPrefItem(BaseModel):
+    type: str
+    label: str
+    enabled: bool
+
+
+class NotificationPrefsResponse(BaseModel):
+    items: list[NotificationPrefItem]
+
+
+class NotificationPrefsUpdate(BaseModel):
+    """Map of notification type → enabled. Only known types are applied."""
+
+    prefs: dict[str, bool] = Field(default_factory=dict)
 
 
 def notification_to_response(item: Notification) -> NotificationResponse:
@@ -43,6 +65,36 @@ async def get_notification_or_404(
             detail='Уведомление не найдено',
         )
     return item
+
+
+@router.get('/prefs', response_model=NotificationPrefsResponse)
+async def get_notification_prefs(
+    current: Employee = Depends(get_current_employee),
+) -> NotificationPrefsResponse:
+    prefs = getattr(current, 'notification_prefs', None) or {}
+    return NotificationPrefsResponse(
+        items=[NotificationPrefItem(**row) for row in catalog_with_state(prefs)]
+    )
+
+
+@router.patch('/prefs', response_model=NotificationPrefsResponse)
+async def update_notification_prefs(
+    payload: NotificationPrefsUpdate,
+    db: AsyncSession = Depends(get_db),
+    current: Employee = Depends(get_current_employee),
+) -> NotificationPrefsResponse:
+    employee = await db.get(Employee, current.id)
+    if employee is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Сотрудник не найден')
+    await save_employee_prefs(db, employee, payload.prefs)
+    await db.commit()
+    await db.refresh(employee)
+    return NotificationPrefsResponse(
+        items=[
+            NotificationPrefItem(**row)
+            for row in catalog_with_state(employee.notification_prefs)
+        ]
+    )
 
 
 @router.get('', response_model=list[NotificationResponse])

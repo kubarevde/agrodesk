@@ -2,7 +2,7 @@ import enum
 import uuid
 
 from sqlalchemy import BigInteger, Boolean, Column, DateTime, Enum, ForeignKey, Numeric, String, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -38,13 +38,19 @@ class Employee(Base):
         nullable=True,
         index=True,
     )
+    # Per-type inbox toggles; absent keys default to enabled.
+    notification_prefs = Column(JSONB, nullable=False, server_default='{}')
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     access_group = relationship('AccessGroup', back_populates='members')
     shifts = relationship('Shift', back_populates='employee')
     inventory_operations = relationship('InventoryOperation', back_populates='created_by_user')
     shipments = relationship('Shipment', back_populates='created_by_user')
-    expenses = relationship('Expense', back_populates='created_by_user')
+    expenses = relationship(
+        'Expense',
+        back_populates='created_by_user',
+        foreign_keys='Expense.created_by',
+    )
     owned_equipment = relationship(
         'Equipment',
         back_populates='owner',

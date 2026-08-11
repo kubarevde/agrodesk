@@ -27,6 +27,7 @@ from app.schemas.superadmin import (
 )
 from app.services.auth import create_access_token, hash_password, verify_password
 from app.services.org_features import MARKETPLACE_ENABLED_KEY, marketplace_enabled, settings_dict
+from app.data.regions_ru import normalize_region_code
 from app.services.org_hierarchy import (
     OrgHierarchyError,
     attach_child,
@@ -70,6 +71,7 @@ async def org_to_response(db: AsyncSession, org: Organization) -> OrganizationRe
         employees_count=await _employees_count(db, org.id),
         active_shifts_count=await _active_shifts_count(db, org.id),
         marketplace_enabled=marketplace_enabled(org.settings),
+        region=org.region,
     )
 
 
@@ -165,6 +167,14 @@ async def create_organization(
             detail='Организация с таким slug уже существует',
         )
 
+    try:
+        region = normalize_region_code(payload.region)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Некорректный код региона',
+        ) from exc
+
     org = Organization(
         name=payload.name,
         slug=slug,
@@ -172,6 +182,7 @@ async def create_organization(
         plan=payload.plan,
         max_employees=payload.max_employees,
         trial_ends_at=payload.trial_ends_at,
+        region=region,
         is_active=True,
     )
     db.add(org)
@@ -218,6 +229,14 @@ async def update_organization(
     org = await get_org_or_404(db, org_id)
     data = payload.model_dump(exclude_unset=True)
     market_flag = data.pop('marketplace_enabled', None)
+    if 'region' in data:
+        try:
+            data['region'] = normalize_region_code(data['region'])
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Некорректный код региона',
+            ) from exc
     for field, value in data.items():
         setattr(org, field, value)
     if market_flag is not None:

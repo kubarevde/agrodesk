@@ -2,16 +2,16 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
+from app.data.regions_ru import region_label
 from app.database import get_db
 from app.dependencies.auth import get_current_employee
 from app.models.employee import Employee, EmployeeRole
 from app.models.implement import Implement
-from app.models.notification import Notification
 from app.models.reference import Equipment, Location
 from app.models.sharing import SharingListing, SharingRequest
 from app.schemas.sharing import (
@@ -23,6 +23,7 @@ from app.schemas.sharing import (
     SharingRequestResponse,
     SharingRequestStatusUpdate,
 )
+from app.services.sharing_partial import apply_sharing_scope, effective_geometry
 
 router = APIRouter()
 
@@ -80,12 +81,43 @@ def normalize_image_paths(images: list[str] | None) -> list[str]:
 
 
 def is_owner_or_admin(listing: SharingListing, employee: Employee) -> bool:
-    return listing.owner_id == employee.id or employee.role == EmployeeRole.admin
+    return listing.owner_id == employee.id or (
+        employee.role == EmployeeRole.admin and listing.org_id == employee.org_id
+    )
 
 
-def listing_to_response(listing: SharingListing) -> SharingListingResponse:
+def can_view_listing(listing: SharingListing, employee: Employee) -> bool:
+    """Active listings are platform-wide; non-active only for owning org staff."""
+    if listing.status == 'active':
+        return True
+    if listing.org_id == employee.org_id and (
+        listing.owner_id == employee.id or employee.role == EmployeeRole.admin
+    ):
+        return True
+    return False
+
+
+def listing_to_response(
+    listing: SharingListing,
+    viewer: Employee | None = None,
+) -> SharingListingResponse:
     raw_images = listing.images if isinstance(listing.images, list) else []
     image_paths = [str(item) for item in raw_images]
+
+    contact = listing.contact_info
+    # Hide contacts from other users until a request is accepted (response on request payload).
+    if viewer is not None and not is_owner_or_admin(listing, viewer):
+        contact = None
+
+    scope = getattr(listing, 'sharing_scope', None) or 'full_field'
+    if scope not in ('full_field', 'partial_field'):
+        scope = 'full_field'
+    eff_poly, eff_area = effective_geometry(listing, listing.location)
+    shared_area = (
+        float(listing.shared_area_ha)
+        if getattr(listing, 'shared_area_ha', None) is not None
+        else None
+    )
 
     return SharingListingResponse(
         id=listing.id,
@@ -99,7 +131,7 @@ def listing_to_response(listing: SharingListing) -> SharingListingResponse:
         equipment_id=listing.equipment_id,
         implement_id=listing.implement_id,
         region=listing.region,
-        contact_info=listing.contact_info,
+        contact_info=contact,
         lat=_num(listing.latitude),
         lng=_num(listing.longitude),
         status=listing.status,
@@ -112,6 +144,10 @@ def listing_to_response(listing: SharingListing) -> SharingListingResponse:
         images=build_image_urls(image_paths),
         requests_count=len(listing.requests or []),
         created_at=listing.created_at,
+        sharing_scope=scope,
+        shared_area_ha=shared_area if scope == 'partial_field' else None,
+        effective_polygon=eff_poly,
+        effective_area_ha=eff_area,
     )
 
 
@@ -191,8 +227,9 @@ async def validate_resources(
     db: AsyncSession,
     payload: SharingListingCreate,
     org_id: UUID,
-) -> None:
+) -> Location | None:
     """Ensure linked resources exist and belong to the caller's organization."""
+    field: Location | None = None
     if payload.field_id is not None:
         field = await db.get(Location, payload.field_id)
         if field is None or field.org_id != org_id:
@@ -208,6 +245,7 @@ async def validate_resources(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail='Приспособление не найдено',
             )
+    return field
 
 
 async def create_notification(
@@ -219,14 +257,15 @@ async def create_notification(
     body: str | None,
     link: str | None = None,
 ) -> None:
-    db.add(
-        Notification(
-            employee_id=employee_id,
-            type=type,
-            title=title,
-            body=body,
-            link=link,
-        )
+    from app.services.notification_prefs import create_employee_notification
+
+    await create_employee_notification(
+        db,
+        employee_id=employee_id,
+        notif_type=type,
+        title=title,
+        body=body,
+        link=link,
     )
 
 
@@ -238,23 +277,30 @@ async def list_listings(
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(get_current_employee),
 ) -> list[SharingListingResponse]:
-    # Tenant-scoped catalog (own org only). Cross-org marketplace can be layered later.
-    query = (
-        select(SharingListing)
-        .options(*listing_load_options())
-        .where(SharingListing.org_id == current.org_id)
-    )
+    # Platform-wide catalog: published (active) listings are visible to every organization.
+    # Deactivated (paused) and archived listings stay out when status=active (default).
+    query = select(SharingListing).options(*listing_load_options())
 
     if type is not None:
         query = query.where(SharingListing.type == type)
     if status is not None:
         query = query.where(SharingListing.status == status)
     if region is not None:
-        query = query.where(SharingListing.region.ilike(f'%{region}%'))
+        # Catalog codes + legacy free-text names from the same RF list.
+        label = region_label(region)
+        if label:
+            query = query.where(
+                or_(
+                    SharingListing.region == region,
+                    SharingListing.region.ilike(label),
+                )
+            )
+        else:
+            query = query.where(SharingListing.region.ilike(f'%{region}%'))
 
     query = query.order_by(SharingListing.created_at.desc())
     result = await db.execute(query)
-    return [listing_to_response(item) for item in result.scalars().all()]
+    return [listing_to_response(item, current) for item in result.scalars().all()]
 
 
 @router.get('/listings/my', response_model=list[SharingListingResponse])
@@ -272,7 +318,7 @@ async def list_my_listings(
         query = query.where(SharingListing.status == status)
     query = query.order_by(SharingListing.created_at.desc())
     result = await db.execute(query)
-    return [listing_to_response(item) for item in result.scalars().all()]
+    return [listing_to_response(item, current) for item in result.scalars().all()]
 
 
 @router.get('/listings/{listing_id}', response_model=SharingListingResponse)
@@ -282,9 +328,9 @@ async def get_listing(
     current: Employee = Depends(get_current_employee),
 ) -> SharingListingResponse:
     listing = await get_listing_or_404(db, listing_id)
-    if listing.org_id != current.org_id:
+    if not can_view_listing(listing, current):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Объявление не найдено')
-    return listing_to_response(listing)
+    return listing_to_response(listing, current)
 
 
 @router.post('/listings', response_model=SharingListingResponse, status_code=status.HTTP_201_CREATED)
@@ -293,8 +339,20 @@ async def create_listing(
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(get_current_employee),
 ) -> SharingListingResponse:
-    await validate_resources(db, payload, current.org_id)
+    field = await validate_resources(db, payload, current.org_id)
     latitude, longitude = await resolve_coordinates(db, payload)
+
+    scope, shared_poly, shared_area, plot_lat, plot_lng = apply_sharing_scope(
+        listing_type=payload.type,
+        scope=payload.sharing_scope,
+        shared_polygon_raw=payload.shared_polygon,
+        field=field,
+    )
+    if scope == 'partial_field':
+        if plot_lat is not None:
+            latitude = plot_lat
+        if plot_lng is not None:
+            longitude = plot_lng
 
     listing = SharingListing(
         org_id=current.org_id,
@@ -313,10 +371,13 @@ async def create_listing(
         region=payload.region,
         contact_info=payload.contact_info,
         images=normalize_image_paths(payload.images),
+        sharing_scope=scope,
+        shared_polygon=shared_poly,
+        shared_area_ha=shared_area,
     )
     db.add(listing)
     await db.commit()
-    return listing_to_response(await get_listing_or_404(db, listing.id))
+    return listing_to_response(await get_listing_or_404(db, listing.id), current)
 
 
 @router.patch('/listings/{listing_id}', response_model=SharingListingResponse)
@@ -333,6 +394,11 @@ async def update_listing(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Недостаточно прав')
 
     update_data = payload.model_dump(exclude_unset=True)
+    fields_set = payload.model_fields_set
+    next_scope = update_data.pop('sharing_scope', None)
+    next_shared = update_data.pop('shared_polygon', None)
+    scope_touched = 'sharing_scope' in fields_set or 'shared_polygon' in fields_set
+
     if 'lat' in update_data:
         value = update_data.pop('lat')
         listing.latitude = Decimal(str(value)) if value is not None else None
@@ -345,12 +411,38 @@ async def update_listing(
     if 'images' in update_data:
         listing.images = normalize_image_paths(update_data.pop('images'))
 
-    for field, value in update_data.items():
-        setattr(listing, field, value)
+    for field_name, value in update_data.items():
+        setattr(listing, field_name, value)
+
+    if scope_touched:
+        field = None
+        if listing.location_id is not None:
+            field = await db.get(Location, listing.location_id)
+        resolved_scope = next_scope or getattr(listing, 'sharing_scope', None) or 'full_field'
+        if next_scope == 'full_field':
+            shared_raw = None
+        elif 'shared_polygon' in fields_set:
+            shared_raw = next_shared
+        else:
+            shared_raw = listing.shared_polygon
+        scope, shared_poly, shared_area, plot_lat, plot_lng = apply_sharing_scope(
+            listing_type=listing.type,
+            scope=resolved_scope,  # type: ignore[arg-type]
+            shared_polygon_raw=shared_raw,
+            field=field,
+        )
+        listing.sharing_scope = scope
+        listing.shared_polygon = shared_poly
+        listing.shared_area_ha = shared_area
+        if scope == 'partial_field':
+            if plot_lat is not None:
+                listing.latitude = Decimal(str(plot_lat))
+            if plot_lng is not None:
+                listing.longitude = Decimal(str(plot_lng))
 
     db.add(listing)
     await db.commit()
-    return listing_to_response(await get_listing_or_404(db, listing.id))
+    return listing_to_response(await get_listing_or_404(db, listing.id), current)
 
 
 @router.patch('/listings/{listing_id}/status', response_model=SharingListingResponse)
@@ -369,7 +461,7 @@ async def update_listing_status(
     listing.status = payload.status
     db.add(listing)
     await db.commit()
-    return listing_to_response(await get_listing_or_404(db, listing.id))
+    return listing_to_response(await get_listing_or_404(db, listing.id), current)
 
 
 @router.delete('/listings/{listing_id}', status_code=status.HTTP_204_NO_CONTENT)
@@ -378,13 +470,14 @@ async def delete_listing(
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(get_current_employee),
 ) -> None:
+    """Soft-archive: never physically deletes the row."""
     listing = await get_listing_or_404(db, listing_id)
     if listing.org_id != current.org_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Объявление не найдено')
     if not is_owner_or_admin(listing, current):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Недостаточно прав')
 
-    listing.status = 'done'
+    listing.status = 'archived'
     db.add(listing)
     await db.commit()
 
@@ -396,18 +489,15 @@ async def create_request(
     current: Employee = Depends(get_current_employee),
 ) -> SharingRequestResponse:
     listing = await get_listing_or_404(db, payload.listing_id)
-    if listing.org_id != current.org_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Объявление не найдено')
-
-    if listing.owner_id == current.id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail='Нельзя оставить заявку на своё объявление',
-        )
     if listing.status != 'active':
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Объявление недоступно для заявок',
+        )
+    if listing.owner_id == current.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Нельзя оставить заявку на своё объявление',
         )
 
     request = SharingRequest(

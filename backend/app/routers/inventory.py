@@ -20,8 +20,11 @@ from app.models.inventory import (
 )
 from app.schemas.inventory import (
     EquipmentStockAction,
+    InventoryItemArchiveRequest,
     InventoryItemCreate,
+    InventoryItemDeleteRequest,
     InventoryItemResponse,
+    InventoryItemRestoreRequest,
     InventoryItemUpdate,
     InventoryOperationCreate,
     InventoryOperationResponse,
@@ -33,6 +36,13 @@ from app.services.harvest_inventory import (
     resolve_inventory_crop_code,
 )
 from app.services.inventory import create_inventory_operation, create_opening_balance_operation
+from app.services.inventory_archive import (
+    archive_item,
+    can_hard_delete,
+    count_item_links,
+    hard_delete_item,
+    restore_item,
+)
 from app.services.permissions import require_manager_section
 
 router = APIRouter(dependencies=[Depends(require_manager_section('inventory'))])
@@ -45,7 +55,13 @@ _OPERATION_LOAD_OPTIONS = (
 )
 
 
-def item_to_response(item: InventoryItem) -> InventoryItemResponse:
+def item_to_response(
+    item: InventoryItem,
+    *,
+    variety_name: str | None = None,
+    archived_by_name: str | None = None,
+    can_hard_delete_flag: bool | None = None,
+) -> InventoryItemResponse:
     category = item.category
     if hasattr(category, 'value'):
         category = category.value
@@ -62,7 +78,14 @@ def item_to_response(item: InventoryItem) -> InventoryItemResponse:
         is_active=item.is_active,
         is_critical=item.current_stock < item.min_stock,
         crop_code=item.crop_code,
+        variety_id=getattr(item, 'variety_id', None),
+        variety_name=variety_name,
         is_harvest=is_harvest_inventory_category(category_str),
+        archived_at=getattr(item, 'archived_at', None),
+        archived_by=getattr(item, 'archived_by', None),
+        archived_by_name=archived_by_name,
+        archive_reason=getattr(item, 'archive_reason', None),
+        can_hard_delete=can_hard_delete_flag,
     )
 
 
@@ -88,6 +111,19 @@ def operation_to_response(operation: InventoryOperation) -> InventoryOperationRe
         field_id=operation.field_id,
         field_name=operation.field.name if operation.field else None,
     )
+
+
+async def _variety_name_for(
+    db: AsyncSession, org_id: UUID, variety_id: UUID | None
+) -> str | None:
+    if variety_id is None:
+        return None
+    from app.models.crop_variety import CropVariety
+
+    var = await db.get(CropVariety, variety_id)
+    if var is None or var.org_id != org_id:
+        return None
+    return var.name
 
 
 async def get_item_or_404(db: AsyncSession, item_id: UUID, org_id: UUID) -> InventoryItem:
@@ -123,7 +159,16 @@ def _operations_query(org_id: UUID):
 async def list_inventory(
     request: Request,
     category: str | None = Query(None),
-    is_active: bool | None = Query(None),
+    is_active: bool | None = Query(
+        None,
+        description='Legacy filter; prefer status=active|archived|all',
+    ),
+    status_filter: str | None = Query(
+        None,
+        alias='status',
+        description='active (default) | archived | all',
+        pattern='^(active|archived|all)$',
+    ),
     search: str | None = Query(
         None,
         description='Filter by name; for harvest also crop_code / crop dictionary name',
@@ -132,11 +177,25 @@ async def list_inventory(
     _: Employee = Depends(get_current_employee),
 ) -> list[InventoryItemResponse]:
     org_id = get_org_id(request)
-    query = select(InventoryItem).where(InventoryItem.org_id == org_id)
+    query = (
+        select(InventoryItem)
+        .options(selectinload(InventoryItem.archived_by_user))
+        .where(InventoryItem.org_id == org_id)
+    )
     if category is not None:
         query = query.where(InventoryItem.category == category)
-    if is_active is not None:
+
+    if status_filter == 'archived':
+        query = query.where(InventoryItem.is_active.is_(False))
+    elif status_filter == 'all':
+        pass
+    elif status_filter == 'active':
+        query = query.where(InventoryItem.is_active.is_(True))
+    elif is_active is not None:
         query = query.where(InventoryItem.is_active == is_active)
+    else:
+        # Default: active only (safe for selects / main warehouse list).
+        query = query.where(InventoryItem.is_active.is_(True))
 
     term = (search or '').strip()
     if term:
@@ -164,7 +223,31 @@ async def list_inventory(
         InventoryItem.name,
     )
     result = await db.execute(query)
-    return [item_to_response(item) for item in result.scalars().all()]
+    items = list(result.scalars().all())
+    variety_ids = {item.variety_id for item in items if getattr(item, 'variety_id', None)}
+    variety_names: dict = {}
+    if variety_ids:
+        from app.models.crop_variety import CropVariety
+
+        rows = (
+            await db.execute(
+                select(CropVariety.id, CropVariety.name).where(
+                    CropVariety.org_id == org_id,
+                    CropVariety.id.in_(list(variety_ids)),
+                )
+            )
+        ).all()
+        variety_names = {vid: str(name) for vid, name in rows}
+    return [
+        item_to_response(
+            item,
+            variety_name=variety_names.get(item.variety_id) if item.variety_id else None,
+            archived_by_name=(
+                item.archived_by_user.full_name if item.archived_by_user else None
+            ),
+        )
+        for item in items
+    ]
 
 
 @router.get('/operations', response_model=list[InventoryOperationResponse])
@@ -384,8 +467,12 @@ async def get_inventory_item(
     db: AsyncSession = Depends(get_db),
     _: Employee = Depends(get_current_employee),
 ) -> InventoryItemResponse:
-    item = await get_item_or_404(db, item_id, get_org_id(request))
-    return item_to_response(item)
+    org_id = get_org_id(request)
+    item = await get_item_or_404(db, item_id, org_id)
+    return item_to_response(
+        item,
+        variety_name=await _variety_name_for(db, org_id, getattr(item, 'variety_id', None)),
+    )
 
 
 @router.post('', response_model=InventoryItemResponse, status_code=status.HTTP_201_CREATED)
@@ -402,6 +489,21 @@ async def create_inventory_item(
         category=payload.category,
         crop_code=payload.crop_code,
     )
+    variety_id = payload.variety_id
+    if variety_id is not None:
+        from app.services.field_planting_service import assert_variety_for_crop
+
+        if not crop_code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Сорт можно указать только вместе с культурой',
+            )
+        await assert_variety_for_crop(
+            db, org_id=org_id, crop_code=crop_code, variety_id=variety_id
+        )
+    elif not is_harvest_inventory_category(payload.category):
+        variety_id = None
+
     item = InventoryItem(
         org_id=org_id,
         name=payload.name,
@@ -412,6 +514,7 @@ async def create_inventory_item(
         total_capacity=payload.total_capacity or Decimal('0'),
         is_active=True,
         crop_code=crop_code,
+        variety_id=variety_id,
     )
     db.add(item)
     try:
@@ -434,7 +537,10 @@ async def create_inventory_item(
             detail='Позиция с таким названием уже существует',
         ) from None
     await db.refresh(item)
-    return item_to_response(item)
+    return item_to_response(
+        item,
+        variety_name=await _variety_name_for(db, org_id, getattr(item, 'variety_id', None)),
+    )
 
 
 @router.patch('/{item_id}', response_model=InventoryItemResponse)
@@ -449,6 +555,16 @@ async def update_inventory_item(
     before = model_snapshot(item)
 
     data = payload.model_dump(exclude_unset=True)
+    if 'is_active' in data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                'Для архивирования используйте POST /api/inventory/{id}/archive, '
+                'для восстановления — POST /api/inventory/{id}/restore'
+            ),
+        )
+    clear_variety = bool(data.pop('clear_variety', False))
+    org_id = get_org_id(request)
     next_category = data.get('category', item.category)
     category_changed = (
         'category' in data
@@ -458,7 +574,7 @@ async def update_inventory_item(
         # Explicit crop_code from client (including null) — validate against target category.
         data['crop_code'] = await resolve_inventory_crop_code(
             db,
-            get_org_id(request),
+            org_id,
             category=str(next_category) if next_category is not None else None,
             crop_code=data['crop_code']
             if isinstance(data['crop_code'], str) or data['crop_code'] is None
@@ -468,7 +584,7 @@ async def update_inventory_item(
         # Category switched — re-validate existing crop against the new category.
         data['crop_code'] = await resolve_inventory_crop_code(
             db,
-            get_org_id(request),
+            org_id,
             category=str(next_category) if next_category is not None else None,
             crop_code=item.crop_code,
         )
@@ -481,6 +597,24 @@ async def update_inventory_item(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Для позиций «Урожай на складе» необходимо указать культуру.',
         )
+
+    if not is_harvest_inventory_category(str(next_category)):
+        data['variety_id'] = None
+    elif clear_variety:
+        data['variety_id'] = None
+    elif 'variety_id' in data and data['variety_id'] is not None:
+        from app.services.field_planting_service import assert_variety_for_crop
+
+        next_crop = data.get('crop_code', item.crop_code)
+        if not next_crop:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Сорт можно указать только вместе с культурой',
+            )
+        await assert_variety_for_crop(
+            db, org_id=org_id, crop_code=str(next_crop), variety_id=data['variety_id']
+        )
+
     # If category is resent unchanged, crop already set, crop_code omitted — keep as-is.
     for field, value in data.items():
         setattr(item, field, value)
@@ -505,31 +639,151 @@ async def update_inventory_item(
             detail='Позиция с таким названием уже существует',
         ) from None
     await db.refresh(item)
-    return item_to_response(item)
+    return item_to_response(
+        item,
+        variety_name=await _variety_name_for(db, org_id, getattr(item, 'variety_id', None)),
+    )
+
+
+@router.get('/{item_id}/archive-eligibility')
+async def inventory_item_archive_eligibility(
+    request: Request,
+    item_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(require_action('inventory.delete_or_archive')),
+) -> dict:
+    """UI helper: stock/history gates for archive vs hard delete."""
+    item = await get_item_or_404(db, item_id, get_org_id(request))
+    links = await count_item_links(db, item.id)
+    stock = float(item.current_stock or 0)
+    return {
+        'item_id': str(item.id),
+        'name': item.name,
+        'current_stock': stock,
+        'is_active': item.is_active,
+        'stock_blocks': stock > 0,
+        'has_history': links.has_history,
+        'can_hard_delete': can_hard_delete(item, links),
+        'can_archive': bool(item.is_active) and stock <= 0,
+        'links': {
+            'operations': links.operations,
+            'shipment_requests': links.shipment_requests,
+            'tmc_shipments': links.tmc_shipments,
+            'purchase_planner_items': links.purchase_planner_items,
+            'marketplace_listings': links.marketplace_listings,
+        },
+    }
+
+
+@router.post('/{item_id}/archive', response_model=InventoryItemResponse)
+async def archive_inventory_item(
+    request: Request,
+    item_id: UUID,
+    payload: InventoryItemArchiveRequest,
+    db: AsyncSession = Depends(get_db),
+    current: Employee = Depends(require_action('inventory.delete_or_archive')),
+) -> InventoryItemResponse:
+    item = await get_item_or_404(db, item_id, get_org_id(request))
+    before = model_snapshot(item)
+    stock_before = float(item.current_stock or 0)
+    await archive_item(db, item=item, reason=payload.reason, actor_id=current.id)
+    await log_change(
+        db,
+        org_id=item.org_id,
+        entity_type='inventory_item',
+        entity_id=item.id,
+        action='archive',
+        changed_by=current.id,
+        before=before,
+        after=model_snapshot(item),
+        summary=(
+            f'Позиция ТМЦ «{item.name}» архивирована. '
+            f'Остаток на момент: {stock_before}. Причина: {payload.reason.strip()}'
+        ),
+    )
+    await db.commit()
+    await db.refresh(item)
+    links = await count_item_links(db, item.id)
+    return item_to_response(
+        item,
+        variety_name=await _variety_name_for(
+            db, item.org_id, getattr(item, 'variety_id', None)
+        ),
+        archived_by_name=current.full_name,
+        can_hard_delete_flag=can_hard_delete(item, links),
+    )
+
+
+@router.post('/{item_id}/restore', response_model=InventoryItemResponse)
+async def restore_inventory_item(
+    request: Request,
+    item_id: UUID,
+    payload: InventoryItemRestoreRequest | None = None,
+    db: AsyncSession = Depends(get_db),
+    current: Employee = Depends(require_action('inventory.delete_or_archive')),
+) -> InventoryItemResponse:
+    item = await get_item_or_404(db, item_id, get_org_id(request))
+    before = model_snapshot(item)
+    await restore_item(db, item=item)
+    comment = (payload.comment or '').strip() if payload else ''
+    summary = f'Позиция ТМЦ «{item.name}» восстановлена из архива'
+    if comment:
+        summary = f'{summary}. Комментарий: {comment}'
+    await log_change(
+        db,
+        org_id=item.org_id,
+        entity_type='inventory_item',
+        entity_id=item.id,
+        action='restore',
+        changed_by=current.id,
+        before=before,
+        after=model_snapshot(item),
+        summary=summary,
+    )
+    await db.commit()
+    await db.refresh(item, attribute_names=['archived_by_user'])
+    return item_to_response(
+        item,
+        variety_name=await _variety_name_for(
+            db, item.org_id, getattr(item, 'variety_id', None)
+        ),
+        archived_by_name=(
+            item.archived_by_user.full_name
+            if getattr(item, 'archived_by_user', None)
+            else None
+        ),
+    )
 
 
 @router.delete('/{item_id}', status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 async def delete_inventory_item(
     request: Request,
     item_id: UUID,
+    payload: InventoryItemDeleteRequest,
     db: AsyncSession = Depends(get_db),
-    current: Employee = Depends(require_action('inventory.manage_items')),
+    current: Employee = Depends(require_action('inventory.delete_or_archive')),
 ) -> Response:
-    """Archive item (soft delete). History of operations is always preserved."""
+    """Hard delete only when item has no history and zero stock."""
     item = await get_item_or_404(db, item_id, get_org_id(request))
     before = model_snapshot(item)
-    item.is_active = False
-    db.add(item)
+    name = item.name
+    stock_before = float(item.current_stock or 0)
+    item_uuid = item.id
+    org_id = item.org_id
+    await hard_delete_item(db, item=item)
     await log_change(
         db,
-        org_id=item.org_id,
+        org_id=org_id,
         entity_type='inventory_item',
-        entity_id=item.id,
+        entity_id=item_uuid,
         action='delete',
         changed_by=current.id,
         before=before,
-        after=model_snapshot(item),
-        summary=f'Позиция ТМЦ «{item.name}» архивирована (история операций сохранена)',
+        after=None,
+        summary=(
+            f'Позиция ТМЦ «{name}» удалена безвозвратно. '
+            f'Остаток: {stock_before}. Причина: {payload.reason.strip()}'
+        ),
     )
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

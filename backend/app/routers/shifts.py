@@ -1,4 +1,5 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 import logging
 from uuid import UUID
 
@@ -14,6 +15,7 @@ from app.models.employee import Employee, EmployeeRole
 from app.models.implement import Implement
 from app.models.reference import Equipment, Location, WorkType
 from app.models.shift import Shift, ShiftStatus
+from app.schemas.piecework import ShiftPaySchemeResponse
 from app.schemas.shift import (
     ShiftClose,
     ShiftCreate,
@@ -30,8 +32,15 @@ from app.services.action_permissions import (
     resolve_effective_permissions,
 )
 from app.services.equipment_meters import add_equipment_meter_log, calc_meter_label
+from app.services.field_work_location import resolve_shift_location_id
 from app.services.org_timezone import now_in_org
-from app.services.salary import apply_salary_to_shift
+from app.services.salary import (
+    PIECEWORK_UNITS,
+    apply_salary_to_shift,
+    create_piecework_record,
+    get_rate_for_shift,
+    resolve_payment_scheme,
+)
 from app.services.shifts import (
     calc_duration_from_datetimes,
     calc_duration_minutes,
@@ -59,6 +68,7 @@ def shift_to_response(shift: Shift) -> ShiftResponse:
         employee_code=shift.employee.employee_code,
         start_time=shift.start_time,
         end_time=shift.end_time,
+        end_date=shift.end_date,
         work_type=shift.work_type.name,
         location=shift.location.name,
         equipment=equipment.name if equipment else None,
@@ -79,6 +89,7 @@ def shift_to_response(shift: Shift) -> ShiftResponse:
         rate_snapshot=shift.rate_snapshot if isinstance(shift.rate_snapshot, dict) else None,
         latitude=shift.latitude,
         longitude=shift.longitude,
+        time_adjusted=bool(shift.time_adjusted),
     )
 
 
@@ -290,16 +301,52 @@ def recalculate_duration(shift: Shift) -> None:
     if shift.end_time is None:
         shift.duration_raw = None
         shift.duration_rounded = None
+        shift.end_date = None
         return
 
     duration_raw = calc_manual_duration_minutes(
         shift.date,
         shift.start_time,
         shift.end_time,
-        end_date=None,
+        end_date=shift.end_date,
     )
     shift.duration_raw = duration_raw
     shift.duration_rounded = calc_duration_rounded(duration_raw)
+
+
+def _fmt_shift_moment(day: date | None, value: time | None) -> str:
+    if day is None or value is None:
+        return '—'
+    return f'{day.strftime("%d.%m.%Y")} {value.strftime("%H:%M")}'
+
+
+def build_shift_time_adjust_summary(
+    *,
+    before_date: date,
+    before_start: time,
+    before_end: time | None,
+    before_end_date: date | None,
+    after_date: date,
+    after_start: time,
+    after_end: time | None,
+    after_end_date: date | None,
+) -> str:
+    parts: list[str] = []
+    before_start_label = _fmt_shift_moment(before_date, before_start)
+    after_start_label = _fmt_shift_moment(after_date, after_start)
+    if before_start_label != after_start_label:
+        parts.append(f'начало {before_start_label} → {after_start_label}')
+
+    before_end_day = before_end_date or before_date
+    after_end_day = after_end_date or after_date
+    before_end_label = _fmt_shift_moment(before_end_day, before_end) if before_end else 'открыта'
+    after_end_label = _fmt_shift_moment(after_end_day, after_end) if after_end else 'открыта'
+    if before_end_label != after_end_label:
+        parts.append(f'окончание {before_end_label} → {after_end_label}')
+
+    if not parts:
+        return 'Обновлена смена'
+    return 'Скорректировано время смены: ' + '; '.join(parts)
 
 
 @router.get('', response_model=list[ShiftResponse])
@@ -365,15 +412,6 @@ async def open_shift(
     target_employee_id = resolve_target_employee_id(payload, current)
     await ensure_can_open_for_target(db, current, target_employee_id)
     await get_employee_or_400(db, target_employee_id, org_id)
-    await validate_reference_ids(
-        db,
-        org_id,
-        location_id=payload.location_id,
-        work_type_id=payload.work_type_id,
-        equipment_id=payload.equipment_id,
-        field_id=payload.field_id,
-        implement_id=payload.implement_id,
-    )
     work_type = await db.get(WorkType, payload.work_type_id)
     is_field = bool(work_type is not None and work_type.is_field_work)
     if is_field and payload.field_id is None:
@@ -381,6 +419,21 @@ async def open_shift(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Для полевой работы укажите поле',
         )
+    location_id = await resolve_shift_location_id(
+        db,
+        org_id,
+        work_type_is_field=is_field,
+        location_id=payload.location_id,
+    )
+    await validate_reference_ids(
+        db,
+        org_id,
+        location_id=location_id,
+        work_type_id=payload.work_type_id,
+        equipment_id=payload.equipment_id,
+        field_id=payload.field_id,
+        implement_id=payload.implement_id,
+    )
 
     agro_plan_id = payload.agro_plan_id
     if agro_plan_id is not None:
@@ -432,7 +485,7 @@ async def open_shift(
         employee_id=target_employee_id,
         start_time=now.time().replace(microsecond=0),
         work_type_id=payload.work_type_id,
-        location_id=payload.location_id,
+        location_id=location_id,
         equipment_id=payload.equipment_id,
         field_id=payload.field_id,
         implement_id=payload.implement_id,
@@ -462,15 +515,6 @@ async def add_manual_shift(
     org_id = get_org_id(request)
     await ensure_shift_section_access(db, org_id, current)
     await get_employee_or_400(db, payload.employee_id, org_id)
-    await validate_reference_ids(
-        db,
-        org_id,
-        location_id=payload.location_id,
-        work_type_id=payload.work_type_id,
-        equipment_id=payload.equipment_id,
-        field_id=payload.field_id,
-        implement_id=payload.implement_id,
-    )
     work_type = await db.get(WorkType, payload.work_type_id)
     is_field = bool(work_type is not None and work_type.is_field_work)
     if is_field and payload.field_id is None:
@@ -478,6 +522,21 @@ async def add_manual_shift(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Для полевой работы укажите поле',
         )
+    location_id = await resolve_shift_location_id(
+        db,
+        org_id,
+        work_type_is_field=is_field,
+        location_id=payload.location_id,
+    )
+    await validate_reference_ids(
+        db,
+        org_id,
+        location_id=location_id,
+        work_type_id=payload.work_type_id,
+        equipment_id=payload.equipment_id,
+        field_id=payload.field_id,
+        implement_id=payload.implement_id,
+    )
 
     agro_plan_id = payload.agro_plan_id
     if agro_plan_id is not None:
@@ -547,8 +606,9 @@ async def add_manual_shift(
         employee_id=payload.employee_id,
         start_time=payload.start_time,
         end_time=payload.end_time,
+        end_date=payload.end_date,
         work_type_id=payload.work_type_id,
-        location_id=payload.location_id,
+        location_id=location_id,
         equipment_id=payload.equipment_id,
         field_id=payload.field_id,
         implement_id=payload.implement_id,
@@ -571,6 +631,41 @@ async def add_manual_shift(
 
     shift = await get_shift_or_404(db, shift.id, org_id)
     return shift_to_response(shift)
+
+
+@router.get('/{shift_id}/pay-scheme', response_model=ShiftPaySchemeResponse)
+async def get_shift_pay_scheme(
+    request: Request,
+    shift_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current: Employee = Depends(get_current_employee),
+) -> ShiftPaySchemeResponse:
+    """Active payment scheme for the shift employee/date/work_type (CloseShiftModal)."""
+    org_id = get_org_id(request)
+    shift = await get_shift_or_404(db, shift_id, org_id)
+    await ensure_shift_section_access(db, org_id, current)
+
+    if (
+        shift.employee_id != current.id
+        and current.role not in (EmployeeRole.manager, EmployeeRole.admin)
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Недостаточно прав')
+
+    rate_obj, source = await get_rate_for_shift(
+        db,
+        shift.employee_id,
+        shift.work_type_id,
+        shift.date,
+        org_id=org_id,
+    )
+    scheme = resolve_payment_scheme(rate_obj)
+    return ShiftPaySchemeResponse(
+        payment_scheme=scheme,
+        piecework_unit=rate_obj.piecework_unit if rate_obj is not None else None,
+        rate=rate_obj.rate if rate_obj is not None else None,
+        source=source,
+        units=sorted(PIECEWORK_UNITS),
+    )
 
 
 @router.post('/{shift_id}/close', response_model=ShiftResponse)
@@ -603,6 +698,27 @@ async def close_shift(
         ):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Недостаточно прав')
 
+    # Pre-resolve scheme so piecework quantity can be required before mutating the shift.
+    rate_obj, _source = await get_rate_for_shift(
+        db,
+        shift.employee_id,
+        shift.work_type_id,
+        shift.date,
+        org_id=org_id,
+    )
+    scheme = resolve_payment_scheme(rate_obj)
+    if scheme == 'piecework':
+        if payload.quantity is None or not payload.unit:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail='Для сдельной схемы укажите объём выработки и единицу измерения',
+            )
+    elif payload.quantity is not None or payload.unit:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail='Объём выработки указывается только для сдельной схемы оплаты',
+        )
+
     try:
         now = await now_in_org(db, org_id)
         shift.end_time = now.time().replace(microsecond=0)
@@ -630,6 +746,26 @@ async def close_shift(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail='Не удалось рассчитать оплату для смены. Проверьте тарифы и настройки сотрудника.',
             )
+
+        if scheme == 'piecework' and rate_obj is not None and payload.quantity is not None and payload.unit:
+            record = create_piecework_record(
+                org_id=org_id,
+                employee_id=shift.employee_id,
+                work_type_id=shift.work_type_id,
+                quantity=payload.quantity,
+                unit=payload.unit,
+                work_date=shift.date,
+                rate_applied=Decimal(str(rate_obj.rate)),
+                created_by=current.id,
+                shift_id=shift.id,
+            )
+            db.add(record)
+            # Annotate snapshot with entered output (amount still lives on piecework_records).
+            snap = dict(shift.rate_snapshot) if isinstance(shift.rate_snapshot, dict) else {}
+            snap['quantity'] = float(payload.quantity)
+            snap['unit'] = payload.unit
+            snap['piecework_amount'] = float(record.calculated_amount)
+            shift.rate_snapshot = snap
 
         db.add(shift)
 
@@ -677,21 +813,20 @@ async def close_shift(
             summary=f'Закрыта смена от {shift.date.strftime("%d.%m.%Y")}',
         )
         await db.commit()
-        clear_dashboard_cache()
-
-        shift = await get_shift_or_404(db, shift.id, org_id)
-        return shift_to_response(shift)
     except HTTPException:
+        await db.rollback()
         raise
     except Exception:
-        # Keep 500 behaviour, but print the full stack trace for diagnostics.
-        logger.exception(
-            'close_shift failed shift_id=%s org_id=%s by_employee_id=%s',
-            shift_id,
-            org_id,
-            current.id,
+        await db.rollback()
+        logger.exception('close_shift failed shift_id=%s org_id=%s', shift_id, org_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Не удалось закрыть смену',
         )
-        raise
+
+    clear_dashboard_cache()
+    shift = await get_shift_or_404(db, shift_id, org_id)
+    return shift_to_response(shift)
 
 
 @router.patch('/{shift_id}', response_model=ShiftResponse)
@@ -706,7 +841,15 @@ async def update_shift(
     await ensure_shift_section_access(db, org_id, current)
     shift = await get_shift_or_404(db, shift_id, org_id)
     before = model_snapshot(shift)
+    before_date = shift.date
+    before_start = shift.start_time
+    before_end = shift.end_time
+    before_end_date = shift.end_date
     update_data = payload.model_dump(exclude_unset=True)
+
+    # Time correction must not rewrite geolocation from this form.
+    update_data.pop('latitude', None)
+    update_data.pop('longitude', None)
 
     if 'employee_id' in update_data:
         await get_employee_or_400(db, update_data['employee_id'], org_id)
@@ -718,31 +861,99 @@ async def update_shift(
         'field_id': update_data.get('field_id', shift.field_id),
         'implement_id': update_data.get('implement_id', shift.implement_id),
     }
+    work_type = await db.get(WorkType, reference_ids['work_type_id'])
+    is_field = bool(work_type is not None and work_type.is_field_work)
+    if is_field:
+        resolved_location_id = await resolve_shift_location_id(
+            db,
+            org_id,
+            work_type_is_field=True,
+            location_id=reference_ids['location_id'],
+        )
+        reference_ids['location_id'] = resolved_location_id
+        if (
+            'work_type_id' in update_data
+            or 'location_id' in update_data
+            or shift.location_id != resolved_location_id
+        ):
+            update_data['location_id'] = resolved_location_id
+        if reference_ids['field_id'] is None and (
+            'work_type_id' in update_data or 'field_id' in update_data
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Для полевой работы укажите поле',
+            )
     if any(
         key in update_data
         for key in ('location_id', 'work_type_id', 'equipment_id', 'field_id', 'implement_id')
     ):
         await validate_reference_ids(db, org_id, **reference_ids)
 
+    time_fields_touched = any(
+        key in update_data for key in ('start_time', 'end_time', 'date', 'end_date')
+    )
+
     for field, value in update_data.items():
         setattr(shift, field, value)
 
-    if any(key in update_data for key in ('start_time', 'end_time', 'date')):
-        recalculate_duration(shift)
-
-    if update_data.get('status') == ShiftStatus.open:
+    if shift.status == ShiftStatus.open or update_data.get('status') == ShiftStatus.open:
         shift.end_time = None
+        shift.end_date = None
         shift.duration_raw = None
         shift.duration_rounded = None
-        shift.calculated_amount = None
-        shift.rate_snapshot = None
-    elif shift.status == ShiftStatus.closed and shift.end_time is not None:
+        if update_data.get('status') == ShiftStatus.open:
+            shift.calculated_amount = None
+            shift.rate_snapshot = None
+    elif time_fields_touched:
+        if shift.end_time is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Для закрытой смены укажите время окончания',
+            )
+        duration_raw = calc_manual_duration_minutes(
+            shift.date,
+            shift.start_time,
+            shift.end_time,
+            shift.end_date,
+        )
+        if duration_raw <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Время окончания должно быть позже времени начала',
+            )
         recalculate_duration(shift)
-        await apply_salary_to_shift(db, shift)
+        if shift.status == ShiftStatus.closed:
+            await apply_salary_to_shift(db, shift)
+
+    if time_fields_touched:
+        shift.time_adjusted = True
+
+    audit_summary = None
+    if time_fields_touched:
+        audit_summary = build_shift_time_adjust_summary(
+            before_date=before_date,
+            before_start=before_start,
+            before_end=before_end,
+            before_end_date=before_end_date,
+            after_date=shift.date,
+            after_start=shift.start_time,
+            after_end=shift.end_time,
+            after_end_date=shift.end_date,
+        )
 
     db.add(shift)
-    await log_change(db, org_id=org_id, entity_type='shift', entity_id=shift.id,
-                     action='update', changed_by=current.id, before=before, after=model_snapshot(shift))
+    await log_change(
+        db,
+        org_id=org_id,
+        entity_type='shift',
+        entity_id=shift.id,
+        action='update',
+        changed_by=current.id,
+        before=before,
+        after=model_snapshot(shift),
+        summary=audit_summary,
+    )
     await db.commit()
     clear_dashboard_cache()
 

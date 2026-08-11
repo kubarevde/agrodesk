@@ -12,8 +12,10 @@ def test_close_open_shift_with_equipment_online(
 ) -> None:
     locs = client.get('/api/locations', headers=manager_headers).json()
     wts = client.get('/api/work-types', headers=manager_headers).json()
-    loc = next(l for l in locs if l.get('is_active'))
-    wt = next(w for w in wts if w.get('is_active'))
+    # Field-work types require field_id; prefer garage/logistics locations when present.
+    loc = next((l for l in locs if l.get('is_active')), None)
+    wt = next((w for w in wts if w.get('is_active') and not w.get('is_field_work')), None)
+    assert loc and wt, 'need active location and non-field work type'
     eq = client.get('/api/equipment', headers=manager_headers).json()
     shift_hours_eq = next(
         (e for e in eq if e.get('meter_type') == 'shift_hours' and e.get('is_active')),

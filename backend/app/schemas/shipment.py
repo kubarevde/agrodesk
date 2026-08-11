@@ -14,6 +14,9 @@ class ShipmentCreate(BaseModel):
     price_per_kg: Decimal | None = Field(default=None, ge=0)
     notes: str | None = None
     shipment_request_id: UUID | None = None
+    field_id: UUID | None = None
+    variety_id: UUID | None = None
+    field_planting_id: UUID | None = None
 
 
 class ShipmentUpdate(BaseModel):
@@ -39,3 +42,10 @@ class ShipmentResponse(BaseModel):
     notes: str | None = None
     total_sum: Decimal | None = None
     shipment_request_id: UUID | None = None
+    field_id: UUID | None = None
+    field_name: str | None = None
+    variety_id: UUID | None = None
+    variety_name: str | None = None
+    field_planting_id: UUID | None = None
+    planting_area_ha: Decimal | None = None
+    harvested_qty: Decimal | None = None

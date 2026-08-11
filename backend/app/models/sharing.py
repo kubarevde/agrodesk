@@ -27,6 +27,10 @@ class SharingListing(Base):
     region = Column(String(100), nullable=True)
     contact_info = Column(Text, nullable=True)
     images = Column(JSONB, nullable=True)
+    # full_field | partial_field — plot geometry lives on the listing, not locations.
+    sharing_scope = Column(String(20), nullable=False, default='full_field', server_default='full_field')
+    shared_polygon = Column(JSONB, nullable=True)
+    shared_area_ha = Column(Numeric(8, 2), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True),

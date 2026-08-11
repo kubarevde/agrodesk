@@ -12,7 +12,6 @@ from app.middleware.org_context import get_org_id
 from app.models.employee import Employee, EmployeeRole
 from app.models.equipment_log import EquipmentMaintenance
 from app.models.expense import Expense
-from app.models.notification import Notification
 from app.models.reference import Equipment
 from app.routers.references import equipment_to_response
 from app.schemas.maintenance import MaintenanceCreate, MaintenanceResponse, MaintenanceUpdate
@@ -45,6 +44,7 @@ def _next_to_interval(record: EquipmentMaintenance) -> float | None:
 
 def maintenance_to_response(record: EquipmentMaintenance) -> MaintenanceResponse:
     equipment = record.equipment
+    next_abs = float(record.next_to_at) if record.next_to_at is not None else None
     return MaintenanceResponse(
         id=record.id,
         equipment_id=record.equipment_id,
@@ -53,6 +53,7 @@ def maintenance_to_response(record: EquipmentMaintenance) -> MaintenanceResponse
         meter_at=float(record.meter_at) if record.meter_at is not None else None,
         cost=float(record.cost) if record.cost is not None else None,
         description=record.description,
+        next_to_at=next_abs,
         next_to_interval=_next_to_interval(record),
         equipment_name=equipment.name if equipment else '',
         meter_label=calc_meter_label(equipment.meter_type if equipment else None),
@@ -73,6 +74,8 @@ async def notify_managers(
     body: str | None = None,
     link: str | None = None,
 ) -> None:
+    from app.services.notification_prefs import create_employee_notification
+
     result = await db.execute(
         select(Employee).where(
             Employee.org_id == org_id,
@@ -81,14 +84,14 @@ async def notify_managers(
         )
     )
     for employee in result.scalars().all():
-        db.add(
-            Notification(
-                employee_id=employee.id,
-                type=notif_type,
-                title=title,
-                body=body,
-                link=link,
-            )
+        await create_employee_notification(
+            db,
+            employee_id=employee.id,
+            notif_type=notif_type,
+            title=title,
+            body=body,
+            link=link,
+            prefs=employee.notification_prefs,
         )
 
 
@@ -168,14 +171,23 @@ async def create_maintenance(
         expense_id = expense.id
 
     next_to_at: Decimal | None = None
-    if payload.next_to_interval is not None:
-        from app.services.maintenance import next_after_completed_service
+    resolved = None
+    if payload.next_to_at is not None or payload.next_to_interval is not None:
+        from app.services.maintenance import resolve_next_to_at
 
-        interval = Decimal(str(payload.next_to_interval))
-        computed = next_after_completed_service(float(current_meter), float(interval))
-        next_to_at = Decimal(str(computed)) if computed is not None else current_meter + interval
+        resolved = resolve_next_to_at(
+            meter_at=float(meter_at),
+            next_to_at=payload.next_to_at,
+            next_to_interval=payload.next_to_interval,
+        )
+    if resolved is not None:
+        next_to_at = Decimal(str(resolved))
         equipment.next_to_at = next_to_at
-        equipment.to_interval = interval
+        # Soft period for progress UI: prefer explicit interval payload, else delta.
+        if payload.next_to_interval is not None:
+            equipment.to_interval = Decimal(str(payload.next_to_interval))
+        elif float(next_to_at) > float(meter_at):
+            equipment.to_interval = next_to_at - meter_at
         db.add(equipment)
 
     record = EquipmentMaintenance(
@@ -193,19 +205,16 @@ async def create_maintenance(
     )
     db.add(record)
 
+    next_hint = ''
+    if next_to_at is not None:
+        next_hint = f' Следующее ТО на {float(next_to_at):g} {label}.'
+
     await notify_managers(
         db,
         org_id=org_id,
         notif_type='maintenance_done',
         title=f'ТО выполнено: {equipment.name}',
-        body=(
-            f'{payload.type} при {float(meter_at):g} {label}.'
-            + (
-                f' Следующее через {payload.next_to_interval:g} {label}.'
-                if payload.next_to_interval is not None
-                else ''
-            )
-        ),
+        body=f'{payload.type} при {float(meter_at):g} {label}.{next_hint}',
         link=f'/equipment/{equipment.id}',
     )
 
@@ -248,6 +257,7 @@ async def update_maintenance(
 
     updates = payload.model_dump(exclude_unset=True)
     next_to_interval = updates.pop('next_to_interval', None)
+    next_to_at_raw = updates.pop('next_to_at', None)
 
     for field, value in updates.items():
         if field in {'meter_at', 'cost'} and value is not None:
@@ -255,19 +265,28 @@ async def update_maintenance(
         else:
             setattr(record, field, value)
 
-    if next_to_interval is not None:
-        from app.services.maintenance import next_after_completed_service
+    if next_to_at_raw is not None or next_to_interval is not None:
+        from app.services.maintenance import resolve_next_to_at
 
-        current_meter = Decimal(str(equipment.current_meter or 0))
-        interval = Decimal(str(next_to_interval))
-        computed = next_after_completed_service(float(current_meter), float(interval))
-        next_to_at = Decimal(str(computed)) if computed is not None else current_meter + interval
-        record.next_to_at = next_to_at
-        equipment.next_to_at = next_to_at
-        equipment.to_interval = interval
-        db.add(equipment)
-        equipment.next_to_at = next_to_at
-        db.add(equipment)
+        meter_ref = (
+            float(record.meter_at)
+            if record.meter_at is not None
+            else float(equipment.current_meter or 0)
+        )
+        resolved = resolve_next_to_at(
+            meter_at=meter_ref,
+            next_to_at=next_to_at_raw,
+            next_to_interval=next_to_interval,
+        )
+        if resolved is not None:
+            next_to_at = Decimal(str(resolved))
+            record.next_to_at = next_to_at
+            equipment.next_to_at = next_to_at
+            if next_to_interval is not None:
+                equipment.to_interval = Decimal(str(next_to_interval))
+            elif float(next_to_at) > meter_ref:
+                equipment.to_interval = next_to_at - Decimal(str(meter_ref))
+            db.add(equipment)
 
     if 'cost' in updates and record.expense_id is not None and record.cost is not None:
         expense = await db.get(Expense, record.expense_id)

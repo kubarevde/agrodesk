@@ -1,4 +1,4 @@
-from datetime import date as date_type
+from datetime import date as date_type, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -16,6 +16,7 @@ class InventoryItemCreate(BaseModel):
     total_capacity: Decimal | None = Field(default=None, ge=0)
     # Optional when category=harvest — code from org crop dictionary (required for harvest).
     crop_code: str | None = Field(default=None, max_length=80)
+    variety_id: UUID | None = None
 
 
 class InventoryItemUpdate(BaseModel):
@@ -26,6 +27,8 @@ class InventoryItemUpdate(BaseModel):
     total_capacity: Decimal | None = Field(default=None, ge=0)
     is_active: bool | None = None
     crop_code: str | None = Field(default=None, max_length=80)
+    variety_id: UUID | None = None
+    clear_variety: bool = False
 
 
 class InventoryItemResponse(BaseModel):
@@ -40,7 +43,26 @@ class InventoryItemResponse(BaseModel):
     is_active: bool
     is_critical: bool
     crop_code: str | None = None
+    variety_id: UUID | None = None
+    variety_name: str | None = None
     is_harvest: bool = False
+    archived_at: datetime | None = None
+    archived_by: UUID | None = None
+    archived_by_name: str | None = None
+    archive_reason: str | None = None
+    can_hard_delete: bool | None = None
+
+
+class InventoryItemArchiveRequest(BaseModel):
+    reason: str = Field(min_length=5, max_length=2000)
+
+
+class InventoryItemRestoreRequest(BaseModel):
+    comment: str | None = Field(default=None, max_length=2000)
+
+
+class InventoryItemDeleteRequest(BaseModel):
+    reason: str = Field(min_length=5, max_length=2000)
 
 
 class InventoryOperationCreate(BaseModel):

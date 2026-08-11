@@ -150,6 +150,9 @@ async def get_or_create_demo_org(session) -> Organization:
                 settings['timezone'] = DEFAULT_TIMEZONE
                 org.settings = settings
                 changed = True
+            if not org.region:
+                org.region = 'RU-TOM'
+                changed = True
             if changed:
                 session.add(org)
                 await session.commit()
@@ -163,6 +166,7 @@ async def get_or_create_demo_org(session) -> Organization:
         plan='trial',
         is_active=True,
         max_employees=50,
+        region='RU-TOM',
         settings={'timezone': DEFAULT_TIMEZONE},
     )
     session.add(org)
@@ -173,8 +177,12 @@ async def get_or_create_demo_org(session) -> Organization:
 
 
 async def seed_locations(session, org_id) -> None:
+    from app.services.field_work_location import ensure_field_work_location
+
     if not await is_table_empty(session, Location):
         await update_field_seed(session, org_id)
+        await ensure_field_work_location(session, org_id)
+        await session.commit()
         return
 
     session.add_all(
@@ -191,6 +199,8 @@ async def seed_locations(session, org_id) -> None:
     )
     await session.commit()
     await update_field_seed(session, org_id)
+    await ensure_field_work_location(session, org_id)
+    await session.commit()
     print(f'locations: seeded {len(LOCATIONS)} rows')
 
 
@@ -391,11 +401,18 @@ async def ensure_test_farm_org(session) -> None:
             plan='trial',
             is_active=True,
             max_employees=20,
+            region='RU-TOM',
         )
         session.add(org)
         await session.commit()
         await session.refresh(org)
         print(f'organizations: created {TEST_ORG_SLUG}')
+    elif not org.region:
+        org.region = 'RU-TOM'
+        session.add(org)
+        await session.commit()
+        await session.refresh(org)
+        print(f'organizations: set region RU-TOM on {TEST_ORG_SLUG}')
 
     admin_result = await session.execute(
         select(Employee).where(

@@ -8,9 +8,24 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-MaintenanceStatus = Literal['in_progress', 'waiting_parts', 'done']
+# Open / closed codes from org dictionary `repair_status` (defaults).
+# `waiting_parts` is a status (not in repair) and also mirrored to waiting_parts flag.
+RepairStatusCode = str
 MaintenancePriority = Literal['urgent', 'normal', 'low']
 ChecklistItemType = Literal['buy', 'repair']
+
+CLOSED_REPAIR_STATUSES = frozenset({'done', 'cancelled'})
+# Legacy `open` still treated as in-repair for old rows before migration 049.
+IN_REPAIR_STATUSES = frozenset({'in_progress', 'open'})
+WAITING_PARTS_STATUS = 'waiting_parts'
+OPEN_REPAIR_STATUSES = IN_REPAIR_STATUSES  # alias for list/active filters
+
+
+def normalize_waiting_parts(status: str, waiting_parts: bool) -> bool:
+    """Status waiting_parts always implies the flag; otherwise keep explicit flag."""
+    if status == WAITING_PARTS_STATUS:
+        return True
+    return waiting_parts
 
 
 class ChecklistItemCreate(BaseModel):
@@ -49,7 +64,8 @@ class RepairJournalCreate(BaseModel):
     priority: MaintenancePriority = 'normal'
     meter_at: float | None = None
     cost: float | None = Field(default=None, ge=0)
-    status: MaintenanceStatus = 'in_progress'
+    status: RepairStatusCode = 'in_progress'
+    waiting_parts: bool = False
     checklist_items: list[ChecklistItemCreate] = Field(default_factory=list)
 
     @model_validator(mode='after')
@@ -66,7 +82,8 @@ class RepairJournalUpdate(BaseModel):
     priority: MaintenancePriority | None = None
     meter_at: float | None = None
     cost: float | None = Field(default=None, ge=0)
-    status: MaintenanceStatus | None = None
+    status: RepairStatusCode | None = None
+    waiting_parts: bool | None = None
     date_returned: date_type | None = None
     expense_id: UUID | None = None
     create_expense: bool = False
@@ -85,6 +102,7 @@ class RepairJournalResponse(BaseModel):
     type: str
     description: str | None = None
     status: str
+    waiting_parts: bool = False
     priority: str
     date_returned: date_type | None = None
     meter_at: float | None = None

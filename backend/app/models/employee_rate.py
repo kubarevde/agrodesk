@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Numeric, Text, func
+from sqlalchemy import CheckConstraint, Column, Date, DateTime, ForeignKey, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -9,11 +9,21 @@ from app.database import Base
 
 class EmployeeRate(Base):
     __tablename__ = 'employee_rates'
+    __table_args__ = (
+        CheckConstraint(
+            "payment_scheme IN ('hourly', 'per_shift', 'monthly', 'piecework')",
+            name='ck_employee_rates_payment_scheme',
+        ),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id'), nullable=False)
     employee_id = Column(UUID(as_uuid=True), ForeignKey('employees.id'), nullable=False)
     work_type_id = Column(UUID(as_uuid=True), ForeignKey('work_types.id'), nullable=True)
+    # hourly | per_shift | monthly | piecework — existing rows migrate to hourly.
+    payment_scheme = Column(String(20), nullable=False, default='hourly', server_default='hourly')
+    # Required only for piecework; values from PIECEWORK_UNITS (app-level), not DB enum.
+    piecework_unit = Column(String(20), nullable=True)
     rate = Column(Numeric(10, 2), nullable=False)
     overtime_multiplier = Column(Numeric(4, 2), nullable=False, default=1.0)
     overtime_threshold_hours = Column(Numeric(4, 1), nullable=False, default=8.0)

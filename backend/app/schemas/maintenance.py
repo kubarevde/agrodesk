@@ -1,4 +1,4 @@
-from datetime import date as date_type
+﻿from datetime import date as date_type
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -10,6 +10,7 @@ class MaintenanceCreate(BaseModel):
     meter_at: float | None = None
     cost: float | None = Field(default=None, ge=0)
     description: str | None = None
+    next_to_at: float | None = Field(default=None, gt=0)
     next_to_interval: float | None = Field(default=None, gt=0)
 
 
@@ -19,14 +20,22 @@ class MaintenanceUpdate(BaseModel):
     meter_at: float | None = None
     cost: float | None = Field(default=None, ge=0)
     description: str | None = None
+    next_to_at: float | None = Field(default=None, gt=0)
     next_to_interval: float | None = Field(default=None, gt=0)
 
 
-class MaintenanceResponse(MaintenanceCreate):
+class MaintenanceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     equipment_id: UUID
     equipment_name: str
     meter_label: str
+    date: date_type
+    type: str
+    meter_at: float | None = None
+    cost: float | None = None
+    description: str | None = None
+    next_to_at: float | None = None
+    next_to_interval: float | None = None
     expense_id: UUID | None = None

@@ -50,6 +50,7 @@ def test_create_repair_with_checklist_and_complete(
     body = created.json()
     repair_id = body['id']
     assert body['status'] == 'in_progress'
+    assert body.get('waiting_parts') is False
     assert body['checklist_total'] == 3
     assert body['equipment_id'] == equipment_id
     items = body['checklist_items']
@@ -136,3 +137,95 @@ def test_legacy_to_list_still_works(
     listed = client.get(f'/api/equipment/{equipment_id}/maintenance', headers=manager_headers)
     assert listed.status_code == 200, listed.text
     assert isinstance(listed.json(), list)
+
+
+def test_waiting_parts_as_status_without_in_repair(
+    client: httpx.Client, manager_headers: dict[str, str]
+) -> None:
+    equipment_id = _first_equipment_id(client, manager_headers)
+    created = client.post(
+        '/api/equipment-maintenance',
+        headers=manager_headers,
+        json={
+            'equipment_id': equipment_id,
+            'date': date.today().isoformat(),
+            'type': 'Ремонт',
+            'status': 'waiting_parts',
+            'checklist_items': [{'item_type': 'buy', 'description': 'Ремень'}],
+        },
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body['status'] == 'waiting_parts'
+    assert body['waiting_parts'] is True
+
+    listed = client.get(
+        '/api/equipment-maintenance',
+        headers=manager_headers,
+        params={'status': 'waiting_parts'},
+    )
+    assert listed.status_code == 200, listed.text
+    assert any(row['id'] == body['id'] for row in listed.json())
+
+
+def test_waiting_parts_flag_and_attention_filter(
+    client: httpx.Client, manager_headers: dict[str, str]
+) -> None:
+    equipment_id = _first_equipment_id(client, manager_headers)
+    created = client.post(
+        '/api/equipment-maintenance',
+        headers=manager_headers,
+        json={
+            'equipment_id': equipment_id,
+            'date': date.today().isoformat(),
+            'type': 'Ремонт',
+            'status': 'in_progress',
+            'waiting_parts': True,
+            'checklist_items': [{'item_type': 'buy', 'description': 'Подшипник'}],
+        },
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    repair_id = body['id']
+    assert body['status'] == 'in_progress'
+    assert body['waiting_parts'] is True
+
+    by_flag = client.get(
+        '/api/equipment-maintenance',
+        headers=manager_headers,
+        params={'waiting_parts': True},
+    )
+    assert by_flag.status_code == 200, by_flag.text
+    assert any(row['id'] == repair_id for row in by_flag.json())
+
+    attention = client.get(
+        '/api/equipment-maintenance',
+        headers=manager_headers,
+        params={'attention': True},
+    )
+    assert attention.status_code == 200, attention.text
+    assert any(row['id'] == repair_id for row in attention.json())
+
+    # Switch to waiting_parts-only status (not in repair).
+    only_wait = client.patch(
+        f'/api/equipment-maintenance/{repair_id}',
+        headers=manager_headers,
+        json={'status': 'waiting_parts'},
+    )
+    assert only_wait.status_code == 200, only_wait.text
+    assert only_wait.json()['status'] == 'waiting_parts'
+    assert only_wait.json()['waiting_parts'] is True
+
+
+def test_repair_status_dictionary_seeded(
+    client: httpx.Client, manager_headers: dict[str, str]
+) -> None:
+    listed = client.get(
+        '/api/dictionaries/repair_status',
+        headers=manager_headers,
+        params={'is_active': True},
+    )
+    assert listed.status_code == 200, listed.text
+    codes = {row['code'] for row in listed.json()}
+    assert {'in_progress', 'waiting_parts', 'done', 'cancelled'} <= codes
+    assert 'open' not in codes

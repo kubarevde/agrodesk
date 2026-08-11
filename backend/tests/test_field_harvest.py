@@ -1,4 +1,8 @@
-"""Field harvest → warehouse income (no shipments side effects)."""
+"""Field harvest → warehouse income (no shipments side effects).
+
+Culture for collect comes from field_plantings (or legacy Location.crop_* when
+no plantings exist). FieldCreate does not write crop onto the field.
+"""
 
 from __future__ import annotations
 
@@ -34,25 +38,49 @@ def _create_harvest_item(
 def _create_field(
     client: httpx.Client,
     headers: dict[str, str],
-    *,
-    crop_code: str | None = 'wheat',
 ) -> dict:
     body: dict = {
         'name': f'Harvest field {uuid4().hex[:8]}',
         'area_ha': 10,
     }
-    if crop_code is not None:
-        body['crop_code'] = crop_code
     res = client.post('/api/fields', headers=headers, json=body)
     assert res.status_code == 201, res.text
+    assert res.json().get('crop_code') in (None, '')
     return res.json()
+
+
+def _create_planting(
+    client: httpx.Client,
+    headers: dict[str, str],
+    *,
+    field_id: str,
+    crop_code: str,
+    area_ha: float = 10,
+) -> dict:
+    res = client.post(
+        f'/api/fields/{field_id}/plantings',
+        headers=headers,
+        json={
+            'crop_code': crop_code,
+            'area_ha': area_ha,
+            'season_year': date.today().year,
+            'status': 'planted',
+        },
+    )
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body['crop_code'] == crop_code
+    return body
 
 
 def test_field_harvest_income_ok(
     client: httpx.Client,
     admin_headers: dict[str, str],
 ) -> None:
-    field = _create_field(client, admin_headers, crop_code='wheat')
+    field = _create_field(client, admin_headers)
+    planting = _create_planting(
+        client, admin_headers, field_id=field['id'], crop_code='wheat'
+    )
     item = _create_harvest_item(client, admin_headers, crop_code='wheat')
     before_stock = float(item['current_stock'])
 
@@ -63,6 +91,7 @@ def test_field_harvest_income_ok(
             'inventory_item_id': item['id'],
             'quantity': 1500,
             'date': date.today().isoformat(),
+            'field_planting_id': planting['id'],
         },
     )
     assert res.status_code == 201, res.text
@@ -86,7 +115,8 @@ def test_field_harvest_rejects_non_harvest_item(
     client: httpx.Client,
     admin_headers: dict[str, str],
 ) -> None:
-    field = _create_field(client, admin_headers, crop_code='wheat')
+    field = _create_field(client, admin_headers)
+    _create_planting(client, admin_headers, field_id=field['id'], crop_code='wheat')
     fuel = client.post(
         '/api/inventory',
         headers=admin_headers,
@@ -112,12 +142,19 @@ def test_field_harvest_rejects_crop_mismatch(
     client: httpx.Client,
     admin_headers: dict[str, str],
 ) -> None:
-    field = _create_field(client, admin_headers, crop_code='wheat')
+    field = _create_field(client, admin_headers)
+    planting = _create_planting(
+        client, admin_headers, field_id=field['id'], crop_code='wheat'
+    )
     item = _create_harvest_item(client, admin_headers, crop_code='barley')
     res = client.post(
         f'/api/fields/{field["id"]}/harvest',
         headers=admin_headers,
-        json={'inventory_item_id': item['id'], 'quantity': 10},
+        json={
+            'inventory_item_id': item['id'],
+            'quantity': 10,
+            'field_planting_id': planting['id'],
+        },
     )
     assert res.status_code == 400, res.text
     assert 'не совпадает' in res.json().get('detail', '').lower()
@@ -127,18 +164,26 @@ def test_field_harvest_rejects_inactive_sku(
     client: httpx.Client,
     admin_headers: dict[str, str],
 ) -> None:
-    field = _create_field(client, admin_headers, crop_code='wheat')
-    item = _create_harvest_item(client, admin_headers, crop_code='wheat')
-    patched = client.patch(
-        f'/api/inventory/{item["id"]}',
-        headers=admin_headers,
-        json={'is_active': False},
+    field = _create_field(client, admin_headers)
+    planting = _create_planting(
+        client, admin_headers, field_id=field['id'], crop_code='wheat'
     )
-    assert patched.status_code == 200, patched.text
+    item = _create_harvest_item(client, admin_headers, crop_code='wheat')
+    archived = client.post(
+        f'/api/inventory/{item["id"]}/archive',
+        headers=admin_headers,
+        json={'reason': 'тест неактивной позиции для сбора'},
+    )
+    assert archived.status_code == 200, archived.text
+    assert archived.json()['is_active'] is False
     res = client.post(
         f'/api/fields/{field["id"]}/harvest',
         headers=admin_headers,
-        json={'inventory_item_id': item['id'], 'quantity': 10},
+        json={
+            'inventory_item_id': item['id'],
+            'quantity': 10,
+            'field_planting_id': planting['id'],
+        },
     )
     assert res.status_code == 400, res.text
     assert 'неактив' in res.json().get('detail', '').lower()
@@ -148,7 +193,7 @@ def test_field_harvest_rejects_when_field_has_no_crop(
     client: httpx.Client,
     admin_headers: dict[str, str],
 ) -> None:
-    field = _create_field(client, admin_headers, crop_code=None)
+    field = _create_field(client, admin_headers)
     # Ensure both code and type are empty (create may leave defaults)
     from sqlalchemy import create_engine, text
 
@@ -186,7 +231,10 @@ def test_field_harvest_rejects_sku_without_crop_code(
 
     from app.config import settings
 
-    field = _create_field(client, admin_headers, crop_code='wheat')
+    field = _create_field(client, admin_headers)
+    planting = _create_planting(
+        client, admin_headers, field_id=field['id'], crop_code='wheat'
+    )
     item = _create_harvest_item(client, admin_headers, crop_code='wheat')
 
     sync_url = settings.DATABASE_URL.replace('+asyncpg', '').replace('+psycopg', '')
@@ -201,7 +249,11 @@ def test_field_harvest_rejects_sku_without_crop_code(
     res = client.post(
         f'/api/fields/{field["id"]}/harvest',
         headers=admin_headers,
-        json={'inventory_item_id': item['id'], 'quantity': 10},
+        json={
+            'inventory_item_id': item['id'],
+            'quantity': 10,
+            'field_planting_id': planting['id'],
+        },
     )
     assert res.status_code == 400, res.text
     assert 'культур' in res.json().get('detail', '').lower()
@@ -216,14 +268,18 @@ def test_field_harvest_resolves_crop_type_when_code_missing(
 
     from app.config import settings
 
-    field = _create_field(client, admin_headers, crop_code='wheat')
+    field = _create_field(client, admin_headers)
     item = _create_harvest_item(client, admin_headers, crop_code='wheat')
 
+    # FieldCreate no longer writes crop_*; seed legacy Location.crop_type only.
     sync_url = settings.DATABASE_URL.replace('+asyncpg', '').replace('+psycopg', '')
     engine = create_engine(sync_url)
     with engine.begin() as conn:
         conn.execute(
-            text('UPDATE locations SET crop_code = NULL WHERE id = CAST(:id AS uuid)'),
+            text(
+                "UPDATE locations SET crop_code = NULL, crop_type = 'Пшеница' "
+                'WHERE id = CAST(:id AS uuid)'
+            ),
             {'id': field['id']},
         )
     engine.dispose()
@@ -231,7 +287,7 @@ def test_field_harvest_resolves_crop_type_when_code_missing(
     cleared = client.get(f'/api/fields/{field["id"]}', headers=admin_headers)
     assert cleared.status_code == 200
     assert cleared.json().get('crop_code') in (None, '')
-    assert cleared.json().get('crop_type')
+    assert cleared.json().get('crop_type') == 'Пшеница'
 
     res = client.post(
         f'/api/fields/{field["id"]}/harvest',

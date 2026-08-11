@@ -30,6 +30,7 @@ class Implement(Base):
 
     current_equipment = relationship('Equipment', back_populates='implements')
     maintenance_records = relationship('ImplementMaintenance', back_populates='implement')
+    usage_logs = relationship('ImplementUsageLog', back_populates='implement')
     equipment_maintenance_records = relationship(
         'EquipmentMaintenance',
         back_populates='implement',
@@ -39,6 +40,22 @@ class Implement(Base):
     agro_plans = relationship('AgroPlan', back_populates='implement')
 
 
+class ImplementUsageLog(Base):
+    __tablename__ = 'implement_usage_logs'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    implement_id = Column(UUID(as_uuid=True), ForeignKey('implements.id'), nullable=False)
+    date = Column(Date, nullable=False)
+    value_added = Column(Numeric(10, 2), nullable=False)
+    meter_after = Column(Numeric(10, 2), nullable=False)
+    note = Column(Text, nullable=True)
+    created_by = Column(UUID(as_uuid=True), ForeignKey('employees.id'), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    implement = relationship('Implement', back_populates='usage_logs')
+    created_by_user = relationship('Employee')
+
+
 class ImplementMaintenance(Base):
     __tablename__ = 'implement_maintenance'
 
@@ -46,6 +63,7 @@ class ImplementMaintenance(Base):
     implement_id = Column(UUID(as_uuid=True), ForeignKey('implements.id'), nullable=False)
     date = Column(Date, nullable=False)
     type = Column(String(100), nullable=False)
+    meter_at = Column(Numeric(10, 2), nullable=True)
     cost = Column(Numeric(12, 2), nullable=True)
     description = Column(Text, nullable=True)
     expense_id = Column(UUID(as_uuid=True), ForeignKey('expenses.id'), nullable=True)

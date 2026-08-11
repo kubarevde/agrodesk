@@ -18,9 +18,10 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.data.regions_ru import region_label
 from app.models.chat import Chat, ChatMember, ChatMemberRole, ChatMessage, ChatMessageRead, ChatType
-from app.models.employee import Employee
-from app.models.notification import Notification
+from app.models.employee import Employee, EmployeeRole
+from app.models.organization import Organization
 from app.schemas.messenger import (
     ChatListItem,
     ChatMemberOut,
@@ -59,6 +60,7 @@ async def get_employee_in_org_or_400(
 
 
 async def get_chat_or_404(db: AsyncSession, chat_id: UUID, org_id: UUID) -> Chat:
+    """Load chat owned by org (same-org groups/directs and home org of cross-org DMs)."""
     chat = await db.scalar(
         select(Chat)
         .execution_options(populate_existing=True)
@@ -72,21 +74,55 @@ async def get_chat_or_404(db: AsyncSession, chat_id: UUID, org_id: UUID) -> Chat
     return chat
 
 
+async def get_chat_for_participant(
+    db: AsyncSession,
+    *,
+    chat_id: UUID,
+    employee_id: UUID,
+) -> Chat:
+    """Load chat if employee is an active member (works for same-org and cross-org)."""
+    membership = await db.scalar(
+        select(ChatMember).where(
+            ChatMember.chat_id == chat_id,
+            ChatMember.employee_id == employee_id,
+            ChatMember.left_at.is_(None),
+        )
+    )
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Чат не найден')
+
+    chat = await db.scalar(
+        select(Chat)
+        .execution_options(populate_existing=True)
+        .options(
+            selectinload(Chat.members).selectinload(ChatMember.employee),
+            selectinload(Chat.organization),
+        )
+        .where(Chat.id == chat_id)
+    )
+    if chat is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Чат не найден')
+    return chat
+
+
 async def get_active_membership(
     db: AsyncSession,
     *,
     chat_id: UUID,
     employee_id: UUID,
-    org_id: UUID,
+    org_id: UUID | None = None,
 ) -> ChatMember | None:
-    return await db.scalar(
-        select(ChatMember).where(
-            ChatMember.chat_id == chat_id,
-            ChatMember.employee_id == employee_id,
-            ChatMember.org_id == org_id,
-            ChatMember.left_at.is_(None),
-        )
-    )
+    filters = [
+        ChatMember.chat_id == chat_id,
+        ChatMember.employee_id == employee_id,
+        ChatMember.left_at.is_(None),
+    ]
+    # Prefer exact org match when provided (same-org paths); fall back to employee-only.
+    if org_id is not None:
+        member = await db.scalar(select(ChatMember).where(*filters, ChatMember.org_id == org_id))
+        if member is not None:
+            return member
+    return await db.scalar(select(ChatMember).where(*filters))
 
 
 async def require_active_member(
@@ -94,7 +130,7 @@ async def require_active_member(
     *,
     chat_id: UUID,
     employee_id: UUID,
-    org_id: UUID,
+    org_id: UUID | None = None,
 ) -> ChatMember:
     member = await get_active_membership(
         db, chat_id=chat_id, employee_id=employee_id, org_id=org_id
@@ -107,29 +143,42 @@ async def require_active_member(
     return member
 
 
+def member_publish_targets(chat: Chat) -> list[tuple[UUID, UUID]]:
+    """(org_id, employee_id) pairs for SSE fan-out across orgs."""
+    targets: list[tuple[UUID, UUID]] = []
+    for member in chat.members:
+        if member.left_at is not None:
+            continue
+        targets.append((member.org_id, member.employee_id))
+    return targets
+
+
 async def find_direct_chat(
     db: AsyncSession,
     *,
-    org_id: UUID,
     employee_a: UUID,
     employee_b: UUID,
+    org_id: UUID | None = None,
 ) -> Chat | None:
+    filters = [
+        Chat.type == ChatType.direct.value,
+        ChatMember.left_at.is_(None),
+        ChatMember.employee_id.in_((employee_a, employee_b)),
+    ]
+    if org_id is not None:
+        filters.append(Chat.org_id == org_id)
+
     chat_id = await db.scalar(
         select(Chat.id)
         .join(ChatMember, ChatMember.chat_id == Chat.id)
-        .where(
-            Chat.org_id == org_id,
-            Chat.type == ChatType.direct.value,
-            ChatMember.left_at.is_(None),
-            ChatMember.employee_id.in_((employee_a, employee_b)),
-        )
+        .where(*filters)
         .group_by(Chat.id)
         .having(func.count(func.distinct(ChatMember.employee_id)) == 2)
         .limit(1)
     )
     if chat_id is None:
         return None
-    return await get_chat_or_404(db, chat_id, org_id)
+    return await get_chat_for_participant(db, chat_id=chat_id, employee_id=employee_a)
 
 
 async def get_or_create_direct_chat(
@@ -157,6 +206,7 @@ async def get_or_create_direct_chat(
         type=ChatType.direct.value,
         name=None,
         created_by=current.id,
+        is_cross_org=False,
     )
     db.add(chat)
     await db.flush()
@@ -179,6 +229,129 @@ async def get_or_create_direct_chat(
     )
     await db.flush()
     return await get_chat_or_404(db, chat.id, org_id)
+
+
+async def get_or_create_cross_org_direct_chat(
+    db: AsyncSession,
+    *,
+    current: Employee,
+    peer_employee_id: UUID,
+) -> Chat:
+    """Admin-only DM with an admin of another organization."""
+    if current.role != EmployeeRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Межорганизационный чат доступен только администратору',
+        )
+    if peer_employee_id == current.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Нельзя создать личный чат с самим собой',
+        )
+    if current.org_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Организация не определена',
+        )
+
+    peer = await db.scalar(
+        select(Employee).where(
+            Employee.id == peer_employee_id,
+            Employee.is_active.is_(True),
+            Employee.role == EmployeeRole.admin,
+        )
+    )
+    if peer is None or peer.org_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Администратор другой организации не найден',
+        )
+    if peer.org_id == current.org_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Для коллег из своего хозяйства используйте обычный чат',
+        )
+
+    existing = await find_direct_chat(db, employee_a=current.id, employee_b=peer.id)
+    if existing is not None:
+        # Migration smoke can re-add is_cross_org with default false — repair.
+        if not bool(getattr(existing, 'is_cross_org', False)):
+            existing.is_cross_org = True
+            db.add(existing)
+            await db.flush()
+        return existing
+
+    chat = Chat(
+        org_id=current.org_id,
+        type=ChatType.direct.value,
+        name=None,
+        created_by=current.id,
+        is_cross_org=True,
+    )
+    db.add(chat)
+    await db.flush()
+    db.add(
+        ChatMember(
+            org_id=current.org_id,
+            chat_id=chat.id,
+            employee_id=current.id,
+            role=ChatMemberRole.owner.value,
+        )
+    )
+    db.add(
+        ChatMember(
+            org_id=peer.org_id,
+            chat_id=chat.id,
+            employee_id=peer.id,
+            role=ChatMemberRole.member.value,
+        )
+    )
+    await db.flush()
+    return await get_chat_for_participant(db, chat_id=chat.id, employee_id=current.id)
+
+
+async def list_external_org_admins(
+    db: AsyncSession,
+    *,
+    current_org_id: UUID,
+    query: str | None = None,
+    region: str | None = None,
+    limit: int = 50,
+) -> list[tuple[Organization, Employee]]:
+    """Other active orgs with at least one active admin — for cross-org chat picker."""
+    filters = [
+        Organization.id != current_org_id,
+        Organization.is_active.is_(True),
+        Employee.is_active.is_(True),
+        Employee.role == EmployeeRole.admin,
+    ]
+    q = (query or '').strip()
+    if q:
+        like = f'%{q}%'
+        filters.append(
+            or_(
+                Organization.name.ilike(like),
+                Organization.slug.ilike(like),
+                Employee.full_name.ilike(like),
+            )
+        )
+    region_code = (region or '').strip() or None
+    if region_code:
+        # Match catalog code and legacy free-text labels stored in organizations.region.
+        label = region_label(region_code)
+        region_match = [Organization.region == region_code]
+        if label:
+            region_match.append(Organization.region.ilike(label))
+        filters.append(or_(*region_match))
+
+    result = await db.execute(
+        select(Organization, Employee)
+        .join(Employee, Employee.org_id == Organization.id)
+        .where(*filters)
+        .order_by(Organization.name, Employee.full_name)
+        .limit(limit)
+    )
+    return list(result.all())
 
 
 async def create_group_chat(
@@ -327,16 +500,22 @@ async def list_my_chats(
     org_id: UUID,
     employee_id: UUID,
 ) -> list[Chat]:
+    """Chats where I am an active member (includes cross-org DMs)."""
     result = await db.execute(
         select(Chat)
         .join(ChatMember, ChatMember.chat_id == Chat.id)
-        .options(selectinload(Chat.members).selectinload(ChatMember.employee))
+        .options(
+            selectinload(Chat.members).selectinload(ChatMember.employee),
+            selectinload(Chat.organization),
+        )
         .where(
-            Chat.org_id == org_id,
-            ChatMember.org_id == org_id,
             ChatMember.employee_id == employee_id,
             ChatMember.left_at.is_(None),
             Chat.archived_at.is_(None),
+            or_(
+                Chat.org_id == org_id,
+                Chat.is_cross_org.is_(True),
+            ),
         )
         .order_by(Chat.updated_at.desc())
     )
@@ -406,20 +585,28 @@ async def create_new_message_notifications(
     body = f'{sender.full_name}: {preview}' if preview else f'{sender.full_name} в «{chat_label}»'
     link = f'/messenger/{chat.id}'
     recipient_ids = active_member_ids(chat, exclude=sender.id)
+    from app.services.notification_prefs import (
+        create_employee_notification,
+        load_employee_prefs_map,
+    )
+
+    prefs_map = await load_employee_prefs_map(db, recipient_ids)
+    created: list[UUID] = []
     for employee_id in recipient_ids:
-        db.add(
-            Notification(
-                employee_id=employee_id,
-                type=NEW_MESSAGE_NOTIFICATION_TYPE,
-                title=title,
-                body=body,
-                link=link,
-                is_read=False,
-            )
+        row = await create_employee_notification(
+            db,
+            employee_id=employee_id,
+            notif_type=NEW_MESSAGE_NOTIFICATION_TYPE,
+            title=title,
+            body=body,
+            link=link,
+            prefs=prefs_map.get(employee_id),
         )
-    if recipient_ids:
+        if row is not None:
+            created.append(employee_id)
+    if created:
         await db.flush()
-    return recipient_ids
+    return created
 
 
 async def load_last_messages(
@@ -469,7 +656,6 @@ async def load_unread_counts(
         for row in (
             await db.execute(
                 select(ChatMessageRead).where(
-                    ChatMessageRead.org_id == org_id,
                     ChatMessageRead.employee_id == employee_id,
                     ChatMessageRead.chat_id.in_(chat_ids),
                 )
@@ -493,7 +679,6 @@ async def load_unread_counts(
     for chat_id in chat_ids:
         read = reads.get(chat_id)
         filters = [
-            ChatMessage.org_id == org_id,
             ChatMessage.chat_id == chat_id,
             ChatMessage.deleted_at.is_(None),
             ChatMessage.sender_id != employee_id,
@@ -646,15 +831,44 @@ async def build_chat_list_items(
     unread = await load_unread_counts(
         db, org_id=org_id, employee_id=viewer.id, chat_ids=chat_ids
     )
+
+    peer_org_ids = {
+        m.org_id
+        for chat in chats
+        if getattr(chat, 'is_cross_org', False)
+        for m in chat.members
+        if m.left_at is None and m.employee_id != viewer.id
+    }
+    org_names: dict[UUID, str] = {}
+    if peer_org_ids:
+        for org in (
+            await db.execute(select(Organization).where(Organization.id.in_(peer_org_ids)))
+        ).scalars().all():
+            org_names[org.id] = org.name
+
     items: list[ChatListItem] = []
     for chat in chats:
         last = last_by_chat.get(chat.id)
+        title = chat_title(chat, viewer.id)
+        if getattr(chat, 'is_cross_org', False):
+            peer = next(
+                (
+                    m
+                    for m in chat.members
+                    if m.left_at is None and m.employee_id != viewer.id
+                ),
+                None,
+            )
+            if peer is not None:
+                org_label = org_names.get(peer.org_id)
+                if org_label:
+                    title = f'{title} · {org_label}'
         items.append(
             ChatListItem(
                 id=chat.id,
                 type=chat.type,
                 name=chat.name,
-                title=chat_title(chat, viewer.id),
+                title=title,
                 created_by=chat.created_by,
                 created_at=chat.created_at,
                 updated_at=chat.updated_at,
@@ -662,6 +876,7 @@ async def build_chat_list_items(
                 members=active_members_out(chat),
                 last_message=message_preview(last) if last else None,
                 unread_count=unread.get(chat.id, 0),
+                is_cross_org=bool(getattr(chat, 'is_cross_org', False)),
             )
         )
     return items
@@ -676,12 +891,14 @@ async def list_messages(
     limit: int,
     before: datetime | None,
     before_id: UUID | None,
+    message_org_id: UUID | None = None,
 ) -> ChatMessagesPage:
+    home_org = message_org_id or org_id
     query = (
         select(ChatMessage)
         .options(selectinload(ChatMessage.sender))
         .where(
-            ChatMessage.org_id == org_id,
+            ChatMessage.org_id == home_org,
             ChatMessage.chat_id == chat_id,
         )
     )
@@ -740,8 +957,9 @@ async def send_message(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Сообщение не может быть пустым',
         )
+    message_org = chat.org_id
     message = ChatMessage(
-        org_id=org_id,
+        org_id=message_org,
         chat_id=chat.id,
         sender_id=sender.id,
         body=text or (attachment_url or ''),
@@ -752,13 +970,13 @@ async def send_message(
     db.add(chat)
     await db.flush()
 
-    # Auto-mark as read for sender (messenger unread SoT: chat_message_reads)
     await upsert_read_state(
         db,
         org_id=org_id,
         chat_id=chat.id,
         employee_id=sender.id,
         last_read_message_id=message.id,
+        message_org_id=message_org,
     )
     await db.flush()
 
@@ -784,15 +1002,16 @@ async def upsert_read_state(
     chat_id: UUID,
     employee_id: UUID,
     last_read_message_id: UUID | None,
+    message_org_id: UUID | None = None,
 ) -> ChatMessageRead:
     if last_read_message_id is not None:
-        msg = await db.scalar(
-            select(ChatMessage).where(
-                ChatMessage.id == last_read_message_id,
-                ChatMessage.chat_id == chat_id,
-                ChatMessage.org_id == org_id,
-            )
-        )
+        msg_filters = [
+            ChatMessage.id == last_read_message_id,
+            ChatMessage.chat_id == chat_id,
+        ]
+        if message_org_id is not None:
+            msg_filters.append(ChatMessage.org_id == message_org_id)
+        msg = await db.scalar(select(ChatMessage).where(*msg_filters))
         if msg is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -814,7 +1033,6 @@ async def upsert_read_state(
             updated_at=_now(),
         )
     else:
-        # Only move forward
         if last_read_message_id is not None and row.last_read_message_id is not None:
             current_msg = await db.scalar(
                 select(ChatMessage).where(ChatMessage.id == row.last_read_message_id)
@@ -840,6 +1058,7 @@ async def upsert_read_state(
     db.add(row)
     await db.flush()
     return row
+
 
 
 def read_state_out(row: ChatMessageRead) -> ChatReadState:

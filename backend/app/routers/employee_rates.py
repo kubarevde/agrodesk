@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -17,7 +17,9 @@ from app.schemas.employee_rate import (
     EmployeeRateResponse,
     EmployeeRateUpdate,
     RatePreviewResponse,
+    validate_rate_scheme_fields,
 )
+from app.services.action_permissions import require_action
 from app.services.audit import log_change, model_snapshot
 from app.services.salary import calculate_amount, get_rate_for_shift
 
@@ -38,6 +40,8 @@ def rate_to_response(rate: EmployeeRate) -> EmployeeRateResponse:
         employee_name=rate.employee.full_name if rate.employee else '',
         work_type_id=rate.work_type_id,
         work_type_name=rate.work_type.name if rate.work_type else None,
+        payment_scheme=rate.payment_scheme or 'hourly',
+        piecework_unit=rate.piecework_unit,
         rate=rate.rate,
         overtime_multiplier=rate.overtime_multiplier,
         overtime_threshold_hours=rate.overtime_threshold_hours,
@@ -102,6 +106,35 @@ async def assert_no_overlap(
         )
 
 
+async def close_previous_open_base_rates(
+    db: AsyncSession,
+    *,
+    org_id: UUID,
+    employee_id: UUID,
+    new_valid_from: date,
+) -> None:
+    """Close any open base rate (work_type_id IS NULL) before inserting a new base.
+
+    Sets valid_to = new_valid_from - 1 day, regardless of previous payment_scheme.
+    """
+    close_to = new_valid_from - timedelta(days=1)
+    result = await db.execute(
+        select(EmployeeRate).where(
+            EmployeeRate.org_id == org_id,
+            EmployeeRate.employee_id == employee_id,
+            EmployeeRate.work_type_id.is_(None),
+            EmployeeRate.valid_to.is_(None),
+        )
+    )
+    for prior in result.scalars().all():
+        # Keep chronological sanity if prior started on/after new_valid_from.
+        if prior.valid_from > close_to:
+            prior.valid_to = prior.valid_from
+        else:
+            prior.valid_to = close_to
+        db.add(prior)
+
+
 async def get_org_employee(db: AsyncSession, employee_id: UUID, org_id: UUID) -> Employee:
     result = await db.execute(
         select(Employee).where(Employee.id == employee_id, Employee.org_id == org_id)
@@ -152,7 +185,7 @@ async def create_employee_rate(
     request: Request,
     payload: EmployeeRateCreate,
     db: AsyncSession = Depends(get_db),
-    current: Employee = Depends(require_manager),
+    current: Employee = Depends(require_action('payroll.manage_rates')),
 ) -> EmployeeRateResponse:
     org_id = get_org_id(request)
     await get_org_employee(db, payload.employee_id, org_id)
@@ -165,6 +198,15 @@ async def create_employee_rate(
         )
         if result.scalar_one_or_none() is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Тип работ не найден')
+
+    # One open base rate per employee: close previous base rows first.
+    if payload.work_type_id is None:
+        await close_previous_open_base_rates(
+            db,
+            org_id=org_id,
+            employee_id=payload.employee_id,
+            new_valid_from=payload.valid_from,
+        )
 
     await assert_no_overlap(
         db,
@@ -179,6 +221,8 @@ async def create_employee_rate(
         org_id=org_id,
         employee_id=payload.employee_id,
         work_type_id=payload.work_type_id,
+        payment_scheme=payload.payment_scheme,
+        piecework_unit=payload.piecework_unit,
         rate=payload.rate,
         overtime_multiplier=payload.overtime_multiplier,
         overtime_threshold_hours=payload.overtime_threshold_hours,
@@ -201,7 +245,7 @@ async def update_employee_rate(
     rate_id: UUID,
     payload: EmployeeRateUpdate,
     db: AsyncSession = Depends(get_db),
-    current: Employee = Depends(require_manager),
+    current: Employee = Depends(require_action('payroll.manage_rates')),
 ) -> EmployeeRateResponse:
     org_id = get_org_id(request)
     rate = await get_rate_or_404(db, rate_id, org_id)
@@ -218,13 +262,20 @@ async def update_employee_rate(
         if result.scalar_one_or_none() is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Тип работ не найден')
 
-    next_work_type_id = rate.work_type_id
-    if 'work_type_id' in data:
-        next_work_type_id = data['work_type_id']
+    next_work_type_id = data['work_type_id'] if 'work_type_id' in data else rate.work_type_id
+    next_scheme = data['payment_scheme'] if 'payment_scheme' in data else (rate.payment_scheme or 'hourly')
+    next_unit = data['piecework_unit'] if 'piecework_unit' in data else rate.piecework_unit
+    try:
+        validate_rate_scheme_fields(
+            payment_scheme=next_scheme,
+            work_type_id=next_work_type_id,
+            piecework_unit=next_unit,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
     next_from = data.get('valid_from', rate.valid_from)
-    next_to = rate.valid_to
-    if 'valid_to' in data:
-        next_to = data['valid_to']
+    next_to = data['valid_to'] if 'valid_to' in data else rate.valid_to
 
     await assert_no_overlap(
         db,
@@ -251,7 +302,7 @@ async def delete_employee_rate(
     request: Request,
     rate_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current: Employee = Depends(require_manager),
+    current: Employee = Depends(require_action('payroll.manage_rates')),
 ) -> None:
     rate = await get_rate_or_404(db, rate_id, get_org_id(request))
     before = model_snapshot(rate)

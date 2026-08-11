@@ -1,8 +1,10 @@
 from decimal import Decimal
 from uuid import UUID
+import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import or_, select
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel
+from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -19,13 +21,18 @@ from app.schemas.field import FieldCreate, FieldHarvestCreate, FieldResponse, Fi
 from app.schemas.inventory import InventoryOperationResponse
 from app.services.action_permissions import require_action
 from app.services.audit import log_change, model_snapshot
-from app.services.crop_dictionary import resolve_crop_pair_for_org
 from app.services.field_geometry import apply_geometry_on_write
+from app.services.field_planting_service import assert_field_polygon_keeps_plantings
+from app.services.sharing_partial import (
+    archive_active_listings_for_field,
+    assert_field_polygon_keeps_partial_listings,
+)
 from app.services.harvest_service import create_field_harvest
 
 # Read (list/get) is available to any authenticated employee — needed for open-shift
 # field selection (my-shift). Mutations stay manager-only below.
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _num(value: Decimal | float | None) -> float | None:
@@ -85,12 +92,41 @@ async def get_field_or_404(db: AsyncSession, field_id: UUID, org_id: UUID) -> Lo
     return location
 
 
+from app.services.field_work_location import (
+    FIELD_WORK_LOCATION_CODE,
+    is_system_field_work_location,
+)
+
+
 def is_field_location(location: Location) -> bool:
+    """True for real fields only — never the system «Полевая работа» work location."""
+    if is_system_field_work_location(location):
+        return False
     if getattr(location, 'kind', None) == 'field':
         return True
+    # Legacy rows: crop set, but still a work-object kind must not become a field
+    if getattr(location, 'kind', None) == 'object':
+        return False
     if location.crop_type:
         return True
-    return location.name.startswith('Поле')
+    return False
+
+
+def _fields_list_filter():
+    """Fields = kind=field (or legacy non-object with crop). Never work objects / system."""
+    return (
+        Location.is_active.is_(True),
+        Location.is_system.is_(False),
+        or_(
+            Location.code.is_(None),
+            Location.code != FIELD_WORK_LOCATION_CODE,
+        ),
+        or_(
+            Location.kind == 'field',
+            # Legacy pre-kind rows that look like fields, but never kind=object
+            and_(Location.crop_type.is_not(None), Location.kind != 'object'),
+        ),
+    )
 
 
 @router.get('', response_model=list[FieldResponse])
@@ -105,16 +141,109 @@ async def list_fields(
         .options(*field_load_options())
         .where(
             Location.org_id == org_id,
-            Location.is_active.is_(True),
-            or_(
-                Location.kind == 'field',
-                Location.crop_type.is_not(None),
-                Location.name.like('Поле%'),
-            ),
+            *_fields_list_filter(),
         )
         .order_by(Location.name)
     )
     return [location_to_field(row) for row in result.scalars().all()]
+
+
+class SeasonPlantingOverlay(BaseModel):
+    id: UUID
+    field_id: UUID
+    field_name: str
+    crop_code: str
+    crop_name: str | None = None
+    variety_id: UUID | None = None
+    variety_name: str | None = None
+    area_ha: float
+    map_color: str | None = None
+    polygon: list[list[float]] | None = None
+    season_year: int
+    status: str
+
+
+@router.get('/season-plantings', response_model=list[SeasonPlantingOverlay])
+async def list_season_planting_overlays(
+    request: Request,
+    season_year: int | None = Query(None, ge=2000, le=2100),
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(get_current_employee),
+) -> list[SeasonPlantingOverlay]:
+    """Active plantings for maps — must stay before /{field_id}."""
+    from datetime import date as date_cls
+
+    from app.models.crop_variety import CropVariety
+    from app.models.dictionary import OrgDictionary
+    from app.models.field_planting import ACTIVE_AREA_STATUSES, FieldPlanting
+
+    org_id = get_org_id(request)
+    year = season_year or date_cls.today().year
+
+    field_rows = (
+        await db.execute(
+            select(Location.id, Location.name).where(
+                Location.org_id == org_id,
+                *_fields_list_filter(),
+            )
+        )
+    ).all()
+    if not field_rows:
+        return []
+    id_to_name = {row_id: str(name) for row_id, name in field_rows}
+    ids = list(id_to_name.keys())
+
+    plantings = (
+        await db.execute(
+            select(FieldPlanting).where(
+                FieldPlanting.org_id == org_id,
+                FieldPlanting.field_id.in_(ids),
+                FieldPlanting.season_year == year,
+                FieldPlanting.status.in_(ACTIVE_AREA_STATUSES),
+            )
+        )
+    ).scalars().all()
+
+    crop_names = {
+        str(c): str(n)
+        for c, n in (
+            await db.execute(
+                select(OrgDictionary.code, OrgDictionary.name).where(
+                    OrgDictionary.org_id == org_id,
+                    OrgDictionary.type == 'crop',
+                )
+            )
+        ).all()
+    }
+    variety_names = {
+        i: str(n)
+        for i, n in (
+            await db.execute(
+                select(CropVariety.id, CropVariety.name).where(CropVariety.org_id == org_id)
+            )
+        ).all()
+    }
+
+    out: list[SeasonPlantingOverlay] = []
+    for row in plantings:
+        poly = row.polygon if isinstance(row.polygon, list) else None
+        out.append(
+            SeasonPlantingOverlay(
+                id=row.id,
+                field_id=row.field_id,
+                field_name=id_to_name.get(row.field_id, ''),
+                crop_code=row.crop_code,
+                crop_name=crop_names.get(row.crop_code),
+                variety_id=row.variety_id,
+                variety_name=variety_names.get(row.variety_id) if row.variety_id else None,
+                area_ha=float(row.area_ha),
+                map_color=row.map_color,
+                polygon=poly,
+                season_year=int(row.season_year),
+                status=row.status,
+            )
+        )
+    return out
 
 
 @router.get('/{field_id}', response_model=FieldResponse)
@@ -151,19 +280,16 @@ async def create_field(
         clear_polygon=clear_polygon,
     )
 
-    crop_name, crop_code = await resolve_crop_pair_for_org(
-        db,
-        org_id,
-        crop_type=payload.crop_type,
-        crop_code=payload.crop_code,
-    )
+    # Crop/variety live on field_plantings only. Legacy crop_* on Location is not written.
+    if payload.crop_type or payload.crop_code:
+        logger.info('Ignoring legacy crop on FieldCreate (org=%s name=%s)', org_id, name)
 
     location = Location(
         org_id=org_id,
         name=name,
         kind='field',
-        crop_type=crop_name,
-        crop_code=crop_code,
+        crop_type=None,
+        crop_code=None,
         area_ha=Decimal(str(area_ha)) if area_ha is not None else None,
         soil_type=None,
         description=payload.description,
@@ -212,6 +338,11 @@ async def update_field(
 
     updates = payload.model_dump(exclude_unset=True)
     updates.pop('soil_type', None)
+    # Do not write culture onto the field — plantings are the source of truth.
+    if 'crop_type' in updates or 'crop_code' in updates:
+        logger.info('Ignoring legacy crop on FieldUpdate (field_id=%s)', field_id)
+        updates.pop('crop_type', None)
+        updates.pop('crop_code', None)
 
     if 'name' in updates and updates['name'] is not None:
         updates['name'] = normalize_name(updates['name'])
@@ -220,18 +351,6 @@ async def update_field(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail='Укажите название поля',
             )
-    if 'crop_type' in updates or 'crop_code' in updates:
-        next_type = updates['crop_type'] if 'crop_type' in updates else location.crop_type
-        next_code = updates['crop_code'] if 'crop_code' in updates else location.crop_code
-        crop_name, crop_code = await resolve_crop_pair_for_org(
-            db,
-            org_id,
-            crop_type=next_type,
-            crop_code=next_code,
-        )
-        updates['crop_type'] = crop_name
-        updates['crop_code'] = crop_code
-
     polygon_in_payload = 'polygon' in updates
     raw_polygon = updates.pop('polygon', None) if polygon_in_payload else None
     clear_polygon = polygon_in_payload and (
@@ -253,6 +372,18 @@ async def update_field(
         area_ha=area_src,
         clear_polygon=clear_polygon,
     )
+
+    if polygon_in_payload:
+        await assert_field_polygon_keeps_partial_listings(
+            db,
+            location_id=location.id,
+            new_polygon=polygon,
+        )
+        await assert_field_polygon_keeps_plantings(
+            db,
+            field_id=location.id,
+            new_polygon=polygon,
+        )
 
     location.kind = 'field'
     location.latitude = Decimal(str(lat)) if lat is not None else None
@@ -314,6 +445,8 @@ async def harvest_from_field(
         op_date=payload.date,
         user_id=current.id,
         org_id=org_id,
+        field_planting_id=payload.field_planting_id,
+        harvest_status=payload.harvest_status,
     )
     await log_change(
         db,
@@ -351,6 +484,7 @@ async def delete_field(
     before = model_snapshot(location)
     location.is_active = False
     db.add(location)
+    await archive_active_listings_for_field(db, location.id)
     await log_change(
         db,
         org_id=location.org_id,

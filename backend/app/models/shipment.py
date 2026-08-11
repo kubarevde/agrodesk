@@ -26,6 +26,23 @@ class Shipment(Base):
         ForeignKey('shipment_requests.id', ondelete='SET NULL'),
         nullable=True,
     )
+    # Harvest origin (nullable for legacy rows).
+    field_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('locations.id', ondelete='SET NULL'),
+        nullable=True,
+    )
+    variety_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('crop_varieties.id', ondelete='SET NULL'),
+        nullable=True,
+    )
+    field_planting_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('field_plantings.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True,
+    )
     created_by = Column(UUID(as_uuid=True), ForeignKey('employees.id'), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

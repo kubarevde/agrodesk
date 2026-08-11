@@ -2,11 +2,17 @@ from app.models.access_group import AccessGroup
 from app.models.agro_plan import AgroPlan, AgroPlanField
 from app.models.audit_log import AuditLog
 from app.models.chat import Chat, ChatMember, ChatMessage, ChatMessageRead
+from app.models.crop_variety import CropVariety
 from app.models.employee import Employee
+from app.models.field_planting import FieldPlanting
+from app.models.field_rotation_plan import FieldRotationPlan
 from app.models.employee_rate import EmployeeRate
 from app.models.equipment_log import EquipmentMaintenance, EquipmentMeterLog, MaintenanceChecklistItem
 from app.models.expense import Expense
-from app.models.implement import Implement, ImplementMaintenance
+from app.models.payroll import PayrollAdjustment, PayrollPayout, PayrollRun, PayrollRunLine
+from app.models.piecework_record import PieceworkRecord
+from app.models.income import Income
+from app.models.implement import Implement, ImplementMaintenance, ImplementUsageLog
 from app.models.inventory import InventoryItem, InventoryOperation
 from app.models.marketplace import (
     MarketCategory,
@@ -19,12 +25,14 @@ from app.models.marketplace import (
 from app.models.notification import Notification
 from app.models.org_hierarchy import OrgHierarchyLink
 from app.models.organization import Organization, SuperAdminUser
+from app.models.org_task import OrgTask
 from app.models.purchase_planner import PurchasePlannerItem
 from app.models.reference import Equipment, Location, WorkType
 from app.models.sharing import SharingListing, SharingRequest
 from app.models.shift import Shift
 from app.models.shipment import Shipment
 from app.models.shipment_request import ShipmentRequest, ShipmentRequestAttachment
+from app.models.tmc_shipment import TmcShipment
 from app.models.support_ticket import (
     SupportReplyTemplate,
     SupportTicket,
@@ -41,7 +49,10 @@ __all__ = [
     'ChatMember',
     'ChatMessage',
     'ChatMessageRead',
+    'CropVariety',
     'Employee',
+    'FieldPlanting',
+    'FieldRotationPlan',
     'EmployeeRate',
     'Equipment',
     'EquipmentMaintenance',
@@ -49,8 +60,15 @@ __all__ = [
     'MaintenanceChecklistItem',
     'PurchasePlannerItem',
     'Expense',
+    'PieceworkRecord',
+    'PayrollRun',
+    'PayrollRunLine',
+    'PayrollAdjustment',
+    'PayrollPayout',
+    'Income',
     'Implement',
     'ImplementMaintenance',
+    'ImplementUsageLog',
     'InventoryItem',
     'InventoryOperation',
     'MarketCategory',
@@ -63,12 +81,14 @@ __all__ = [
     'Notification',
     'Organization',
     'OrgHierarchyLink',
+    'OrgTask',
     'SharingListing',
     'SharingRequest',
     'Shift',
     'Shipment',
     'ShipmentRequest',
     'ShipmentRequestAttachment',
+    'TmcShipment',
     'SupportTicket',
     'SupportTicketAttachment',
     'SupportTicketMessage',

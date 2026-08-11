@@ -56,8 +56,7 @@ async def build_superadmin_stats(db: AsyncSession) -> SuperAdminStatsResponse:
                 func.sum(
                     case(
                         (
-                            (Organization.plan == 'trial')
-                            & (Organization.trial_ends_at.is_not(None))
+                            (Organization.trial_ends_at.is_not(None))
                             & (Organization.trial_ends_at <= trial_horizon)
                             & (Organization.trial_ends_at >= today)
                             & Organization.is_active.is_(True),
@@ -69,8 +68,7 @@ async def build_superadmin_stats(db: AsyncSession) -> SuperAdminStatsResponse:
                 func.sum(
                     case(
                         (
-                            (Organization.plan == 'trial')
-                            & (Organization.trial_ends_at.is_not(None))
+                            (Organization.trial_ends_at.is_not(None))
                             & (Organization.trial_ends_at < today)
                             & Organization.is_active.is_(True),
                             1,
@@ -250,7 +248,7 @@ def _build_attention(
                 code='trials_expiring',
                 severity='warning',
                 count=trials_expiring_soon,
-                message=f'{trials_expiring_soon} trial истекают в ближайшие 7 дней',
+                message=f'{trials_expiring_soon} подписок истекают в ближайшие 7 дней',
             )
         )
     if trials_expired_active > 0:
@@ -259,7 +257,7 @@ def _build_attention(
                 code='trials_expired',
                 severity='warning',
                 count=trials_expired_active,
-                message=f'{trials_expired_active} активных org с просроченным trial',
+                message=f'{trials_expired_active} активных организаций с просроченной датой «Истекает»',
             )
         )
     if inactive_orgs > 0:

@@ -194,7 +194,7 @@ async def update_access_group(
         if not name:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Укажите название')
         if group.is_system and name != group.name:
-            # Allow rename of system groups? Keep name for supplier preset for clarity.
+            # Display label only — code (e.g. supplier) stays unchanged.
             group.name = name
         else:
             group.name = name

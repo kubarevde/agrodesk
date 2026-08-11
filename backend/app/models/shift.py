@@ -1,7 +1,7 @@
 import enum
 import uuid
 
-from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, Integer, Numeric, Text, Time, func
+from sqlalchemy import Boolean, Column, Date, DateTime, Enum, ForeignKey, Integer, Numeric, Text, Time, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
@@ -22,6 +22,7 @@ class Shift(Base):
     employee_id = Column(UUID(as_uuid=True), ForeignKey('employees.id'), nullable=False)
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=True)
+    end_date = Column(Date, nullable=True)
     work_type_id = Column(UUID(as_uuid=True), ForeignKey('work_types.id'), nullable=False)
     location_id = Column(UUID(as_uuid=True), ForeignKey('locations.id'), nullable=False)
     equipment_id = Column(UUID(as_uuid=True), ForeignKey('equipment.id'), nullable=True)
@@ -41,6 +42,7 @@ class Shift(Base):
     longitude = Column(Numeric(9, 6), nullable=True)
     calculated_amount = Column(Numeric(10, 2), nullable=True)
     rate_snapshot = Column(JSONB, nullable=True)
+    time_adjusted = Column(Boolean, nullable=False, default=False, server_default='false')
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(
         DateTime(timezone=True),

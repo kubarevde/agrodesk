@@ -36,13 +36,29 @@ class InventoryItem(Base):
     category = Column(String(50), nullable=False)
     # Optional link to crop dictionary code when category=harvest
     crop_code = Column(String(80), nullable=True)
+    variety_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('crop_varieties.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True,
+    )
     unit = Column(String(50), nullable=False)
     current_stock = Column(Numeric(12, 2), default=0, nullable=False)
     min_stock = Column(Numeric(12, 2), default=0, nullable=False)
     total_capacity = Column(Numeric(12, 2), default=0, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    # Soft-archive metadata (is_active=False). Kept after restore for history display.
+    archived_at = Column(DateTime(timezone=True), nullable=True)
+    archived_by = Column(
+        UUID(as_uuid=True),
+        ForeignKey('employees.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True,
+    )
+    archive_reason = Column(Text, nullable=True)
 
     operations = relationship('InventoryOperation', back_populates='item')
+    archived_by_user = relationship('Employee', foreign_keys=[archived_by])
 
 
 class InventoryOperation(Base):
@@ -69,6 +85,13 @@ class InventoryOperation(Base):
         UUID(as_uuid=True),
         ForeignKey('locations.id', ondelete='SET NULL'),
         nullable=True,
+    )
+    # Optional link to a specific crop placement on the field (nullable for legacy ops).
+    field_planting_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('field_plantings.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True,
     )
 
     item = relationship('InventoryItem', back_populates='operations')

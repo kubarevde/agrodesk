@@ -120,6 +120,7 @@ async def create_inventory_operation(
     equipment_id: UUID | None = None,
     purpose: str = PURPOSE_GENERAL,
     field_id: UUID | None = None,
+    field_planting_id: UUID | None = None,
 ) -> InventoryOperation:
     effective_date = op_date or date.today()
     assert_operation_date(effective_date)
@@ -138,6 +139,7 @@ async def create_inventory_operation(
         )
 
     resolved_field_id = field_id
+    resolved_planting_id = field_planting_id
     if purpose_norm == PURPOSE_HARVEST_INCOME:
         if op_type != InventoryOperationType.income:
             raise HTTPException(
@@ -149,9 +151,10 @@ async def create_inventory_operation(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail='Для сбора урожая укажите поле (field_id)',
             )
-    elif resolved_field_id is not None and purpose_norm != PURPOSE_HARVEST_INCOME:
-        # Ignore stray field_id on non-harvest purposes (no parallel semantics).
+    else:
+        # Ignore stray field/planting on non-harvest purposes.
         resolved_field_id = None
+        resolved_planting_id = None
 
     # Expense / write-off: refuse if stock at posting date is insufficient.
     # Income must never hit this gate (observed bug: shared insufficient check).
@@ -189,6 +192,7 @@ async def create_inventory_operation(
         equipment_id=equipment_id,
         purpose=purpose_norm,
         field_id=resolved_field_id,
+        field_planting_id=resolved_planting_id,
     )
     db.add(operation)
     await db.flush()

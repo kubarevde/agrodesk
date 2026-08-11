@@ -27,6 +27,9 @@ class Location(Base):
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     kind = Column(String(20), nullable=False, default='object', server_default='object')
+    # Stable key for system / dictionary-like rows (e.g. field_work). Unique per org when set.
+    code = Column(String(80), nullable=True)
+    is_system = Column(Boolean, default=False, nullable=False, server_default='false')
     area_ha = Column(Numeric(8, 2), nullable=True)
     polygon = Column(JSONB, nullable=True)
     crop_type = Column(String(100), nullable=True)
@@ -52,10 +55,11 @@ class Location(Base):
 
 class WorkType(Base):
     __tablename__ = 'work_types'
+    __table_args__ = (UniqueConstraint('org_id', 'name', name='uq_work_types_org_name'),)
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id'), nullable=False)
-    name = Column(String(200), unique=True, nullable=False)
+    name = Column(String(200), nullable=False)
     category = Column(String(100), nullable=True)
     is_field_work = Column(Boolean, default=False, nullable=False, server_default='false')
     is_active = Column(Boolean, default=True, nullable=False)
@@ -68,6 +72,7 @@ class WorkType(Base):
 class Equipment(Base):
     __tablename__ = 'equipment'
     __table_args__ = (
+        UniqueConstraint('org_id', 'name', name='uq_equipment_org_name'),
         CheckConstraint(
             "meter_type IS NULL OR meter_type IN ('motohours', 'km', 'shift_hours')",
             name='equipment_meter_type_check',
@@ -76,7 +81,7 @@ class Equipment(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     org_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id'), nullable=False)
-    name = Column(String(200), unique=True, nullable=False)
+    name = Column(String(200), nullable=False)
     type = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     year_of_manufacture = Column(Integer, nullable=True)

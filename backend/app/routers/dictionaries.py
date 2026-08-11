@@ -70,6 +70,7 @@ class DictionaryItemCreate(BaseModel):
     sort_order: int | None = None
     icon: str | None = Field(default=None, max_length=40)
     color: str | None = Field(default=None, max_length=40)
+    default_interval: float | None = Field(default=None, gt=0)
 
 
 class DictionaryItemUpdate(BaseModel):
@@ -78,6 +79,8 @@ class DictionaryItemUpdate(BaseModel):
     sort_order: int | None = None
     icon: str | None = Field(default=None, max_length=40)
     color: str | None = Field(default=None, max_length=40)
+    # None clears the soft interval hint for maintenance_type.
+    default_interval: float | None = Field(default=None)
 
 
 class DictionaryItemResponse(BaseModel):
@@ -92,6 +95,7 @@ class DictionaryItemResponse(BaseModel):
     # Computed: Organization.settings overrides → code defaults → null.
     icon: str | None = None
     color: str | None = None
+    default_interval: float | None = None
 
 
 def _to_response(
@@ -111,6 +115,9 @@ def _to_response(
         sort_order=int(item.sort_order or 0),
         icon=icon,
         color=color,
+        default_interval=(
+            float(item.default_interval) if item.default_interval is not None else None
+        ),
     )
 
 
@@ -173,6 +180,9 @@ async def create_dictionary_item(
         code=code,
         is_active=True,
         sort_order=payload.sort_order if payload.sort_order is not None else 100,
+        default_interval=(
+            payload.default_interval if dict_type == 'maintenance_type' else None
+        ),
     )
     db.add(item)
     overrides: dict[str, dict[str, str]] | None = None
@@ -238,6 +248,18 @@ async def update_dictionary_item(
         await _assert_can_deactivate(db, org_id=org_id, item=item)
     if 'name' in updates and updates['name'] is not None:
         updates['name'] = normalize_name(updates['name'])
+    if 'default_interval' in updates:
+        raw_interval = updates['default_interval']
+        if raw_interval is None:
+            updates['default_interval'] = None
+        else:
+            value = float(raw_interval)
+            if value <= 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail='Интервал должен быть больше 0',
+                )
+            updates['default_interval'] = value
     for key, value in updates.items():
         setattr(item, key, value)
     db.add(item)

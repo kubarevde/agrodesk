@@ -87,32 +87,21 @@ def test_shipment_requests_report_excel(
     assert row['id']  # created successfully; row may appear in sheet
 
 
-def test_feature_flag_disables_shipment_requests_api(
+def test_shipment_requests_module_always_on(
     client: httpx.Client,
     admin_headers: dict[str, str],
 ) -> None:
-    disabled = client.patch(
+    """Org settings no longer disable the module — API stays reachable (8.6)."""
+    ignored = client.patch(
         '/api/settings/organization',
         headers=admin_headers,
         json={'shipment_requests_enabled': False},
     )
-    assert disabled.status_code == 200, disabled.text
-    assert disabled.json()['shipment_requests_enabled'] is False
+    assert ignored.status_code == 200, ignored.text
+    assert ignored.json()['shipment_requests_enabled'] is True
 
-    try:
-        listed = client.get('/api/shipment-requests', headers=admin_headers)
-        assert listed.status_code == 403, listed.text
-    finally:
-        enabled = client.patch(
-            '/api/settings/organization',
-            headers=admin_headers,
-            json={'shipment_requests_enabled': True},
-        )
-        assert enabled.status_code == 200, enabled.text
-        assert enabled.json()['shipment_requests_enabled'] is True
-
-    ok = client.get('/api/shipment-requests', headers=admin_headers)
-    assert ok.status_code == 200, ok.text
+    listed = client.get('/api/shipment-requests', headers=admin_headers)
+    assert listed.status_code == 200, listed.text
 
 
 def test_complete_sets_shift_id_when_open_shift_exists(
@@ -135,7 +124,7 @@ def test_complete_sets_shift_id_when_open_shift_exists(
     locs = client.get('/api/locations', headers=admin_headers).json()
     wts = client.get('/api/work-types', headers=admin_headers).json()
     loc = next(l for l in locs if l.get('is_active'))
-    wt = next(w for w in wts if w.get('is_active'))
+    wt = next(w for w in wts if w.get('is_active') and not w.get('is_field_work'))
 
     # Close leftover open shifts for this employee.
     opens = client.get(

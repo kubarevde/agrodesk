@@ -6,7 +6,7 @@ import re
 import uuid
 from typing import Literal
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, UniqueConstraint, func, select
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, UniqueConstraint, func, select
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,9 @@ DictionaryType = Literal[
     'implement_category',
     'inventory_category',
     'expense_category',
+    'income_category',
+    'maintenance_type',
+    'repair_status',
 ]
 
 DICTIONARY_TYPES: tuple[str, ...] = (
@@ -24,6 +27,9 @@ DICTIONARY_TYPES: tuple[str, ...] = (
     'implement_category',
     'inventory_category',
     'expense_category',
+    'income_category',
+    'maintenance_type',
+    'repair_status',
 )
 
 DEFAULTS: dict[str, list[tuple[str, str]]] = {
@@ -63,6 +69,37 @@ DEFAULTS: dict[str, list[tuple[str, str]]] = {
         ('rent', 'Аренда'),
         ('other', 'Прочее'),
     ],
+    # Manual incomes only (shipment revenue is aggregated, not stored as Income rows).
+    'income_category': [
+        ('services', 'Услуги'),
+        ('sharing', 'Шеринг / аренда'),
+        ('other_sales', 'Прочая реализация'),
+        ('subsidy', 'Субсидии'),
+        ('other', 'Прочее'),
+    ],
+    'maintenance_type': [
+        ('to_1', 'ТО-1'),
+        ('to_2', 'ТО-2'),
+        ('oil_change', 'Замена масла'),
+        ('filter_change', 'Замена фильтра'),
+        ('repair', 'Ремонт'),
+        ('other', 'Другое'),
+    ],
+    # waiting_parts is a status of its own (not «in repair»); flag stays for filters/history.
+    'repair_status': [
+        ('in_progress', 'В ремонте'),
+        ('waiting_parts', 'Ожидает запчасти'),
+        ('done', 'Завершён'),
+        ('cancelled', 'Отменён'),
+    ],
+}
+
+# Soft interval hints for seeded maintenance types (not a hard constraint).
+MAINTENANCE_TYPE_DEFAULT_INTERVALS: dict[str, float] = {
+    'to_1': 250,
+    'to_2': 500,
+    'oil_change': 250,
+    'filter_change': 250,
 }
 
 # code → (icon key, color key) for seeded implement categories
@@ -89,6 +126,8 @@ class OrgDictionary(Base):
     code = Column(String(80), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     sort_order = Column(Integer, default=0, nullable=False)
+    # Soft default interval for maintenance_type (km / mth / hours) — hint only.
+    default_interval = Column(Numeric(12, 2), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
@@ -135,6 +174,9 @@ async def ensure_default_dictionaries(db: AsyncSession, org_id: uuid.UUID) -> No
         for offset, (code, name) in enumerate(rows):
             if code in known:
                 continue
+            default_interval = None
+            if dict_type == 'maintenance_type':
+                default_interval = MAINTENANCE_TYPE_DEFAULT_INTERVALS.get(code)
             db.add(
                 OrgDictionary(
                     org_id=org_id,
@@ -143,6 +185,7 @@ async def ensure_default_dictionaries(db: AsyncSession, org_id: uuid.UUID) -> No
                     name=name,
                     is_active=True,
                     sort_order=start_index + offset,
+                    default_interval=default_interval,
                 )
             )
             known.add(code)
