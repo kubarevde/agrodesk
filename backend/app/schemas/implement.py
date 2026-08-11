@@ -18,6 +18,7 @@ class ImplementCreate(BaseModel):
     current_equipment_id: UUID | None = None
     current_usage_hours: float = 0
     service_interval_hours: float | None = None
+    next_service_hours: float | None = Field(default=None, gt=0)
 
 
 class ImplementUpdate(BaseModel):
@@ -32,6 +33,7 @@ class ImplementUpdate(BaseModel):
     is_active: bool | None = None
     current_usage_hours: float | None = None
     service_interval_hours: float | None = None
+    next_service_hours: float | None = Field(default=None, gt=0)
 
 
 class ImplementAttach(BaseModel):
@@ -64,8 +66,10 @@ class ImplementResponse(BaseModel):
 class ImplementMaintenanceCreate(BaseModel):
     date: date_type
     type: str = Field(min_length=1, max_length=100)
+    meter_at: float | None = Field(default=None, ge=0)
     cost: float | None = Field(default=None, ge=0)
     description: str | None = None
+    next_service_hours: float | None = Field(default=None, gt=0)
     next_service_interval: float | None = Field(default=None, gt=0)
 
 
@@ -76,6 +80,30 @@ class ImplementMaintenanceResponse(BaseModel):
     implement_id: UUID
     date: date_type
     type: str
+    meter_at: float | None = None
     cost: float | None = None
     description: str | None = None
     expense_id: UUID | None = None
+
+
+class ImplementUsageLogCreate(BaseModel):
+    value_added: float = Field(gt=0, description='Прибавить к наработке')
+    date: date_type | None = None
+    note: str | None = None
+
+
+class ImplementUsageLogResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    implement_id: UUID
+    implement_name: str
+    date: date_type
+    value_added: float
+    meter_after: float
+    meter_label: str = 'ч'
+    source: str = 'manual'
+    note: str | None = None
+    created_by_name: str | None = None
+    shift_id: UUID | None = None
+    shift_label: str | None = None

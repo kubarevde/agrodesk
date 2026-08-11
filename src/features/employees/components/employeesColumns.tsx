@@ -1,12 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { MoreHorizontal, Pencil, UserCheck, UserX } from 'lucide-react'
+import { Pencil, UserCheck, UserX } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { CardActionsMenu } from '@/components/shared/CardActionsMenu'
 import type { Employee } from '@/types'
 import {
   ROLE_LABELS,
@@ -27,7 +22,7 @@ export function createEmployeeColumns(
   const columns: ColumnDef<Employee>[] = [
     {
       accessorKey: 'employeeCode',
-      header: 'Код',
+      header: 'Логин',
       cell: ({ row }) => <span className="font-mono text-sm">{row.original.employeeCode}</span>,
     },
     {
@@ -94,46 +89,29 @@ export function createEmployeeColumns(
     columns.push({
       id: 'actions',
       header: 'Действия',
-      cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className="inline-flex size-8 items-center justify-center rounded-lg hover:bg-muted"
-            aria-label="Действия"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <MoreHorizontal className="size-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={(event) => {
-                event.stopPropagation()
-                actions.onEdit(row.original)
-              }}
-            >
-              <Pencil className="size-4" />
-              Редактировать
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={(event) => {
-                event.stopPropagation()
-                actions.onToggleActive(row.original)
-              }}
-            >
-              {row.original.isActive ? (
-                <>
-                  <UserX className="size-4" />
-                  Деактивировать
-                </>
-              ) : (
-                <>
-                  <UserCheck className="size-4" />
-                  Активировать
-                </>
-              )}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
+      cell: ({ row }) => {
+        const employee = row.original
+        return (
+          <CardActionsMenu
+            title={employee.employeeName}
+            ariaLabel="Действия"
+            actions={[
+              {
+                id: 'edit',
+                label: 'Редактировать',
+                icon: Pencil,
+                onSelect: () => actions.onEdit(employee),
+              },
+              {
+                id: 'toggle',
+                label: employee.isActive ? 'Деактивировать' : 'Активировать',
+                icon: employee.isActive ? UserX : UserCheck,
+                onSelect: () => actions.onToggleActive(employee),
+              },
+            ]}
+          />
+        )
+      },
     })
   }
 

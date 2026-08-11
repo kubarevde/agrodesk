@@ -15,9 +15,17 @@ import { MessengerDialogs } from './MessengerDialogs'
 
 interface MessengerPageProps {
   chatId?: string
+  embedded?: boolean
+  onSelectChat?: (id: string) => void
+  onClearChat?: () => void
 }
 
-export function MessengerPage({ chatId }: MessengerPageProps) {
+export function MessengerPage({
+  chatId,
+  embedded = false,
+  onSelectChat,
+  onClearChat,
+}: MessengerPageProps) {
   const navigate = useNavigate()
   const isOnline = useOnlineStatus()
   const { data: user } = useCurrentUser()
@@ -44,10 +52,18 @@ export function MessengerPage({ chatId }: MessengerPageProps) {
   const updateGroup = useUpdateGroupChat(activeChat?.id ?? '')
 
   function selectChat(id: string) {
+    if (onSelectChat) {
+      onSelectChat(id)
+      return
+    }
     void navigate({ to: '/messenger/$chatId', params: { chatId: id } })
   }
 
   function clearChat() {
+    if (onClearChat) {
+      onClearChat()
+      return
+    }
     void navigate({ to: '/messenger' })
   }
 
@@ -62,7 +78,7 @@ export function MessengerPage({ chatId }: MessengerPageProps) {
   if (!isOnline) {
     return (
       <div className="space-y-3">
-        <SectionHelp section="мессенджер" items={messengerHelp} />
+        {embedded ? null : <SectionHelp section="мессенджер" items={messengerHelp} />}
         <OnlineOnlyNotice
           title="Мессенджер доступен только онлайн"
           description="Чаты и сообщения требуют связь с сервером. Смены и склад можно вести офлайн."
@@ -74,7 +90,7 @@ export function MessengerPage({ chatId }: MessengerPageProps) {
 
   return (
     <div className="space-y-3">
-      <SectionHelp section="мессенджер" items={messengerHelp} />
+      {embedded ? null : <SectionHelp section="мессенджер" items={messengerHelp} />}
       <div
         className="flex h-[calc(100dvh-7rem)] min-h-[28rem] overflow-hidden rounded-lg border border-border bg-background"
         data-testid="messenger-page"
@@ -148,7 +164,9 @@ export function MessengerPage({ chatId }: MessengerPageProps) {
         setGroupOpen={setGroupOpen}
         setSettingsOpen={setSettingsOpen}
         onCreated={selectChat}
-        createDirect={(peerId) => createDirect.mutateAsync(peerId)}
+        createDirect={(peerId, options) =>
+          createDirect.mutateAsync({ peerEmployeeId: peerId, crossOrg: options?.crossOrg })
+        }
         createGroup={(payload) => createGroup.mutateAsync(payload)}
         updateGroup={(payload) => updateGroup.mutateAsync(payload)}
       />

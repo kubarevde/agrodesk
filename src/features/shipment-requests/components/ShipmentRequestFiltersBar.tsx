@@ -1,3 +1,4 @@
+import { DateRangePicker } from '@/components/shared/DateRangePicker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LabeledSelect } from '@/components/ui/labeled-select'
@@ -81,29 +82,16 @@ export function ShipmentRequestFiltersBar({ filters, onChange, inventoryItems }:
           placeholder="Поиск…"
         />
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="sr-from">С</Label>
-          <Input
-            id="sr-from"
-            type="date"
-            value={filters.fromDate ?? ''}
-            onChange={(e) =>
-              onChange({ ...filters, fromDate: e.target.value || undefined })
-            }
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="sr-to">По</Label>
-          <Input
-            id="sr-to"
-            type="date"
-            value={filters.toDate ?? ''}
-            onChange={(e) =>
-              onChange({ ...filters, toDate: e.target.value || undefined })
-            }
-          />
-        </div>
+      <div className="space-y-1.5">
+        <Label>Период</Label>
+        <DateRangePicker
+          from={filters.fromDate}
+          to={filters.toDate}
+          onChange={({ from, to }) =>
+            onChange({ ...filters, fromDate: from, toDate: to })
+          }
+          className="w-full"
+        />
       </div>
     </div>
   )

@@ -64,7 +64,14 @@ export function SupportTicketDetailPage({ ticketId }: SupportTicketDetailPagePro
           <Badge className={priorityBadgeClass(ticket.priority)}>
             {priorityLabel(ticket.priority)}
           </Badge>
-          {ticket.unreadForStaff ? <Badge>Новое сообщение</Badge> : null}
+          {ticket.unreadForStaff ? (
+            <Badge
+              variant="outline"
+              className="border-amber-600/40 bg-amber-400/90 text-amber-950"
+            >
+              Новое сообщение
+            </Badge>
+          ) : null}
         </div>
         <h1 className="text-xl font-semibold sm:text-2xl">{ticket.subject}</h1>
         <p className="text-sm text-muted-foreground">

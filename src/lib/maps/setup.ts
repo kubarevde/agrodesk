@@ -19,3 +19,21 @@ L.Icon.Default.mergeOptions({
 })
 
 applyLeafletDrawRussianLocale()
+
+// Hide Leaflet brand / regional prefix (e.g. flag) on default attribution control.
+L.Control.Attribution.mergeOptions({ prefix: false })
+
+/**
+ * Leaflet.Draw mid-edge handles create accidental extra vertices while editing.
+ * Field contours only move/delete real corners — disable middle markers once.
+ */
+function disableLeafletDrawMiddleMarkers() {
+  const editNs = (L as unknown as { Edit?: { PolyVerticesEdit?: { prototype: Record<string, unknown> } } })
+    .Edit
+  const proto = editNs?.PolyVerticesEdit?.prototype
+  if (!proto || proto.__agrodeskNoMiddleMarkers) return
+  proto._createMiddleMarker = () => undefined
+  proto.__agrodeskNoMiddleMarkers = true
+}
+
+disableLeafletDrawMiddleMarkers()

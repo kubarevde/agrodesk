@@ -5,8 +5,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 import { buildAuditDetailSections } from '../lib/auditDetail'
-import { getAuditActorLabel, getAuditSectionLabel } from '../lib/auditLabels'
+import { getAuditActorLabel, getAuditSectionLabel, localizeAuditSummary } from '../lib/auditLabels'
 import type { AuditLogEntry } from '../types'
 import { AuditActionBadge, formatAuditWhen } from './AuditLogRow'
 import { AuditDetailFields } from './AuditDetailFields'
@@ -15,6 +16,8 @@ type AuditDiffDialogProps = {
   entry: AuditLogEntry | null
   open: boolean
   onClose: () => void
+  /** Raise above Sheet panels (e.g. when opened from entity history). */
+  elevated?: boolean
 }
 
 function actionMode(action: string): 'create' | 'update' | 'delete' | 'other' {
@@ -25,13 +28,21 @@ function actionMode(action: string): 'create' | 'update' | 'delete' | 'other' {
   return 'other'
 }
 
-export function AuditDiffDialog({ entry, open, onClose }: AuditDiffDialogProps) {
+const ABOVE_SHEET_Z = 'z-[1200]'
+
+export function AuditDiffDialog({ entry, open, onClose, elevated = false }: AuditDiffDialogProps) {
   const detail = entry ? buildAuditDetailSections(entry) : null
   const mode = entry ? actionMode(entry.action) : 'other'
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+      <DialogContent
+        className={cn(
+          'flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg',
+          elevated && ABOVE_SHEET_Z,
+        )}
+        overlayClassName={elevated ? ABOVE_SHEET_Z : undefined}
+      >
         <DialogHeader className="border-b border-border px-4 py-4">
           <DialogTitle>Подробности изменения</DialogTitle>
           {entry ? (
@@ -63,7 +74,9 @@ export function AuditDiffDialog({ entry, open, onClose }: AuditDiffDialogProps) 
                 </div>
                 <div className="sm:col-span-2">
                   <dt className="text-muted-foreground">Описание</dt>
-                  <dd className="text-foreground break-words">{entry.summary || '—'}</dd>
+                  <dd className="text-foreground break-words">
+                    {localizeAuditSummary(entry.summary)}
+                  </dd>
                 </div>
               </dl>
             </section>

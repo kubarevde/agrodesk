@@ -3,6 +3,8 @@ uvicorn[standard]==0.30.0
 sqlalchemy[asyncio]==2.0.35
 # 0.29 has no cp314 wheels on Windows — needs MSVC to build from source.
 asyncpg>=0.29.0,<0.32
+# Sync SQLAlchemy engine in a few pytest helpers (create_engine on stripped DATABASE_URL).
+psycopg2-binary>=2.9.9,<3
 alembic==1.13.2
 # 2.9.x pulls pydantic-core without cp314 wheels; 2.11+ ships them.
 pydantic>=2.9.2,<3

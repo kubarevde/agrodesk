@@ -22,6 +22,7 @@ export function MyEarningsSection() {
   const isOnline = useOnlineStatus()
   const [month, setMonth] = useState(getCurrentMonthValue())
   const { data, isLoading } = useMyEarnings(month)
+  const hidden = data?.hidden === true
 
   return (
     <section className="space-y-4">
@@ -84,10 +85,22 @@ export function MyEarningsSection() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-xl font-semibold">~{formatMoney(data.totalAmount)}</p>
+                {hidden ? (
+                  <p className="text-sm text-muted-foreground">
+                    Информация о начислениях скрыта администратором
+                  </p>
+                ) : (
+                  <p className="text-xl font-semibold">~{formatMoney(data.totalAmount)}</p>
+                )}
               </CardContent>
             </Card>
           </div>
+
+          {hidden && (
+            <p className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-muted-foreground">
+              Информация о начислениях скрыта администратором
+            </p>
+          )}
 
           {data.shifts.length === 0 ? (
             <p className="text-sm text-muted-foreground">За этот месяц начислений нет</p>
@@ -109,7 +122,9 @@ export function MyEarningsSection() {
                       <TableCell>{formatIsoDateRu(shift.date)}</TableCell>
                       <TableCell>{shift.workType}</TableCell>
                       <TableCell>{shift.hours}</TableCell>
-                      <TableCell>{formatMoney(shift.amount)}</TableCell>
+                      <TableCell>
+                        {hidden ? '—' : formatMoney(shift.amount)}
+                      </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-muted-foreground">
                           {shift.source}

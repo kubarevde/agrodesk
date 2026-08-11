@@ -4,6 +4,8 @@ export const locationSchema = z.object({
   name: z.string().min(1, 'Укажите название'),
   description: z.string().optional(),
   isActive: z.boolean(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
 })
 
 export const workTypeSchema = z.object({

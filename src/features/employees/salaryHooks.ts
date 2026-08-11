@@ -19,6 +19,8 @@ function employeeRateFromApi(raw: ApiRecord): EmployeeRate {
     employeeName: String(raw.employee_name ?? ''),
     workTypeId: raw.work_type_id != null ? String(raw.work_type_id) : null,
     workTypeName: raw.work_type_name != null ? String(raw.work_type_name) : null,
+    paymentScheme: (raw.payment_scheme as EmployeeRate['paymentScheme']) || 'hourly',
+    pieceworkUnit: raw.piecework_unit != null ? String(raw.piecework_unit) : null,
     rate: toNumber(raw.rate),
     overtimeMultiplier: toNumber(raw.overtime_multiplier),
     overtimeThresholdHours: toNumber(raw.overtime_threshold_hours),
@@ -94,13 +96,18 @@ function earningsFromApi(raw: ApiRecord): EmployeeEarnings {
     hours: toNumber(raw.hours),
     totalAmount: toNumber(raw.totalAmount ?? raw.total_amount),
     shifts,
+    hidden: raw.hidden === true,
   }
 }
 
 function rateFormToApi(employeeId: string, values: EmployeeRateFormValues) {
+  const scheme = values.paymentScheme
   return {
     employee_id: employeeId,
-    work_type_id: values.workTypeId || null,
+    work_type_id:
+      scheme === 'per_shift' || scheme === 'monthly' ? null : values.workTypeId || null,
+    payment_scheme: scheme,
+    piecework_unit: scheme === 'piecework' ? values.pieceworkUnit : null,
     rate: values.rate,
     overtime_threshold_hours: values.overtimeThresholdHours,
     overtime_multiplier: values.overtimeMultiplier,

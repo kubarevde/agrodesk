@@ -72,17 +72,33 @@ def _deactivate(client: httpx.Client, headers: dict[str, str], employee_id: str)
     assert r.status_code == 204, r.text
 
 
+def _cleanup_stale_tg_employees(client: httpx.Client, headers: dict[str, str]) -> None:
+    """Deactivate leftover TG* employees from prior runs so create is not blocked."""
+    listed = client.get('/api/employees', headers=headers, params={'is_active': True})
+    assert listed.status_code == 200, listed.text
+    for row in listed.json():
+        code = str(row.get('employee_code') or '')
+        if code.startswith('TG'):
+            client.delete(f"/api/employees/{row['id']}", headers=headers)
+
+
+@pytest.fixture
+def tg_workspace(client: httpx.Client, admin_headers: dict[str, str]) -> dict[str, str]:
+    _cleanup_stale_tg_employees(client, admin_headers)
+    return admin_headers
+
+
 def test_duplicate_telegram_id_rejected(
-    client: httpx.Client, admin_headers: dict[str, str]
+    client: httpx.Client, tg_workspace: dict[str, str]
 ) -> None:
     suffix = uuid.uuid4().hex[:8]
     tg = 900_000_000 + (int(suffix[:6], 16) % 50_000_000)
-    a = _create_employee(client, admin_headers, f'A{suffix}')
-    b = _create_employee(client, admin_headers, f'B{suffix}')
+    a = _create_employee(client, tg_workspace, f'A{suffix}')
+    b = _create_employee(client, tg_workspace, f'B{suffix}')
     try:
         r1 = client.patch(
             f'/api/employees/{a["id"]}/link-telegram',
-            headers=admin_headers,
+            headers=tg_workspace,
             json={'telegram_id': tg},
         )
         assert r1.status_code == 200, r1.text
@@ -90,34 +106,34 @@ def test_duplicate_telegram_id_rejected(
 
         r2 = client.patch(
             f'/api/employees/{b["id"]}/link-telegram',
-            headers=admin_headers,
+            headers=tg_workspace,
             json={'telegram_id': tg},
         )
         assert r2.status_code == 409, r2.text
         assert 'уже привязан' in (r2.json().get('detail') or '').lower()
 
         # A still holds it
-        ra = client.get(f'/api/employees/{a["id"]}', headers=admin_headers)
+        ra = client.get(f'/api/employees/{a["id"]}', headers=tg_workspace)
         assert ra.json()['telegram_id'] == tg
-        rb = client.get(f'/api/employees/{b["id"]}', headers=admin_headers)
+        rb = client.get(f'/api/employees/{b["id"]}', headers=tg_workspace)
         assert rb.json()['telegram_id'] is None
     finally:
-        _deactivate(client, admin_headers, a['id'])
-        _deactivate(client, admin_headers, b['id'])
+        _deactivate(client, tg_workspace, a['id'])
+        _deactivate(client, tg_workspace, b['id'])
 
 
 def test_force_transfer_clears_previous_holder(
-    client: httpx.Client, admin_headers: dict[str, str]
+    client: httpx.Client, tg_workspace: dict[str, str]
 ) -> None:
     suffix = uuid.uuid4().hex[:8]
     tg = 910_000_000 + (int(suffix[:6], 16) % 50_000_000)
-    a = _create_employee(client, admin_headers, f'C{suffix}')
-    b = _create_employee(client, admin_headers, f'D{suffix}')
+    a = _create_employee(client, tg_workspace, f'C{suffix}')
+    b = _create_employee(client, tg_workspace, f'D{suffix}')
     try:
         assert (
             client.patch(
                 f'/api/employees/{a["id"]}/link-telegram',
-                headers=admin_headers,
+                headers=tg_workspace,
                 json={'telegram_id': tg},
             ).status_code
             == 200
@@ -125,15 +141,15 @@ def test_force_transfer_clears_previous_holder(
 
         r = client.patch(
             f'/api/employees/{b["id"]}/link-telegram',
-            headers=admin_headers,
+            headers=tg_workspace,
             json={'telegram_id': tg, 'force_transfer': True},
         )
         assert r.status_code == 200, r.text
         assert r.json()['telegram_id'] == tg
 
-        ra = client.get(f'/api/employees/{a["id"]}', headers=admin_headers)
+        ra = client.get(f'/api/employees/{a["id"]}', headers=tg_workspace)
         assert ra.json()['telegram_id'] is None
-        rb = client.get(f'/api/employees/{b["id"]}', headers=admin_headers)
+        rb = client.get(f'/api/employees/{b["id"]}', headers=tg_workspace)
         assert rb.json()['telegram_id'] == tg
 
         # Old TG must authorize as B only
@@ -149,28 +165,28 @@ def test_force_transfer_clears_previous_holder(
         assert me.status_code == 200
         assert me.json()['id'] == b['id']
     finally:
-        _deactivate(client, admin_headers, a['id'])
-        _deactivate(client, admin_headers, b['id'])
+        _deactivate(client, tg_workspace, a['id'])
+        _deactivate(client, tg_workspace, b['id'])
 
 
 def test_unlink_and_bot_token_404(
-    client: httpx.Client, admin_headers: dict[str, str]
+    client: httpx.Client, tg_workspace: dict[str, str]
 ) -> None:
     suffix = uuid.uuid4().hex[:8]
     tg = 920_000_000 + (int(suffix[:6], 16) % 50_000_000)
-    emp = _create_employee(client, admin_headers, f'E{suffix}')
+    emp = _create_employee(client, tg_workspace, f'E{suffix}')
     try:
         assert (
             client.patch(
                 f'/api/employees/{emp["id"]}/link-telegram',
-                headers=admin_headers,
+                headers=tg_workspace,
                 json={'telegram_id': tg},
             ).status_code
             == 200
         )
         unlink = client.patch(
             f'/api/employees/{emp["id"]}/link-telegram',
-            headers=admin_headers,
+            headers=tg_workspace,
             json={'telegram_id': None},
         )
         assert unlink.status_code == 200, unlink.text
@@ -182,21 +198,21 @@ def test_unlink_and_bot_token_404(
         )
         assert tok.status_code == 404
     finally:
-        _deactivate(client, admin_headers, emp['id'])
+        _deactivate(client, tg_workspace, emp['id'])
 
 
 def test_bot_token_embeds_telegram_claim_and_rejects_stale(
-    client: httpx.Client, admin_headers: dict[str, str]
+    client: httpx.Client, tg_workspace: dict[str, str]
 ) -> None:
     suffix = uuid.uuid4().hex[:8]
     tg = 930_000_000 + (int(suffix[:6], 16) % 50_000_000)
-    a = _create_employee(client, admin_headers, f'F{suffix}')
-    b = _create_employee(client, admin_headers, f'G{suffix}')
+    a = _create_employee(client, tg_workspace, f'F{suffix}')
+    b = _create_employee(client, tg_workspace, f'G{suffix}')
     try:
         assert (
             client.patch(
                 f'/api/employees/{a["id"]}/link-telegram',
-                headers=admin_headers,
+                headers=tg_workspace,
                 json={'telegram_id': tg},
             ).status_code
             == 200
@@ -211,11 +227,11 @@ def test_bot_token_embeds_telegram_claim_and_rejects_stale(
         assert int(claims['telegram_id']) == tg
         assert claims['sub'] == a['id']
 
-        # Transfer to B — A's token must die
+        # Transfer to B вЂ” A's token must die
         assert (
             client.patch(
                 f'/api/employees/{b["id"]}/link-telegram',
-                headers=admin_headers,
+                headers=tg_workspace,
                 json={'telegram_id': tg, 'force_transfer': True},
             ).status_code
             == 200
@@ -226,25 +242,25 @@ def test_bot_token_embeds_telegram_claim_and_rejects_stale(
         )
         assert stale.status_code == 401, stale.text
     finally:
-        _deactivate(client, admin_headers, a['id'])
-        _deactivate(client, admin_headers, b['id'])
+        _deactivate(client, tg_workspace, a['id'])
+        _deactivate(client, tg_workspace, b['id'])
 
 
 def test_deactivate_clears_telegram_id(
-    client: httpx.Client, admin_headers: dict[str, str]
+    client: httpx.Client, tg_workspace: dict[str, str]
 ) -> None:
     suffix = uuid.uuid4().hex[:8]
     tg = 940_000_000 + (int(suffix[:6], 16) % 50_000_000)
-    emp = _create_employee(client, admin_headers, f'H{suffix}')
+    emp = _create_employee(client, tg_workspace, f'H{suffix}')
     assert (
         client.patch(
             f'/api/employees/{emp["id"]}/link-telegram',
-            headers=admin_headers,
+            headers=tg_workspace,
             json={'telegram_id': tg},
         ).status_code
         == 200
     )
-    _deactivate(client, admin_headers, emp['id'])
+    _deactivate(client, tg_workspace, emp['id'])
 
     # Soft-deleted row should not hold TG; bot-token 404
     tok = client.post(
@@ -254,29 +270,29 @@ def test_deactivate_clears_telegram_id(
     assert tok.status_code == 404
 
     # TG free for another employee
-    other = _create_employee(client, admin_headers, f'I{suffix}')
+    other = _create_employee(client, tg_workspace, f'I{suffix}')
     try:
         r = client.patch(
             f'/api/employees/{other["id"]}/link-telegram',
-            headers=admin_headers,
+            headers=tg_workspace,
             json={'telegram_id': tg},
         )
         assert r.status_code == 200, r.text
     finally:
-        _deactivate(client, admin_headers, other['id'])
+        _deactivate(client, tg_workspace, other['id'])
 
 
 def test_role_change_visible_on_employees_me(
-    client: httpx.Client, admin_headers: dict[str, str]
+    client: httpx.Client, tg_workspace: dict[str, str]
 ) -> None:
     suffix = uuid.uuid4().hex[:8]
     tg = 950_000_000 + (int(suffix[:6], 16) % 50_000_000)
-    emp = _create_employee(client, admin_headers, f'J{suffix}')
+    emp = _create_employee(client, tg_workspace, f'J{suffix}')
     try:
         assert (
             client.patch(
                 f'/api/employees/{emp["id"]}/link-telegram',
-                headers=admin_headers,
+                headers=tg_workspace,
                 json={'telegram_id': tg},
             ).status_code
             == 200
@@ -291,7 +307,7 @@ def test_role_change_visible_on_employees_me(
 
         up = client.patch(
             f'/api/employees/{emp["id"]}',
-            headers=admin_headers,
+            headers=tg_workspace,
             json={'role': 'manager'},
         )
         assert up.status_code == 200, up.text
@@ -300,4 +316,5 @@ def test_role_change_visible_on_employees_me(
         assert me2.status_code == 200
         assert me2.json()['role'] == 'manager'
     finally:
-        _deactivate(client, admin_headers, emp['id'])
+        _deactivate(client, tg_workspace, emp['id'])
+

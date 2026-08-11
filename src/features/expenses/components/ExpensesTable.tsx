@@ -1,11 +1,6 @@
-import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { CardActionsMenu } from '@/components/shared/CardActionsMenu'
 import {
   Table,
   TableBody,
@@ -43,7 +38,10 @@ export function ExpensesTable({
   const { data: categories = [] } = useDictionary('expense_category', { activeOnly: false })
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <div
+      className="hidden overflow-x-auto rounded-lg border border-border md:block"
+      data-layout="table"
+    >
       <Table>
         <TableHeader>
           <TableRow>
@@ -58,54 +56,58 @@ export function ExpensesTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {expenses.map((expense) => (
-            <TableRow key={expense.id}>
-              <TableCell>{expense.date}</TableCell>
-              <TableCell>
-                <Badge variant="outline" className={getCategoryBadgeClass(expense.category)}>
-                  {getCategoryLabel(expense.category, categories)}
-                </Badge>
-              </TableCell>
-              <TableCell className="font-medium">{formatMoney(expense.amount)}</TableCell>
-              <TableCell>{expense.description}</TableCell>
-              <TableCell>{expense.equipmentName || '—'}</TableCell>
-              <TableCell>{expense.supplier || '—'}</TableCell>
-              <TableCell>
-                {expense.paymentMethod
-                  ? PAYMENT_LABELS[expense.paymentMethod as PaymentMethod]
-                  : '—'}
-              </TableCell>
-              {showActions ? (
+          {expenses.map((expense) => {
+            const rowActions = [
+              ...(canEdit
+                ? [
+                    {
+                      id: 'edit',
+                      label: 'Редактировать',
+                      icon: Pencil,
+                      onSelect: () => onEdit(expense),
+                    },
+                  ]
+                : []),
+              ...(canDelete
+                ? [
+                    {
+                      id: 'delete',
+                      label: 'Удалить',
+                      icon: Trash2,
+                      variant: 'destructive' as const,
+                      onSelect: () => onDelete(expense),
+                    },
+                  ]
+                : []),
+            ]
+            return (
+              <TableRow key={expense.id}>
+                <TableCell>{expense.date}</TableCell>
                 <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      className="inline-flex size-8 items-center justify-center rounded-lg hover:bg-muted"
-                      aria-label="Действия"
-                    >
-                      <MoreHorizontal className="size-4" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {canEdit ? (
-                        <DropdownMenuItem onClick={() => onEdit(expense)}>
-                          <Pencil className="size-4" />
-                          Редактировать
-                        </DropdownMenuItem>
-                      ) : null}
-                      {canDelete ? (
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => onDelete(expense)}
-                        >
-                          <Trash2 className="size-4" />
-                          Удалить
-                        </DropdownMenuItem>
-                      ) : null}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Badge variant="outline" className={getCategoryBadgeClass(expense.category)}>
+                    {getCategoryLabel(expense.category, categories)}
+                  </Badge>
                 </TableCell>
-              ) : null}
-            </TableRow>
-          ))}
+                <TableCell className="font-medium">{formatMoney(expense.amount)}</TableCell>
+                <TableCell>{expense.description}</TableCell>
+                <TableCell>{expense.equipmentName || '—'}</TableCell>
+                <TableCell>{expense.supplier || '—'}</TableCell>
+                <TableCell>
+                  {expense.paymentMethod
+                    ? PAYMENT_LABELS[expense.paymentMethod as PaymentMethod]
+                    : '—'}
+                </TableCell>
+                {showActions ? (
+                  <TableCell>
+                    <CardActionsMenu
+                      actions={rowActions}
+                      title={expense.description || 'Затрата'}
+                    />
+                  </TableCell>
+                ) : null}
+              </TableRow>
+            )
+          })}
         </TableBody>
       </Table>
     </div>

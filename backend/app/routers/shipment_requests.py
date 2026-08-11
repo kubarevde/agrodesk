@@ -152,7 +152,8 @@ async def create_shipment_request(
         after=model_snapshot(row),
     )
     await db.commit()
-    return svc.to_response(await svc.get_request_or_404(db, row.id, org_id))
+    loaded = await svc.get_request_or_404(db, row.id, org_id)
+    return await svc.enrich_response(db, loaded)
 
 
 @router.get('/{request_id}', response_model=ShipmentRequestResponse)

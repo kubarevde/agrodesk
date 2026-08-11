@@ -13,6 +13,7 @@ class OrgPublicResponse(BaseModel):
     id: UUID
     name: str
     slug: str
+    region: str | None = None
 
 
 class BotTokenRequest(BaseModel):

@@ -63,7 +63,7 @@ export function EquipmentDetailPage({ equipmentId }: EquipmentDetailPageProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Button
         type="button"
         variant="ghost"
@@ -83,18 +83,23 @@ export function EquipmentDetailPage({ equipmentId }: EquipmentDetailPageProps) {
         onStock={() => setStockOpen(true)}
       />
 
-      <EquipmentImplementsSection equipmentId={item.id} canManage={canManage} />
-      <EquipmentMeterLogsSection
-        equipmentId={item.id}
-        canManage={canManage}
-        onAdd={() => setMeterOpen(true)}
-      />
-      <EquipmentMaintenanceSection
-        equipmentId={item.id}
-        canManage={canManage}
-        onAdd={() => setToOpen(true)}
-      />
-      <RepairHistorySection equipmentId={item.id} canManage={canManage} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <EquipmentImplementsSection equipmentId={item.id} canManage={canManage} />
+        <EquipmentMeterLogsSection
+          equipmentId={item.id}
+          canManage={canManage}
+          onAdd={() => setMeterOpen(true)}
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <EquipmentMaintenanceSection
+          equipmentId={item.id}
+          canManage={canManage}
+          onAdd={() => setToOpen(true)}
+        />
+        <RepairHistorySection equipmentId={item.id} canManage={canManage} />
+      </div>
 
       {canManage ? (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -115,21 +120,22 @@ export function EquipmentDetailPage({ equipmentId }: EquipmentDetailPageProps) {
         </div>
       ) : null}
 
-      <EquipmentExpensesSection equipmentId={item.id} canManage={canManage} />
-
-      <section className="space-y-3 rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-lg font-semibold text-foreground">Шеринг</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="text-muted-foreground">
-            Нет активного объявления
-          </Badge>
-          {canManage ? (
-            <Button type="button" size="sm" variant="outline" onClick={() => setShareOpen(true)}>
-              Выставить в шеринг
-            </Button>
-          ) : null}
-        </div>
-      </section>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <EquipmentExpensesSection equipmentId={item.id} canManage={canManage} />
+        <section className="space-y-3 rounded-lg border border-border bg-surface p-4">
+          <h2 className="text-lg font-semibold text-foreground">Шеринг</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="text-muted-foreground">
+              Нет активного объявления
+            </Badge>
+            {canManage ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => setShareOpen(true)}>
+                Выставить в шеринг
+              </Button>
+            ) : null}
+          </div>
+        </section>
+      </div>
 
       <EquipmentFormDialog
         open={editOpen}
@@ -150,6 +156,7 @@ export function EquipmentDetailPage({ equipmentId }: EquipmentDetailPageProps) {
         equipmentId={item.id}
         meterLabel={item.meter_label}
         currentMeter={item.current_meter}
+        toInterval={item.to_interval}
       />
       <EquipmentSharingModal
         open={shareOpen}

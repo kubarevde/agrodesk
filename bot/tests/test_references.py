@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from app.utils.references import find_by_name, is_field_work_type
+from app.utils.references import (
+    FIELD_WORK_LOCATION_CODE,
+    apply_field_work_location,
+    find_by_name,
+    find_field_work_location,
+    is_field_work_type,
+)
 
 
 def test_is_field_work_explicit_snake_case():
@@ -31,10 +37,29 @@ def test_is_field_work_heuristic_by_category():
     assert is_field_work_type({'name': 'Кастом', 'category': 'склад'}) is False
 
 
-def test_is_field_work_name_overrides_false_flag_for_known_types():
-    # Known field-work names from migration backfill must still require a field,
-    # even if a stale/partial payload says false.
-    assert is_field_work_type({'name': 'Пахота', 'is_field_work': False}) is True
+def test_is_field_work_explicit_false_wins_over_name():
+    # Web/API: WorkType.is_field_work is the source of truth (prompt 15.5).
+    assert is_field_work_type({'name': 'Пахота', 'is_field_work': False}) is False
+    assert is_field_work_type({'name': 'Пахота', 'isFieldWork': False}) is False
+
+
+def test_find_field_work_location_prefers_code():
+    locations = [
+        {'id': '1', 'name': 'Полевая работа', 'is_system': True},
+        {'id': '2', 'name': 'Полевая работа', 'code': FIELD_WORK_LOCATION_CODE, 'is_system': True},
+        {'id': '3', 'name': 'Склад'},
+    ]
+    found = find_field_work_location(locations)
+    assert found is not None
+    assert found['id'] == '2'
+
+
+def test_apply_field_work_location():
+    locations = [
+        {'id': 'fw', 'name': 'Полевая работа', 'code': 'field_work'},
+    ]
+    assert apply_field_work_location(locations) == ('fw', 'Полевая работа')
+    assert apply_field_work_location([]) is None
 
 
 def test_find_by_name():

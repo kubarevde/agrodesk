@@ -9,7 +9,7 @@ describe('shipment requests nav feature flag', () => {
     const labels = groups.flatMap((g) => g.items.map((i) => i.label))
     expect(labels).not.toContain('Заявки на отгрузку')
     expect(labels).not.toContain('Мои заявки ТМЦ')
-    expect(labels).toContain('Отгрузки урожая')
+    expect(labels).toContain('Отгрузки')
   })
 
   it('shows manager link when flag is on', () => {
@@ -21,6 +21,6 @@ describe('shipment requests nav feature flag', () => {
     )
     const labels = groups.flatMap((g) => g.items.map((i) => i.label))
     expect(labels).toContain('Заявки на отгрузку')
-    expect(labels).toContain('Отгрузки урожая')
+    expect(labels).toContain('Отгрузки')
   })
 })

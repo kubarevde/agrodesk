@@ -39,6 +39,8 @@ export function LabeledSelect({
       onValueChange={onValueChange}
       items={options}
       disabled={disabled}
+      // Nested inside Dialog: avoid modal focus-trap conflicts (Base UI default true).
+      modal={false}
     >
       <SelectTrigger className={cn('w-full', className)} aria-invalid={ariaInvalid}>
         <SelectValue placeholder={placeholder} />

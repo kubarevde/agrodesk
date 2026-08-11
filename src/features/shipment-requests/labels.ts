@@ -63,6 +63,21 @@ export function formatMoney(value: number): string {
   return formatMoneyBase(value)
 }
 
+/**
+ * Unified qty × price for list views (desktop + mobile).
+ * Example: `15 л × 62,8 ₽` — unit once, no extra unit on the price.
+ */
+export function formatQtyPrice(
+  quantity: number,
+  unit: string | null | undefined,
+  price: number,
+): string {
+  const qty = quantity.toLocaleString('ru-RU')
+  const unitPart = (unit ?? '').trim()
+  const left = unitPart ? `${qty} ${unitPart}` : qty
+  return `${left} × ${formatMoney(price)}`
+}
+
 export function formatPlannedAt(iso: string): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return '—'

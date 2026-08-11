@@ -19,6 +19,24 @@ export function isHarvestCategory(category: string | null | undefined): boolean 
   return (category ?? '').trim().toLowerCase() === 'harvest'
 }
 
+/** Wrap field name in quotes unless it already has matching quotes. */
+export function quoteFieldName(name: string): string {
+  const trimmed = name.trim()
+  if (!trimmed) return ''
+  const pairs: Array<[string, string]> = [
+    ['"', '"'],
+    ['«', '»'],
+    ["'", "'"],
+    ['“', '”'],
+  ]
+  for (const [open, close] of pairs) {
+    if (trimmed.startsWith(open) && trimmed.endsWith(close) && trimmed.length >= open.length + close.length) {
+      return trimmed
+    }
+  }
+  return `"${trimmed}"`
+}
+
 /** Human-readable operation type for tables, history, and exports. */
 export function getInventoryOperationLabel(
   operation: Pick<InventoryOperation, 'type' | 'purpose' | 'fieldName'>,
@@ -33,7 +51,7 @@ export function getInventoryOperationLabel(
   if (purpose === 'shipment_request') return 'Расход по заявке на отгрузку'
   if (purpose === 'harvest_income') {
     const field = (operation.fieldName ?? '').trim()
-    return field ? `Сбор с поля ${field}` : 'Сбор урожая с поля'
+    return field ? `Сбор с поля ${quoteFieldName(field)}` : 'Сбор урожая с поля'
   }
   return operation.type === 'income' ? 'Приход' : 'Расход'
 }

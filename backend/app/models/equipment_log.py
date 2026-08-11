@@ -44,7 +44,10 @@ class EquipmentMaintenance(Base):
     """TO history + repair journal (same table).
 
     Legacy TO records: status='done', equipment_id set.
-    Repair journal: status in (in_progress, waiting_parts, done), optional implement_id.
+    Repair journal: status from org dictionary `repair_status`
+    (in_progress / waiting_parts / done / cancelled). Status waiting_parts
+    means «not in repair, waiting for parts»; flag waiting_parts mirrors it
+    and can also combine with in_progress.
     """
 
     __tablename__ = 'equipment_maintenance'
@@ -68,6 +71,7 @@ class EquipmentMaintenance(Base):
     created_by = Column(UUID(as_uuid=True), ForeignKey('employees.id'), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     status = Column(String(20), nullable=False, default='in_progress', server_default='in_progress')
+    waiting_parts = Column(Boolean, nullable=False, default=False, server_default='false')
     date_returned = Column(Date, nullable=True)
     priority = Column(String(20), nullable=False, default='normal', server_default='normal')
 

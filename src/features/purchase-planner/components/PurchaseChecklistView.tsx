@@ -1,20 +1,29 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Link } from '@tanstack/react-router'
-import { ShoppingBag } from 'lucide-react'
+import { useNavigate } from '@tanstack/react-router'
+import { ShoppingBag, Wrench } from 'lucide-react'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { usePurchaseItems } from '../hooks'
+import { usePagedItems } from '../hooks/usePagedItems'
 import { usePlannerFilterContext } from '../lib/plannerFilterContext'
 import { sortForChecklist } from '../lib/checklistMode'
+import { filterPurchasesBySearch } from '../purchaseSearch'
 import type { PurchaseFilters } from '../types'
 import { PurchaseChecklistRow } from './PurchaseChecklistRow'
+import { PurchaseLoadMore } from './PurchaseLoadMore'
 
 type PurchaseChecklistViewProps = {
   assetFilters?: Pick<PurchaseFilters, 'equipmentId' | 'implementId' | 'maintenanceId'>
+  search?: string
 }
 
-export function PurchaseChecklistView({ assetFilters = {} }: PurchaseChecklistViewProps) {
+export function PurchaseChecklistView({
+  assetFilters = {},
+  search = '',
+}: PurchaseChecklistViewProps) {
+  const navigate = useNavigate()
   const [urgentOnly, setUrgentOnly] = useState(false)
   const [showClosed, setShowClosed] = useState(false)
   const filterCtx = usePlannerFilterContext(assetFilters)
@@ -24,19 +33,36 @@ export function PurchaseChecklistView({ assetFilters = {} }: PurchaseChecklistVi
     urgency: urgentOnly ? 'urgent' : undefined,
     ...assetFilters,
   })
-  const { data: closedItems = [] } = usePurchaseItems({
-    status: 'purchased',
-    ...assetFilters,
-  })
+  const { data: closedItems = [] } = usePurchaseItems(
+    {
+      status: 'purchased',
+      ...assetFilters,
+    },
+    showClosed,
+  )
 
   const items = useMemo(() => {
     const merged = showClosed ? [...openItems, ...closedItems] : openItems
-    return sortForChecklist(merged)
-  }, [openItems, closedItems, showClosed])
+    return filterPurchasesBySearch(sortForChecklist(merged), search)
+  }, [openItems, closedItems, showClosed, search])
+
+  const resetKey = [
+    urgentOnly ? 'u' : '',
+    showClosed ? 'c' : '',
+    search,
+    assetFilters.equipmentId ?? '',
+    assetFilters.implementId ?? '',
+    assetFilters.maintenanceId ?? '',
+  ].join('|')
+
+  const page = usePagedItems(items, resetKey)
 
   if (isLoading) return <PageSkeleton />
 
   const remaining = openItems.length
+  const hasSourceItems = showClosed
+    ? openItems.length + closedItems.length > 0
+    : openItems.length > 0
 
   return (
     <div className="space-y-3">
@@ -63,14 +89,16 @@ export function PurchaseChecklistView({ assetFilters = {} }: PurchaseChecklistVi
       {items.length === 0 ? (
         <EmptyState
           icon={ShoppingBag}
-          title="Список пуст"
+          title={search && hasSourceItems ? 'Ничего не найдено' : 'Список пуст'}
           description={
-            filterCtx.assetName
-              ? `Нет открытых закупок для «${filterCtx.assetName}».`
-              : 'Все позиции закрыты — можно вернуться позже.'
+            search && hasSourceItems
+              ? 'Измените поисковый запрос.'
+              : filterCtx.assetName
+                ? `Нет открытых закупок для «${filterCtx.assetName}».`
+                : 'Все позиции закрыты — можно вернуться позже.'
           }
           action={
-            assetFilters.equipmentId || assetFilters.implementId
+            !search && (assetFilters.equipmentId || assetFilters.implementId)
               ? {
                   label: 'Все закупки',
                   onClick: () => {
@@ -81,19 +109,35 @@ export function PurchaseChecklistView({ assetFilters = {} }: PurchaseChecklistVi
           }
         />
       ) : (
-        <ul className="space-y-2 pb-4">
-          {items.map((item) => (
-            <PurchaseChecklistRow key={item.id} item={item} />
-          ))}
-        </ul>
+        <>
+          <ul className="space-y-2 pb-2">
+            {page.visible.map((item) => (
+              <PurchaseChecklistRow key={item.id} item={item} />
+            ))}
+          </ul>
+          <PurchaseLoadMore
+            shown={page.shown}
+            total={page.total}
+            hasMore={page.hasMore}
+            onLoadMore={page.loadMore}
+          />
+        </>
       )}
 
       {assetFilters.maintenanceId ? (
-        <p className="text-center text-xs text-muted-foreground">
-          <Link to="/maintenance" className="text-primary hover:underline">
+        <div className="flex justify-center pt-1">
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 w-full sm:w-auto sm:min-h-10"
+            onClick={() => {
+              void navigate({ to: '/maintenance' })
+            }}
+          >
+            <Wrench className="mr-1.5 size-4" />
             Вернуться к ремонту
-          </Link>
-        </p>
+          </Button>
+        </div>
       ) : null}
     </div>
   )

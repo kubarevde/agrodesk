@@ -6,26 +6,32 @@ import { useImplementDetail } from '@/features/implements/hooks'
 import { getImplementCategoryConfig } from '@/features/implements/categoryConfig'
 import { implementToStatus } from '@/features/implements/types'
 import { humanLabel } from '@/lib/display'
-import type { SharingListing } from '../types'
+import { SCOPE_LABELS, type SharingListing } from '../types'
+import { resolveListingPolygon } from '../utils'
 
 type SharingResourceBlockProps = {
   listing: SharingListing
 }
 
 export function SharingResourceBlock({ listing }: SharingResourceBlockProps) {
-  const fieldId = listing.type === 'field' ? listing.fieldId ?? undefined : undefined
+  const fieldId =
+    listing.type === 'field' && listing.sharingScope !== 'partial_field'
+      ? listing.fieldId ?? undefined
+      : undefined
   const equipmentId =
     listing.type === 'equipment' ? listing.equipmentId ?? undefined : undefined
   const implementId =
     listing.type === 'implement' ? listing.implementId ?? undefined : undefined
 
+  // Own-org full_field fallback only — never fetch source field for partial plots.
   const { data: field } = useFieldDetail(fieldId)
   const { data: equipment } = useEquipmentDetail(equipmentId)
   const { data: implement } = useImplementDetail(implementId)
 
   if (listing.type === 'field') {
-    const lat = field?.latitude ?? listing.lat
-    const lng = field?.longitude ?? listing.lng
+    const poly = resolveListingPolygon(listing, field)
+    const lat = listing.lat ?? field?.latitude ?? null
+    const lng = listing.lng ?? field?.longitude ?? null
     const markers =
       lat != null && lng != null
         ? [
@@ -39,33 +45,53 @@ export function SharingResourceBlock({ listing }: SharingResourceBlockProps) {
           ]
         : []
     const polygons =
-      field?.polygon && field.polygon.length > 0
+      poly && poly.length >= 3
         ? [
             {
               id: listing.id,
-              coordinates: field.polygon,
-              label: field.name,
-              color: 'var(--success)',
+              coordinates: poly,
+              label:
+                listing.sharingScope === 'partial_field'
+                  ? `Участок поля ${listing.fieldName ?? ''}`.trim()
+                  : (listing.fieldName ?? listing.title),
+              color: '#F7F6F2',
+              fillColor: '#01696F',
+              fillOpacity: 0.45,
+              weight: 3,
             },
           ]
         : []
 
+    const areaHa =
+      listing.effectiveAreaHa ??
+      (listing.sharingScope === 'full_field' ? field?.area_ha : null) ??
+      null
+    const area =
+      areaHa != null ? `${Number(areaHa).toLocaleString('ru-RU')} га` : null
+
     return (
       <div className="space-y-2">
         <p className="text-sm font-medium text-foreground">
-          {humanLabel(listing.fieldName, 'Поле')}
-          {field?.area_ha != null ? ` — ${field.area_ha} га` : ''}
-          {field?.crop_type ? `, ${field.crop_type}` : ''}
+          {listing.sharingScope === 'partial_field'
+            ? `Участок поля ${humanLabel(listing.fieldName, 'Поле')}`
+            : humanLabel(listing.fieldName, 'Поле')}
+          {area ? ` — ${area}` : ''}
+          {` · ${SCOPE_LABELS[listing.sharingScope]}`}
         </p>
         {markers.length > 0 || polygons.length > 0 ? (
           <MapView
-            height="200px"
+            height="180px"
             center={markers[0] ? [markers[0].lat, markers[0].lng] : [51.5, 36.5]}
             zoom={12}
-            markers={markers}
+            markers={polygons.length > 0 ? [] : markers}
             polygons={polygons}
+            fitToData
           />
-        ) : null}
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Контур поля не задан — на карте доступна только точка, если есть координаты.
+          </p>
+        )}
       </div>
     )
   }
@@ -88,19 +114,16 @@ export function SharingResourceBlock({ listing }: SharingResourceBlockProps) {
   if (listing.type === 'implement') {
     return (
       <div className="space-y-1 text-sm text-foreground">
-        <p>Приспособление: {humanLabel(implement?.name ?? listing.implementName ?? listing.title, 'Приспособление')}</p>
+        <p>
+          Приспособление:{' '}
+          {humanLabel(implement?.name ?? listing.implementName ?? listing.title, 'Приспособление')}
+        </p>
         {implement ? (
-          <>
-            <p className="flex flex-wrap items-center gap-2">
-              Категория:
-              <span>{getImplementCategoryConfig(implement.category).label}</span>
-            </p>
-            <p className="flex flex-wrap items-center gap-2">
-              Состояние ТО:
-              <ToStatusBadge status={implementToStatus(implement)} />
-            </p>
-            <p>Обычно крепится к: {implement.current_equipment_name ?? 'не закреплено'}</p>
-          </>
+          <p className="flex flex-wrap items-center gap-2">
+            Категория:
+            <span>{getImplementCategoryConfig(implement.category).label}</span>
+            <ToStatusBadge status={implementToStatus(implement)} />
+          </p>
         ) : null}
       </div>
     )

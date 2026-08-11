@@ -113,33 +113,38 @@ export function createShiftColumns(actions: ShiftRowActions): ColumnDef<Shift>[]
           (actions.canClose?.(shift) ?? true)
 
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button variant="ghost" size="icon" aria-label="Действия">
-                  <MoreHorizontal className="size-4" />
-                </Button>
-              }
-            />
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => actions.onDetails(shift)}>
-                Детали
-              </DropdownMenuItem>
-              {showClose ? (
-                <DropdownMenuItem onClick={() => actions.onClose?.(shift)}>
-                  Закрыть
+          <div
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+          >
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="ghost" size="icon" aria-label="Действия">
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => actions.onDetails(shift)}>
+                  Детали
                 </DropdownMenuItem>
-              ) : null}
-              {actions.onDelete ? (
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => actions.onDelete?.(shift)}
-                >
-                  Удалить
-                </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                {showClose ? (
+                  <DropdownMenuItem onClick={() => actions.onClose?.(shift)}>
+                    Закрыть
+                  </DropdownMenuItem>
+                ) : null}
+                {actions.onDelete ? (
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => actions.onDelete?.(shift)}
+                  >
+                    Удалить
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         )
       },
     },

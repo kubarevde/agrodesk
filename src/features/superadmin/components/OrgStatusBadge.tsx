@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge'
+import { orgPlanLabel } from '@/features/superadmin/plans'
 import type { Organization } from '@/features/superadmin/types'
 
 export function OrgStatusBadge({ org }: { org: Organization }) {
@@ -12,7 +13,7 @@ export function OrgStatusBadge({ org }: { org: Organization }) {
   if (org.plan === 'trial') {
     return (
       <Badge className="border-transparent bg-amber-500/15 text-amber-800 dark:text-amber-300">
-        Trial
+        {orgPlanLabel('trial')}
       </Badge>
     )
   }

@@ -1,8 +1,6 @@
 import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -10,28 +8,35 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 import { useDeletePurchaseItem, useUpdatePurchaseItem } from '../hooks'
+import { usePagedItems } from '../hooks/usePagedItems'
 import { usePurchaseCapabilities } from '../hooks/usePurchaseCapabilities'
-import {
-  CATEGORY_LABELS,
-  STATUS_LABELS,
-  URGENCY_LABELS,
-  statusBadgeClass,
-  urgencyBadgeClass,
-} from '../lib/labels'
 import type { PurchasePlannerItem } from '../types'
 import { PurchaseCompleteDialog } from './PurchaseCompleteDialog'
+import { PurchaseDetailDialog } from './PurchaseDetailDialog'
 import { PurchaseFormDialog } from './PurchaseFormDialog'
-import { PurchasePhotoGallery } from './PurchasePhotoGallery'
+import { PurchaseLoadMore } from './PurchaseLoadMore'
+import { PurchaseManageCard } from './PurchaseManageCard'
 
 type PurchaseListProps = {
   items: PurchasePlannerItem[]
+  /** Reset paging when filters/status change. */
+  pageResetKey?: string
+  emptyMessage?: string
 }
 
-export function PurchaseList({ items }: PurchaseListProps) {
+export function PurchaseList({
+  items,
+  pageResetKey = 'all',
+  emptyMessage = 'Список пуст. Добавьте первую закупку.',
+}: PurchaseListProps) {
   const update = useUpdatePurchaseItem()
   const remove = useDeletePurchaseItem()
   const caps = usePurchaseCapabilities()
+  const isMobile = useIsMobile(639)
+  const page = usePagedItems(items, pageResetKey)
+  const [detailItem, setDetailItem] = useState<PurchasePlannerItem | null>(null)
   const [editItem, setEditItem] = useState<PurchasePlannerItem | null>(null)
   const [buyItem, setBuyItem] = useState<PurchasePlannerItem | null>(null)
   const [revertItem, setRevertItem] = useState<PurchasePlannerItem | null>(null)
@@ -39,9 +44,7 @@ export function PurchaseList({ items }: PurchaseListProps) {
   if (items.length === 0) {
     return (
       <Card>
-        <CardContent className="py-8 text-sm text-muted-foreground">
-          Список пуст. Добавьте первую закупку.
-        </CardContent>
+        <CardContent className="py-8 text-sm text-muted-foreground">{emptyMessage}</CardContent>
       </Card>
     )
   }
@@ -49,119 +52,39 @@ export function PurchaseList({ items }: PurchaseListProps) {
   return (
     <>
       <ul className="space-y-2">
-        {items.map((item) => (
-          <li key={item.id}>
-            <Card className="shadow-none">
-              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2 pt-3">
-                <div className="min-w-0 flex-1 space-y-1">
-                  <CardTitle className="text-sm">{item.title}</CardTitle>
-                  <p className="text-[11px] text-muted-foreground line-clamp-1">
-                    {CATEGORY_LABELS[item.category] ?? item.category}
-                    {item.linkedLabel ? ` · ${item.linkedLabel}` : ''}
-                    {item.responsibleName ? ` · ${item.responsibleName}` : ''}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <Badge variant="outline" className={urgencyBadgeClass(item.urgency)}>
-                    {URGENCY_LABELS[item.urgency] ?? item.urgency}
-                  </Badge>
-                  <Badge variant="outline" className={statusBadgeClass(item.status)}>
-                    {STATUS_LABELS[item.status] ?? item.status}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2 pb-3">
-                {item.images.length > 0 ? (
-                  <PurchasePhotoGallery images={item.images} title={item.title} />
-                ) : null}
-
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-col">
-                    {item.purchasePlace ? (
-                      <p className="text-xs text-muted-foreground">Где: {item.purchasePlace}</p>
-                    ) : null}
-                    {item.estimatedCost != null ? (
-                      <p className="text-xs text-foreground">
-                        Оценка: {item.estimatedCost.toLocaleString('ru-RU')} ₽
-                      </p>
-                    ) : null}
-                    {item.actualCost != null ? (
-                      <p className="text-xs text-foreground">
-                        Факт: {item.actualCost.toLocaleString('ru-RU')} ₽
-                      </p>
-                    ) : null}
-                  </div>
-                  {item.expenseId ? (
-                    <Link to="/expenses" className="text-xs text-primary hover:underline">
-                      Связанный расход
-                    </Link>
-                  ) : null}
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {item.status === 'planned' ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => setBuyItem(item)}
-                      className="whitespace-nowrap"
-                    >
-                      Отметить купленным
-                    </Button>
-                  ) : null}
-
-                  {caps.canEdit ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setEditItem(item)}
-                    >
-                      Изменить
-                    </Button>
-                  ) : null}
-
-                  {item.status === 'purchased' && caps.canRevert ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setRevertItem(item)}
-                    >
-                      Вернуть к покупке
-                    </Button>
-                  ) : null}
-
-                  {item.status === 'planned' && caps.canCancel ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        void update.mutateAsync({ id: item.id, payload: { status: 'cancelled' } })
-                      }
-                    >
-                      Отменить
-                    </Button>
-                  ) : null}
-
-                  {caps.canDelete ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive"
-                      onClick={() => void remove.mutateAsync(item.id)}
-                    >
-                      Удалить
-                    </Button>
-                  ) : null}
-                </div>
-              </CardContent>
-            </Card>
-          </li>
+        {page.visible.map((item) => (
+          <PurchaseManageCard
+            key={item.id}
+            item={item}
+            isMobile={isMobile}
+            canEdit={caps.canEdit}
+            canCancel={caps.canCancel}
+            canRevert={caps.canRevert}
+            canDelete={caps.canDelete}
+            onOpen={() => setDetailItem(item)}
+            onBuy={() => setBuyItem(item)}
+            onEdit={() => setEditItem(item)}
+            onRevert={() => setRevertItem(item)}
+            onCancel={() =>
+              void update.mutateAsync({ id: item.id, payload: { status: 'cancelled' } })
+            }
+            onDelete={() => void remove.mutateAsync(item.id)}
+          />
         ))}
       </ul>
+
+      <PurchaseLoadMore
+        shown={page.shown}
+        total={page.total}
+        hasMore={page.hasMore}
+        onLoadMore={page.loadMore}
+      />
+
+      <PurchaseDetailDialog
+        item={detailItem}
+        open={Boolean(detailItem)}
+        onClose={() => setDetailItem(null)}
+      />
 
       {caps.canEdit ? (
         <PurchaseFormDialog

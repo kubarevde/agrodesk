@@ -18,9 +18,10 @@ async function invalidateShipmentQueries(queryClient: ReturnType<typeof useQuery
   ])
 }
 
-export function useShipments(filters: ShipmentFilters = {}) {
+export function useShipments(filters: ShipmentFilters = {}, enabled = true) {
   return useQuery({
     queryKey: ['shipments', filters],
+    enabled,
     queryFn: async (): Promise<Shipment[]> => {
       const { data } = await api.get<Record<string, unknown>[]>('/api/shipments', {
         params: shipmentFiltersToApi(filters),

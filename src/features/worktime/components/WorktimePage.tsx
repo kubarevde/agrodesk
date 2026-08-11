@@ -30,7 +30,7 @@ export function WorktimePage() {
   const { data: user } = useCurrentUser()
   const isManager = user?.role === 'admin' || user?.role === 'manager'
   const isAdmin = user?.role === 'admin'
-  const { field_id: fieldIdFromSearch } = worktimeRoute.useSearch()
+  const { field_id: fieldIdFromSearch, status: statusFromSearch } = worktimeRoute.useSearch()
   const navigate = worktimeRoute.useNavigate()
 
   const {
@@ -46,7 +46,7 @@ export function WorktimePage() {
     setEmployeeId,
     setStatus,
     resetFilters,
-  } = useWorktimeFilters({ fieldId: fieldIdFromSearch })
+  } = useWorktimeFilters({ fieldId: fieldIdFromSearch, status: statusFromSearch })
 
   const { data: shifts = [], isLoading, isError } = useShifts(filters)
   const safeShifts = Array.isArray(shifts) ? shifts : []
@@ -81,9 +81,23 @@ export function WorktimePage() {
 
   const handleResetFilters = () => {
     resetFilters()
-    if (fieldIdFromSearch) {
-      void navigate({ search: { field_id: undefined }, replace: true })
+    if (fieldIdFromSearch || statusFromSearch) {
+      void navigate({
+        search: { field_id: undefined, status: undefined },
+        replace: true,
+      })
     }
+  }
+
+  const handleStatusChange = (next: typeof status) => {
+    setStatus(next)
+    void navigate({
+      search: (prev) => ({
+        ...prev,
+        status: next === 'all' || next == null ? undefined : next,
+      }),
+      replace: true,
+    })
   }
 
   const handleExport = async () => {
@@ -162,7 +176,7 @@ export function WorktimePage() {
         onFromChange={(value) => setFrom(value ?? from)}
         onToChange={(value) => setTo(value ?? to)}
         onEmployeeChange={setEmployeeId}
-        onStatusChange={setStatus}
+        onStatusChange={handleStatusChange}
         onReset={handleResetFilters}
       />
 

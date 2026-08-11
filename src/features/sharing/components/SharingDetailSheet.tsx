@@ -10,7 +10,9 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { useCurrentUser } from '@/features/auth/hooks'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 import { mediaUrl } from '@/lib/media'
+import { regionLabel } from '@/lib/regions.ru'
 import { useOutgoingSharingRequests } from '../hooks'
 import type { SharingListing } from '../types'
 import { STATUS_LABELS } from '../types'
@@ -27,6 +29,7 @@ type SharingDetailSheetProps = {
 export function SharingDetailSheet({ listing, open, onClose }: SharingDetailSheetProps) {
   const { data: user } = useCurrentUser()
   const { data: outgoing = [] } = useOutgoingSharingRequests()
+  const isMobile = useIsMobile(639)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [requestOpen, setRequestOpen] = useState(false)
 
@@ -36,9 +39,7 @@ export function SharingDetailSheet({ listing, open, onClose }: SharingDetailShee
       Boolean(
         listing &&
           outgoing.some(
-            (item) =>
-              item.listingId === listing.id &&
-              item.status === 'accepted',
+            (item) => item.listingId === listing.id && item.status === 'accepted',
           ),
       ),
     [listing, outgoing],
@@ -54,20 +55,34 @@ export function SharingDetailSheet({ listing, open, onClose }: SharingDetailShee
   if (!listing) return null
 
   const slides = listing.images.map((src) => ({ src: mediaUrl(src) }))
+  const showContact = isOwn || accepted
 
   return (
     <>
       <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
-          <SheetHeader>
-            <SheetTitle>{listing.title}</SheetTitle>
-            <SheetDescription className="flex flex-wrap gap-1.5 pt-1">
+        <SheetContent
+          side={isMobile ? 'bottom' : 'right'}
+          showCloseButton
+          className={
+            isMobile
+              ? 'flex max-h-[92vh] w-full flex-col gap-0 overflow-hidden p-0'
+              : 'flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg'
+          }
+        >
+          <SheetHeader className="shrink-0 space-y-2 border-b border-border px-4 py-4 pr-14 text-left sm:pr-12">
+            <SheetTitle className="text-lg leading-snug break-words sm:text-xl">
+              {listing.title}
+            </SheetTitle>
+            <SheetDescription className="flex flex-wrap gap-1.5">
               <Badge variant="outline">{typeBadgeLabel(listing.type)}</Badge>
               <Badge variant="secondary">{STATUS_LABELS[listing.status]}</Badge>
+              {listing.region ? (
+                <Badge variant="outline">{regionLabel(listing.region)}</Badge>
+              ) : null}
             </SheetDescription>
           </SheetHeader>
 
-          <div className="space-y-4 px-4 pb-6">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
             {listing.images.length > 0 ? (
               <button
                 type="button"
@@ -77,26 +92,35 @@ export function SharingDetailSheet({ listing, open, onClose }: SharingDetailShee
                 <img
                   src={mediaUrl(listing.images[0])}
                   alt={listing.title}
-                  className="aspect-video max-h-48 w-full object-cover"
+                  className="aspect-video max-h-52 w-full object-cover sm:max-h-56"
                 />
               </button>
             ) : null}
 
-            <p className="text-base font-semibold text-foreground">
+            <p className="text-lg font-semibold tabular-nums text-foreground">
               {formatListingPrice(listing)}
             </p>
 
             {listing.description ? (
-              <p className="whitespace-pre-wrap text-sm text-foreground">{listing.description}</p>
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Описание
+                </p>
+                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+                  {listing.description}
+                </p>
+              </div>
             ) : null}
 
             <SharingResourceBlock listing={listing} />
 
-            <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+            <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm sm:p-4">
               <p className="mb-1 font-medium text-foreground">Контакты</p>
-              {accepted ? (
-                <p className="text-foreground">
-                  {acceptedContact || 'Контакт не указан владельцем'}
+              {showContact ? (
+                <p className="break-words text-foreground">
+                  {isOwn
+                    ? listing.contactInfo || 'Контакт не указан'
+                    : acceptedContact || 'Контакт не указан владельцем'}
                 </p>
               ) : (
                 <p className="text-muted-foreground">
@@ -106,7 +130,11 @@ export function SharingDetailSheet({ listing, open, onClose }: SharingDetailShee
             </div>
 
             {!isOwn && listing.status === 'active' ? (
-              <Button type="button" className="w-full" onClick={() => setRequestOpen(true)}>
+              <Button
+                type="button"
+                className="min-h-11 w-full bg-primary text-primary-foreground hover:bg-primary-hover sm:min-h-10"
+                onClick={() => setRequestOpen(true)}
+              >
                 Оставить заявку
               </Button>
             ) : null}

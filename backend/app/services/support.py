@@ -10,7 +10,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.notification import Notification
 from app.models.organization import Organization
 from app.models.support_ticket import SupportTicket, SupportTicketAttachment, SupportTicketMessage
 
@@ -110,15 +109,15 @@ async def notify_author_support_reply(
     *,
     ticket: SupportTicket,
 ) -> None:
-    db.add(
-        Notification(
-            employee_id=ticket.author_id,
-            type='support_reply',
-            title='Ответ техподдержки',
-            body=f'По обращению «{ticket.subject}» есть новый ответ.',
-            link=f'/support/{ticket.id}',
-            is_read=False,
-        )
+    from app.services.notification_prefs import create_employee_notification
+
+    await create_employee_notification(
+        db,
+        employee_id=ticket.author_id,
+        notif_type='support_reply',
+        title='Ответ техподдержки',
+        body=f'По обращению «{ticket.subject}» есть новый ответ.',
+        link=f'/support/{ticket.id}',
     )
 
 

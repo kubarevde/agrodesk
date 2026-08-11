@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi.responses import StreamingResponse
 from openpyxl.workbook.workbook import Workbook
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,6 +16,7 @@ from app.models.dictionary import OrgDictionary
 from app.models.employee import Employee
 from app.models.equipment_log import EquipmentMaintenance, EquipmentMeterLog
 from app.models.expense import Expense
+from app.models.field_planting import ACTIVE_AREA_STATUSES, FieldPlanting
 from app.models.implement import Implement, ImplementMaintenance
 from app.models.inventory import InventoryItem, InventoryOperation
 from app.models.purchase_planner import PurchasePlannerItem
@@ -297,7 +298,11 @@ async def build_salary_workbook(
         for shift in await fetch_shifts(db, from_date, to_date, org_id=org_id)
         if shift.status == ShiftStatus.closed
     ]
-    employees_query = select(Employee).where(Employee.is_active.is_(True))
+    shift_employee_ids = {shift.employee_id for shift in shifts}
+    employee_filter = [Employee.is_active.is_(True)]
+    if shift_employee_ids:
+        employee_filter.append(Employee.id.in_(shift_employee_ids))
+    employees_query = select(Employee).where(or_(*employee_filter))
     if org_id is not None:
         employees_query = employees_query.where(Employee.org_id == org_id)
     employees_result = await db.execute(employees_query.order_by(Employee.full_name))
@@ -478,7 +483,12 @@ async def build_salary_preview(
     ]
     from app.services.salary import shift_pay_amount, shift_source_label
 
-    employees_query = select(Employee).where(Employee.is_active.is_(True))
+    shift_employee_ids = {shift.employee_id for shift in workbook_data_shifts}
+    # Active staff (even with 0 shifts) + anyone who worked this month (incl. inactive).
+    employee_filter = [Employee.is_active.is_(True)]
+    if shift_employee_ids:
+        employee_filter.append(Employee.id.in_(shift_employee_ids))
+    employees_query = select(Employee).where(or_(*employee_filter))
     if org_id is not None:
         employees_query = employees_query.where(Employee.org_id == org_id)
     employees_result = await db.execute(employees_query.order_by(Employee.full_name))
@@ -517,7 +527,7 @@ async def build_salary_preview(
             'employeeName': shift.employee.full_name,
             'workType': shift.work_type.name if shift.work_type else '',
             'hours': shift_hours(shift),
-            'amount': shift_pay_amount(shift),
+            'amount': shift_pay_amount(shift, shift_hours(shift)),
             'source': shift_source_label(shift),
         }
         for shift in workbook_data_shifts
@@ -529,7 +539,11 @@ async def build_salary_preview(
         'to': to_date.isoformat(),
         'summary': rows,
         'shifts': detail,
-        'totalAmount': round(sum(item['amount'] for item in rows), 2),
+        # Same basis as dashboard month_salary_total: all closed shifts in the month.
+        'totalAmount': round(
+            sum(shift_pay_amount(s, shift_hours(s)) for s in workbook_data_shifts),
+            2,
+        ),
     }
 
 
@@ -1232,7 +1246,11 @@ async def fetch_field_locations(
         select(Location)
         .where(
             Location.is_active.is_(True),
-            or_(Location.crop_type.is_not(None), Location.name.like('Поле%')),
+            Location.is_system.is_(False),
+            or_(
+                Location.kind == 'field',
+                and_(Location.crop_type.is_not(None), Location.kind != 'object'),
+            ),
         )
         .order_by(Location.name)
     )
@@ -1242,6 +1260,45 @@ async def fetch_field_locations(
         query = query.where(Location.id == field_id)
     result = await db.execute(query)
     return list(result.scalars().all())
+
+
+async def field_planting_crop_labels(
+    db: AsyncSession,
+    *,
+    field_ids: list[UUID],
+    season_year: int,
+    org_id: UUID | None = None,
+) -> dict[UUID, str]:
+    """Active-season planting crops per field (source of truth). Empty if none."""
+    if not field_ids:
+        return {}
+    query = select(FieldPlanting).where(
+        FieldPlanting.field_id.in_(field_ids),
+        FieldPlanting.season_year == season_year,
+        FieldPlanting.status.in_(ACTIVE_AREA_STATUSES),
+    )
+    if org_id is not None:
+        query = query.where(FieldPlanting.org_id == org_id)
+    rows = (await db.execute(query)).scalars().all()
+    crop_codes = {row.crop_code for row in rows}
+    names: dict[str, str] = {}
+    if crop_codes and org_id is not None:
+        name_rows = (
+            await db.execute(
+                select(OrgDictionary.code, OrgDictionary.name).where(
+                    OrgDictionary.org_id == org_id,
+                    OrgDictionary.type == 'crop',
+                    OrgDictionary.code.in_(crop_codes),
+                )
+            )
+        ).all()
+        names = {str(code): str(name) for code, name in name_rows}
+    out: dict[UUID, list[str]] = defaultdict(list)
+    for row in rows:
+        label = names.get(row.crop_code) or row.crop_code
+        if label not in out[row.field_id]:
+            out[row.field_id].append(label)
+    return {fid: ', '.join(labels) for fid, labels in out.items()}
 
 
 async def fetch_field_shifts(
@@ -1293,6 +1350,12 @@ async def build_fields_workbook(
     fields = await fetch_field_locations(db, field_id, org_id=org_id)
     field_map = {item.id: item for item in fields}
     shifts = await fetch_field_shifts(db, from_date, to_date, field_id, org_id=org_id)
+    crop_labels = await field_planting_crop_labels(
+        db,
+        field_ids=list(field_map.keys()),
+        season_year=to_date.year,
+        org_id=org_id,
+    )
 
     shifts_by_field: dict[UUID, list[Shift]] = defaultdict(list)
     for shift in shifts:
@@ -1323,7 +1386,7 @@ async def build_fields_workbook(
         summary_rows.append(
             [
                 field.name,
-                field.crop_type or '',
+                crop_labels.get(fid, ''),
                 to_number(field.area_ha) if field.area_ha is not None else '',
                 len(field_shifts),
                 total_hours,
@@ -1422,6 +1485,12 @@ async def build_season_workbook(
     from_date, to_date = year_range(year)
     fields = await fetch_field_locations(db, org_id=org_id)
     shifts = await fetch_field_shifts(db, from_date, to_date, org_id=org_id)
+    crop_labels = await field_planting_crop_labels(
+        db,
+        field_ids=[field.id for field in fields],
+        season_year=year,
+        org_id=org_id,
+    )
 
     hours_by_field_month: dict[UUID, dict[int, float]] = defaultdict(lambda: defaultdict(float))
     for shift in shifts:
@@ -1443,7 +1512,7 @@ async def build_season_workbook(
         matrix_rows.append(
             [
                 field.name,
-                field.crop_type or '',
+                crop_labels.get(field.id, ''),
                 to_number(field.area_ha) if field.area_ha is not None else '',
                 *month_values,
                 round(row_total, 2),
@@ -1581,8 +1650,11 @@ async def build_season_workbook(
 
 REPAIR_STATUS_LABELS = {
     'in_progress': 'В ремонте',
+    'done': 'Завершён',
+    'cancelled': 'Отменён',
+    # Legacy codes (pre-049 / pre-waiting_parts split).
+    'open': 'Открыт',
     'waiting_parts': 'Ожидает запчасти',
-    'done': 'Готово',
 }
 
 PURCHASE_STATUS_LABELS = {
@@ -1640,6 +1712,7 @@ async def build_maintenance_workbook(
                 asset,
                 record.type,
                 REPAIR_STATUS_LABELS.get(record.status or '', record.status or ''),
+                'Да' if bool(getattr(record, 'waiting_parts', False)) else 'Нет',
                 record.priority or '',
                 f'{done}/{total}' if total else '',
                 to_number(record.cost),
@@ -1655,6 +1728,7 @@ async def build_maintenance_workbook(
             'Техника / приспособление',
             'Тип',
             'Статус',
+            'Ожидает запчасти',
             'Приоритет',
             'Чек-лист',
             'Стоимость',

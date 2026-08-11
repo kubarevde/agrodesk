@@ -7,11 +7,14 @@ import { apiErrorMessage } from '@/lib/apiError'
 import { locationFromApi, workTypeFromApi } from '@/lib/transformers'
 import type { LocationFormValues, WorkTypeFormValues } from './schemas'
 
-async function invalidateReferences(queryClient: ReturnType<typeof useQueryClient>) {
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: ['locations'] }),
-    queryClient.invalidateQueries({ queryKey: ['work-types'] }),
-  ])
+async function invalidateLocations(queryClient: ReturnType<typeof useQueryClient>) {
+  await queryClient.invalidateQueries({ queryKey: ['locations'] })
+}
+
+async function invalidateWorkTypes(queryClient: ReturnType<typeof useQueryClient>) {
+  // Do not invalidate locations here: refetching /api/locations runs ensure_field_work
+  // and previously made «Полевая работа» appear as a new field in the Fields UI.
+  await queryClient.invalidateQueries({ queryKey: ['work-types'] })
 }
 
 export function useSettingsLocations() {
@@ -41,6 +44,8 @@ export function useCreateLocation() {
       const { data } = await api.post<Record<string, unknown>>('/api/locations', {
         name: payload.name,
         description: payload.description || undefined,
+        latitude: payload.latitude ?? null,
+        longitude: payload.longitude ?? null,
       })
       const created = locationFromApi(data)
       if (payload.isActive === false) {
@@ -53,7 +58,7 @@ export function useCreateLocation() {
       return created
     },
     onSuccess: async () => {
-      await invalidateReferences(queryClient)
+      await invalidateLocations(queryClient)
       toast.success('Объект добавлен')
     },
     onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось добавить объект')),
@@ -67,15 +72,17 @@ export function useUpdateLocation() {
       id,
       ...payload
     }: { id: string } & Partial<LocationFormValues>) => {
-      const { data } = await api.patch<Record<string, unknown>>(`/api/locations/${id}`, {
-        name: payload.name,
-        description: payload.description,
-        is_active: payload.isActive,
-      })
+      const body: Record<string, unknown> = {}
+      if (payload.name !== undefined) body.name = payload.name
+      if (payload.description !== undefined) body.description = payload.description
+      if (payload.isActive !== undefined) body.is_active = payload.isActive
+      if (payload.latitude !== undefined) body.latitude = payload.latitude ?? null
+      if (payload.longitude !== undefined) body.longitude = payload.longitude ?? null
+      const { data } = await api.patch<Record<string, unknown>>(`/api/locations/${id}`, body)
       return locationFromApi(data)
     },
     onSuccess: async (_data, variables) => {
-      await invalidateReferences(queryClient)
+      await invalidateLocations(queryClient)
       if (variables.isActive === false) toast.success('Объект деактивирован')
       else if (variables.isActive === true) toast.success('Объект активирован')
       else toast.success('Объект обновлён')
@@ -104,7 +111,7 @@ export function useCreateWorkType() {
       return created
     },
     onSuccess: async () => {
-      await invalidateReferences(queryClient)
+      await invalidateWorkTypes(queryClient)
       toast.success('Тип работ добавлен')
     },
     onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось добавить тип работ')),
@@ -127,7 +134,7 @@ export function useUpdateWorkType() {
       return workTypeFromApi(data)
     },
     onSuccess: async (_data, variables) => {
-      await invalidateReferences(queryClient)
+      await invalidateWorkTypes(queryClient)
       if (variables.isActive === false) toast.success('Тип работ деактивирован')
       else if (variables.isActive === true) toast.success('Тип работ активирован')
       else toast.success('Тип работ обновлён')
@@ -142,6 +149,29 @@ export type OrganizationSettings = {
   shipmentRequestsEnabled: boolean
   /** Read-only for org UI — primary enablement is platform/superadmin. */
   marketplaceEnabled: boolean
+  /** Employer toggle: show monetary earnings to employees (default true). */
+  payrollVisibleToEmployees: boolean
+  /** ISO timestamp — used by «Факт и прогноз» chart window. */
+  createdAt: string | null
+}
+
+function organizationSettingsFromApi(data: {
+  timezone: string
+  available_timezones: string[]
+  shipment_requests_enabled?: boolean
+  marketplace_enabled?: boolean
+  payroll_visible_to_employees?: boolean
+  created_at?: string | null
+}): OrganizationSettings {
+  return {
+    timezone: data.timezone || 'Asia/Bangkok',
+    available_timezones: data.available_timezones ?? [],
+    shipmentRequestsEnabled: data.shipment_requests_enabled !== false,
+    marketplaceEnabled: data.marketplace_enabled === true,
+    // Absent key → true (matches backend default).
+    payrollVisibleToEmployees: data.payroll_visible_to_employees !== false,
+    createdAt: data.created_at ?? null,
+  }
 }
 
 export function useOrganizationSettings() {
@@ -153,13 +183,10 @@ export function useOrganizationSettings() {
         available_timezones: string[]
         shipment_requests_enabled?: boolean
         marketplace_enabled?: boolean
+        payroll_visible_to_employees?: boolean
+        created_at?: string | null
       }>('/api/settings/organization')
-      return {
-        timezone: data.timezone || 'Asia/Bangkok',
-        available_timezones: data.available_timezones ?? [],
-        shipmentRequestsEnabled: data.shipment_requests_enabled !== false,
-        marketplaceEnabled: data.marketplace_enabled === true,
-      }
+      return organizationSettingsFromApi(data)
     },
   })
 }
@@ -169,30 +196,28 @@ export function useUpdateOrganizationSettings() {
   return useMutation({
     mutationFn: async (payload: {
       timezone?: string
-      shipmentRequestsEnabled?: boolean
+      payrollVisibleToEmployees?: boolean
     }) => {
       const body: Record<string, unknown> = {}
       if (payload.timezone != null) body.timezone = payload.timezone
-      if (payload.shipmentRequestsEnabled != null) {
-        body.shipment_requests_enabled = payload.shipmentRequestsEnabled
+      if (payload.payrollVisibleToEmployees != null) {
+        body.payroll_visible_to_employees = payload.payrollVisibleToEmployees
       }
       const { data } = await api.patch<{
         timezone: string
         available_timezones: string[]
         shipment_requests_enabled?: boolean
         marketplace_enabled?: boolean
+        payroll_visible_to_employees?: boolean
+        created_at?: string | null
       }>('/api/settings/organization', body)
-      return {
-        timezone: data.timezone,
-        available_timezones: data.available_timezones ?? [],
-        shipmentRequestsEnabled: data.shipment_requests_enabled !== false,
-        marketplaceEnabled: data.marketplace_enabled === true,
-      } satisfies OrganizationSettings
+      return organizationSettingsFromApi(data)
     },
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['settings', 'organization'] }),
         queryClient.invalidateQueries({ queryKey: AUTH_PERMISSIONS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: ['my-earnings'] }),
       ])
       toast.success('Настройки организации сохранены')
     },

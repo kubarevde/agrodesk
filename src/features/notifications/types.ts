@@ -8,9 +8,16 @@ export type NotificationItem = {
   createdAt: string
 }
 
+export type NotificationTypeGroup =
+  | 'maintenance'
+  | 'sharing'
+  | 'support'
+  | 'messenger'
+  | 'marketplace'
+
 export type NotificationFilters = {
   isRead?: boolean
-  typeGroup?: 'maintenance' | 'sharing'
+  typeGroup?: NotificationTypeGroup
   limit?: number
 }
 

@@ -33,6 +33,8 @@ interface EmployeeRateModalProps {
 
 const defaults: Partial<EmployeeRateFormValues> = {
   workTypeId: null,
+  paymentScheme: 'hourly',
+  pieceworkUnit: null,
   rate: undefined,
   overtimeThresholdHours: 8,
   overtimeMultiplier: 1,
@@ -44,6 +46,8 @@ const defaults: Partial<EmployeeRateFormValues> = {
 function toFormValues(rate: EmployeeRate): EmployeeRateFormValues {
   return {
     workTypeId: rate.workTypeId,
+    paymentScheme: rate.paymentScheme,
+    pieceworkUnit: rate.pieceworkUnit,
     rate: rate.rate,
     overtimeThresholdHours: rate.overtimeThresholdHours,
     overtimeMultiplier: rate.overtimeMultiplier,
@@ -117,13 +121,15 @@ export function EmployeeRateModal({
             workTypesLoading={workTypesLoading}
           />
 
-          <EmployeeRateCalculator
-            text={formatRateCalculator(
-              Number(watched.rate) || 0,
-              Number(watched.overtimeThresholdHours) || 8,
-              Number(watched.overtimeMultiplier) || 1,
-            )}
-          />
+          {watched.paymentScheme === 'hourly' ? (
+            <EmployeeRateCalculator
+              text={formatRateCalculator(
+                Number(watched.rate) || 0,
+                Number(watched.overtimeThresholdHours) || 8,
+                Number(watched.overtimeMultiplier) || 1,
+              )}
+            />
+          ) : null}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>

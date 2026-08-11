@@ -1,11 +1,11 @@
 import { Download, Calculator } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
+import { MonthPicker } from '@/components/shared/MonthPicker'
 import { SectionHelp } from '@/components/shared/SectionHelp'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { salaryHelp } from '@/features/help/content'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -55,17 +55,15 @@ export function SalaryCalcTab() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <SectionHelp section="расчёт зарплаты" items={salaryHelp} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-2">
+        <div className="w-full max-w-xs space-y-2">
           <Label htmlFor="salary-month">Месяц</Label>
-          <Input
+          <MonthPicker
             id="salary-month"
-            type="month"
             value={month}
-            onChange={(event) => setMonth(event.target.value)}
-            className="w-full sm:w-48"
+            onChange={(ym) => ym && setMonth(ym)}
           />
         </div>
         <div className="flex flex-wrap gap-2">
@@ -96,7 +94,9 @@ export function SalaryCalcTab() {
       ) : data ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm text-muted-foreground">Период {data.from} — {data.to}</p>
+            <p className="text-sm text-muted-foreground">
+              Preview по сменам: {data.from} — {data.to}
+            </p>
             {noRateCount > 0 ? (
               <Badge variant="outline" className="text-muted-foreground">
                 {noRateCount} без ставки
@@ -104,12 +104,12 @@ export function SalaryCalcTab() {
             ) : null}
           </div>
 
-          <div className="hidden md:block overflow-x-auto rounded-lg border border-border">
+          <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Сотрудник</TableHead>
-                  <TableHead>Код</TableHead>
+                  <TableHead>Логин</TableHead>
                   <TableHead>Смен</TableHead>
                   <TableHead>Часов</TableHead>
                   <TableHead>Обычн.</TableHead>
@@ -130,7 +130,7 @@ export function SalaryCalcTab() {
                   </TableRow>
                 ))}
                 <TableRow className="bg-muted/40 font-semibold">
-                  <TableCell colSpan={6}>ИТОГО</TableCell>
+                  <TableCell colSpan={6}>ИТОГО (только смены)</TableCell>
                   <TableCell>{formatMoney(data.totalAmount)}</TableCell>
                 </TableRow>
               </TableBody>
@@ -159,7 +159,7 @@ export function SalaryCalcTab() {
             ))}
             <li className="rounded-lg border border-border bg-muted/40 p-4 font-semibold">
               <div className="flex items-center justify-between gap-2 text-sm">
-                <span>Итого</span>
+                <span>Итого (только смены)</span>
                 <span>{formatMoney(data.totalAmount)}</span>
               </div>
             </li>

@@ -19,7 +19,9 @@ def test_default_manager_has_all_sections():
 def test_default_employee_limited():
     perms = default_role_permissions()
     allowed = allowed_sections_for_role('employee', perms)
-    assert allowed == ['my-shift', 'sharing']
+    # Product rule: employees get my-shift + sharing + tasks by default;
+    # sharing/tasks remain revocable in Settings → Доступы.
+    assert allowed == ['my-shift', 'sharing', 'tasks']
 
 
 def test_admin_always_full():

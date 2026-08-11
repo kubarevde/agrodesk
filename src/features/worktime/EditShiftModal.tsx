@@ -15,19 +15,23 @@ import { Label } from '@/components/ui/label'
 import { LabeledSelect } from '@/components/ui/labeled-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { apiErrorMessage } from '@/lib/apiError'
 import { entityOptions } from '@/lib/selectOptions'
 import type { Shift } from '@/types'
+import { ShiftDateTimeField } from './components/ShiftDateTimeField'
 import { editShiftSchema, type EditShiftFormValues } from './editShiftSchema'
 import { useUpdateShift } from './hooks'
 import { useEquipment, useLocations, useWorkTypes } from './referenceHooks'
+import { formatShiftTime, inferShiftEndDate } from './utils'
 
 interface EditShiftModalProps {
   shift: Shift
   open: boolean
   onClose: () => void
+  onUpdated?: (shift: Shift) => void
 }
 
-export function EditShiftModal({ shift, open, onClose }: EditShiftModalProps) {
+export function EditShiftModal({ shift, open, onClose, onUpdated }: EditShiftModalProps) {
   const updateShift = useUpdateShift()
   const { data: locations = [], isLoading: locationsLoading } = useLocations()
   const { data: workTypes = [], isLoading: workTypesLoading } = useWorkTypes()
@@ -57,27 +61,50 @@ export function EditShiftModal({ shift, open, onClose }: EditShiftModalProps) {
     handleSubmit,
     register,
     reset,
-    formState: { isSubmitting },
+    watch,
+    formState: { errors, isSubmitting },
   } = useForm<EditShiftFormValues>({
     resolver: zodResolver(editShiftSchema),
-    defaultValues: { location: '', workType: '', equipment: '', description: '', comment: '' },
+    defaultValues: {
+      startDate: '',
+      startTime: '',
+      endDate: '',
+      endTime: '',
+      location: '',
+      workType: '',
+      equipment: '',
+      description: '',
+      comment: '',
+      status: 'open',
+    },
   })
+
+  const status = watch('status')
 
   useEffect(() => {
     if (!open) return
     reset({
+      startDate: shift.date,
+      startTime: formatShiftTime(shift.startTime),
+      endDate: shift.status === 'closed' ? inferShiftEndDate(shift) : '',
+      endTime: shift.endTime ? formatShiftTime(shift.endTime) : '',
       location: locations.find((item) => item.name === shift.location)?.id ?? '',
       workType: workTypes.find((item) => item.name === shift.workType)?.id ?? '',
       equipment: equipment.find((item) => item.name === shift.equipment)?.id ?? '',
       description: shift.description,
       comment: shift.comment,
+      status: shift.status,
     })
   }, [equipment, locations, open, reset, shift, workTypes])
 
   const onSubmit = async (values: EditShiftFormValues) => {
     try {
-      await updateShift.mutateAsync({
+      const updated = await updateShift.mutateAsync({
         id: shift.id,
+        date: values.startDate,
+        startTime: values.startTime,
+        endTime: values.status === 'closed' ? values.endTime || null : null,
+        endDate: values.status === 'closed' ? values.endDate || null : null,
         locationId: values.location,
         workTypeId: values.workType,
         equipmentId: values.equipment || null,
@@ -85,20 +112,71 @@ export function EditShiftModal({ shift, open, onClose }: EditShiftModalProps) {
         comment: values.comment,
       })
       toast.success('Смена обновлена')
+      onUpdated?.(updated)
       onClose()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Не удалось обновить смену'
-      toast.error(`Ошибка: ${message}`)
+      toast.error(apiErrorMessage(error, 'Не удалось обновить смену'))
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Редактировать смену</DialogTitle>
         </DialogHeader>
         <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+          <Controller
+            name="startDate"
+            control={control}
+            render={({ field: dateField }) => (
+              <Controller
+                name="startTime"
+                control={control}
+                render={({ field: timeField }) => (
+                  <ShiftDateTimeField
+                    label="Дата и время начала смены"
+                    date={dateField.value}
+                    time={timeField.value}
+                    onDateChange={dateField.onChange}
+                    onTimeChange={timeField.onChange}
+                    dateError={errors.startDate?.message}
+                    timeError={errors.startTime?.message}
+                  />
+                )}
+              />
+            )}
+          />
+
+          {status === 'closed' ? (
+            <Controller
+              name="endDate"
+              control={control}
+              render={({ field: dateField }) => (
+                <Controller
+                  name="endTime"
+                  control={control}
+                  render={({ field: timeField }) => (
+                    <ShiftDateTimeField
+                      label="Дата и время окончания смены"
+                      date={dateField.value ?? ''}
+                      time={timeField.value ?? ''}
+                      onDateChange={dateField.onChange}
+                      onTimeChange={timeField.onChange}
+                      dateError={errors.endDate?.message}
+                      timeError={errors.endTime?.message}
+                    />
+                  )}
+                />
+              )}
+            />
+          ) : (
+            <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              Смена открыта — окончание не задаётся. Закройте смену отдельно или оставьте
+              пустым.
+            </p>
+          )}
+
           <div className="space-y-2">
             <Label>Объект</Label>
             {locationsLoading ? (

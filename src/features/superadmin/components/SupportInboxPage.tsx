@@ -144,7 +144,14 @@ export function SupportInboxPage() {
                     ) : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {ticket.unreadForStaff ? <Badge>Новое</Badge> : null}
+                    {ticket.unreadForStaff ? (
+                      <Badge
+                        variant="outline"
+                        className="border-amber-600/40 bg-amber-400/90 text-amber-950"
+                      >
+                        Новое
+                      </Badge>
+                    ) : null}
                     <Badge className={priorityBadgeClass(ticket.priority)}>
                       {priorityLabel(ticket.priority)}
                     </Badge>

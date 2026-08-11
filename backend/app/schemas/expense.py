@@ -44,3 +44,6 @@ class ExpenseResponse(BaseModel):
     payment_method: str | None = None
     equipment_id: UUID | None = None
     equipment_name: str | None = None
+    # Read-only: set by payroll confirm, not by ExpenseCreate.
+    employee_id: UUID | None = None
+    payroll_run_line_id: UUID | None = None

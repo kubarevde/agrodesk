@@ -20,6 +20,18 @@ export function inventoryCropPayload(
   return code
 }
 
+export function inventoryVarietyPayload(
+  category: string | undefined,
+  cropCode: unknown,
+  varietyId: unknown,
+): string | null {
+  if (!inventoryCropPayload(category, cropCode)) return null
+  if (typeof varietyId !== 'string') return null
+  const id = varietyId.trim()
+  if (!id || id.toLowerCase() === 'none') return null
+  return id
+}
+
 /** Build PATCH body for inventory item update (testable). */
 export function buildInventoryItemUpdateBody(
   payload: {
@@ -30,6 +42,7 @@ export function buildInventoryItemUpdateBody(
     totalCapacity?: number
     isActive?: boolean
     cropCode?: unknown
+    varietyId?: unknown
   },
 ): Record<string, unknown> {
   const body: Record<string, unknown> = {}
@@ -38,8 +51,7 @@ export function buildInventoryItemUpdateBody(
   if (payload.unit !== undefined) body.unit = payload.unit
   if (payload.minStock !== undefined) body.min_stock = payload.minStock
   if (payload.totalCapacity !== undefined) body.total_capacity = payload.totalCapacity
-  if (payload.isActive !== undefined) body.is_active = payload.isActive
-
+  // is_active is managed via archive/restore endpoints — never via PATCH.
   const category = payload.category
   if (isHarvestCategory(category)) {
     const cropCode = inventoryCropPayload(category, payload.cropCode)
@@ -47,15 +59,30 @@ export function buildInventoryItemUpdateBody(
       throw new Error('Для позиций «Урожай на складе» необходимо указать культуру.')
     }
     body.crop_code = cropCode
+    const varietyId = inventoryVarietyPayload(category, cropCode, payload.varietyId)
+    body.variety_id = varietyId
+    if (!varietyId) body.clear_variety = true
   } else if (category !== undefined) {
     // Non-harvest: clear crop link
     body.crop_code = null
+    body.variety_id = null
+    body.clear_variety = true
   } else if (payload.cropCode !== undefined) {
     const code = asCropCode(payload.cropCode)
     if (!code || code.toLowerCase() === 'none') {
       throw new Error('Для позиций «Урожай на складе» необходимо указать культуру.')
     }
     body.crop_code = code
+    if (payload.varietyId !== undefined) {
+      const varietyId = inventoryVarietyPayload('harvest', code, payload.varietyId)
+      body.variety_id = varietyId
+      if (!varietyId) body.clear_variety = true
+    }
+  } else if (payload.varietyId !== undefined) {
+    const varietyId =
+      typeof payload.varietyId === 'string' ? payload.varietyId.trim() : ''
+    body.variety_id = varietyId || null
+    if (!varietyId) body.clear_variety = true
   }
   return body
 }

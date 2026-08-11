@@ -19,7 +19,9 @@ import { useCurrentUser } from '@/features/auth/hooks'
 import { useAgroPlansToday } from '@/features/agro-calendar/hooks'
 import { planFieldsLabel } from '@/features/agro-calendar/utils'
 import { useUserPermissions } from '@/features/settings/permissionsHooks'
+import { findFieldWorkLocation, isFieldRequiredForLocation } from '@/features/settings/fieldWorkLocation'
 import { apiErrorMessage } from '@/lib/apiError'
+import { requestBrowserGeolocation } from '@/lib/geolocation'
 import { hasAction } from '@/lib/permissionActions'
 import { entityOptions } from '@/lib/selectOptions'
 import { useCreateShift } from './hooks'
@@ -71,6 +73,7 @@ export function OpenShiftModal({
     selectEmployee ??
     hasAction(perms?.actions, 'shift.open_for_others', user?.role)
   const [geoError, setGeoError] = useState<string | null>(null)
+  const [geoPending, setGeoPending] = useState(false)
   const offlineMissingRefs =
     typeof navigator !== 'undefined' &&
     !navigator.onLine &&
@@ -89,6 +92,7 @@ export function OpenShiftModal({
     handleSubmit,
     reset,
     setValue,
+    setError,
     watch,
     formState: { errors, isSubmitting },
   } = form
@@ -97,6 +101,7 @@ export function OpenShiftModal({
   const longitude = watch('longitude')
   const equipmentId = watch('equipment')
   const workTypeId = watch('workType')
+  const locationId = watch('location')
   const fieldId = watch('fieldId')
   const agroPlanId = watch('agroPlanId')
   const employeeId = watch('employeeId')
@@ -104,6 +109,8 @@ export function OpenShiftModal({
 
   const selectedWorkType = workTypes.find((item) => item.id === workTypeId)
   const isFieldWork = Boolean(selectedWorkType?.isFieldWork)
+  const fieldWorkLocation = useMemo(() => findFieldWorkLocation(locations), [locations])
+  const requiresField = isFieldRequiredForLocation(locationId, fieldWorkLocation?.id)
   const planEmployeeId = canSelectEmployee ? employeeId || undefined : user?.id
   const { data: todayPlans = [] } = useAgroPlansToday(planEmployeeId)
 
@@ -118,6 +125,18 @@ export function OpenShiftModal({
   useEffect(() => {
     if (!isFieldWork && agroPlanId) setValue('agroPlanId', '')
   }, [isFieldWork, agroPlanId, setValue])
+
+  useEffect(() => {
+    if (!isFieldWork) return
+    if (fieldWorkLocation?.id) {
+      setValue('location', fieldWorkLocation.id, { shouldValidate: true })
+    }
+  }, [isFieldWork, fieldWorkLocation?.id, setValue])
+
+  useEffect(() => {
+    if (requiresField) return
+    if (fieldId) setValue('fieldId', '')
+  }, [requiresField, fieldId, setValue])
 
   useEffect(() => {
     if (!agroPlanId) return
@@ -173,28 +192,24 @@ export function OpenShiftModal({
   const handleClose = () => {
     reset(defaultValues)
     setGeoError(null)
+    setGeoPending(false)
     onClose()
   }
 
-  const handleGeolocation = () => {
-    if (!navigator.geolocation) {
-      const message = 'Не удалось получить геолокацию'
-      setGeoError(message)
-      toast.error(`Ошибка: ${message}`)
+  const handleGeolocation = async () => {
+    setGeoPending(true)
+    setGeoError(null)
+    const result = await requestBrowserGeolocation()
+    setGeoPending(false)
+    if (!result.ok) {
+      setGeoError(result.message)
+      toast.error(result.message)
       return
     }
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setValue('latitude', position.coords.latitude)
-        setValue('longitude', position.coords.longitude)
-        setGeoError(null)
-      },
-      () => {
-        const message = 'Не удалось получить геолокацию'
-        setGeoError(message)
-        toast.error(`Ошибка: ${message}`)
-      },
-    )
+    setValue('latitude', result.coords.latitude, { shouldDirty: true })
+    setValue('longitude', result.coords.longitude, { shouldDirty: true })
+    setGeoError(null)
+    toast.success('Геолокация получена')
   }
 
   const onSubmit = async (values: OpenShiftFormValues) => {
@@ -203,17 +218,23 @@ export function OpenShiftModal({
       return
     }
     const workType = workTypes.find((item) => item.id === values.workType)
-    if (workType?.isFieldWork && !values.fieldId) {
-      toast.error('Для полевой работы укажите поле')
+    const locationIdResolved =
+      workType?.isFieldWork && fieldWorkLocation?.id
+        ? fieldWorkLocation.id
+        : values.location
+    const needField = isFieldRequiredForLocation(locationIdResolved, fieldWorkLocation?.id)
+    if (needField && !values.fieldId) {
+      setError('fieldId', { type: 'manual', message: 'Выберите поле' })
+      toast.error('Для «Полевая работа» укажите поле')
       return
     }
 
     try {
       const result = await createShift.mutateAsync({
-        locationId: values.location,
+        locationId: locationIdResolved,
         workTypeId: values.workType,
         equipmentId: values.equipment || undefined,
-        fieldId: values.fieldId || undefined,
+        fieldId: needField ? values.fieldId || undefined : undefined,
         implementId: values.implementId || undefined,
         agroPlanId: values.agroPlanId || undefined,
         latitude: values.latitude ?? null,
@@ -302,7 +323,15 @@ export function OpenShiftModal({
 
           <div className="space-y-2">
             <Label>Объект</Label>
-            {locationsLoading ? (
+            {isFieldWork ? (
+              <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
+                {fieldWorkLocation?.name ?? 'Полевая работа'}
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  Подставляется автоматически для полевых типов работ (агрокалендарь). Укажите
+                  конкретное поле ниже.
+                </span>
+              </p>
+            ) : locationsLoading ? (
               <Skeleton className="h-8 w-full" />
             ) : (
               <Controller
@@ -319,14 +348,21 @@ export function OpenShiftModal({
                 )}
               />
             )}
-            {errors.location ? (
+            {!isFieldWork && errors.location ? (
               <p className="text-xs text-destructive">{errors.location.message}</p>
-            ) : (
+            ) : !isFieldWork ? (
               <ManageInSettingsLink tab="locations" tabHint="места работы" />
-            )}
+            ) : null}
           </div>
 
-          <ShiftFieldSelect control={control} required={isFieldWork} />
+          {requiresField ? (
+            <div className="space-y-2">
+              <ShiftFieldSelect control={control} required />
+              {errors.fieldId ? (
+                <p className="text-xs text-destructive">{errors.fieldId.message}</p>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="space-y-2">
             <Label>Тип работ</Label>
@@ -384,29 +420,50 @@ export function OpenShiftModal({
 
           <div className="space-y-2 rounded-lg border border-border p-3">
             <Label>Геолокация</Label>
-            <Button type="button" variant="outline" className="w-full" onClick={handleGeolocation}>
-              <MapPin className="size-4" />
-              Отправить геометку
+            <p className="text-xs text-muted-foreground">
+              Необязательно — можно сразу нажать «Начать смену» без геометки.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={geoPending}
+              onClick={() => void handleGeolocation()}
+            >
+              {geoPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <MapPin className="size-4" />
+              )}
+              {geoPending ? 'Определение…' : 'Отправить геолокацию'}
             </Button>
             {hasGeo ? (
-              <p className="flex items-center gap-2 text-sm text-success">
-                <Check className="size-4" />
-                {latitude?.toFixed(4)}, {longitude?.toFixed(4)}
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="flex items-center gap-2 text-sm text-success">
+                  <Check className="size-4" />
+                  {latitude?.toFixed(4)}, {longitude?.toFixed(4)}
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 text-muted-foreground"
+                  onClick={() => {
+                    setValue('latitude', null)
+                    setValue('longitude', null)
+                    setGeoError(null)
+                  }}
+                >
+                  Сбросить
+                </Button>
+              </div>
             ) : null}
             {geoError ? (
               <p className="flex items-center gap-2 text-sm text-destructive">
-                <AlertTriangle className="size-4" />
+                <AlertTriangle className="size-4 shrink-0" />
                 {geoError}
               </p>
             ) : null}
-            <Button type="button" variant="ghost" size="sm" onClick={() => {
-              setValue('latitude', null)
-              setValue('longitude', null)
-              setGeoError(null)
-            }}>
-              Пропустить
-            </Button>
           </div>
 
           <DialogFooter className="sm:justify-stretch">

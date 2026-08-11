@@ -189,7 +189,7 @@ export function useAddMaintenance(id: string | undefined) {
         meter_at: values.meter_at,
         cost: values.cost,
         description: values.description || null,
-        next_to_interval: values.next_to_interval,
+        next_to_at: values.next_to_at,
       })
       return data
     },

@@ -150,6 +150,15 @@ export function useUpdateAgroPlan() {
       if (input.employeeId !== undefined) body.employee_id = input.employeeId || null
       if (input.notes !== undefined) body.notes = input.notes || null
       if (input.status) body.status = input.status
+      if (input.clearPlanting) {
+        body.clear_planting = true
+      } else {
+        if (input.fieldPlantingId !== undefined) {
+          body.field_planting_id = input.fieldPlantingId || null
+        }
+        if (input.cropCode !== undefined) body.crop_code = input.cropCode || null
+        if (input.varietyId !== undefined) body.variety_id = input.varietyId || null
+      }
 
       const { data } = await api.patch<Record<string, unknown>>(`/api/agro-plan/${id}`, body)
       return planFromApi(data)

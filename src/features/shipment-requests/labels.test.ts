@@ -4,6 +4,7 @@ import {
   filterByStatus,
   filterForExecutor,
   formatMoney,
+  formatQtyPrice,
   isOverdue,
   isUrgent,
   isVisibleToExecutor,
@@ -16,6 +17,10 @@ function row(partial: Partial<ShipmentRequest> & Pick<ShipmentRequest, 'id' | 's
     inventoryItemId: 'item-1',
     inventoryItemName: 'Дизель',
     inventoryItemUnit: 'л',
+    inventoryItemCategory: null,
+    cropCode: null,
+    isHarvest: false,
+    kind: 'inventory',
     customerName: 'ООО Ромашка',
     quantity: 10,
     price: 50,
@@ -28,7 +33,15 @@ function row(partial: Partial<ShipmentRequest> & Pick<ShipmentRequest, 'id' | 's
     completedAt: null,
     shiftId: null,
     inventoryOperationId: null,
+    cancelReason: null,
+    comment: null,
     attachments: [],
+    fieldId: null,
+    fieldName: null,
+    varietyId: null,
+    varietyName: null,
+    fieldPlantingId: null,
+    plantingAreaHa: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...partial,
@@ -84,6 +97,12 @@ describe('shipment-requests labels/filters', () => {
     expect(text).toMatch(/750[\s\u00a0]?000/)
     expect(text).toContain('₽')
     expect(text.replace(/[^₽]/g, '')).toBe('₽')
+  })
+
+  it('formatQtyPrice uses unit once and × separator', () => {
+    expect(formatQtyPrice(15, 'л', 62.8)).toBe('15 л × 62,8 ₽')
+    expect(formatQtyPrice(1000, 'кг', 12)).toBe('1\u00a0000 кг × 12 ₽')
+    expect(formatQtyPrice(5, null, 10)).toBe('5 × 10 ₽')
   })
 })
 

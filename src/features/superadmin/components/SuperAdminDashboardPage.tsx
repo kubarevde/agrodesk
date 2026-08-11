@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { superadminHelp } from '@/features/help/content'
 import { OrgModal } from '@/features/superadmin/components/OrgModal'
-import { OrganizationsTable } from '@/features/superadmin/components/OrganizationsTable'
+import { OrganizationsList } from '@/features/superadmin/components/OrganizationsList'
 import { OverviewKpiCard } from '@/features/superadmin/components/OverviewKpiCard'
 import { PlatformAttentionList } from '@/features/superadmin/components/PlatformAttentionList'
 import { PlatformOverviewPanels } from '@/features/superadmin/components/PlatformOverviewPanels'
@@ -71,7 +71,7 @@ export function SuperAdminDashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold">Платформа</h1>
           <p className="text-sm text-muted-foreground">
-            Superadmin overview — не holding dashboard и не tenant KPI
+            Обзор платформы: организации, активность и поддержка. Не сводка по холдингу КФХ.
           </p>
         </div>
         <Button type="button" onClick={openCreate} className="bg-primary text-primary-foreground">
@@ -93,11 +93,11 @@ export function SuperAdminDashboardPage() {
             <OverviewKpiCard title="Активных" value={stats.activeOrgs} />
             <OverviewKpiCard title="Сотрудников" value={stats.totalEmployees} />
             <OverviewKpiCard title="Смен сегодня" value={stats.totalShiftsToday} />
-            <OverviewKpiCard title="Тикеты (unread)" value={stats.supportUnread} />
+            <OverviewKpiCard title="Непрочитанные обращения" value={stats.supportUnread} />
             <OverviewKpiCard
-              title="Marketplace org"
+              title="С витриной"
               value={stats.marketplaceOrgs}
-              hint="Отдельный feature flag"
+              hint="Отдельный флаг Marketplace"
             />
           </>
         )}
@@ -121,10 +121,10 @@ export function SuperAdminDashboardPage() {
         </CardHeader>
         <CardContent>
           {orgsQuery.isLoading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <Skeleton className="h-40 w-full rounded-xl" />
+              <Skeleton className="h-40 w-full rounded-xl" />
+              <Skeleton className="h-40 w-full rounded-xl" />
             </div>
           ) : !orgsQuery.data?.length ? (
             <div className="flex flex-col items-start gap-3 py-8">
@@ -134,11 +134,12 @@ export function SuperAdminDashboardPage() {
               </Button>
             </div>
           ) : (
-            <OrganizationsTable
+            <OrganizationsList
               organizations={orgsQuery.data}
               onEdit={openEdit}
               onToggleActive={(org) => void toggleActive(org)}
               onDelete={(org) => void removeOrg(org)}
+              onCreate={openCreate}
             />
           )}
         </CardContent>

@@ -22,7 +22,6 @@ from app.models.marketplace import (
     MarketOrder,
     MarketSellerProfile,
 )
-from app.models.notification import Notification
 from app.models.organization import Organization
 from app.schemas.marketplace import (
     AdminCategoryCreate,
@@ -85,25 +84,26 @@ async def notify_org_marketplace_managers(
     listing_id: UUID,
 ) -> None:
     """Inbox notifications for org admins/managers (seller cabinet audience)."""
+    from app.services.notification_prefs import create_employee_notification
+
     recipients = (
         await db.execute(
-            select(Employee.id).where(
+            select(Employee).where(
                 Employee.org_id == org_id,
                 Employee.is_active.is_(True),
                 Employee.role.in_([EmployeeRole.admin, EmployeeRole.manager]),
             )
         )
     ).scalars().all()
-    for employee_id in recipients:
-        db.add(
-            Notification(
-                employee_id=employee_id,
-                type='marketplace_moderation',
-                title=title[:200],
-                body=body,
-                link=f'/marketplace/listings/{listing_id}',
-                is_read=False,
-            )
+    for employee in recipients:
+        await create_employee_notification(
+            db,
+            employee_id=employee.id,
+            notif_type='marketplace_moderation',
+            title=title[:200],
+            body=body,
+            link=f'/marketplace/listings/{listing_id}',
+            prefs=employee.notification_prefs,
         )
 
 

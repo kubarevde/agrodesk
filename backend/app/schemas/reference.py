@@ -10,17 +10,25 @@ class LocationResponse(BaseModel):
     name: str
     description: str | None = None
     is_active: bool
+    code: str | None = None
+    is_system: bool = False
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class LocationCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class LocationUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = None
     is_active: bool | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class WorkTypeResponse(BaseModel):

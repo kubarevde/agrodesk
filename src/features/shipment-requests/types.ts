@@ -34,9 +34,16 @@ export type ShipmentRequest = {
   shiftId: string | null
   inventoryOperationId: string | null
   cancelReason: string | null
+  comment: string | null
   createdAt: string
   updatedAt: string
   attachments: ShipmentRequestAttachment[]
+  fieldId: string | null
+  fieldName: string | null
+  varietyId: string | null
+  varietyName: string | null
+  fieldPlantingId: string | null
+  plantingAreaHa: number | null
 }
 
 export type ShipmentRequestFilters = {
@@ -59,6 +66,10 @@ export type ShipmentRequestCreatePayload = {
   plannedAt: string
   priority: ShipmentRequestPriority
   assignedTo?: string | null
+  comment?: string | null
+  fieldPlantingId?: string | null
+  fieldId?: string | null
+  varietyId?: string | null
 }
 
 export type ShipmentRequestUpdatePayload = {
@@ -67,6 +78,7 @@ export type ShipmentRequestUpdatePayload = {
   price?: number
   plannedAt?: string
   priority?: ShipmentRequestPriority
+  comment?: string | null
 }
 
 export type ShipmentRequestCompletePayload = {

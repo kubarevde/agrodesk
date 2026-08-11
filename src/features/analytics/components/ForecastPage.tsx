@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { LabeledSelect } from '@/components/ui/labeled-select'
 import { selectOptions } from '@/lib/selectOptions'
 import { cn } from '@/lib/utils'
+import { useOrganizationSettings } from '@/features/settings/hooks'
 import { useForecast, useRecommendations } from '../hooks'
 import { getForecastPeriodLabel, lastHistoryMonth } from '../lib/forecastUi'
 import { CategoryForecastChart } from './CategoryForecastChart'
@@ -30,10 +31,16 @@ const METHOD_OPTIONS = selectOptions([
   { value: 'prophet', label: 'Prophet' },
 ])
 
-export function ForecastPage() {
+type ForecastTabProps = {
+  /** When embedded in «Затраты и доходы», hide the page-level H1. */
+  embedded?: boolean
+}
+
+export function ForecastTab({ embedded = false }: ForecastTabProps) {
   const [method, setMethod] = useState('auto')
   const [monthsAhead, setMonthsAhead] = useState(1)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const { data: orgSettings } = useOrganizationSettings()
   const { data, isLoading, isError } = useForecast(method, monthsAhead)
   const { data: recommendations = [], isLoading: recLoading } = useRecommendations()
 
@@ -43,7 +50,7 @@ export function ForecastPage() {
       <EmptyState
         icon={TrendingUp}
         title="Не удалось загрузить прогноз"
-        description="Проверьте сеть и права доступа менеджера."
+        description="Проверьте сеть и права доступа."
       />
     )
   }
@@ -54,12 +61,16 @@ export function ForecastPage() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-1">
-          <h1 className="text-xl font-semibold text-foreground">Прогноз и оптимизация</h1>
+          {embedded ? (
+            <h2 className="text-lg font-medium text-foreground">Факт и прогноз</h2>
+          ) : (
+            <h1 className="text-xl font-semibold text-foreground">Факт и прогноз</h1>
+          )}
           <p className="text-sm text-muted-foreground">
             Ориентир по затратам, доходам и рискам на период: {periodLabel}
           </p>
         </div>
-        <div className="flex flex-col gap-2 sm:w-56">
+        <div className="flex w-full flex-col gap-2 sm:w-56">
           <LabeledSelect
             value={String(monthsAhead)}
             options={HORIZON_OPTIONS}
@@ -91,8 +102,12 @@ export function ForecastPage() {
       </div>
 
       <ForecastKpiCards forecast={data.forecast} history={data.history} monthsAhead={monthsAhead} />
-      <ForecastHowItWorks />
-      <ForecastChart history={data.history} forecast={data.forecast} />
+      {!embedded ? <ForecastHowItWorks /> : null}
+      <ForecastChart
+        history={data.history}
+        forecast={data.forecast}
+        orgCreatedAt={orgSettings?.createdAt}
+      />
       <CategoryForecastChart
         rows={data.byCategory}
         history={data.history}
@@ -109,4 +124,9 @@ export function ForecastPage() {
       <ForecastTechnicalDetails forecast={data.forecast} modelCandidates={data.modelCandidates} />
     </div>
   )
+}
+
+/** @deprecated Use ForecastTab — kept for any leftover imports. */
+export function ForecastPage() {
+  return <ForecastTab embedded={false} />
 }

@@ -14,14 +14,14 @@ type AgroPlanTodaySectionProps = {
 
 export function AgroPlanTodaySection({ items, isLoading }: AgroPlanTodaySectionProps) {
   return (
-    <section className="space-y-3">
-      <h2 className="text-base font-semibold text-foreground">Сегодня запланировано</h2>
+    <section className="space-y-2">
+      <h2 className="text-sm font-semibold text-foreground">Сегодня запланировано</h2>
 
       {isLoading ? (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {Array.from({ length: 2 }).map((_, index) => (
             <Card key={index}>
-              <CardContent className="py-4">
+              <CardContent className="py-2.5">
                 <Skeleton className="h-5 w-full" />
               </CardContent>
             </Card>
@@ -29,21 +29,25 @@ export function AgroPlanTodaySection({ items, isLoading }: AgroPlanTodaySectionP
         </div>
       ) : items.length === 0 ? (
         <Card>
-          <CardContent className="flex items-center gap-3 py-6 text-sm text-muted-foreground">
-            <CalendarDays className="size-5 shrink-0" />
+          <CardContent className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
+            <CalendarDays className="size-4 shrink-0" />
             Работ на сегодня не запланировано
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {items.map((item) => {
             const status = item.status as AgroPlanStatus
             return (
               <Card key={item.id}>
-                <CardContent className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <CardContent className="flex flex-col gap-1.5 py-2.5 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="font-medium text-foreground">{humanLabel(item.fieldName, 'Поле')}</p>
-                    <p className="text-sm text-muted-foreground">{humanLabel(item.workTypeName, 'Работа')}</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {humanLabel(item.fieldName, 'Поле')}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {humanLabel(item.workTypeName, 'Работа')}
+                    </p>
                   </div>
                   <Badge className={statusBadgeClass(status)}>
                     {STATUS_LABELS[status] ?? item.status}

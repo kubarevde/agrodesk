@@ -1,19 +1,16 @@
 import { Link } from '@tanstack/react-router'
-import { Clock, LayoutDashboard, Package, Play, User, Users } from 'lucide-react'
+import { Clock, LayoutDashboard, Package, Play, Square } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { EmptyState } from '@/components/shared/EmptyState'
-import { SkeletonTable } from '@/components/shared/SkeletonTable'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useCurrentUser } from '@/features/auth/hooks'
-import { ActiveShiftLiveDuration } from '@/features/dashboard/components/ActiveShiftLiveDuration'
 import { useDashboardStats } from '@/features/dashboard/hooks'
 import { useFields } from '@/features/fields/hooks'
-import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
 import { GuideNudgeBanner } from '@/features/help/components/GuideNudgeBanner'
+import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
 import { myShiftHelp } from '@/features/help/content'
 import { useImplements } from '@/features/implements/hooks'
 import { useUserPermissions } from '@/features/settings/permissionsHooks'
+import { CloseShiftModal } from '@/features/worktime/CloseShiftModal'
 import { OpenShiftModal } from '@/features/worktime/OpenShiftModal'
 import { useShifts } from '@/features/worktime/hooks'
 import {
@@ -22,19 +19,56 @@ import {
   useLocations,
   useWorkTypes,
 } from '@/features/worktime/referenceHooks'
-import { StaleCacheNotice } from '@/components/shared/StaleCacheNotice'
-import { formatShiftTime, getDefaultMonthRange } from '@/features/worktime/utils'
-import { hasAction, hasSection } from '@/lib/permissionActions'
+import { getDefaultMonthRange } from '@/features/worktime/utils'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
-import type { DashboardActiveShift } from '@/types'
+import { hasAction, hasSection } from '@/lib/permissionActions'
+import type { Shift } from '@/types'
+import { CloseShiftForEmployeeDialog } from './CloseShiftForEmployeeDialog'
+import { CurrentShiftCard } from './CurrentShiftCard'
+import { formatMyShiftSubtitle } from './formatMyShiftSubtitle'
+import { ManagerTeamBoardCard } from './ManagerTeamBoardCard'
 
-const QUICK_LINK_DEFS = [
+const QUICK_LINKS = [
   { to: '/dashboard', section: 'dashboard', label: 'Дашборд', icon: LayoutDashboard },
   { to: '/worktime', section: 'worktime', label: 'Рабочее время', icon: Clock },
   { to: '/inventory', section: 'inventory', label: 'Склад ТМЦ', icon: Package },
 ] as const
 
-export function ManagerMyShiftView() {
+function isOwnShift(shift: Shift, userId?: string, code?: string): boolean {
+  if (userId && shift.employeeId === userId) return true
+  return Boolean(code && shift.employeeCode === code)
+}
+
+function dashboardToShift(row: {
+  id: string
+  employeeName: string
+  location: string
+  startTime: string
+  date: string
+  durationMinutes: number
+}): Shift {
+  return {
+    id: row.id,
+    date: row.date || '',
+    employeeCode: '',
+    employeeName: row.employeeName,
+    telegramId: '',
+    startTime: row.startTime,
+    endTime: null,
+    workType: '',
+    location: row.location,
+    equipment: '',
+    description: '',
+    comment: '',
+    status: 'open',
+    durationRaw: row.durationMinutes,
+    durationRounded: row.durationMinutes,
+    latitude: null,
+    longitude: null,
+  }
+}
+
+export function ManagerMyShiftView({ embedded = false }: { embedded?: boolean }) {
   const { data: user } = useCurrentUser()
   const { data: perms } = useUserPermissions()
   const isOnline = useOnlineStatus()
@@ -44,144 +78,116 @@ export function ManagerMyShiftView() {
 
   const canSeeTeamBoard = hasSection(sections, 'dashboard', role)
   const canOpenOwn = hasAction(actions, 'shift.open_own', role)
+  const canCloseOwn = hasAction(actions, 'shift.close_own', role)
   const canOpenOthers = hasAction(actions, 'shift.open_for_others', role)
+  const canCloseOthers = hasAction(actions, 'shift.close_others', role)
 
-  // Warm Dexie while online so offline open-shift + team list work later.
   useLocations()
   useWorkTypes()
   useEquipment()
   useEmployees()
   useFields()
   useImplements()
+
   const monthRange = useMemo(() => getDefaultMonthRange(), [])
-  const { data: cachedOpenShifts = [] } = useShifts(
+  const { data: openShifts = [], isLoading: openLoading } = useShifts(
     { from: monthRange.from, to: monthRange.to, status: 'open' },
     { enabled: Boolean(user) },
   )
-
-  const { data: stats, isLoading } = useDashboardStats({
+  const { data: stats, isLoading: statsLoading } = useDashboardStats({
     enabled: Boolean(canSeeTeamBoard) && isOnline,
   })
-  const [openOwnOpen, setOpenOwnOpen] = useState(false)
-  const [openOtherOpen, setOpenOtherOpen] = useState(false)
 
-  const activeShifts: DashboardActiveShift[] = useMemo(() => {
-    if (stats?.activeShifts?.length) return stats.activeShifts
-    return cachedOpenShifts.map((shift) => ({
-      id: shift.id,
-      employeeName: shift.employeeName,
-      location: shift.location,
-      startTime: shift.startTime,
-      date: shift.date,
-      durationMinutes: shift.durationRounded ?? shift.durationRaw ?? 0,
-    }))
-  }, [stats?.activeShifts, cachedOpenShifts])
+  const [ownOpen, setOwnOpen] = useState(false)
+  const [otherOpen, setOtherOpen] = useState(false)
+  const [pickCloseOpen, setPickCloseOpen] = useState(false)
+  const [closeTarget, setCloseTarget] = useState<Shift | null>(null)
+
+  const ownShift =
+    openShifts.find((s) => isOwnShift(s, user?.id, user?.employeeCode)) ?? null
+  const othersOpen = useMemo(
+    () => openShifts.filter((s) => !isOwnShift(s, user?.id, user?.employeeCode)),
+    [openShifts, user?.employeeCode, user?.id],
+  )
+  const teamShifts = useMemo(() => {
+    if (openShifts.length > 0) return openShifts
+    return (stats?.activeShifts ?? []).map(dashboardToShift)
+  }, [openShifts, stats?.activeShifts])
 
   const quickLinks = useMemo(
-    () =>
-      QUICK_LINK_DEFS.filter((link) => hasSection(sections, link.section, role)),
+    () => QUICK_LINKS.filter((l) => hasSection(sections, l.section, role)),
     [sections, role],
   )
+  const subtitle = formatMyShiftSubtitle(user)
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
-      <GuideNudgeBanner />
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Моя смена</h1>
-        <p className="text-sm text-muted-foreground">
-          {canSeeTeamBoard
-            ? 'Смена и быстрые действия'
-            : 'Открытие и закрытие собственной смены'}
-          {user?.employeeCode ? ` · ${user.employeeCode}` : ''}
-        </p>
-      </div>
+      {embedded ? null : <GuideNudgeBanner />}
+      {embedded ? null : (
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Моя смена</h1>
+          <p className="text-sm text-muted-foreground">
+            {canSeeTeamBoard
+              ? 'Смена и быстрые действия'
+              : 'Открытие и закрытие собственной смены'}
+            {subtitle ? ` · ${subtitle}` : ''}
+          </p>
+        </div>
+      )}
 
-      <RoleSectionHelp section="моя смена" items={myShiftHelp} guideSection="my-shift" />
+      {embedded ? null : (
+        <RoleSectionHelp section="моя смена" items={myShiftHelp} guideSection="my-shift" />
+      )}
+
+      {canOpenOwn || canCloseOwn ? (
+        <CurrentShiftCard
+          shift={ownShift}
+          isLoading={openLoading}
+          onStart={() => setOwnOpen(true)}
+          onFinish={setCloseTarget}
+        />
+      ) : null}
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
-        {canOpenOwn ? (
-          <Button
-            type="button"
-            onClick={() => setOpenOwnOpen(true)}
-            className="min-h-14 w-full flex-1 whitespace-normal px-4 py-3 text-base leading-snug bg-primary hover:bg-primary-hover text-primary-foreground lg:min-h-12 lg:whitespace-nowrap"
-          >
-            <User className="size-5 shrink-0" />
-            Открыть свою смену
-          </Button>
-        ) : null}
         {canOpenOthers ? (
           <Button
             type="button"
             variant="outline"
-            onClick={() => setOpenOtherOpen(true)}
+            onClick={() => setOtherOpen(true)}
             className="min-h-14 w-full flex-1 whitespace-normal px-4 py-3 text-base leading-snug lg:min-h-12 lg:whitespace-nowrap"
           >
             <Play className="size-5 shrink-0" />
             Открыть смену за сотрудника
           </Button>
         ) : null}
+        {canCloseOthers ? (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={othersOpen.length === 0}
+            onClick={() => setPickCloseOpen(true)}
+            className="min-h-14 w-full flex-1 whitespace-normal px-4 py-3 text-base leading-snug lg:min-h-12 lg:whitespace-nowrap"
+          >
+            <Square className="size-5 shrink-0" />
+            Закрыть смену за сотрудника
+          </Button>
+        ) : null}
       </div>
 
       {canSeeTeamBoard ? (
-        <Card>
-          <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="text-base font-semibold">Кто сейчас работает</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <StaleCacheNotice detail="Офлайн: показан кэш открытых смен — актуальный дашборд только онлайн." />
-            {isLoading && isOnline ? (
-              <SkeletonTable rows={3} columns={3} />
-            ) : activeShifts.length === 0 ? (
-              <EmptyState
-                icon={Users}
-                title="Сейчас никто не работает"
-                description={
-                  !isOnline
-                    ? 'Офлайн: список из кэша пуст. Откройте приложение онлайн, чтобы обновить.'
-                    : canOpenOthers
-                      ? 'Откройте смену за сотрудника'
-                      : 'Откройте свою смену, когда начнёте работу'
-                }
-                action={
-                  canOpenOthers
-                    ? {
-                        label: 'Открыть смену за сотрудника',
-                        onClick: () => setOpenOtherOpen(true),
-                      }
-                    : canOpenOwn
-                      ? {
-                          label: 'Открыть свою смену',
-                          onClick: () => setOpenOwnOpen(true),
-                        }
-                      : undefined
-                }
-              />
-            ) : (
-              <div className="space-y-3">
-                {activeShifts.map((shift) => (
-                  <article
-                    key={shift.id}
-                    className="rounded-lg border border-border bg-surface p-4"
-                  >
-                    <p className="font-medium text-foreground">{shift.employeeName}</p>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-muted-foreground">
-                      <span>Объект</span>
-                      <span className="text-right text-foreground">{shift.location}</span>
-                      <span>Начало</span>
-                      <span className="text-right text-foreground">
-                        {formatShiftTime(shift.startTime)}
-                      </span>
-                      <span>Отработано</span>
-                      <span className="text-right text-foreground">
-                        <ActiveShiftLiveDuration shift={shift} />
-                      </span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <ManagerTeamBoardCard
+          shifts={teamShifts}
+          isLoading={Boolean(statsLoading && isOnline && openLoading)}
+          isOnline={isOnline}
+          canOpenOthers={canOpenOthers}
+          canOpenOwn={canOpenOwn}
+          canCloseOthers={canCloseOthers}
+          currentUserId={user?.id}
+          currentEmployeeCode={user?.employeeCode}
+          onOpenOther={() => setOtherOpen(true)}
+          onOpenOwn={() => setOwnOpen(true)}
+          onCloseShift={setCloseTarget}
+        />
       ) : null}
 
       {quickLinks.length > 0 ? (
@@ -202,16 +208,26 @@ export function ManagerMyShiftView() {
         </section>
       ) : null}
 
-      <OpenShiftModal
-        open={openOwnOpen}
-        onClose={() => setOpenOwnOpen(false)}
-        selectEmployee={false}
+      <OpenShiftModal open={ownOpen} onClose={() => setOwnOpen(false)} selectEmployee={false} />
+      <OpenShiftModal open={otherOpen} onClose={() => setOtherOpen(false)} selectEmployee />
+      <CloseShiftForEmployeeDialog
+        open={pickCloseOpen}
+        shifts={othersOpen}
+        onClose={() => setPickCloseOpen(false)}
+        onSelect={setCloseTarget}
       />
-      <OpenShiftModal
-        open={openOtherOpen}
-        onClose={() => setOpenOtherOpen(false)}
-        selectEmployee
-      />
+      {closeTarget ? (
+        <CloseShiftModal
+          shiftId={closeTarget.id}
+          employeeId={closeTarget.employeeId ?? user?.id}
+          startTime={closeTarget.startTime}
+          shiftDate={closeTarget.date}
+          equipmentName={closeTarget.equipment || undefined}
+          equipmentMeterType={closeTarget.equipmentMeterType}
+          open={Boolean(closeTarget)}
+          onClose={() => setCloseTarget(null)}
+        />
+      ) : null}
     </div>
   )
 }

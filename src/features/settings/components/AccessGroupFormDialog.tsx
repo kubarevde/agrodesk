@@ -9,7 +9,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { AccessGroup } from '@/features/settings/accessGroupHooks'
-import { syncActionsWithSectionToggle } from '@/lib/permissionActions'
+import { ACTION_UI_GROUPS, syncActionsWithSectionToggle } from '@/lib/permissionActions'
 import type { Employee } from '@/types'
 
 type Draft = {
@@ -66,8 +66,13 @@ export function AccessGroupFormDialog({
               id="group-name"
               value={draft.name}
               onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-              disabled={Boolean(editing?.is_system)}
             />
+            {editing?.is_system ? (
+              <p className="text-xs text-muted-foreground">
+                Системная предустановка: можно изменить отображаемое название. Код группы (
+                {editing.code ?? '—'}) и права не меняются.
+              </p>
+            ) : null}
           </div>
 
           <fieldset className="space-y-2">
@@ -104,28 +109,43 @@ export function AccessGroupFormDialog({
             </ul>
           </fieldset>
 
-          <fieldset className="space-y-2">
+          <fieldset className="space-y-3">
             <legend className="text-sm font-medium text-foreground">Действия</legend>
-            <ul className="grid max-h-40 gap-1 overflow-y-auto">
-              {actions.map((action) => (
-                <li key={action.key}>
-                  <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-border px-2 py-2 text-sm">
-                    <input
-                      type="checkbox"
-                      className="size-4 accent-primary"
-                      checked={draft.actions.includes(action.key)}
-                      onChange={() =>
-                        setDraft((d) => ({
-                          ...d,
-                          actions: toggleInList(d.actions, action.key),
-                        }))
-                      }
-                    />
-                    <span className="min-w-0 flex-1 break-words">{action.label}</span>
-                  </label>
-                </li>
-              ))}
-            </ul>
+            <div className="max-h-64 space-y-3 overflow-y-auto">
+              {ACTION_UI_GROUPS.map((group) => {
+                const groupActions = group.actions
+                  .map((key) => actions.find((a) => a.key === key))
+                  .filter((item): item is CatalogItem => Boolean(item))
+                if (groupActions.length === 0) return null
+                return (
+                  <div key={group.id} className="space-y-1">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {group.label}
+                    </p>
+                    <ul className="grid gap-1">
+                      {groupActions.map((action) => (
+                        <li key={action.key}>
+                          <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-border px-2 py-2 text-sm">
+                            <input
+                              type="checkbox"
+                              className="size-4 accent-primary"
+                              checked={draft.actions.includes(action.key)}
+                              onChange={() =>
+                                setDraft((d) => ({
+                                  ...d,
+                                  actions: toggleInList(d.actions, action.key),
+                                }))
+                              }
+                            />
+                            <span className="min-w-0 flex-1 break-words">{action.label}</span>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )
+              })}
+            </div>
           </fieldset>
 
           <fieldset className="space-y-2">

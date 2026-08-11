@@ -150,6 +150,9 @@ async def get_or_create_demo_org(session) -> Organization:
                 settings['timezone'] = DEFAULT_TIMEZONE
                 org.settings = settings
                 changed = True
+            if not org.region:
+                org.region = 'RU-TOM'
+                changed = True
             if changed:
                 session.add(org)
                 await session.commit()
@@ -163,6 +166,7 @@ async def get_or_create_demo_org(session) -> Organization:
         plan='trial',
         is_active=True,
         max_employees=50,
+        region='RU-TOM',
         settings={'timezone': DEFAULT_TIMEZONE},
     )
     session.add(org)
@@ -173,29 +177,41 @@ async def get_or_create_demo_org(session) -> Organization:
 
 
 async def seed_locations(session, org_id) -> None:
-    if not await is_table_empty(session, Location):
-        await update_field_seed(session, org_id)
-        return
+    from app.services.field_work_location import ensure_field_work_location
 
-    session.add_all(
-        [
-            Location(
-                org_id=org_id,
-                name=name,
-                description=description,
-                kind='object',
-                is_active=True,
-            )
-            for name, description in LOCATIONS
-        ]
+    # Migration 053 may insert only system «Полевая работа» before seed runs.
+    # Count non-system rows per org — never treat global table emptiness.
+    non_system = await session.scalar(
+        select(func.count())
+        .select_from(Location)
+        .where(Location.org_id == org_id, Location.is_system.is_(False))
     )
-    await session.commit()
+    if (non_system or 0) == 0:
+        session.add_all(
+            [
+                Location(
+                    org_id=org_id,
+                    name=name,
+                    description=description,
+                    kind='object',
+                    is_active=True,
+                )
+                for name, description in LOCATIONS
+            ]
+        )
+        await session.commit()
+        print(f'locations: seeded {len(LOCATIONS)} rows')
+    else:
+        print('locations: skip create (org already has non-system locations)')
+
     await update_field_seed(session, org_id)
-    print(f'locations: seeded {len(LOCATIONS)} rows')
+    await ensure_field_work_location(session, org_id)
+    await session.commit()
 
 
 async def update_field_seed(session, org_id=None) -> None:
     updated = 0
+    created = 0
     for name, crop_type, area_ha, soil_type, latitude, longitude in FIELD_SEED:
         query = select(Location).where(Location.name == name)
         if org_id is not None:
@@ -203,7 +219,17 @@ async def update_field_seed(session, org_id=None) -> None:
         result = await session.execute(query)
         item = result.scalar_one_or_none()
         if item is None:
-            continue
+            if org_id is None:
+                continue
+            item = Location(
+                org_id=org_id,
+                name=name,
+                description=crop_type,
+                kind='field',
+                is_active=True,
+            )
+            session.add(item)
+            created += 1
         item.crop_type = crop_type
         item.crop_code = CROP_NAME_TO_CODE.get(crop_type)
         item.area_ha = area_ha
@@ -215,7 +241,7 @@ async def update_field_seed(session, org_id=None) -> None:
         session.add(item)
         updated += 1
     await session.commit()
-    print(f'fields: updated seed data for {updated} rows')
+    print(f'fields: updated seed data for {updated} rows ({created} created)')
 
 
 async def seed_work_types(session, org_id) -> None:
@@ -391,11 +417,18 @@ async def ensure_test_farm_org(session) -> None:
             plan='trial',
             is_active=True,
             max_employees=20,
+            region='RU-TOM',
         )
         session.add(org)
         await session.commit()
         await session.refresh(org)
         print(f'organizations: created {TEST_ORG_SLUG}')
+    elif not org.region:
+        org.region = 'RU-TOM'
+        session.add(org)
+        await session.commit()
+        await session.refresh(org)
+        print(f'organizations: set region RU-TOM on {TEST_ORG_SLUG}')
 
     admin_result = await session.execute(
         select(Employee).where(

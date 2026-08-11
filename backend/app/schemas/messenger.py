@@ -38,6 +38,7 @@ class ChatListItem(BaseModel):
     members: list[ChatMemberOut] = Field(default_factory=list)
     last_message: ChatMessagePreview | None = None
     unread_count: int = 0
+    is_cross_org: bool = False
 
 
 class ChatDetail(ChatListItem):
@@ -46,7 +47,10 @@ class ChatDetail(ChatListItem):
 
 class DirectChatCreate(BaseModel):
     peer_employee_id: UUID
-
+    cross_org: bool = Field(
+        default=False,
+        description='Admin↔admin DM with an admin of another org (admin only).',
+    )
 
 class MessengerPeerOut(BaseModel):
     """Lightweight org colleague for starting a direct chat (any authenticated employee)."""
@@ -54,6 +58,18 @@ class MessengerPeerOut(BaseModel):
     id: UUID
     full_name: str
     employee_code: str
+
+
+class ExternalOrgAdminOut(BaseModel):
+    """Admin of another organization for cross-org chat picker."""
+
+    org_id: UUID
+    org_name: str
+    org_slug: str
+    region: str | None = None
+    admin_id: UUID
+    admin_name: str
+    admin_code: str
 
 
 class GroupChatCreate(BaseModel):

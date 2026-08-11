@@ -124,7 +124,13 @@ async def test_get_active_shift_filters_own_for_manager():
         if request.url.path == '/api/employees/me':
             return _json_response(
                 200,
-                {'id': EMP_ID, 'full_name': 'Manager', 'role': 'manager', 'employee_code': 'EMP003'},
+                {
+                    'id': EMP_ID,
+                    'full_name': 'Manager',
+                    'role': 'manager',
+                    'employee_code': 'EMP003',
+                    'telegram_id': TG_ID,
+                },
             )
         if request.url.path == '/api/shifts':
             calls.append(dict(request.url.params))
@@ -201,6 +207,26 @@ async def test_open_shift_sends_field_id():
     api = _make_client(handler)
     result = await api.open_shift(
         TG_ID, 'loc-1', 'wt-1', None, None, None, field_id='field-9'
+    )
+    assert result.ok
+
+
+@pytest.mark.asyncio
+async def test_open_shift_sends_implement_id():
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode())
+        assert body['implement_id'] == 'impl-3'
+        return _json_response(201, {'id': 'shift-3', 'status': 'open'})
+
+    api = _make_client(handler)
+    result = await api.open_shift(
+        TG_ID,
+        'loc-1',
+        'wt-1',
+        None,
+        None,
+        None,
+        implement_id='impl-3',
     )
     assert result.ok
 

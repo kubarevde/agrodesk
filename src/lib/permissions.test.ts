@@ -31,8 +31,8 @@ describe('permissions route coverage', () => {
     for (const item of NAV_ITEMS) {
       // Action-gated routes (no Level-1 section) are allowed to map to null.
       if (item.requiredAction) continue
-      // Messenger is open to all roles and is not a Level-1 permission section.
-      if (item.to === '/messenger') {
+      // Workspace / messenger are open hubs (tabs/sections resolved inside the page).
+      if (item.to === '/messenger' || item.to === '/workspace') {
         expect(sectionForPath(item.to)).toBeNull()
         continue
       }
@@ -44,6 +44,11 @@ describe('permissions route coverage', () => {
     expect(sectionForPath('/messenger')).toBeNull()
     expect(canAccessPath('/messenger', 'employee', ['my-shift', 'sharing'])).toBe(true)
     expect(canAccessPath('/messenger/abc', 'employee', [])).toBe(true)
+  })
+
+  it('allows workspace hub without a Level-1 section key', () => {
+    expect(sectionForPath('/workspace')).toBeNull()
+    expect(canAccessPath('/workspace', 'employee', ['my-shift', 'sharing'])).toBe(true)
   })
 })
 
@@ -58,10 +63,10 @@ describe('resolveHomeRoute', () => {
     )
   })
 
-  it('uses my-shift for employee by default', () => {
+  it('uses workspace for employee by default (my-shift home)', () => {
     expect(
       resolveHomeRoute('employee', ['my-shift', 'sharing', 'purchase-planner']),
-    ).toBe('/my-shift')
+    ).toBe('/workspace')
   })
 
   it('falls back to no-access when nothing is granted', () => {
@@ -93,6 +98,12 @@ describe('canAccessPath / filterNavBySections', () => {
     expect(canAccessPath('/purchase-planner', 'manager', ['purchase-planner'])).toBe(true)
   })
 
+  it('allows analytics grant to open expenses path', () => {
+    expect(canAccessPath('/expenses', 'manager', ['analytics'])).toBe(true)
+    expect(canAccessPath('/expenses', 'manager', ['expenses'])).toBe(true)
+    expect(canAccessPath('/expenses', 'manager', ['reports'])).toBe(false)
+  })
+
   it('filterNavBySections matches canAccessPath', () => {
     const allowed = ['my-shift', 'sharing', 'fields']
     const items = [
@@ -109,15 +120,16 @@ describe('getNavGroups for employee', () => {
   it('shows only defaults while permissions are loading', () => {
     const groups = getNavGroups('employee', undefined)
     const paths = groups.flatMap((g) => g.items.map((i) => i.to))
-    expect(paths).toEqual(['/my-shift', '/messenger', '/sharing'])
+    expect(paths).toEqual(['/workspace', '/sharing'])
   })
 
   it('shows granted sections after permissions load', () => {
     const allowed = ['my-shift', 'sharing', 'fields', 'reports']
     const paths = getNavItems('employee', allowed).map((i) => i.to)
+    expect(paths).toContain('/workspace')
     expect(paths).toContain('/fields')
     expect(paths).toContain('/reports')
-    expect(paths).toContain('/messenger')
+    expect(paths).not.toContain('/messenger')
     expect(paths).not.toContain('/employees')
   })
 
@@ -125,7 +137,7 @@ describe('getNavGroups for employee', () => {
     const allowed = ['my-shift', 'sharing', 'inventory']
     const sidebar = getNavItems('employee', allowed).map((i) => i.to)
     const home = getNavItems('employee', allowed)
-      .filter((i) => i.to !== '/my-shift')
+      .filter((i) => i.to !== '/workspace')
       .map((i) => i.to)
     expect(home.every((to) => sidebar.includes(to))).toBe(true)
     expect(home).toContain('/inventory')
@@ -142,7 +154,7 @@ describe('getNavGroups for employee', () => {
     expect(withManage).toContain('/shipment-requests')
   })
 
-  it('shows my shipments only with execute action', () => {
+  it('keeps my TMC requests inside workspace (no separate top-level nav)', () => {
     const without = getNavItems('employee', ['my-shift', 'sharing'], []).map((i) => i.to)
     expect(without).not.toContain('/shipment-requests/my')
     const withExecute = getNavItems(
@@ -150,7 +162,8 @@ describe('getNavGroups for employee', () => {
       ['my-shift', 'sharing'],
       ['shipment_requests.execute'],
     ).map((i) => i.to)
-    expect(withExecute).toContain('/shipment-requests/my')
+    expect(withExecute).toContain('/workspace')
+    expect(withExecute).not.toContain('/shipment-requests/my')
     expect(withExecute).not.toContain('/shipment-requests')
   })
 })

@@ -14,8 +14,8 @@ from app.config import settings
 
 PREV_REVISION = '038_shipment_cancel_reason'
 # Domain tables land in 039; 040 relaxes category_id; 041 adds inventory↔market map.
-HEAD_REVISION = '041_mkt_inv_cat_map'
 DOMAIN_REVISION = '039_marketplace_domain'
+MAPPING_REVISION = '041_mkt_inv_cat_map'
 DOMAIN_TABLES = (
     'market_categories',
     'market_seller_profiles',
@@ -156,44 +156,52 @@ def test_marketplace_migration_upgrade_downgrade():
     """039+ adds market_* tables; 041 adds mapping; downgrade to 038 removes them."""
     cfg = _alembic_config()
 
-    command.upgrade(cfg, 'head')
-    after_head = asyncio.run(_schema_snapshot())
-    assert after_head['revision'] == HEAD_REVISION
-    for table in TABLES:
-        assert table in after_head['tables'], f'{table} missing after upgrade head'
-    for table, indexes in EXPECTED_INDEXES.items():
-        present = after_head['indexes'].get(table, set())
-        assert indexes.issubset(present), f'{table} indexes missing: {indexes - present}'
-    for table, cols in REQUIRED_COLUMNS.items():
-        assert cols.issubset(after_head['columns'][table]), (
-            f'{table} columns missing: {cols - after_head["columns"][table]}'
-        )
-    assert all(after_head['control'].values())
-    assert 'source_type' not in after_head['inventory_cols']
-    assert 'marketplace_enabled' not in after_head['inventory_cols']
-    assert 'market_category_id' not in after_head['inventory_cols']
+    try:
+        command.upgrade(cfg, 'head')
+        after_head = asyncio.run(_schema_snapshot())
+        assert after_head['revision'] != PREV_REVISION
+        # Head is past 041 — mapping table must exist at head.
+        assert MAPPING_TABLE in after_head['tables']
+        for table in TABLES:
+            assert table in after_head['tables'], f'{table} missing after upgrade head'
+        for table, indexes in EXPECTED_INDEXES.items():
+            present = after_head['indexes'].get(table, set())
+            assert indexes.issubset(present), f'{table} indexes missing: {indexes - present}'
+        for table, cols in REQUIRED_COLUMNS.items():
+            assert cols.issubset(after_head['columns'][table]), (
+                f'{table} columns missing: {cols - after_head["columns"][table]}'
+            )
+        assert all(after_head['control'].values())
+        assert 'source_type' not in after_head['inventory_cols']
+        assert 'marketplace_enabled' not in after_head['inventory_cols']
+        assert 'market_category_id' not in after_head['inventory_cols']
 
-    # 040: category_id must be nullable for draft imports
-    engine_cols = after_head['columns']['market_listings']
-    assert 'category_id' in engine_cols
+        # 040: category_id must be nullable for draft imports
+        engine_cols = after_head['columns']['market_listings']
+        assert 'category_id' in engine_cols
 
-    command.downgrade(cfg, PREV_REVISION)
-    after_down = asyncio.run(_schema_snapshot())
-    assert after_down['revision'] == PREV_REVISION
-    for table in TABLES:
-        assert table not in after_down['tables'], f'{table} still present after downgrade'
-    assert all(after_down['control'].values())
+        command.downgrade(cfg, PREV_REVISION)
+        after_down = asyncio.run(_schema_snapshot())
+        assert after_down['revision'] == PREV_REVISION
+        for table in TABLES:
+            assert table not in after_down['tables'], f'{table} still present after downgrade'
+        assert all(after_down['control'].values())
 
-    command.upgrade(cfg, DOMAIN_REVISION)
-    at_domain = asyncio.run(_schema_snapshot())
-    assert at_domain['revision'] == DOMAIN_REVISION
-    for table in DOMAIN_TABLES:
-        assert table in at_domain['tables']
-    assert MAPPING_TABLE not in at_domain['tables']
+        command.upgrade(cfg, DOMAIN_REVISION)
+        at_domain = asyncio.run(_schema_snapshot())
+        assert at_domain['revision'] == DOMAIN_REVISION
+        for table in DOMAIN_TABLES:
+            assert table in at_domain['tables']
+        assert MAPPING_TABLE not in at_domain['tables']
 
-    command.upgrade(cfg, 'head')
-    after_up = asyncio.run(_schema_snapshot())
-    assert after_up['revision'] == HEAD_REVISION
-    for table in TABLES:
-        assert table in after_up['tables']
-    assert all(after_up['control'].values())
+        command.upgrade(cfg, MAPPING_REVISION)
+        at_map = asyncio.run(_schema_snapshot())
+        assert at_map['revision'] == MAPPING_REVISION
+        assert MAPPING_TABLE in at_map['tables']
+    finally:
+        command.upgrade(cfg, 'head')
+        after_up = asyncio.run(_schema_snapshot())
+        assert after_up['revision'] != PREV_REVISION
+        for table in TABLES:
+            assert table in after_up['tables']
+        assert all(after_up['control'].values())

@@ -83,6 +83,11 @@ export function planFromApi(raw: ApiRecord): AgroPlan {
     advisories: Array.isArray(raw.advisories)
       ? raw.advisories.map((item) => advisoryFromApi(item as ApiRecord))
       : [],
+    fieldPlantingId: raw.field_planting_id != null ? String(raw.field_planting_id) : null,
+    cropCode: raw.crop_code != null ? String(raw.crop_code) : null,
+    cropName: raw.crop_name != null ? String(raw.crop_name) : null,
+    varietyId: raw.variety_id != null ? String(raw.variety_id) : null,
+    varietyName: raw.variety_name != null ? String(raw.variety_name) : null,
   }
 }
 
@@ -153,6 +158,11 @@ export function planFromStored(plan: StoredAgroPlan): AgroPlan {
     closedAt: plan.closed_at ?? null,
     closeNote: plan.close_note ?? null,
     advisories: [],
+    fieldPlantingId: null,
+    cropCode: null,
+    cropName: null,
+    varietyId: null,
+    varietyName: null,
   }
 }
 
@@ -192,5 +202,8 @@ export function planCreateToApi(
     implement_id: input.implementId || undefined,
     employee_id: input.employeeId || undefined,
     notes: input.notes || undefined,
+    field_planting_id: input.fieldPlantingId || null,
+    crop_code: input.cropCode || null,
+    variety_id: input.varietyId || null,
   }
 }

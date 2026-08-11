@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useCurrentUser } from '@/features/auth/hooks'
 import {
   GUIDE_VERSION,
   loadGuideProgress,
@@ -7,17 +8,41 @@ import {
   type GuideProgress,
 } from './guideStorage'
 
-export function useGuideProgress() {
-  const [progress, setProgress] = useState<GuideProgress>(() => loadGuideProgress())
+const EMPTY: GuideProgress = {
+  version: GUIDE_VERSION,
+  dismissedAt: null,
+  completedAt: null,
+  stepIndex: 0,
+  lastSectionId: null,
+  firstLoginRedirectAt: null,
+}
 
-  const persist = useCallback((next: GuideProgress) => {
-    saveGuideProgress(next)
-    setProgress(next)
-  }, [])
+export function useGuideProgress() {
+  const { data: user } = useCurrentUser()
+  const employeeId = user?.id
+  const [progress, setProgress] = useState<GuideProgress>(EMPTY)
+
+  useEffect(() => {
+    if (!employeeId) {
+      setProgress(EMPTY)
+      return
+    }
+    setProgress(loadGuideProgress(employeeId))
+  }, [employeeId])
+
+  const persist = useCallback(
+    (next: GuideProgress) => {
+      if (!employeeId) return
+      saveGuideProgress(employeeId, next)
+      setProgress(next)
+    },
+    [employeeId],
+  )
 
   const setStepIndex = useCallback(
     (stepIndex: number, lastSectionId?: string | null) => {
-      const current = loadGuideProgress()
+      if (!employeeId) return
+      const current = loadGuideProgress(employeeId)
       persist({
         ...current,
         version: GUIDE_VERSION,
@@ -26,38 +51,45 @@ export function useGuideProgress() {
           lastSectionId !== undefined ? lastSectionId : current.lastSectionId,
       })
     },
-    [persist],
+    [employeeId, persist],
   )
 
   const complete = useCallback(() => {
-    const current = loadGuideProgress()
+    if (!employeeId) return
+    const current = loadGuideProgress(employeeId)
     persist({
       version: GUIDE_VERSION,
       dismissedAt: null,
       completedAt: new Date().toISOString(),
       stepIndex: 0,
       lastSectionId: current.lastSectionId,
+      firstLoginRedirectAt: current.firstLoginRedirectAt,
     })
-  }, [persist])
+  }, [employeeId, persist])
 
   const dismissNudge = useCallback(() => {
-    const current = loadGuideProgress()
+    if (!employeeId) return
+    const current = loadGuideProgress(employeeId)
     persist({
       ...current,
       version: GUIDE_VERSION,
       dismissedAt: new Date().toISOString(),
     })
-  }, [persist])
+  }, [employeeId, persist])
 
   const restart = useCallback(() => {
+    if (!employeeId) return
+    const current = loadGuideProgress(employeeId)
     persist({
       version: GUIDE_VERSION,
       dismissedAt: null,
       completedAt: null,
       stepIndex: 0,
       lastSectionId: null,
+      // Keep one-time login redirect so replaying the guide does not re-hijack login.
+      firstLoginRedirectAt: current.firstLoginRedirectAt ?? new Date().toISOString(),
     })
-  }, [persist])
+  }, [employeeId, persist])
 
   return {
     progress,

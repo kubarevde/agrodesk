@@ -14,6 +14,7 @@ import {
   TOKEN_KEY,
 } from '@/features/auth/utils'
 import type { SelectedOrg } from '@/features/auth/selectedOrg'
+import { consumeFirstLoginGuideRedirect } from '@/features/help/guideStorage'
 
 interface LoginCredentials {
   email: string
@@ -53,14 +54,14 @@ export function usePublicOrgs() {
   return useQuery({
     queryKey: ['auth', 'orgs'],
     queryFn: async (): Promise<SelectedOrg[]> => {
-      const { data } = await api.get<Array<{ id: string; name: string; slug: string }>>(
-        '/api/auth/orgs',
-        { timeout: 10_000 },
-      )
+      const { data } = await api.get<
+        Array<{ id: string; name: string; slug: string; region?: string | null }>
+      >('/api/auth/orgs', { timeout: 10_000 })
       return data.map((item) => ({
         id: item.id,
         name: item.name,
         slug: item.slug,
+        region: item.region ?? null,
       }))
     },
     staleTime: 60_000,
@@ -87,6 +88,10 @@ export function useLogin() {
       const perms = queryClient.getQueryData<{ allowedSections: string[] }>(
         AUTH_PERMISSIONS_QUERY_KEY,
       )
+      if (consumeFirstLoginGuideRedirect(user.id)) {
+        void navigate({ to: '/support/guide' })
+        return
+      }
       void navigate({
         to: resolveHomeRoute(user.role, perms?.allowedSections ?? []),
       })

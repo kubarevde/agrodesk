@@ -35,6 +35,7 @@ from app.schemas.messenger import (
     ChatReadState,
     ChatReadUpdate,
     DirectChatCreate,
+    ExternalOrgAdminOut,
     GroupChatCreate,
     GroupChatUpdate,
     MessengerPeerOut,
@@ -91,6 +92,16 @@ async def _employee_from_bearer_or_query(
             headers={'WWW-Authenticate': 'Bearer'},
         )
     return employee
+
+
+async def _publish_to_chat_members(*, chat, event: dict) -> None:
+    """Fan-out SSE to each member in their home org (supports cross-org DMs)."""
+    for member_org_id, employee_id in svc.member_publish_targets(chat):
+        await hub.publish(
+            org_id=member_org_id,
+            employee_ids=[employee_id],
+            event=event,
+        )
 
 
 async def _publish_to_members(
@@ -180,6 +191,33 @@ async def list_peers(
     ]
 
 
+@router.get('/external-admins', response_model=list[ExternalOrgAdminOut])
+async def list_external_admins(
+    request: Request,
+    q: str | None = Query(None, description='Search by org name/slug or admin name'),
+    region: str | None = Query(None, description='RF region catalog code'),
+    db: AsyncSession = Depends(get_db),
+    current: Employee = Depends(require_admin),
+) -> list[ExternalOrgAdminOut]:
+    """Admins of other organizations — for cross-org DMs (admin only)."""
+    org_id = get_org_id(request)
+    rows = await svc.list_external_org_admins(
+        db, current_org_id=org_id, query=q, region=region
+    )
+    return [
+        ExternalOrgAdminOut(
+            org_id=org.id,
+            org_name=org.name,
+            org_slug=org.slug,
+            region=org.region,
+            admin_id=admin.id,
+            admin_name=admin.full_name,
+            admin_code=admin.employee_code,
+        )
+        for org, admin in rows
+    ]
+
+
 @router.post('/chats/direct', response_model=ChatDetail, status_code=status.HTTP_200_OK)
 async def get_or_create_direct_chat(
     payload: DirectChatCreate,
@@ -188,19 +226,29 @@ async def get_or_create_direct_chat(
     current: Employee = Depends(get_current_employee),
 ) -> ChatDetail:
     org_id = get_org_id(request)
-    chat = await svc.get_or_create_direct_chat(
-        db,
-        org_id=org_id,
-        current=current,
-        peer_employee_id=payload.peer_employee_id,
-    )
+    if payload.cross_org:
+        if current.role != EmployeeRole.admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail='Межорганизационный чат доступен только администратору',
+            )
+        chat = await svc.get_or_create_cross_org_direct_chat(
+            db,
+            current=current,
+            peer_employee_id=payload.peer_employee_id,
+        )
+    else:
+        chat = await svc.get_or_create_direct_chat(
+            db,
+            org_id=org_id,
+            current=current,
+            peer_employee_id=payload.peer_employee_id,
+        )
     chat_id = chat.id
     await db.commit()
-    chat = await svc.get_chat_or_404(db, chat_id, org_id)
-    member_ids = svc.active_member_ids(chat)
-    await _publish_to_members(
-        org_id=org_id,
-        member_ids=member_ids,
+    chat = await svc.get_chat_for_participant(db, chat_id=chat_id, employee_id=current.id)
+    await _publish_to_chat_members(
+        chat=chat,
         event=build_event('new_chat', chat_id=str(chat_id), chat_type=chat.type),
     )
     items = await svc.build_chat_list_items(db, org_id=org_id, viewer=current, chats=[chat])
@@ -320,7 +368,7 @@ async def list_messages(
     current: Employee = Depends(get_current_employee),
 ) -> ChatMessagesPage:
     org_id = get_org_id(request)
-    await svc.get_chat_or_404(db, chat_id, org_id)
+    chat = await svc.get_chat_for_participant(db, chat_id=chat_id, employee_id=current.id)
     await svc.require_active_member(
         db, chat_id=chat_id, employee_id=current.id, org_id=org_id
     )
@@ -332,6 +380,7 @@ async def list_messages(
         limit=limit,
         before=before,
         before_id=before_id,
+        message_org_id=chat.org_id,
     )
 
 
@@ -348,12 +397,11 @@ async def send_message(
     current: Employee = Depends(get_current_employee),
 ) -> ChatMessageOut:
     org_id = get_org_id(request)
-    chat = await svc.get_chat_or_404(db, chat_id, org_id)
+    chat = await svc.get_chat_for_participant(db, chat_id=chat_id, employee_id=current.id)
     await svc.require_active_member(
         db, chat_id=chat_id, employee_id=current.id, org_id=org_id
     )
     recipient_ids = svc.active_member_ids(chat, exclude=current.id)
-    all_member_ids = svc.active_member_ids(chat)
     message = await svc.send_message(
         db,
         org_id=org_id,
@@ -365,9 +413,8 @@ async def send_message(
     await db.commit()
 
     out = svc.message_out(message, delivery_status='delivered')
-    await _publish_to_members(
-        org_id=org_id,
-        member_ids=all_member_ids,
+    await _publish_to_chat_members(
+        chat=chat,
         event=build_event(
             'new_message',
             chat_id=str(chat_id),
@@ -401,7 +448,7 @@ async def mark_read(
     current: Employee = Depends(get_current_employee),
 ) -> ChatReadState:
     org_id = get_org_id(request)
-    chat = await svc.get_chat_or_404(db, chat_id, org_id)
+    chat = await svc.get_chat_for_participant(db, chat_id=chat_id, employee_id=current.id)
     await svc.require_active_member(
         db, chat_id=chat_id, employee_id=current.id, org_id=org_id
     )
@@ -411,11 +458,11 @@ async def mark_read(
         chat_id=chat_id,
         employee_id=current.id,
         last_read_message_id=payload.last_read_message_id,
+        message_org_id=chat.org_id,
     )
     await db.commit()
-    await _publish_to_members(
-        org_id=org_id,
-        member_ids=svc.active_member_ids(chat),
+    await _publish_to_chat_members(
+        chat=chat,
         event=build_event(
             'message_read',
             chat_id=str(chat_id),

@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +9,7 @@ from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_admin, require_manager
 from app.middleware.org_context import get_org_id
 from app.models.employee import Employee, EmployeeRole
+from app.models.organization import Organization
 from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate, LinkTelegramRequest
 from app.services.audit import log_change, model_snapshot
 from app.services.auth import hash_password
@@ -78,9 +79,35 @@ async def get_my_earnings(
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(get_current_employee),
 ):
+    from app.services.org_features import payroll_visible_to_employees
     from app.services.reports import build_employee_earnings
 
-    return await build_employee_earnings(db, current.id, month, get_org_id(request))
+    org_id = get_org_id(request)
+    payload = await build_employee_earnings(db, current.id, month, org_id)
+
+    # Manager/admin always see full monetary data.
+    if current.role in (EmployeeRole.admin, EmployeeRole.manager):
+        return payload
+
+    org = (
+        await db.execute(select(Organization).where(Organization.id == org_id))
+    ).scalar_one_or_none()
+    if org is not None and not payroll_visible_to_employees(org.settings):
+        # Keep shifts/hours; strip money amounts for employees when org hides payroll.
+        shifts = [
+            {k: v for k, v in row.items() if k != 'amount'}
+            for row in payload.get('shifts', [])
+        ]
+        return {
+            'hidden': True,
+            'month': payload.get('month'),
+            'employeeId': payload.get('employeeId'),
+            'employeeName': payload.get('employeeName'),
+            'shiftsCount': payload.get('shiftsCount'),
+            'hours': payload.get('hours'),
+            'shifts': shifts,
+        }
+    return payload
 
 
 @router.get('/{employee_id}', response_model=EmployeeResponse)
@@ -149,8 +176,35 @@ async def create_employee(
     db: AsyncSession = Depends(get_db),
     current: Employee = Depends(require_admin),
 ) -> EmployeeResponse:
+    org_id = get_org_id(request)
+    org_result = await db.execute(select(Organization).where(Organization.id == org_id))
+    org = org_result.scalar_one_or_none()
+    if org is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Организация не найдена',
+        )
+
+    employees_count = int(
+        await db.scalar(
+            select(func.count())
+            .select_from(Employee)
+            .where(Employee.org_id == org_id, Employee.is_active.is_(True))
+        )
+        or 0
+    )
+    if employees_count >= org.max_employees:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f'Достигнут лимит сотрудников организации '
+                f'({employees_count}/{org.max_employees}). '
+                f'Увеличьте лимит в панели суперадмина или удалите неактивных.'
+            ),
+        )
+
     employee = Employee(
-        org_id=get_org_id(request),
+        org_id=org_id,
         employee_code=payload.employee_code,
         full_name=payload.full_name,
         position=payload.position,

@@ -10,10 +10,16 @@ import {
   updateChecklistItem,
   updateRepair,
 } from './api'
+import {
+  applyChecklistDoneToCaches,
+  applyRepairPatchToCaches,
+  mergeChecklistItemIntoCaches,
+} from './lib/checklistCache'
 import type {
   ChecklistItemInput,
   RepairCreatePayload,
   RepairFilters,
+  RepairJournalEntry,
   RepairUpdatePayload,
 } from './types'
 
@@ -48,11 +54,37 @@ export function useUpdateRepair() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: RepairUpdatePayload }) =>
       updateRepair(id, payload),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ['repair-journal'] })
-      toast.success('Запись обновлена')
+    onMutate: async ({ id, payload }) => {
+      await qc.cancelQueries({ queryKey: ['repair-journal'] })
+      const previous = qc.getQueriesData({ queryKey: ['repair-journal'] })
+      const patch: Partial<RepairJournalEntry> = {}
+      if (payload.status !== undefined) patch.status = payload.status
+      if (payload.waitingParts !== undefined) patch.waitingParts = payload.waitingParts
+      if (payload.priority !== undefined) patch.priority = payload.priority
+      if (payload.dateReturned !== undefined) patch.dateReturned = payload.dateReturned
+      if (payload.description !== undefined) patch.description = payload.description
+      if (Object.keys(patch).length > 0) {
+        applyRepairPatchToCaches(qc, id, patch)
+      }
+      return { previous }
     },
-    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось обновить')),
+    onError: (error, _vars, context) => {
+      if (context?.previous) {
+        for (const [key, data] of context.previous) {
+          qc.setQueryData(key, data)
+        }
+      }
+      toast.error(apiErrorMessage(error, 'Не удалось обновить'))
+    },
+    onSuccess: (entry, vars) => {
+      applyRepairPatchToCaches(qc, vars.id, entry)
+      if (vars.payload.createExpense || vars.payload.status === 'done') {
+        void qc.invalidateQueries({ queryKey: ['repair-journal'] })
+      }
+      toast.success(
+        vars.payload.status === 'done' ? 'Запись обновлена' : 'Изменения сохранены',
+      )
+    },
   })
 }
 
@@ -61,10 +93,25 @@ export function useToggleChecklistItem() {
   return useMutation({
     mutationFn: ({ itemId, isDone }: { itemId: string; isDone: boolean }) =>
       updateChecklistItem(itemId, { isDone }),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ['repair-journal'] })
+    onMutate: async ({ itemId, isDone }) => {
+      await qc.cancelQueries({ queryKey: ['repair-journal'] })
+      const previous = qc.getQueriesData({ queryKey: ['repair-journal'] })
+      applyChecklistDoneToCaches(qc, itemId, isDone)
+      return { previous }
     },
-    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось обновить пункт')),
+    onError: (error, _vars, context) => {
+      if (context?.previous) {
+        for (const [key, data] of context.previous) {
+          qc.setQueryData(key, data)
+        }
+      }
+      toast.error(apiErrorMessage(error, 'Не удалось обновить пункт'))
+    },
+    onSuccess: (item) => {
+      mergeChecklistItemIntoCaches(qc, item)
+    },
+    // Do not invalidate here: refetch can briefly restore stale checklist rows and
+    // undo the optimistic UI while the detail dialog is still open.
   })
 }
 
@@ -73,7 +120,8 @@ export function useAddChecklistItem() {
   return useMutation({
     mutationFn: ({ repairId, item }: { repairId: string; item: ChecklistItemInput }) =>
       addChecklistItem(repairId, item),
-    onSuccess: async () => {
+    onSuccess: async (item) => {
+      mergeChecklistItemIntoCaches(qc, item)
       await qc.invalidateQueries({ queryKey: ['repair-journal'] })
       toast.success('Пункт добавлен')
     },

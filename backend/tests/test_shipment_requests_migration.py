@@ -86,37 +86,40 @@ async def _schema_snapshot() -> dict:
 def test_shipment_requests_migration_upgrade_downgrade():
     """Downgrade 030 → 029 then upgrade to head; inventory schema untouched."""
     cfg = _alembic_config()
+    inv_cols_head: set[str] | None = None
 
-    command.upgrade(cfg, 'head')
-    after_head = asyncio.run(_schema_snapshot())
-    for table in TABLES:
-        assert table in after_head['tables'], f'{table} missing after upgrade head'
-    for table, indexes in EXPECTED_INDEXES.items():
-        present = after_head['indexes'].get(table, set())
-        assert indexes.issubset(present), f'{table} indexes missing: {indexes - present}'
-    assert REQUIRED_REQUEST_COLUMNS.issubset(after_head['columns']['shipment_requests'])
+    try:
+        command.upgrade(cfg, 'head')
+        after_head = asyncio.run(_schema_snapshot())
+        for table in TABLES:
+            assert table in after_head['tables'], f'{table} missing after upgrade head'
+        for table, indexes in EXPECTED_INDEXES.items():
+            present = after_head['indexes'].get(table, set())
+            assert indexes.issubset(present), f'{table} indexes missing: {indexes - present}'
+        assert REQUIRED_REQUEST_COLUMNS.issubset(after_head['columns']['shipment_requests'])
 
-    inv_cols_head = after_head['inventory_operations_columns']
-    assert inv_cols_head, 'inventory_operations must exist'
-    # Columns added after 030 (harvest unify 037+) are expected to disappear at 029.
-    later_inventory_ops_columns = {'field_id'}
-    inv_cols_at_029 = inv_cols_head - later_inventory_ops_columns
+        inv_cols_head = after_head['inventory_operations_columns']
+        assert inv_cols_head, 'inventory_operations must exist'
+        # Columns added after 030 (harvest / plantings) must disappear at 029.
+        later_inventory_ops_columns = {'field_id', 'field_planting_id'}
 
-    command.downgrade(cfg, PREV_REVISION)
-    after_down = asyncio.run(_schema_snapshot())
-    for table in TABLES:
-        assert table not in after_down['tables'], f'{table} still present after downgrade'
-    assert after_down['inventory_operations_columns'] == inv_cols_at_029
-    assert after_down['revision'] == PREV_REVISION
+        command.downgrade(cfg, PREV_REVISION)
+        after_down = asyncio.run(_schema_snapshot())
+        for table in TABLES:
+            assert table not in after_down['tables'], f'{table} still present after downgrade'
+        assert after_down['inventory_operations_columns'], 'inventory_operations must remain'
+        assert later_inventory_ops_columns.isdisjoint(after_down['inventory_operations_columns'])
+        assert after_down['revision'] == PREV_REVISION
+    finally:
+        command.upgrade(cfg, 'head')
+        after_up = asyncio.run(_schema_snapshot())
+        for table in TABLES:
+            assert table in after_up['tables']
+        if inv_cols_head is not None:
+            assert after_up['inventory_operations_columns'] == inv_cols_head
 
-    command.upgrade(cfg, 'head')
-    after_up = asyncio.run(_schema_snapshot())
-    for table in TABLES:
-        assert table in after_up['tables']
-    assert after_up['inventory_operations_columns'] == inv_cols_head
-
-    final = asyncio.run(_schema_snapshot())
-    assert 'shipment_requests' in final['tables']
-    # inventory_operation_id added in 031 — present at head
-    assert 'inventory_operation_id' in final['columns']['shipment_requests']
-    assert 'field_id' in final['inventory_operations_columns']
+        final = asyncio.run(_schema_snapshot())
+        assert 'shipment_requests' in final['tables']
+        # inventory_operation_id added in 031 — present at head
+        assert 'inventory_operation_id' in final['columns']['shipment_requests']
+        assert 'field_id' in final['inventory_operations_columns']

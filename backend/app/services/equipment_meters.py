@@ -8,7 +8,6 @@ from sqlalchemy.orm import selectinload
 
 from app.models.employee import Employee, EmployeeRole
 from app.models.equipment_log import EquipmentMeterLog
-from app.models.notification import Notification
 from app.models.reference import Equipment
 from app.models.shift import Shift
 
@@ -51,10 +50,14 @@ async def add_equipment_meter_log(
     current = Decimal(str(equipment.current_meter or 0))
     meter_after = current + added
     equipment.current_meter = meter_after
-    if equipment.to_interval is not None and float(equipment.to_interval) > 0:
-        from app.services.maintenance import calculate_next_service_hours
+    # Keep absolute next_to_at from ТО (5.5); only seed when missing.
+    if equipment.next_to_at is None and equipment.to_interval is not None and float(equipment.to_interval) > 0:
+        from app.services.maintenance import resolve_next_to_at
 
-        nxt = calculate_next_service_hours(float(meter_after), float(equipment.to_interval))
+        nxt = resolve_next_to_at(
+            meter_at=float(meter_after),
+            next_to_interval=float(equipment.to_interval),
+        )
         if nxt is not None:
             equipment.next_to_at = Decimal(str(nxt))
 
@@ -113,15 +116,17 @@ async def _create_to_notifications(
             Employee.is_active.is_(True),
         )
     )
+    from app.services.notification_prefs import create_employee_notification
+
     for employee in result.scalars().all():
-        db.add(
-            Notification(
-                employee_id=employee.id,
-                type=notif_type,
-                title=title,
-                body=body,
-                link=link,
-            )
+        await create_employee_notification(
+            db,
+            employee_id=employee.id,
+            notif_type=notif_type,
+            title=title,
+            body=body,
+            link=link,
+            prefs=employee.notification_prefs,
         )
 
 

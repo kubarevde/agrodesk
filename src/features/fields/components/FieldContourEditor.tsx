@@ -3,13 +3,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AttributionControl,
   FeatureGroup,
+  LayersControl,
   MapContainer,
   Marker,
-  Polygon,
-  TileLayer,
   useMap,
 } from 'react-leaflet'
-import { Button } from '@/components/ui/button'
+import { BasemapTileLayers } from '@/components/shared/BasemapTileLayers'
 import { getBasemaps, getDefaultBasemapId } from '@/lib/maps/tiles'
 import '@/lib/maps/setup'
 import {
@@ -23,6 +22,7 @@ import {
   ContourDrawEngine,
   ContourDrawToolbar,
   type ContourDrawApi,
+  type ContourMode,
 } from './ContourDrawControls'
 import { MapLocationSearch, type MapFlyTarget } from './MapLocationSearch'
 
@@ -39,23 +39,27 @@ type FieldContourEditorProps = {
   weatherLat?: number
   weatherLng?: number
   onChange: (next: ContourChange) => void
+  /** Called by parent before form submit to flush in-progress edit into RHF. */
+  flushRef?: React.MutableRefObject<(() => LatLngPair[] | null | void) | null>
 }
 
 const DEFAULT_CENTER: [number, number] = [51.5, 36.5]
 
-function FitBounds({ polygon }: { polygon: LatLngPair[] | null }) {
+/** Fit once when opening a field that already has a contour — not after draw/edit. */
+function FitInitialBounds({ polygon }: { polygon: LatLngPair[] | null }) {
   const map = useMap()
-  const fittedKey = useRef<string | null>(null)
+  const initialPolygon = useRef(polygon)
+  const fitted = useRef(false)
 
   useEffect(() => {
-    if (!polygon || polygon.length < 3) return
-    const key = polygon.map((p) => p.join(',')).join('|')
-    if (fittedKey.current === key) return
-    fittedKey.current = key
-    const bounds = L.latLngBounds(polygon.map(([lat, lng]) => L.latLng(lat, lng)))
+    if (fitted.current) return
+    const poly = initialPolygon.current
+    if (!poly || poly.length < 3) return
+    fitted.current = true
+    const bounds = L.latLngBounds(poly.map(([lat, lng]) => L.latLng(lat, lng)))
     if (!bounds.isValid()) return
     map.fitBounds(bounds, { padding: [24, 24], maxZoom: 16 })
-  }, [map, polygon])
+  }, [map])
 
   return null
 }
@@ -91,19 +95,18 @@ export function FieldContourEditor({
   weatherLat,
   weatherLng,
   onChange,
+  flushRef,
 }: FieldContourEditorProps) {
   const featureGroupRef = useRef<L.FeatureGroup | null>(null)
   const drawApiRef = useRef<ContourDrawApi | null>(null)
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
   const [flyTarget, setFlyTarget] = useState<MapFlyTarget | null>(null)
-  const [drawing, setDrawing] = useState(false)
+  const [mode, setMode] = useState<ContourMode>('idle')
 
   const normalized = useMemo(() => normalizePolygon(polygon ?? null), [polygon])
-  const basemap = useMemo(() => {
-    const id = getDefaultBasemapId() || 'satellite'
-    return getBasemaps().find((b) => b.id === id) ?? getBasemaps()[0]
-  }, [])
+  const basemaps = useMemo(() => getBasemaps(), [])
+  const defaultBasemapId = getDefaultBasemapId()
 
   const safeWeather = isValidLatLng(weatherLat, weatherLng)
     ? ([weatherLat, weatherLng] as [number, number])
@@ -123,6 +126,14 @@ export function FieldContourEditor({
     [],
   )
 
+  useEffect(() => {
+    if (!flushRef) return
+    flushRef.current = () => drawApiRef.current?.flush()
+    return () => {
+      flushRef.current = null
+    }
+  }, [flushRef])
+
   const statusText = normalized
     ? `Контур: ${normalized.length} вершин · площадь ≈ ${polygonAreaHa(normalized)} га`
     : safeWeather
@@ -134,30 +145,23 @@ export function FieldContourEditor({
       <div className="space-y-1">
         <p className="text-sm font-medium text-foreground">Контур</p>
         <p className="text-xs text-muted-foreground">
-          Найдите место на карте → «Начать рисовать» → точки по меже (от 3) → «Завершить».
+          Найдите своё поле на карте, нажмите «Начать рисовать», поставьте точки по границе поля
+          (не меньше трёх) и нажмите «Завершить». Чтобы поправить уже нарисованный контур —
+          «Изменить контур» (двигайте углы), затем «Готово».
         </p>
       </div>
 
-      <MapLocationSearch onSelect={setFlyTarget} />
+      <MapLocationSearch
+        onSelect={setFlyTarget}
+        hint=""
+        placeholder="Населённый пункт, адрес или lat, lng"
+      />
 
       <ContourDrawToolbar
         apiRef={drawApiRef}
-        drawing={drawing}
+        mode={mode}
         hasContour={Boolean(normalized)}
       />
-
-      <div className="hidden justify-end sm:flex">
-        {normalized ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => drawApiRef.current?.clear()}
-          >
-            Очистить контур
-          </Button>
-        ) : null}
-      </div>
 
       <div className="agrodesk-contour-map overflow-hidden rounded-md border border-border bg-card">
         <MapContainer
@@ -168,13 +172,19 @@ export function FieldContourEditor({
           attributionControl={false}
         >
           <AttributionControl position="bottomright" prefix={false} />
-          <TileLayer
-            url={basemap.url}
-            attribution={basemap.attribution}
-            maxZoom={basemap.maxZoom}
-          />
+          <LayersControl position="topright">
+            {basemaps.map((layer) => (
+              <LayersControl.BaseLayer
+                key={layer.id}
+                checked={layer.id === defaultBasemapId}
+                name={layer.name}
+              >
+                <BasemapTileLayers basemap={layer} />
+              </LayersControl.BaseLayer>
+            ))}
+          </LayersControl>
           <FlyToPlace target={flyTarget} />
-          <FitBounds polygon={normalized} />
+          <FitInitialBounds polygon={normalized} />
           <FeatureGroup
             ref={(instance) => {
               featureGroupRef.current = instance
@@ -183,20 +193,10 @@ export function FieldContourEditor({
             <ContourDrawEngine
               featureGroupRef={featureGroupRef}
               apiRef={drawApiRef}
+              polygon={normalized}
               onChange={stableOnChange}
-              onDrawingChange={setDrawing}
+              onModeChange={setMode}
             />
-            {normalized ? (
-              <Polygon
-                positions={normalized}
-                pathOptions={{
-                  color: '#01696F',
-                  fillColor: '#01696F',
-                  fillOpacity: 0.25,
-                  weight: 2,
-                }}
-              />
-            ) : null}
           </FeatureGroup>
           {safeWeather ? <Marker position={safeWeather} /> : null}
         </MapContainer>

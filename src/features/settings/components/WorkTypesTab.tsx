@@ -1,14 +1,9 @@
-import { MoreHorizontal, Pencil, Plus, UserCheck, UserX, Wrench } from 'lucide-react'
+import { Pencil, Plus, UserCheck, UserX, Wrench } from 'lucide-react'
 import { useState } from 'react'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { CardActionsMenu } from '@/components/shared/CardActionsMenu'
 import { SkeletonTable } from '@/components/shared/SkeletonTable'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import {
   Table,
   TableBody,
@@ -59,75 +54,106 @@ export function WorkTypesTab() {
           }}
         />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Название</TableHead>
-                <TableHead>Категория</TableHead>
-                <TableHead>Полевая</TableHead>
-                <TableHead>Статус</TableHead>
-                <TableHead>Действия</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {workTypes.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-medium">{item.name}</TableCell>
-                  <TableCell>{item.category || '—'}</TableCell>
-                  <TableCell>{item.isFieldWork ? 'Да' : 'Нет'}</TableCell>
-                  <TableCell>
-                    <ActiveStatusBadge isActive={item.isActive} />
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        className="inline-flex size-8 items-center justify-center rounded-lg hover:bg-muted"
-                        aria-label="Действия"
-                      >
-                        <MoreHorizontal className="size-4" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setEditing(item)
-                            setFormOpen(true)
-                          }}
-                        >
-                          <Pencil className="size-4" />
-                          Редактировать
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() =>
-                            updateWorkType.mutate({ id: item.id, isActive: !item.isActive })
-                          }
-                        >
-                          {item.isActive ? (
-                            <>
-                              <UserX className="size-4" />
-                              Деактивировать
-                            </>
-                          ) : (
-                            <>
-                              <UserCheck className="size-4" />
-                              Активировать
-                            </>
-                          )}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+        <>
+          <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Название</TableHead>
+                  <TableHead>Категория</TableHead>
+                  <TableHead>Полевая</TableHead>
+                  <TableHead>Статус</TableHead>
+                  <TableHead>Действия</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {workTypes.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell>{item.category || '—'}</TableCell>
+                    <TableCell>{item.isFieldWork ? 'Да' : 'Нет'}</TableCell>
+                    <TableCell>
+                      <ActiveStatusBadge isActive={item.isActive} />
+                    </TableCell>
+                    <TableCell>
+                      <CardActionsMenu
+                        title={item.name}
+                        ariaLabel="Действия"
+                        actions={[
+                          {
+                            id: 'edit',
+                            label: 'Редактировать',
+                            icon: Pencil,
+                            onSelect: () => {
+                              setEditing(item)
+                              setFormOpen(true)
+                            },
+                          },
+                          {
+                            id: 'toggle',
+                            label: item.isActive ? 'Деактивировать' : 'Активировать',
+                            icon: item.isActive ? UserX : UserCheck,
+                            onSelect: () =>
+                              updateWorkType.mutate({ id: item.id, isActive: !item.isActive }),
+                          },
+                        ]}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <ul className="space-y-3 md:hidden">
+            {workTypes.map((item) => (
+              <li key={item.id} className="rounded-lg border border-border bg-surface p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground">{item.name}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {item.category || 'Без категории'}
+                      {' · '}
+                      {item.isFieldWork ? 'Полевая' : 'Не полевая'}
+                    </p>
+                    <div className="mt-2">
+                      <ActiveStatusBadge isActive={item.isActive} />
+                    </div>
+                  </div>
+                  <CardActionsMenu
+                    title={item.name}
+                    ariaLabel="Действия"
+                    actions={[
+                      {
+                        id: 'edit',
+                        label: 'Редактировать',
+                        icon: Pencil,
+                        onSelect: () => {
+                          setEditing(item)
+                          setFormOpen(true)
+                        },
+                      },
+                      {
+                        id: 'toggle',
+                        label: item.isActive ? 'Деактивировать' : 'Активировать',
+                        icon: item.isActive ? UserX : UserCheck,
+                        onSelect: () =>
+                          updateWorkType.mutate({ id: item.id, isActive: !item.isActive }),
+                      },
+                    ]}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       <WorkTypeFormModal
         key={editing?.id ?? 'create'}
         open={formOpen}
         workType={editing}
+        nameSuggestions={workTypes.map((row) => row.name)}
         onClose={() => {
           setFormOpen(false)
           setEditing(null)

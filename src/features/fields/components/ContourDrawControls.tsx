@@ -1,5 +1,5 @@
 import L from 'leaflet'
-import { Check, Pencil, Undo2, X } from 'lucide-react'
+import { Check, Pencil, SquarePen, Undo2, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useMap } from 'react-leaflet'
 import { Button } from '@/components/ui/button'
@@ -9,26 +9,18 @@ import { normalizePolygon, polygonAreaHa, polygonCentroid } from '../geometry'
 
 const VERTEX_ICONS = createContourVertexIcons()
 
-const POLYGON_STYLE = {
-  allowIntersection: false,
-  showArea: false,
-  icon: VERTEX_ICONS.icon,
-  touchIcon: VERTEX_ICONS.touchIcon,
-  shapeOptions: {
-    color: '#01696F',
-    fillColor: '#01696F',
-    fillOpacity: 0.25,
-    weight: 2,
-  },
-}
+export type ContourMode = 'idle' | 'draw' | 'edit'
 
 export type ContourDrawApi = {
-  start: () => void
+  startDraw: () => void
+  startEdit: () => void
   finish: () => void
   undo: () => void
   cancel: () => void
   clear: () => void
-  isDrawing: () => boolean
+  /** Push current FeatureGroup geometry into form state (call before dialog save). */
+  flush: () => LatLngPair[] | null
+  mode: () => ContourMode
 }
 
 type ContourChange = {
@@ -42,8 +34,41 @@ type ContourChange = {
 type ContourDrawEngineProps = {
   featureGroupRef: React.MutableRefObject<L.FeatureGroup | null>
   apiRef: React.MutableRefObject<ContourDrawApi | null>
+  /** Form polygon — synced into the FeatureGroup when idle (no React Polygon duplicate). */
+  polygon: LatLngPair[] | null
+  /** Stroke/fill color for draw + idle polygon (default primary). */
+  pathColor?: string
   onChange: (next: ContourChange) => void
-  onDrawingChange?: (drawing: boolean) => void
+  onModeChange?: (mode: ContourMode) => void
+}
+
+function pathStyleFor(color: string) {
+  return {
+    color,
+    fillColor: color,
+    fillOpacity: 0.25,
+    weight: 2,
+  }
+}
+
+function polygonDrawOptions(color: string) {
+  return {
+    allowIntersection: false,
+    showArea: false,
+    icon: VERTEX_ICONS.icon,
+    touchIcon: VERTEX_ICONS.touchIcon,
+    shapeOptions: pathStyleFor(color),
+  }
+}
+
+function syncGroupPolygon(
+  group: L.FeatureGroup,
+  polygon: LatLngPair[] | null,
+  color: string,
+) {
+  group.clearLayers()
+  if (!polygon || polygon.length < 3) return
+  group.addLayer(L.polygon(polygon, pathStyleFor(color)))
 }
 
 function layerToPairs(layer: L.Layer): LatLngPair[] | null {
@@ -53,196 +78,345 @@ function layerToPairs(layer: L.Layer): LatLngPair[] | null {
   return normalizePolygon(ring.map((ll) => [ll.lat, ll.lng]))
 }
 
+function firstPolygonInGroup(group: L.FeatureGroup): L.Polygon | null {
+  let found: L.Polygon | null = null
+  group.eachLayer((layer) => {
+    if (!found && layer instanceof L.Polygon) found = layer
+  })
+  return found
+}
+
+function readGroupPolygon(group: L.FeatureGroup): LatLngPair[] | null {
+  const layer = firstPolygonInGroup(group)
+  return layer ? layerToPairs(layer) : null
+}
+
 type PolygonDrawer = L.Draw.Polygon & {
   completeShape?: () => void
   deleteLastVertex?: () => void
 }
 
-/** Leaflet.Draw toolbar + imperative API for large mobile buttons. */
+type EditHandler = {
+  enable: () => void
+  disable: () => void
+  enabled: () => boolean
+  save?: () => void
+  revertLayers?: () => void
+}
+
+/**
+ * Draw = new contour only. Edit = move/delete existing vertices (no mid-edge points).
+ * Geometry is emitted on create / vertex change / finish so dialog Save always has fresh data.
+ */
 export function ContourDrawEngine({
   featureGroupRef,
   apiRef,
+  polygon,
+  pathColor = '#01696F',
   onChange,
-  onDrawingChange,
+  onModeChange,
 }: ContourDrawEngineProps) {
   const map = useMap()
   const drawerRef = useRef<PolygonDrawer | null>(null)
+  const editHandlerRef = useRef<EditHandler | null>(null)
+  const modeRef = useRef<ContourMode>('idle')
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
+  const polygonRef = useRef(polygon)
+  polygonRef.current = polygon
+  const pathColorRef = useRef(pathColor)
+  pathColorRef.current = pathColor
 
   useEffect(() => {
     const group = featureGroupRef.current
     if (!group) return
 
-    const control = new L.Control.Draw({
-      position: 'topright',
-      draw: {
-        polygon: POLYGON_STYLE,
-        polyline: false,
-        rectangle: false,
-        circle: false,
-        circlemarker: false,
-        marker: false,
-      },
-      edit: {
-        featureGroup: group,
-        remove: true,
-        // Runtime leaflet-draw option; omitted from @types/leaflet-draw EditOptions.
-        poly: {
-          icon: VERTEX_ICONS.icon,
-          touchIcon: VERTEX_ICONS.touchIcon,
-        },
-      } as L.Control.DrawConstructorOptions['edit'],
-    })
-    map.addControl(control)
-
-    const setDrawing = (value: boolean) => {
-      onDrawingChange?.(value)
+    const setMode = (next: ContourMode) => {
+      modeRef.current = next
+      onModeChange?.(next)
     }
 
-    const emit = (pairs: LatLngPair[] | null) => {
+    const emit = (pairs: LatLngPair[] | null, syncWeatherPoint = true) => {
       if (!pairs) {
-        onChange({ polygon: null, syncWeatherPoint: false })
+        onChangeRef.current({ polygon: null, syncWeatherPoint: false })
         return
       }
       const [lat, lng] = polygonCentroid(pairs)
-      onChange({
+      onChangeRef.current({
         polygon: pairs,
-        syncWeatherPoint: true,
+        syncWeatherPoint,
         latitude: lat,
         longitude: lng,
         areaHa: polygonAreaHa(pairs),
       })
     }
 
+    const emitFromGroup = () => emit(readGroupPolygon(group))
+
+    const stopDraw = () => {
+      drawerRef.current?.disable()
+      drawerRef.current = null
+    }
+
+    const stopEdit = (commit: boolean) => {
+      const handler = editHandlerRef.current
+      if (!handler) return
+      if (commit) handler.save?.()
+      else handler.revertLayers?.()
+      handler.disable()
+      editHandlerRef.current = null
+    }
+
+    // Seed group once from form (React Polygon is not used — avoids duplicate layers).
+    syncGroupPolygon(group, polygonRef.current, pathColorRef.current)
+
     const onCreated = (event: L.LeafletEvent) => {
       const created = event as L.DrawEvents.Created
+      stopDraw()
       group.clearLayers()
-      group.addLayer(created.layer)
-      emit(layerToPairs(created.layer))
-      drawerRef.current = null
-      setDrawing(false)
+      const layer = created.layer
+      if (layer instanceof L.Polygon) {
+        layer.setStyle(pathStyleFor(pathColorRef.current))
+      }
+      group.addLayer(layer)
+      emit(layerToPairs(layer))
+      setMode('idle')
     }
+
+    const onEditVertex = () => {
+      if (modeRef.current !== 'edit') return
+      emitFromGroup()
+    }
+
     const onEdited = () => {
-      let found: LatLngPair[] | null = null
-      group.eachLayer((layer) => {
-        if (!found) found = layerToPairs(layer)
-      })
-      emit(found)
+      emitFromGroup()
     }
-    const onDeleted = () => emit(null)
+
+    const onDeleted = () => {
+      emit(null)
+      setMode('idle')
+    }
+
     const onDrawStop = () => {
-      drawerRef.current = null
-      setDrawing(false)
+      if (modeRef.current === 'draw') {
+        stopDraw()
+        // Restore previous contour if user cancelled mid-draw.
+        if (!readGroupPolygon(group) && polygonRef.current) {
+          syncGroupPolygon(group, polygonRef.current, pathColorRef.current)
+        }
+        setMode('idle')
+      }
     }
 
     map.on(L.Draw.Event.CREATED, onCreated)
+    map.on(L.Draw.Event.EDITVERTEX, onEditVertex)
     map.on(L.Draw.Event.EDITED, onEdited)
     map.on(L.Draw.Event.DELETED, onDeleted)
     map.on(L.Draw.Event.DRAWSTOP, onDrawStop)
 
     const api: ContourDrawApi = {
-      start: () => {
-        drawerRef.current?.disable()
-        // DrawMap is a leaflet-draw typing shim; runtime Map is fine.
-        const drawer = new L.Draw.Polygon(map as L.DrawMap, POLYGON_STYLE) as PolygonDrawer
+      startDraw: () => {
+        stopEdit(false)
+        stopDraw()
+        group.clearLayers()
+        const drawer = new L.Draw.Polygon(map as L.DrawMap, polygonDrawOptions(pathColorRef.current)) as PolygonDrawer
         drawerRef.current = drawer
         drawer.enable()
-        setDrawing(true)
+        setMode('draw')
+      },
+      startEdit: () => {
+        stopDraw()
+        stopEdit(false)
+        if (!firstPolygonInGroup(group)) {
+          if (polygonRef.current) syncGroupPolygon(group, polygonRef.current, pathColorRef.current)
+        }
+        if (!firstPolygonInGroup(group)) return
+
+        // Programmatic edit handler — no Leaflet.Draw toolbar Save required.
+        const EditToolbarEdit = (
+          L as unknown as {
+            EditToolbar: { Edit: new (map: L.Map, options: object) => EditHandler }
+          }
+        ).EditToolbar.Edit
+        const handler = new EditToolbarEdit(map, {
+          featureGroup: group,
+          selectedPathOptions: {
+            dashArray: '8, 8',
+            maintainColor: true,
+          },
+          poly: {
+            icon: VERTEX_ICONS.icon,
+            touchIcon: VERTEX_ICONS.touchIcon,
+          },
+        })
+        editHandlerRef.current = handler
+        handler.enable()
+        setMode('edit')
       },
       finish: () => {
-        drawerRef.current?.completeShape?.()
+        if (modeRef.current === 'draw') {
+          drawerRef.current?.completeShape?.()
+          return
+        }
+        if (modeRef.current === 'edit') {
+          stopEdit(true)
+          emitFromGroup()
+          setMode('idle')
+        }
       },
       undo: () => {
         drawerRef.current?.deleteLastVertex?.()
       },
       cancel: () => {
-        drawerRef.current?.disable()
-        drawerRef.current = null
-        setDrawing(false)
+        if (modeRef.current === 'draw') {
+          stopDraw()
+          syncGroupPolygon(group, polygonRef.current, pathColorRef.current)
+          setMode('idle')
+          return
+        }
+        if (modeRef.current === 'edit') {
+          stopEdit(false)
+          syncGroupPolygon(group, polygonRef.current, pathColorRef.current)
+          setMode('idle')
+        }
       },
       clear: () => {
-        drawerRef.current?.disable()
-        drawerRef.current = null
-        setDrawing(false)
+        stopDraw()
+        stopEdit(false)
         group.clearLayers()
         emit(null)
+        setMode('idle')
       },
-      isDrawing: () => drawerRef.current != null,
+      flush: () => {
+        if (modeRef.current === 'edit') {
+          stopEdit(true)
+          setMode('idle')
+        }
+        const pairs = readGroupPolygon(group)
+        emit(pairs)
+        return pairs
+      },
+      mode: () => modeRef.current,
     }
     apiRef.current = api
 
     return () => {
-      drawerRef.current?.disable()
-      drawerRef.current = null
+      stopDraw()
+      stopEdit(false)
       apiRef.current = null
       map.off(L.Draw.Event.CREATED, onCreated)
+      map.off(L.Draw.Event.EDITVERTEX, onEditVertex)
       map.off(L.Draw.Event.EDITED, onEdited)
       map.off(L.Draw.Event.DELETED, onDeleted)
       map.off(L.Draw.Event.DRAWSTOP, onDrawStop)
-      map.removeControl(control)
     }
-  }, [map, featureGroupRef, apiRef, onChange, onDrawingChange])
+  }, [map, featureGroupRef, apiRef, onModeChange])
+
+  // Keep FeatureGroup in sync when form polygon / color changes while idle.
+  useEffect(() => {
+    const group = featureGroupRef.current
+    if (!group || modeRef.current !== 'idle') return
+    const current = readGroupPolygon(group)
+    const nextKey = polygon?.map((p) => p.join(',')).join('|') ?? ''
+    const curKey = current?.map((p) => p.join(',')).join('|') ?? ''
+    if (nextKey === curKey) {
+      const poly = firstPolygonInGroup(group)
+      if (poly) poly.setStyle(pathStyleFor(pathColor))
+      return
+    }
+    syncGroupPolygon(group, polygon, pathColor)
+  }, [polygon, pathColor, featureGroupRef])
 
   return null
 }
 
 type ContourDrawToolbarProps = {
   apiRef: React.MutableRefObject<ContourDrawApi | null>
-  drawing: boolean
+  mode: ContourMode
   hasContour: boolean
 }
 
-/** Large tap targets for phones — desktop keeps the Leaflet.Draw toolbar. */
+/** Large tap targets — used on mobile and desktop (Leaflet.Draw toolbar stays hidden). */
 export function ContourDrawToolbar({
   apiRef,
-  drawing,
+  mode,
   hasContour,
 }: ContourDrawToolbarProps) {
-  return (
-    <div className="flex flex-wrap gap-2 sm:hidden">
-      {!drawing ? (
-        <Button
-          type="button"
-          className="min-h-11 flex-1"
-          onClick={() => apiRef.current?.start()}
-        >
-          <Pencil className="size-4" />
-          Начать рисовать
+  if (mode === 'draw') {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" className="min-h-11 flex-1" onClick={() => apiRef.current?.finish()}>
+          <Check className="size-4" />
+          Завершить
         </Button>
-      ) : (
-        <>
-          <Button
-            type="button"
-            className="min-h-11 flex-1"
-            onClick={() => apiRef.current?.finish()}
-          >
-            <Check className="size-4" />
-            Завершить
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11"
-            onClick={() => apiRef.current?.undo()}
-          >
-            <Undo2 className="size-4" />
-            Точка
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11"
-            onClick={() => apiRef.current?.cancel()}
-          >
-            <X className="size-4" />
-            Отмена
-          </Button>
-        </>
-      )}
-      {hasContour && !drawing ? (
         <Button
           type="button"
           variant="outline"
-          className="min-h-11 w-full"
+          className="min-h-11"
+          onClick={() => apiRef.current?.undo()}
+        >
+          <Undo2 className="size-4" />
+          Точка
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-11"
+          onClick={() => apiRef.current?.cancel()}
+        >
+          <X className="size-4" />
+          Отмена
+        </Button>
+      </div>
+    )
+  }
+
+  if (mode === 'edit') {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" className="min-h-11 flex-1" onClick={() => apiRef.current?.finish()}>
+          <Check className="size-4" />
+          Готово
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-11"
+          onClick={() => apiRef.current?.cancel()}
+        >
+          <X className="size-4" />
+          Отмена
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button
+        type="button"
+        className="min-h-11 flex-1"
+        onClick={() => apiRef.current?.startDraw()}
+      >
+        <Pencil className="size-4" />
+        {hasContour ? 'Перерисовать' : 'Начать рисовать'}
+      </Button>
+      {hasContour ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-11 flex-1"
+          onClick={() => apiRef.current?.startEdit()}
+        >
+          <SquarePen className="size-4" />
+          Изменить контур
+        </Button>
+      ) : null}
+      {hasContour ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-11 w-full sm:w-auto"
           onClick={() => apiRef.current?.clear()}
         >
           Очистить контур

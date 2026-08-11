@@ -56,11 +56,12 @@ def shift_time_range(
     end_time: time | None,
     *,
     now: datetime | None = None,
+    end_date: date | None = None,
 ) -> tuple[datetime, datetime | None]:
     start_dt = combine_date_time(shift_date, start_time)
     if end_time is None:
         return start_dt, now
-    end_dt = resolve_shift_end_datetime(shift_date, start_time, end_time)
+    end_dt = resolve_shift_end_datetime(shift_date, start_time, end_time, end_date)
     return start_dt, end_dt
 
 

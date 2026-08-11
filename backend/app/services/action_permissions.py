@@ -48,6 +48,7 @@ ACTION_KEYS: tuple[str, ...] = (
     'shift.close_others',
     'inventory.operate',
     'inventory.manage_items',
+    'inventory.delete_or_archive',
     'purchase.create',
     'purchase.manage',
     'support.view_org_tickets',
@@ -58,6 +59,16 @@ ACTION_KEYS: tuple[str, ...] = (
     # grant via access group (or admin). Endpoints also require org is a head.
     'holding.view',
     'holding.switch',
+    # Payroll — admin-only by default; grant via access group (like marketplace/holding).
+    'payroll.manage_rates',
+    'payroll.confirm',
+    'payroll.pay',
+    'payroll.view_all',
+    'tasks.create',
+    'tasks.manage',
+    'tasks.complete_own',
+    'tasks.complete_general',
+    'tasks.view_all',
 )
 
 ACTION_LABELS: dict[str, str] = {
@@ -67,6 +78,7 @@ ACTION_LABELS: dict[str, str] = {
     'shift.close_others': 'Закрыть чужую смену',
     'inventory.operate': 'Приход / расход / корректировка ТМЦ',
     'inventory.manage_items': 'Управление позициями склада',
+    'inventory.delete_or_archive': 'Удалять и архивировать позиции ТМЦ',
     'purchase.create': 'Создавать заявки на закупку',
     'purchase.manage': 'Управлять закупками (удаление, затраты)',
     'support.view_org_tickets': 'Видеть все обращения организации',
@@ -75,6 +87,15 @@ ACTION_LABELS: dict[str, str] = {
     'marketplace.manage': 'Управлять витриной маркетплейса (импорт и объявления)',
     'holding.view': 'Обзор дочерних КФХ (holding)',
     'holding.switch': 'Переключение в дочернюю КФХ (holding)',
+    'payroll.manage_rates': 'Управлять ставками и схемами оплаты сотрудников',
+    'payroll.confirm': 'Подтверждать начисление зарплаты',
+    'payroll.pay': 'Фиксировать выдачу зарплаты',
+    'payroll.view_all': 'Видеть начисления и выдачи всех сотрудников',
+    'tasks.create': 'Создавать задачи',
+    'tasks.manage': 'Управлять всеми задачами',
+    'tasks.complete_own': 'Отмечать выполненными свои задачи',
+    'tasks.complete_general': 'Отмечать выполненными общие задачи',
+    'tasks.view_all': 'Видеть все задачи организации',
 }
 
 # Actions implied by having a section (employee-safe baselines only).
@@ -86,11 +107,12 @@ SECTION_IMPLIED_ACTIONS: dict[str, tuple[str, ...]] = {
     'inventory': ('inventory.operate',),
     'purchase-planner': ('purchase.create',),
     'shipments': ('shipment_requests.execute',),
+    'tasks': ('tasks.complete_own',),
 }
 
 # Extra actions for manager/admin roles when using role defaults (no group).
-# marketplace.manage and holding.* are intentionally NOT here — only via
-# access-group checkbox (or admin). Keeps holding out of default farm-ops grants.
+# marketplace.manage, holding.*, and payroll.* are intentionally NOT here —
+# only via access-group checkbox (or admin).
 MANAGER_EXTRA_ACTIONS: tuple[str, ...] = (
     'inventory.manage_items',
     'purchase.manage',
@@ -98,6 +120,11 @@ MANAGER_EXTRA_ACTIONS: tuple[str, ...] = (
     'shift.close_others',
     'shipment_requests.manage',
     'shipment_requests.execute',
+    'tasks.create',
+    'tasks.manage',
+    'tasks.view_all',
+    'tasks.complete_general',
+    'tasks.complete_own',
 )
 
 SUPPLIER_PRESET_CODE = 'supplier'
@@ -206,9 +233,10 @@ async def resolve_effective_permissions(
             settings,
         )
 
-    # Eager-load group if relationship available; otherwise fetch by id.
-    group = getattr(employee, 'access_group', None)
-    if group is None and employee.access_group_id is not None:
+    # Eager-load group by id only — never touch employee.access_group
+    # (lazy relationship triggers MissingGreenlet under async SQLAlchemy).
+    group = None
+    if employee.access_group_id is not None:
         from app.models.access_group import AccessGroup
 
         group = await db.get(AccessGroup, employee.access_group_id)

@@ -1,11 +1,21 @@
-export type SharingListingType = 'field' | 'equipment' | 'implement' | 'parts'
-export type SharingListingStatus = 'active' | 'paused' | 'done'
+export type SharingListingType = 'field' | 'equipment' | 'implement'
+/** Legacy listings may still have type=parts in DB. */
+export type SharingListingTypeAny = SharingListingType | 'parts'
+export type SharingListingStatus = 'active' | 'paused' | 'done' | 'archived'
 export type SharingRequestStatus = 'pending' | 'accepted' | 'rejected' | 'done'
-export type PriceFilter = 'all' | 'priced' | 'negotiable'
+
+export type SharingPriceFilter = {
+  unit: string
+  min: number | null
+  max: number | null
+}
+
+export type SharingScope = 'full_field' | 'partial_field'
 
 export type SharingListing = {
   id: string
-  type: SharingListingType
+  orgId: string | null
+  type: SharingListingTypeAny
   title: string
   description: string | null
   pricePerUnit: number | null
@@ -27,6 +37,10 @@ export type SharingListing = {
   images: string[]
   requestsCount: number
   createdAt: string
+  sharingScope: SharingScope
+  sharedAreaHa: number | null
+  effectivePolygon: number[][] | null
+  effectiveAreaHa: number | null
 }
 
 export type SharingRequest = {
@@ -74,6 +88,8 @@ export type SharingListingFormInput = {
   lat?: number | null
   lng?: number | null
   images?: string[]
+  sharingScope?: SharingScope
+  sharedPolygon?: number[][] | null
 }
 
 export type SharingListingUpdateInput = {
@@ -86,14 +102,30 @@ export type SharingListingUpdateInput = {
   lat?: number | null
   lng?: number | null
   images?: string[]
+  sharingScope?: SharingScope
+  sharedPolygon?: number[][] | null
 }
 
-export const PRICE_UNITS = ['₽/га', '₽/сутки', '₽/ч', '₽/т', 'договорная'] as const
+export const SCOPE_LABELS: Record<SharingScope, string> = {
+  full_field: 'Всё поле',
+  partial_field: 'Часть поля',
+}
 
-export const TYPE_LABELS: Record<SharingListingType, string> = {
+export const PRICE_UNITS = [
+  '₽/гектар',
+  '₽/сутки',
+  '₽/ч',
+  '₽/т',
+  '₽/месяц',
+  'договорная',
+] as const
+
+export type PriceUnitOption = (typeof PRICE_UNITS)[number]
+
+export const TYPE_LABELS: Record<SharingListingTypeAny, string> = {
   field: 'Поле',
   equipment: 'Техника',
-  implement: 'Приспособление',
+  implement: 'Приспособления',
   parts: 'Прочее',
 }
 
@@ -101,6 +133,7 @@ export const STATUS_LABELS: Record<SharingListingStatus, string> = {
   active: 'Активно',
   paused: 'Пауза',
   done: 'Завершено',
+  archived: 'В архиве',
 }
 
 export const REQUEST_STATUS_LABELS: Record<SharingRequestStatus, string> = {
@@ -108,4 +141,10 @@ export const REQUEST_STATUS_LABELS: Record<SharingRequestStatus, string> = {
   accepted: 'Принята',
   rejected: 'Отклонена',
   done: 'Завершена',
+}
+
+export const DEFAULT_PRICE_FILTER: SharingPriceFilter = {
+  unit: 'all',
+  min: null,
+  max: null,
 }

@@ -6,6 +6,7 @@ import enum
 import uuid
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
@@ -60,6 +61,8 @@ class Chat(Base):
         nullable=False,
     )
     archived_at = Column(DateTime(timezone=True), nullable=True)
+    # Admin↔admin DM across organizations (members keep their home org_id).
+    is_cross_org = Column(Boolean, nullable=False, default=False, server_default='false')
 
     organization = relationship('Organization')
     creator = relationship('Employee', foreign_keys=[created_by])

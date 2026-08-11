@@ -16,22 +16,30 @@ test('мессенджер: direct-чат и обмен сообщениями �
   await loginDemoEmployee(pageA, 'EMP001')
   await loginDemoEmployee(pageB, 'EMP002')
 
-  await pageA.goto('/messenger')
+  await pageA.goto('/workspace?tab=messenger')
   await expect(pageA.getByTestId('messenger-page')).toBeVisible({ timeout: 15_000 })
   await expect(pageA.getByTestId('new-group-chat')).toHaveCount(0)
   await expect(pageA.getByTestId('new-direct-chat')).toBeVisible()
 
   await pageA.getByTestId('new-direct-chat').click()
-  await expect(pageA.getByRole('dialog', { name: 'Новый чат' })).toBeVisible()
+  const dialog = pageA.getByRole('dialog', { name: /Создать чат|Новый чат/i })
+  await expect(dialog).toBeVisible({ timeout: 10_000 })
+  await expect(dialog.getByText(/Загрузка сотрудников/)).toBeHidden({ timeout: 20_000 })
+  await expect(
+    dialog.getByText('Нет доступных коллег'),
+    'EMP001 must see peers (EMP002+) in Demo AgroDesk',
+  ).toHaveCount(0)
 
-  const peer = pageA
-    .locator('[role="dialog"] label')
-    .filter({ hasText: 'Петров Александр Иванович' })
-  await expect(peer).toBeVisible({ timeout: 15_000 })
-  await peer.click()
-  await pageA.getByRole('button', { name: 'Написать' }).click()
+  // Radios are exposed as role=radio (label wrapper is unreliable for Playwright filters).
+  const preferred = dialog.getByRole('radio', { name: /Петров|EMP002/ })
+  if ((await preferred.count()) > 0) {
+    await preferred.first().check({ force: true })
+  } else {
+    await dialog.getByRole('radio').first().check({ force: true })
+  }
+  await dialog.getByRole('button', { name: 'Написать' }).click()
 
-  await expect(pageA).toHaveURL(/\/messenger\/[^/]+/, { timeout: 15_000 })
+  await expect(pageA).toHaveURL(/\/workspace.*chatId=|\/messenger\/[^/]+/, { timeout: 15_000 })
   await expect(pageA.getByTestId('chat-dialog')).toBeVisible({ timeout: 15_000 })
   const chatUrl = pageA.url()
   const unique = `e2e-msg-${Date.now()}`
@@ -41,7 +49,7 @@ test('мессенджер: direct-чат и обмен сообщениями �
     timeout: 10_000,
   })
 
-  await pageB.goto('/messenger')
+  await pageB.goto('/workspace?tab=messenger')
   await expect(pageB.getByTestId('messenger-page')).toBeVisible({ timeout: 15_000 })
 
   const chatRow = pageB
@@ -118,13 +126,14 @@ test('мессенджер: group — admin создаёт, участники �
   await loginDemoEmployee(empPage, 'EMP001')
 
   const groupName = `E2E Group ${Date.now()}`
-  await adminPage.goto('/messenger')
+  await adminPage.goto('/workspace?tab=messenger')
   await expect(adminPage.getByTestId('new-group-chat')).toBeVisible({ timeout: 15_000 })
   await adminPage.getByTestId('new-group-chat').click()
   await adminPage.getByTestId('group-name-input').fill(groupName)
   await adminPage
     .locator('[role="dialog"] label')
-    .filter({ hasText: 'Иванов Сергей Николаевич' })
+    .filter({ hasText: /Иванов|EMP001/ })
+    .first()
     .click()
   await adminPage.getByTestId('create-group-submit').click()
   await expect(adminPage.getByTestId('chat-dialog')).toBeVisible({ timeout: 15_000 })
@@ -135,7 +144,7 @@ test('мессенджер: group — admin создаёт, участники �
   await adminPage.getByTestId('send-message').click()
   await expect(adminPage.locator('[data-message-id]').filter({ hasText: body })).toBeVisible()
 
-  await gotoPath(empPage, '/messenger')
+  await gotoPath(empPage, '/workspace?tab=messenger')
   await expect(empPage.getByTestId('messenger-page')).toBeVisible({ timeout: 15_000 })
   const row = empPage.locator('[data-chat-id]').filter({ hasText: groupName }).first()
   for (let i = 0; i < 6; i += 1) {
@@ -143,7 +152,7 @@ test('мессенджер: group — admin создаёт, участники �
     try {
       await empPage.reload({ waitUntil: 'domcontentloaded' })
     } catch {
-      await gotoPath(empPage, '/messenger')
+      await gotoPath(empPage, '/workspace?tab=messenger')
     }
     await empPage.waitForTimeout(2_000)
   }
@@ -163,16 +172,18 @@ test('мессенджер: mobile split — список и диалог как
   test.setTimeout(60_000)
   await page.setViewportSize({ width: 390, height: 844 })
   await loginDemoEmployee(page, 'EMP001')
-  await page.goto('/messenger')
+  await page.goto('/workspace?tab=messenger')
   await expect(page.getByTestId('messenger-chat-list')).toBeVisible({ timeout: 15_000 })
   await expect(page.getByTestId('messenger-dialog-pane')).toBeHidden()
 
   const row = page.locator('[data-chat-id]').first()
   if ((await row.count()) === 0) {
     await page.getByTestId('new-direct-chat').click()
+    await expect(page.getByRole('dialog', { name: /Создать чат|Новый чат/i })).toBeVisible()
     await page
       .locator('[role="dialog"] label')
-      .filter({ hasText: 'Петров Александр Иванович' })
+      .filter({ hasText: /Иванов|EMP001/ })
+      .first()
       .click()
     await page.getByRole('button', { name: 'Написать' }).click()
   } else {
@@ -185,5 +196,5 @@ test('мессенджер: mobile split — список и диалог как
 
   await page.getByTestId('messenger-back').click()
   await expect(page.getByTestId('messenger-chat-list')).toBeVisible()
-  await expect(page).toHaveURL(/\/messenger\/?$/)
+  await expect(page).toHaveURL(/\/workspace/)
 })

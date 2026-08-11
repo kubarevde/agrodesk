@@ -41,7 +41,7 @@ export function ExpenseKpiCards({
     : '—'
 
   const items = [
-    { title: 'Всего затрат', value: formatMoney(totalAmount), icon: DollarSign },
+    { title: 'Всего за период', value: formatMoney(totalAmount), icon: DollarSign },
     { title: 'Крупнейшая статья', value: largestLabel, icon: Layers },
     { title: 'Записей', value: String(recordsCount), icon: FileText },
   ] as const

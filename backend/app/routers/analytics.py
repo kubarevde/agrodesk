@@ -15,9 +15,10 @@ from app.schemas.analytics import (
 from app.services.analytics_history import get_monthly_history
 from app.services.forecasting import available_models, forecast_categories, forecast_field
 from app.services.recommendations import build_recommendations
-from app.services.permissions import require_manager_section
+from app.services.permissions import require_any_manager_section
 
-router = APIRouter(dependencies=[Depends(require_manager_section('analytics'))])
+# Forecast UI lives under «Затраты и доходы»; keep analytics grant for legacy access groups.
+router = APIRouter(dependencies=[Depends(require_any_manager_section('analytics', 'expenses'))])
 
 
 @router.get('/forecast/models', response_model=ModelsAvailabilityResponse)

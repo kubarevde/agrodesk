@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { SharingListing } from '@/types'
+import type { SharingListing } from './types'
 import { api } from '@/lib/api'
 import { apiErrorMessage } from '@/lib/apiError'
 import { db } from '@/lib/db'
 import { displayDateToIso } from '@/lib/transformers'
+import { regionMatchesFilter } from '@/lib/regions.ru'
 import {
   listingCreateToApi,
   listingFromApi,
@@ -38,7 +39,7 @@ export function useSharingListings(filters: SharingListingsFilters = {}) {
         return cached.filter((item) => {
           if (filters.type && item.type !== filters.type) return false
           if (filters.status && item.status !== filters.status) return false
-          if (filters.region && item.region !== filters.region) return false
+          if (filters.region && !regionMatchesFilter(item.region, filters.region)) return false
           return item.status === 'active'
         }) as SharingListing[]
       }
@@ -177,9 +178,15 @@ export function useUpdateSharingListingStatus() {
       )
       return listingFromApi(data)
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       await invalidateSharing(queryClient)
-      toast.success('Статус обновлён')
+      toast.success(
+        variables.status === 'archived'
+          ? 'Объявление в архиве'
+          : variables.status === 'active'
+            ? 'Объявление восстановлено'
+            : 'Статус обновлён',
+      )
     },
     onError: () => toast.error('Не удалось изменить статус'),
   })
@@ -194,9 +201,9 @@ export function useDeleteSharingListing() {
     },
     onSuccess: async () => {
       await invalidateSharing(queryClient)
-      toast.success('Объявление удалено')
+      toast.success('Объявление перемещено в архив')
     },
-    onError: () => toast.error('Не удалось удалить объявление'),
+    onError: () => toast.error('Не удалось архивировать объявление'),
   })
 }
 

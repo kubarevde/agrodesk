@@ -8,7 +8,7 @@ describe('marketplace seller nav feature flag', () => {
     })
     const labels = groups.flatMap((g) => g.items.map((i) => i.label))
     expect(labels).not.toContain('Магазин')
-    expect(labels).toContain('Отгрузки урожая')
+    expect(labels).toContain('Отгрузки')
     expect(labels).toContain('Дашборд')
   })
 

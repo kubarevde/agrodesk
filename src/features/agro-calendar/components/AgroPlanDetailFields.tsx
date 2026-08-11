@@ -10,6 +10,17 @@ export function AgroPlanDetailFields({ plan }: { plan: AgroPlan }) {
   return (
     <div className="space-y-3 px-4 pb-4 text-sm">
       <Row label="Поле" value={planFieldsLabel(plan, 'Поле не указано')} />
+      {(plan.cropName || plan.cropCode || plan.varietyName) && (
+        <Row
+          label="Культура"
+          value={[
+            plan.cropName || plan.cropCode,
+            plan.varietyName ? `сорт ${plan.varietyName}` : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        />
+      )}
       {!fact && plan.fieldNames.length > 1 ? (
         <div className="flex flex-wrap gap-1.5">
           {plan.fieldNames.map((name) => (

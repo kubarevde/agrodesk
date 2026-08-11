@@ -1,10 +1,9 @@
 import { Tractor, Wrench, Package } from 'lucide-react'
 import { getRouteApi } from '@tanstack/react-router'
 import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
+import { getSettingsTabHelp } from '@/features/help/settingsHelp'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { DictionarySettingsTab } from '@/features/dictionaries/components/DictionarySettingsTab'
-import { settingsTimezoneHelp } from '@/features/help/content'
-import { settingsAccessHelp } from '@/features/help/modules'
 import { useIsMobile } from '@/hooks/useMediaQuery'
 import type { SettingsTabId } from '../settingsSections'
 import { AccessGroupsTab } from './AccessGroupsTab'
@@ -26,6 +25,7 @@ export function SettingsPage() {
   const { tab } = settingsRoute.useSearch()
   const navigate = settingsRoute.useNavigate()
   const isMobile = useIsMobile(639)
+  const tabHelp = getSettingsTabHelp(tab)
 
   const setTab = (next: SettingsTabId) => {
     void navigate({
@@ -45,8 +45,9 @@ export function SettingsPage() {
       </div>
 
       <RoleSectionHelp
-        section="часовой пояс"
-        items={settingsTimezoneHelp}
+        key={tab}
+        section={tabHelp.section}
+        items={tabHelp.items}
         guideSection="settings"
       />
 
@@ -59,7 +60,8 @@ export function SettingsPage() {
 
         <TabsContent value="crops" className="mt-4 space-y-3">
           <p className="text-sm text-muted-foreground">
-            Список культур для полей, отгрузок и связанных отчётов.
+            Список культур для полей, отгрузок и связанных отчётов. Сорта — во
+            вложенном справочнике у каждой культуры (меню «…» → «Сорта»).
           </p>
           <DictionarySettingsTab type="crop" />
         </TabsContent>
@@ -96,10 +98,34 @@ export function SettingsPage() {
 
         <TabsContent value="expense-cats" className="mt-4 space-y-3">
           <p className="text-sm text-muted-foreground">
-            Категории для раздела «Затраты», фильтров и финансовых отчётов. Если нужной категории
+            Категории для вкладки «Затраты», фильтров и финансовых отчётов. Если нужной категории
             нет — добавьте её здесь.
           </p>
           <DictionarySettingsTab type="expense_category" />
+        </TabsContent>
+
+        <TabsContent value="income-cats" className="mt-4 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Категории для ручных доходов (услуги, шеринг, субсидии). Доходы от отгрузок
+            подтягиваются автоматически и здесь не дублируются.
+          </p>
+          <DictionarySettingsTab type="income_category" />
+        </TabsContent>
+
+        <TabsContent value="maintenance-types" className="mt-4 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Типы технического обслуживания для записи ТО по технике и приспособлениям. Интервал по
+            умолчанию — подсказка при заполнении «Следующее ТО на…», не жёсткое ограничение.
+          </p>
+          <DictionarySettingsTab type="maintenance_type" />
+        </TabsContent>
+
+        <TabsContent value="repair-statuses" className="mt-4 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Статусы журнала: «В ремонте», «Ожидает запчасти» (без ремонта), «Завершён», «Отменён».
+            При статусе «В ремонте» можно дополнительно отметить ожидание запчастей.
+          </p>
+          <DictionarySettingsTab type="repair_status" />
         </TabsContent>
 
         <TabsContent value="locations" className="mt-4 space-y-3">
@@ -135,7 +161,6 @@ export function SettingsPage() {
           </p>
           <AccessGroupsTab />
           <RolePermissionsTab />
-          <RoleSectionHelp section="доступы" items={settingsAccessHelp} guideSection="settings" />
         </TabsContent>
 
         <TabsContent value="notifications" className="mt-4 space-y-3">

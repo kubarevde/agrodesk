@@ -1,7 +1,8 @@
 import { z } from 'zod'
-import type { SharingListingType } from './types'
+import { PRICE_UNITS, type SharingListingType } from './types'
 
-const listingTypes = ['field', 'equipment', 'implement', 'parts'] as const
+const listingTypes = ['field', 'equipment', 'implement'] as const
+const sharingScopes = ['full_field', 'partial_field'] as const
 
 export const sharingListingFormSchema = z
   .object({
@@ -19,6 +20,8 @@ export const sharingListingFormSchema = z
     lat: z.number().nullable().optional(),
     lng: z.number().nullable().optional(),
     images: z.array(z.string()).max(5).optional(),
+    sharingScope: z.enum(sharingScopes),
+    sharedPolygon: z.array(z.array(z.number())).nullable().optional(),
   })
   .superRefine((values, ctx) => {
     if (values.type === 'field' && !values.fieldId) {
@@ -41,6 +44,17 @@ export const sharingListingFormSchema = z
         path: ['pricePerUnit'],
       })
     }
+    if (
+      values.type === 'field' &&
+      values.sharingScope === 'partial_field' &&
+      (!values.sharedPolygon || values.sharedPolygon.length < 3)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Нарисуйте участок внутри контура поля',
+        path: ['sharedPolygon'],
+      })
+    }
   })
 
 export type SharingListingFormValues = z.infer<typeof sharingListingFormSchema>
@@ -53,7 +67,7 @@ export function defaultListingFormValues(
     title: '',
     description: '',
     pricePerUnit: null,
-    priceUnit: '₽/га',
+    priceUnit: '₽/гектар',
     fieldId: '',
     equipmentId: '',
     implementId: '',
@@ -63,15 +77,18 @@ export function defaultListingFormValues(
     lat: null,
     lng: null,
     images: [],
+    sharingScope: 'full_field',
+    sharedPolygon: null,
     ...overrides,
   }
 }
 
 export function listingTypeOptions(): Array<{ value: SharingListingType; label: string }> {
   return [
-    { value: 'field', label: 'Поле / земля' },
+    { value: 'field', label: 'Поле' },
     { value: 'equipment', label: 'Техника' },
-    { value: 'implement', label: 'Приспособление / навеска' },
-    { value: 'parts', label: 'Запчасти / прочее' },
+    { value: 'implement', label: 'Приспособления' },
   ]
 }
+
+export { PRICE_UNITS }

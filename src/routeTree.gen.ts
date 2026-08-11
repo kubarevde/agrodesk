@@ -20,6 +20,8 @@ import { Route as SuperadminLoginRouteImport } from './app/routes/superadmin/log
 import { Route as SuperadminAuthenticatedRouteImport } from './app/routes/superadmin/_authenticated'
 import { Route as LayoutDashboardRouteImport } from './app/routes/_layout/dashboard'
 import { Route as LayoutWorktimeIndexRouteImport } from './app/routes/_layout/worktime/index'
+import { Route as LayoutWorkspaceIndexRouteImport } from './app/routes/_layout/workspace/index'
+import { Route as LayoutTasksIndexRouteImport } from './app/routes/_layout/tasks/index'
 import { Route as LayoutSupportIndexRouteImport } from './app/routes/_layout/support/index'
 import { Route as LayoutShipmentsIndexRouteImport } from './app/routes/_layout/shipments/index'
 import { Route as LayoutShipmentRequestsIndexRouteImport } from './app/routes/_layout/shipment-requests/index'
@@ -29,6 +31,7 @@ import { Route as LayoutSellerMarketIndexRouteImport } from './app/routes/_layou
 import { Route as LayoutReportsIndexRouteImport } from './app/routes/_layout/reports/index'
 import { Route as LayoutPurchasePlannerIndexRouteImport } from './app/routes/_layout/purchase-planner/index'
 import { Route as LayoutProfileIndexRouteImport } from './app/routes/_layout/profile/index'
+import { Route as LayoutPayrollPayoutsIndexRouteImport } from './app/routes/_layout/payroll-payouts/index'
 import { Route as LayoutNotificationsIndexRouteImport } from './app/routes/_layout/notifications/index'
 import { Route as LayoutNoAccessIndexRouteImport } from './app/routes/_layout/no-access/index'
 import { Route as LayoutMyShiftIndexRouteImport } from './app/routes/_layout/my-shift/index'
@@ -51,8 +54,11 @@ import { Route as LayoutSupportTicketIdRouteImport } from './app/routes/_layout/
 import { Route as LayoutShipmentRequestsMyRouteImport } from './app/routes/_layout/shipment-requests/my'
 import { Route as LayoutShipmentRequestsRequestIdRouteImport } from './app/routes/_layout/shipment-requests/$requestId'
 import { Route as LayoutMessengerChatIdRouteImport } from './app/routes/_layout/messenger/$chatId'
+import { Route as LayoutInventoryOperationsRouteImport } from './app/routes/_layout/inventory/operations'
 import { Route as LayoutImplementsImplementIdRouteImport } from './app/routes/_layout/implements/$implementId'
+import { Route as LayoutFieldsFieldIdRouteImport } from './app/routes/_layout/fields/$fieldId'
 import { Route as LayoutEquipmentEquipmentIdRouteImport } from './app/routes/_layout/equipment/$equipmentId'
+import { Route as LayoutEmployeesEmployeeIdRouteImport } from './app/routes/_layout/employees/$employeeId'
 import { Route as SuperadminAuthenticatedSupportIndexRouteImport } from './app/routes/superadmin/_authenticated/support/index'
 import { Route as SuperadminAuthenticatedMarketplaceIndexRouteImport } from './app/routes/superadmin/_authenticated/marketplace/index'
 import { Route as LayoutSellerMarketProfileIndexRouteImport } from './app/routes/_layout/seller-market/profile/index'
@@ -119,6 +125,16 @@ const LayoutWorktimeIndexRoute = LayoutWorktimeIndexRouteImport.update({
   path: '/worktime/',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutWorkspaceIndexRoute = LayoutWorkspaceIndexRouteImport.update({
+  id: '/workspace/',
+  path: '/workspace/',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutTasksIndexRoute = LayoutTasksIndexRouteImport.update({
+  id: '/tasks/',
+  path: '/tasks/',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutSupportIndexRoute = LayoutSupportIndexRouteImport.update({
   id: '/support/',
   path: '/support/',
@@ -166,6 +182,12 @@ const LayoutProfileIndexRoute = LayoutProfileIndexRouteImport.update({
   path: '/profile/',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutPayrollPayoutsIndexRoute =
+  LayoutPayrollPayoutsIndexRouteImport.update({
+    id: '/payroll-payouts/',
+    path: '/payroll-payouts/',
+    getParentRoute: () => LayoutRoute,
+  } as any)
 const LayoutNotificationsIndexRoute =
   LayoutNotificationsIndexRouteImport.update({
     id: '/notifications/',
@@ -280,16 +302,33 @@ const LayoutMessengerChatIdRoute = LayoutMessengerChatIdRouteImport.update({
   path: '/messenger/$chatId',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutInventoryOperationsRoute =
+  LayoutInventoryOperationsRouteImport.update({
+    id: '/inventory/operations',
+    path: '/inventory/operations',
+    getParentRoute: () => LayoutRoute,
+  } as any)
 const LayoutImplementsImplementIdRoute =
   LayoutImplementsImplementIdRouteImport.update({
     id: '/implements/$implementId',
     path: '/implements/$implementId',
     getParentRoute: () => LayoutRoute,
   } as any)
+const LayoutFieldsFieldIdRoute = LayoutFieldsFieldIdRouteImport.update({
+  id: '/fields/$fieldId',
+  path: '/fields/$fieldId',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutEquipmentEquipmentIdRoute =
   LayoutEquipmentEquipmentIdRouteImport.update({
     id: '/equipment/$equipmentId',
     path: '/equipment/$equipmentId',
+    getParentRoute: () => LayoutRoute,
+  } as any)
+const LayoutEmployeesEmployeeIdRoute =
+  LayoutEmployeesEmployeeIdRouteImport.update({
+    id: '/employees/$employeeId',
+    path: '/employees/$employeeId',
     getParentRoute: () => LayoutRoute,
   } as any)
 const SuperadminAuthenticatedSupportIndexRoute =
@@ -374,8 +413,11 @@ export interface FileRoutesByFullPath {
   '/superadmin/login': typeof SuperadminLoginRoute
   '/landing/': typeof LandingIndexRoute
   '/market/': typeof MarketIndexRoute
+  '/employees/$employeeId': typeof LayoutEmployeesEmployeeIdRoute
   '/equipment/$equipmentId': typeof LayoutEquipmentEquipmentIdRoute
+  '/fields/$fieldId': typeof LayoutFieldsFieldIdRoute
   '/implements/$implementId': typeof LayoutImplementsImplementIdRoute
+  '/inventory/operations': typeof LayoutInventoryOperationsRoute
   '/messenger/$chatId': typeof LayoutMessengerChatIdRoute
   '/shipment-requests/$requestId': typeof LayoutShipmentRequestsRequestIdRoute
   '/shipment-requests/my': typeof LayoutShipmentRequestsMyRoute
@@ -398,6 +440,7 @@ export interface FileRoutesByFullPath {
   '/my-shift/': typeof LayoutMyShiftIndexRoute
   '/no-access/': typeof LayoutNoAccessIndexRoute
   '/notifications/': typeof LayoutNotificationsIndexRoute
+  '/payroll-payouts/': typeof LayoutPayrollPayoutsIndexRoute
   '/profile/': typeof LayoutProfileIndexRoute
   '/purchase-planner/': typeof LayoutPurchasePlannerIndexRoute
   '/reports/': typeof LayoutReportsIndexRoute
@@ -407,6 +450,8 @@ export interface FileRoutesByFullPath {
   '/shipment-requests/': typeof LayoutShipmentRequestsIndexRoute
   '/shipments/': typeof LayoutShipmentsIndexRoute
   '/support/': typeof LayoutSupportIndexRoute
+  '/tasks/': typeof LayoutTasksIndexRoute
+  '/workspace/': typeof LayoutWorkspaceIndexRoute
   '/worktime/': typeof LayoutWorktimeIndexRoute
   '/seller-market/listings/$listingId': typeof LayoutSellerMarketListingsListingIdRoute
   '/seller-market/listings/new': typeof LayoutSellerMarketListingsNewRoute
@@ -429,8 +474,11 @@ export interface FileRoutesByTo {
   '/superadmin/login': typeof SuperadminLoginRoute
   '/landing': typeof LandingIndexRoute
   '/market': typeof MarketIndexRoute
+  '/employees/$employeeId': typeof LayoutEmployeesEmployeeIdRoute
   '/equipment/$equipmentId': typeof LayoutEquipmentEquipmentIdRoute
+  '/fields/$fieldId': typeof LayoutFieldsFieldIdRoute
   '/implements/$implementId': typeof LayoutImplementsImplementIdRoute
+  '/inventory/operations': typeof LayoutInventoryOperationsRoute
   '/messenger/$chatId': typeof LayoutMessengerChatIdRoute
   '/shipment-requests/$requestId': typeof LayoutShipmentRequestsRequestIdRoute
   '/shipment-requests/my': typeof LayoutShipmentRequestsMyRoute
@@ -453,6 +501,7 @@ export interface FileRoutesByTo {
   '/my-shift': typeof LayoutMyShiftIndexRoute
   '/no-access': typeof LayoutNoAccessIndexRoute
   '/notifications': typeof LayoutNotificationsIndexRoute
+  '/payroll-payouts': typeof LayoutPayrollPayoutsIndexRoute
   '/profile': typeof LayoutProfileIndexRoute
   '/purchase-planner': typeof LayoutPurchasePlannerIndexRoute
   '/reports': typeof LayoutReportsIndexRoute
@@ -462,6 +511,8 @@ export interface FileRoutesByTo {
   '/shipment-requests': typeof LayoutShipmentRequestsIndexRoute
   '/shipments': typeof LayoutShipmentsIndexRoute
   '/support': typeof LayoutSupportIndexRoute
+  '/tasks': typeof LayoutTasksIndexRoute
+  '/workspace': typeof LayoutWorkspaceIndexRoute
   '/worktime': typeof LayoutWorktimeIndexRoute
   '/seller-market/listings/$listingId': typeof LayoutSellerMarketListingsListingIdRoute
   '/seller-market/listings/new': typeof LayoutSellerMarketListingsNewRoute
@@ -488,8 +539,11 @@ export interface FileRoutesById {
   '/superadmin/login': typeof SuperadminLoginRoute
   '/landing/': typeof LandingIndexRoute
   '/market/': typeof MarketIndexRoute
+  '/_layout/employees/$employeeId': typeof LayoutEmployeesEmployeeIdRoute
   '/_layout/equipment/$equipmentId': typeof LayoutEquipmentEquipmentIdRoute
+  '/_layout/fields/$fieldId': typeof LayoutFieldsFieldIdRoute
   '/_layout/implements/$implementId': typeof LayoutImplementsImplementIdRoute
+  '/_layout/inventory/operations': typeof LayoutInventoryOperationsRoute
   '/_layout/messenger/$chatId': typeof LayoutMessengerChatIdRoute
   '/_layout/shipment-requests/$requestId': typeof LayoutShipmentRequestsRequestIdRoute
   '/_layout/shipment-requests/my': typeof LayoutShipmentRequestsMyRoute
@@ -512,6 +566,7 @@ export interface FileRoutesById {
   '/_layout/my-shift/': typeof LayoutMyShiftIndexRoute
   '/_layout/no-access/': typeof LayoutNoAccessIndexRoute
   '/_layout/notifications/': typeof LayoutNotificationsIndexRoute
+  '/_layout/payroll-payouts/': typeof LayoutPayrollPayoutsIndexRoute
   '/_layout/profile/': typeof LayoutProfileIndexRoute
   '/_layout/purchase-planner/': typeof LayoutPurchasePlannerIndexRoute
   '/_layout/reports/': typeof LayoutReportsIndexRoute
@@ -521,6 +576,8 @@ export interface FileRoutesById {
   '/_layout/shipment-requests/': typeof LayoutShipmentRequestsIndexRoute
   '/_layout/shipments/': typeof LayoutShipmentsIndexRoute
   '/_layout/support/': typeof LayoutSupportIndexRoute
+  '/_layout/tasks/': typeof LayoutTasksIndexRoute
+  '/_layout/workspace/': typeof LayoutWorkspaceIndexRoute
   '/_layout/worktime/': typeof LayoutWorktimeIndexRoute
   '/_layout/seller-market/listings/$listingId': typeof LayoutSellerMarketListingsListingIdRoute
   '/_layout/seller-market/listings/new': typeof LayoutSellerMarketListingsNewRoute
@@ -546,8 +603,11 @@ export interface FileRouteTypes {
     | '/superadmin/login'
     | '/landing/'
     | '/market/'
+    | '/employees/$employeeId'
     | '/equipment/$equipmentId'
+    | '/fields/$fieldId'
     | '/implements/$implementId'
+    | '/inventory/operations'
     | '/messenger/$chatId'
     | '/shipment-requests/$requestId'
     | '/shipment-requests/my'
@@ -570,6 +630,7 @@ export interface FileRouteTypes {
     | '/my-shift/'
     | '/no-access/'
     | '/notifications/'
+    | '/payroll-payouts/'
     | '/profile/'
     | '/purchase-planner/'
     | '/reports/'
@@ -579,6 +640,8 @@ export interface FileRouteTypes {
     | '/shipment-requests/'
     | '/shipments/'
     | '/support/'
+    | '/tasks/'
+    | '/workspace/'
     | '/worktime/'
     | '/seller-market/listings/$listingId'
     | '/seller-market/listings/new'
@@ -601,8 +664,11 @@ export interface FileRouteTypes {
     | '/superadmin/login'
     | '/landing'
     | '/market'
+    | '/employees/$employeeId'
     | '/equipment/$equipmentId'
+    | '/fields/$fieldId'
     | '/implements/$implementId'
+    | '/inventory/operations'
     | '/messenger/$chatId'
     | '/shipment-requests/$requestId'
     | '/shipment-requests/my'
@@ -625,6 +691,7 @@ export interface FileRouteTypes {
     | '/my-shift'
     | '/no-access'
     | '/notifications'
+    | '/payroll-payouts'
     | '/profile'
     | '/purchase-planner'
     | '/reports'
@@ -634,6 +701,8 @@ export interface FileRouteTypes {
     | '/shipment-requests'
     | '/shipments'
     | '/support'
+    | '/tasks'
+    | '/workspace'
     | '/worktime'
     | '/seller-market/listings/$listingId'
     | '/seller-market/listings/new'
@@ -659,8 +728,11 @@ export interface FileRouteTypes {
     | '/superadmin/login'
     | '/landing/'
     | '/market/'
+    | '/_layout/employees/$employeeId'
     | '/_layout/equipment/$equipmentId'
+    | '/_layout/fields/$fieldId'
     | '/_layout/implements/$implementId'
+    | '/_layout/inventory/operations'
     | '/_layout/messenger/$chatId'
     | '/_layout/shipment-requests/$requestId'
     | '/_layout/shipment-requests/my'
@@ -683,6 +755,7 @@ export interface FileRouteTypes {
     | '/_layout/my-shift/'
     | '/_layout/no-access/'
     | '/_layout/notifications/'
+    | '/_layout/payroll-payouts/'
     | '/_layout/profile/'
     | '/_layout/purchase-planner/'
     | '/_layout/reports/'
@@ -692,6 +765,8 @@ export interface FileRouteTypes {
     | '/_layout/shipment-requests/'
     | '/_layout/shipments/'
     | '/_layout/support/'
+    | '/_layout/tasks/'
+    | '/_layout/workspace/'
     | '/_layout/worktime/'
     | '/_layout/seller-market/listings/$listingId'
     | '/_layout/seller-market/listings/new'
@@ -795,6 +870,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutWorktimeIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/workspace/': {
+      id: '/_layout/workspace/'
+      path: '/workspace'
+      fullPath: '/workspace/'
+      preLoaderRoute: typeof LayoutWorkspaceIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/tasks/': {
+      id: '/_layout/tasks/'
+      path: '/tasks'
+      fullPath: '/tasks/'
+      preLoaderRoute: typeof LayoutTasksIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/support/': {
       id: '/_layout/support/'
       path: '/support'
@@ -856,6 +945,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile/'
       preLoaderRoute: typeof LayoutProfileIndexRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/payroll-payouts/': {
+      id: '/_layout/payroll-payouts/'
+      path: '/payroll-payouts'
+      fullPath: '/payroll-payouts/'
+      preLoaderRoute: typeof LayoutPayrollPayoutsIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/notifications/': {
@@ -1012,6 +1108,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutMessengerChatIdRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/inventory/operations': {
+      id: '/_layout/inventory/operations'
+      path: '/inventory/operations'
+      fullPath: '/inventory/operations'
+      preLoaderRoute: typeof LayoutInventoryOperationsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/implements/$implementId': {
       id: '/_layout/implements/$implementId'
       path: '/implements/$implementId'
@@ -1019,11 +1122,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutImplementsImplementIdRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/fields/$fieldId': {
+      id: '/_layout/fields/$fieldId'
+      path: '/fields/$fieldId'
+      fullPath: '/fields/$fieldId'
+      preLoaderRoute: typeof LayoutFieldsFieldIdRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/equipment/$equipmentId': {
       id: '/_layout/equipment/$equipmentId'
       path: '/equipment/$equipmentId'
       fullPath: '/equipment/$equipmentId'
       preLoaderRoute: typeof LayoutEquipmentEquipmentIdRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/employees/$employeeId': {
+      id: '/_layout/employees/$employeeId'
+      path: '/employees/$employeeId'
+      fullPath: '/employees/$employeeId'
+      preLoaderRoute: typeof LayoutEmployeesEmployeeIdRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/superadmin/_authenticated/support/': {
@@ -1178,8 +1295,11 @@ const SuperadminRouteRouteWithChildren = SuperadminRouteRoute._addFileChildren(
 
 interface LayoutRouteChildren {
   LayoutDashboardRoute: typeof LayoutDashboardRoute
+  LayoutEmployeesEmployeeIdRoute: typeof LayoutEmployeesEmployeeIdRoute
   LayoutEquipmentEquipmentIdRoute: typeof LayoutEquipmentEquipmentIdRoute
+  LayoutFieldsFieldIdRoute: typeof LayoutFieldsFieldIdRoute
   LayoutImplementsImplementIdRoute: typeof LayoutImplementsImplementIdRoute
+  LayoutInventoryOperationsRoute: typeof LayoutInventoryOperationsRoute
   LayoutMessengerChatIdRoute: typeof LayoutMessengerChatIdRoute
   LayoutShipmentRequestsRequestIdRoute: typeof LayoutShipmentRequestsRequestIdRoute
   LayoutShipmentRequestsMyRoute: typeof LayoutShipmentRequestsMyRoute
@@ -1199,6 +1319,7 @@ interface LayoutRouteChildren {
   LayoutMyShiftIndexRoute: typeof LayoutMyShiftIndexRoute
   LayoutNoAccessIndexRoute: typeof LayoutNoAccessIndexRoute
   LayoutNotificationsIndexRoute: typeof LayoutNotificationsIndexRoute
+  LayoutPayrollPayoutsIndexRoute: typeof LayoutPayrollPayoutsIndexRoute
   LayoutProfileIndexRoute: typeof LayoutProfileIndexRoute
   LayoutPurchasePlannerIndexRoute: typeof LayoutPurchasePlannerIndexRoute
   LayoutReportsIndexRoute: typeof LayoutReportsIndexRoute
@@ -1208,6 +1329,8 @@ interface LayoutRouteChildren {
   LayoutShipmentRequestsIndexRoute: typeof LayoutShipmentRequestsIndexRoute
   LayoutShipmentsIndexRoute: typeof LayoutShipmentsIndexRoute
   LayoutSupportIndexRoute: typeof LayoutSupportIndexRoute
+  LayoutTasksIndexRoute: typeof LayoutTasksIndexRoute
+  LayoutWorkspaceIndexRoute: typeof LayoutWorkspaceIndexRoute
   LayoutWorktimeIndexRoute: typeof LayoutWorktimeIndexRoute
   LayoutSellerMarketListingsListingIdRoute: typeof LayoutSellerMarketListingsListingIdRoute
   LayoutSellerMarketListingsNewRoute: typeof LayoutSellerMarketListingsNewRoute
@@ -1219,8 +1342,11 @@ interface LayoutRouteChildren {
 
 const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutDashboardRoute: LayoutDashboardRoute,
+  LayoutEmployeesEmployeeIdRoute: LayoutEmployeesEmployeeIdRoute,
   LayoutEquipmentEquipmentIdRoute: LayoutEquipmentEquipmentIdRoute,
+  LayoutFieldsFieldIdRoute: LayoutFieldsFieldIdRoute,
   LayoutImplementsImplementIdRoute: LayoutImplementsImplementIdRoute,
+  LayoutInventoryOperationsRoute: LayoutInventoryOperationsRoute,
   LayoutMessengerChatIdRoute: LayoutMessengerChatIdRoute,
   LayoutShipmentRequestsRequestIdRoute: LayoutShipmentRequestsRequestIdRoute,
   LayoutShipmentRequestsMyRoute: LayoutShipmentRequestsMyRoute,
@@ -1240,6 +1366,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutMyShiftIndexRoute: LayoutMyShiftIndexRoute,
   LayoutNoAccessIndexRoute: LayoutNoAccessIndexRoute,
   LayoutNotificationsIndexRoute: LayoutNotificationsIndexRoute,
+  LayoutPayrollPayoutsIndexRoute: LayoutPayrollPayoutsIndexRoute,
   LayoutProfileIndexRoute: LayoutProfileIndexRoute,
   LayoutPurchasePlannerIndexRoute: LayoutPurchasePlannerIndexRoute,
   LayoutReportsIndexRoute: LayoutReportsIndexRoute,
@@ -1249,6 +1376,8 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutShipmentRequestsIndexRoute: LayoutShipmentRequestsIndexRoute,
   LayoutShipmentsIndexRoute: LayoutShipmentsIndexRoute,
   LayoutSupportIndexRoute: LayoutSupportIndexRoute,
+  LayoutTasksIndexRoute: LayoutTasksIndexRoute,
+  LayoutWorkspaceIndexRoute: LayoutWorkspaceIndexRoute,
   LayoutWorktimeIndexRoute: LayoutWorktimeIndexRoute,
   LayoutSellerMarketListingsListingIdRoute:
     LayoutSellerMarketListingsListingIdRoute,

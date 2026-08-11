@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+﻿import { describe, expect, it } from 'vitest'
 import { buildAuditChangeRows, buildAuditDetailSections, formatAuditValue } from './auditDetail'
 import { getAuditFieldLabel, isTechnicalAuditField } from './auditFieldLabels'
 import type { AuditLogEntry } from '../types'
@@ -18,6 +18,12 @@ describe('auditFieldLabels', () => {
   it('maps access group fields', () => {
     expect(getAuditFieldLabel('sections', 'access_group')).toBe('Доступные разделы')
     expect(getAuditFieldLabel('actions', 'access_group')).toBe('Разрешённые действия')
+  })
+
+  it('maps price and shipment-request fields', () => {
+    expect(getAuditFieldLabel('price')).toBe('Цена')
+    expect(getAuditFieldLabel('status', 'shipment_request')).toBe('Статус заявки')
+    expect(getAuditFieldLabel('kind', 'shipment_request')).toBe('Тип заявки')
   })
 
   it('falls back to sentence-case humanize', () => {
@@ -42,6 +48,15 @@ describe('formatAuditValue', () => {
     expect(formatAuditValue('type', 'expense', 'inventory_operation')).toBe('Расход')
   })
 
+  it('formats harvest category and shipment-request status', () => {
+    expect(formatAuditValue('category', 'harvest', 'inventory_item')).toBe('Урожай (на складе)')
+    expect(formatAuditValue('status', 'new', 'shipment_request')).toBe('Ожидает')
+    expect(formatAuditValue('kind', 'harvest', 'shipment_request')).toBe('Урожай')
+    expect(formatAuditValue('purpose', 'shipment_request', 'inventory_operation')).toBe(
+      'Расход по заявке на отгрузку',
+    )
+  })
+
   it('formats section/action lists for access groups', () => {
     const out = formatAuditValue('sections', ['my-shift', 'inventory'], 'access_group')
     expect(out).toContain('Моя смена')
@@ -58,6 +73,11 @@ describe('formatAuditValue', () => {
     expect(formatAuditValue('actual_cost', 1500)).toMatch(/1\s?500/)
     expect(getAuditFieldLabel('actual_cost')).toBe('Фактическая стоимость')
     expect(getAuditFieldLabel('urgency')).toBe('Срочность')
+  })
+
+  it('formats expense category and equipment meter type', () => {
+    expect(formatAuditValue('category', 'fuel', 'expense')).toBe('Топливо')
+    expect(formatAuditValue('meter_type', 'motohours', 'equipment')).toBe('Моточасы')
   })
 })
 
@@ -109,5 +129,16 @@ describe('buildAuditDetailSections', () => {
     expect(rows[0]?.label).toBe('Время начала')
     expect(rows[0]?.from).toBe('08:00:00')
     expect(rows[0]?.to).toBe('09:15:00')
+  })
+
+  it('russifies shipment request and harvest values in detail rows', () => {
+    const rows = buildAuditChangeRows(
+      { status: 'new', kind: 'harvest' },
+      { status: 'done', kind: 'harvest' },
+      'shipment_request',
+    )
+    const status = rows.find((r) => r.field === 'status')
+    expect(status?.from).toBe('Ожидает')
+    expect(status?.to).toBe('Выполнено')
   })
 })

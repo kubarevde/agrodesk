@@ -3,7 +3,7 @@ import { useCurrentUser } from '@/features/auth/hooks'
 import { EmployeeMyShiftView } from '@/features/auth/EmployeeMyShiftView'
 import { ManagerMyShiftView } from '@/features/auth/ManagerMyShiftView'
 
-export function MyShiftPage() {
+export function MyShiftPage({ embedded = false }: { embedded?: boolean }) {
   const { data: user, isLoading } = useCurrentUser()
 
   if (isLoading || !user) {
@@ -11,8 +11,8 @@ export function MyShiftPage() {
   }
 
   if (user.role === 'employee') {
-    return <EmployeeMyShiftView user={user} />
+    return <EmployeeMyShiftView user={user} embedded={embedded} />
   }
 
-  return <ManagerMyShiftView />
+  return <ManagerMyShiftView embedded={embedded} />
 }

@@ -1,11 +1,9 @@
 import { z } from 'zod'
 
-/** Form values after client-side parseCoord (never NaN). */
+/** Form values after client-side parseCoord (never NaN). Crop lives on plantings only. */
 export const fieldFormSchema = z
   .object({
     name: z.string().min(1, 'Укажите название поля').transform((value) => value.trim()),
-    crop_type: z.string().optional(),
-    crop_code: z.string().optional(),
     area_ha: z.number().min(0, 'Площадь не может быть меньше 0').optional(),
     description: z.string().optional(),
     latitude: z.number().min(-90, 'Широта: от −90 до 90').max(90, 'Широта: от −90 до 90').optional(),

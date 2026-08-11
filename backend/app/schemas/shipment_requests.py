@@ -17,6 +17,10 @@ class ShipmentRequestCreate(BaseModel):
     planned_at: datetime
     priority: str = Field(default='normal', pattern='^(normal|urgent)$')
     assigned_to: UUID | None = None
+    comment: str | None = Field(default=None, max_length=2000)
+    field_planting_id: UUID | None = None
+    field_id: UUID | None = None
+    variety_id: UUID | None = None
 
 
 class ShipmentRequestUpdate(BaseModel):
@@ -25,6 +29,7 @@ class ShipmentRequestUpdate(BaseModel):
     price: Decimal | None = Field(default=None, ge=0)
     planned_at: datetime | None = None
     priority: str | None = Field(default=None, pattern='^(normal|urgent)$')
+    comment: str | None = Field(default=None, max_length=2000)
 
 
 class ShipmentRequestAssign(BaseModel):
@@ -77,6 +82,13 @@ class ShipmentRequestResponse(BaseModel):
     shift_id: UUID | None = None
     inventory_operation_id: UUID | None = None
     cancel_reason: str | None = None
+    comment: str | None = None
     created_at: datetime
     updated_at: datetime
     attachments: list[ShipmentRequestAttachmentOut] = Field(default_factory=list)
+    field_id: UUID | None = None
+    field_name: str | None = None
+    variety_id: UUID | None = None
+    variety_name: str | None = None
+    field_planting_id: UUID | None = None
+    planting_area_ha: Decimal | None = None

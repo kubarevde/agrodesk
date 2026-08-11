@@ -1,14 +1,9 @@
-import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
-import { Check, MoreHorizontal, Wrench } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
+import { Check, Clock, Wrench, XCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { CardActionsMenu, type CardActionItem } from '@/components/shared/CardActionsMenu'
 import { useUpdatePurchaseItem } from '../hooks'
 import { usePurchaseCapabilities } from '../hooks/usePurchaseCapabilities'
 import {
@@ -18,6 +13,7 @@ import {
 import { URGENCY_LABELS, urgencyBadgeClass } from '../lib/labels'
 import type { PurchasePlannerItem } from '../types'
 import { PurchaseCompleteDialog } from './PurchaseCompleteDialog'
+import { PurchaseDetailDialog } from './PurchaseDetailDialog'
 import { PurchasePhotoGallery } from './PurchasePhotoGallery'
 
 type PurchaseChecklistRowProps = {
@@ -25,30 +21,72 @@ type PurchaseChecklistRowProps = {
   onPurchased?: () => void
 }
 
+function stop(event: React.SyntheticEvent) {
+  event.stopPropagation()
+}
+
 export function PurchaseChecklistRow({ item, onPurchased }: PurchaseChecklistRowProps) {
+  const navigate = useNavigate()
   const update = useUpdatePurchaseItem()
   const caps = usePurchaseCapabilities()
   const [completeOpen, setCompleteOpen] = useState(false)
+  const [detailOpen, setDetailOpen] = useState(false)
   const context = purchaseContextLabel(item)
   const isOpen = item.status === 'planned'
 
-  const deferItem = () => {
-    const note = item.notes?.includes('отложено')
-      ? item.notes
-      : [item.notes, 'отложено'].filter(Boolean).join(' · ')
-    void update.mutateAsync({ id: item.id, payload: { notes: note } })
-  }
-
-  const cancelItem = () => {
-    void update.mutateAsync({ id: item.id, payload: { status: 'cancelled' } })
-  }
+  const actions = useMemo((): CardActionItem[] => {
+    const list: CardActionItem[] = []
+    if (isOpen) {
+      list.push({
+        id: 'defer',
+        label: 'Отложить',
+        icon: Clock,
+        onSelect: () => {
+          const note = item.notes?.includes('отложено')
+            ? item.notes
+            : [item.notes, 'отложено'].filter(Boolean).join(' · ')
+          void update.mutateAsync({ id: item.id, payload: { notes: note } })
+        },
+      })
+      if (caps.canCancel) {
+        list.push({
+          id: 'cancel',
+          label: 'Отменить',
+          icon: XCircle,
+          onSelect: () => {
+            void update.mutateAsync({ id: item.id, payload: { status: 'cancelled' } })
+          },
+        })
+      }
+    }
+    if (item.maintenanceId) {
+      list.push({
+        id: 'repair',
+        label: 'К ремонту',
+        icon: Wrench,
+        onSelect: () => {
+          void navigate({ to: '/maintenance' })
+        },
+      })
+    }
+    return list
+  }, [caps.canCancel, isOpen, item.id, item.maintenanceId, item.notes, navigate, update])
 
   return (
     <>
       <li
-        className={`flex items-stretch gap-2 rounded-xl border border-border bg-surface px-3 py-3 ${
+        role="button"
+        tabIndex={0}
+        className={`flex cursor-pointer items-stretch gap-2 rounded-xl border border-border bg-surface px-3 py-3 transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
           isOpen ? '' : 'opacity-60'
         }`}
+        onClick={() => setDetailOpen(true)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            setDetailOpen(true)
+          }
+        }}
       >
         {isOpen ? (
           <Button
@@ -56,7 +94,12 @@ export function PurchaseChecklistRow({ item, onPurchased }: PurchaseChecklistRow
             size="icon"
             className="size-11 shrink-0 rounded-full"
             disabled={update.isPending}
-            onClick={() => setCompleteOpen(true)}
+            onClick={(event) => {
+              stop(event)
+              setCompleteOpen(true)
+            }}
+            onPointerDown={stop}
+            onKeyDown={stop}
             aria-label="Отметить купленным"
           >
             <Check className="size-5" />
@@ -93,7 +136,7 @@ export function PurchaseChecklistRow({ item, onPurchased }: PurchaseChecklistRow
           ) : null}
 
           {item.images.length > 0 ? (
-            <PurchasePhotoGallery images={item.images} title={item.title} />
+            <PurchasePhotoGallery images={item.images} title={item.title} maxThumbs={3} />
           ) : null}
 
           {!isOpen ? (
@@ -103,30 +146,15 @@ export function PurchaseChecklistRow({ item, onPurchased }: PurchaseChecklistRow
           ) : null}
         </div>
 
-        {isOpen && (caps.canCancel || item.maintenanceId) ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              className="inline-flex size-10 shrink-0 items-center justify-center rounded-md hover:bg-muted/30"
-              aria-label="Дополнительные действия"
-            >
-              <MoreHorizontal className="size-5" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={deferItem}>Отложить</DropdownMenuItem>
-              {caps.canCancel ? (
-                <DropdownMenuItem onClick={cancelItem}>Отменить</DropdownMenuItem>
-              ) : null}
-              {item.maintenanceId ? (
-                <DropdownMenuItem>
-                  <Link to="/maintenance" className="w-full">
-                    К ремонту
-                  </Link>
-                </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : null}
+        {actions.length > 0 ? <CardActionsMenu actions={actions} title={item.title} /> : null}
       </li>
+
+      <PurchaseDetailDialog
+        item={item}
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        checklistLabels
+      />
 
       <PurchaseCompleteDialog
         item={item}

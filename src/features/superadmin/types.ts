@@ -15,6 +15,7 @@ export type Organization = {
   employeesCount: number
   activeShiftsCount: number
   marketplaceEnabled?: boolean
+  region?: string | null
 }
 
 export type OrganizationCreatePayload = {
@@ -24,6 +25,7 @@ export type OrganizationCreatePayload = {
   plan: OrgPlan
   maxEmployees: number
   trialEndsAt: string | null
+  region?: string | null
 }
 
 export type OrganizationUpdatePayload = {
@@ -32,6 +34,7 @@ export type OrganizationUpdatePayload = {
   maxEmployees?: number
   trialEndsAt?: string | null
   marketplaceEnabled?: boolean
+  region?: string | null
 }
 
 export type OrganizationCreateResult = {

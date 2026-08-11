@@ -79,29 +79,30 @@ async def _schema_snapshot() -> dict:
 
 def test_org_hierarchy_links_migration_upgrade_downgrade() -> None:
     cfg = _alembic_config()
-    command.upgrade(cfg, 'head')
-    after_up = asyncio.run(_schema_snapshot())
-    assert after_up['revision'] == '043_org_hierarchy_links'
-    assert TABLE in after_up['tables']
-    assert REQUIRED_COLUMNS <= after_up['columns']
-    assert 'uq_org_hierarchy_links_child' in after_up['uniques']
-    assert 'ck_org_hierarchy_links_no_self' in after_up['checks']
-    assert 'ix_org_hierarchy_links_head_org_id' in after_up['indexes']
-    fk_cols = {tuple(sorted(fk['constrained_columns'])) for fk in after_up['fks']}
-    assert ('child_org_id',) in fk_cols
-    assert ('head_org_id',) in fk_cols
-    for control in CONTROL_TABLES:
-        assert control in after_up['tables']
+    try:
+        command.upgrade(cfg, 'head')
+        after_up = asyncio.run(_schema_snapshot())
+        assert after_up['revision'] != PREV_REVISION
+        assert TABLE in after_up['tables']
+        assert REQUIRED_COLUMNS <= after_up['columns']
+        assert 'uq_org_hierarchy_links_child' in after_up['uniques']
+        assert 'ck_org_hierarchy_links_no_self' in after_up['checks']
+        assert 'ix_org_hierarchy_links_head_org_id' in after_up['indexes']
+        fk_cols = {tuple(sorted(fk['constrained_columns'])) for fk in after_up['fks']}
+        assert ('child_org_id',) in fk_cols
+        assert ('head_org_id',) in fk_cols
+        for control in CONTROL_TABLES:
+            assert control in after_up['tables']
 
-    command.downgrade(cfg, PREV_REVISION)
-    after_down = asyncio.run(_schema_snapshot())
-    assert after_down['revision'] == PREV_REVISION
-    assert TABLE not in after_down['tables']
-    for control in CONTROL_TABLES:
-        assert control in after_down['tables']
-
-    command.upgrade(cfg, 'head')
-    restored = asyncio.run(_schema_snapshot())
-    assert restored['revision'] == '043_org_hierarchy_links'
-    assert TABLE in restored['tables']
-    assert REQUIRED_COLUMNS <= restored['columns']
+        command.downgrade(cfg, PREV_REVISION)
+        after_down = asyncio.run(_schema_snapshot())
+        assert after_down['revision'] == PREV_REVISION
+        assert TABLE not in after_down['tables']
+        for control in CONTROL_TABLES:
+            assert control in after_down['tables']
+    finally:
+        command.upgrade(cfg, 'head')
+        restored = asyncio.run(_schema_snapshot())
+        assert restored['revision'] != PREV_REVISION
+        assert TABLE in restored['tables']
+        assert REQUIRED_COLUMNS <= restored['columns']

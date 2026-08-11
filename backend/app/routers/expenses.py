@@ -31,6 +31,8 @@ def expense_to_response(expense: Expense) -> ExpenseResponse:
         payment_method=expense.payment_method,
         equipment_id=expense.equipment_id,
         equipment_name=expense.equipment.name if expense.equipment else None,
+        employee_id=expense.employee_id,
+        payroll_run_line_id=expense.payroll_run_line_id,
     )
 
 

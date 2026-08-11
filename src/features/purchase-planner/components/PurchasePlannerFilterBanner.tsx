@@ -7,11 +7,13 @@ import { usePlannerFilterContext } from '../lib/plannerFilterContext'
 type PurchasePlannerFilterBannerProps = {
   filters: PlannerSearchFilters
   mode?: 'checklist' | 'manage'
+  search?: string
 }
 
 export function PurchasePlannerFilterBanner({
   filters,
   mode,
+  search,
 }: PurchasePlannerFilterBannerProps) {
   const ctx = usePlannerFilterContext(filters)
 
@@ -22,7 +24,10 @@ export function PurchasePlannerFilterBanner({
       <p className="text-sm text-foreground">{ctx.bannerText}</p>
       <Link
         to="/purchase-planner"
-        search={purchasePlannerSearch({ mode: mode === 'checklist' ? 'checklist' : undefined })}
+        search={purchasePlannerSearch({
+          mode: mode === 'checklist' ? 'checklist' : undefined,
+          search: search || undefined,
+        })}
         className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-sm text-primary hover:bg-muted/30"
       >
         <X className="size-3.5" />

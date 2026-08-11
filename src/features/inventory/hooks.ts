@@ -6,43 +6,50 @@ import { api } from '@/lib/api'
 import { apiErrorMessage } from '@/lib/apiError'
 import { db } from '@/lib/db'
 import { flushSyncQueue } from '@/lib/sync'
-import { inventoryItemFromApi, inventoryOperationFromApi } from '@/lib/transformers'
+import { displayDateToIso, inventoryItemFromApi, inventoryOperationFromApi } from '@/lib/transformers'
+import {
+  buildInventoryItemUpdateBody,
+  inventoryCropPayload,
+  inventoryVarietyPayload,
+} from '@/features/inventory/inventoryItemPayload'
+
 import type { InventoryItem, InventoryQueueItem } from '@/types'
 import { requeueInventoryItem } from './offlineInventory'
 import {
   filterInventoryBySearch,
+  filterInventoryByStatus,
   inventoryListQueryParams,
+  type InventoryListStatus,
 } from './inventorySearch'
 import type { InventoryItemFormValues } from './schemas'
 import { isHarvestCategory } from './utils'
-import {
-  buildInventoryItemUpdateBody,
-  inventoryCropPayload,
-} from './inventoryItemPayload'
 
 async function fetchInventoryOnline(params?: {
   category?: string
   search?: string
+  status?: InventoryListStatus
   /** Optional crop name map for client-side search fallback */
   cropNameByCode?: Record<string, string>
 }): Promise<InventoryItem[]> {
   const search = (params?.search ?? '').trim()
   const category =
     params?.category && params.category !== 'all' ? params.category : undefined
+  const status = params?.status ?? 'active'
   const { data } = await api.get<Record<string, unknown>[]>('/api/inventory', {
     params: inventoryListQueryParams({
-      isActive: true,
+      status,
       category,
       search,
     }),
   })
   let items = data.map(inventoryItemFromApi)
-  // Belt-and-suspenders: if an older API ignores `search`, still filter locally.
+  // Belt-and-suspenders: if an older API ignores `status`/`search`, still filter locally.
+  items = filterInventoryByStatus(items, status)
   if (search) {
     items = filterInventoryBySearch(items, search, params?.cropNameByCode)
   }
-  // Keep Dexie cache as full active list only when unfiltered
-  if (!category && !search) {
+  // Keep Dexie cache as full active list only when unfiltered active view
+  if (!category && !search && status === 'active') {
     await db.inventory.clear()
     await db.inventory.bulkPut(items)
   }
@@ -53,21 +60,22 @@ export function useInventory(options?: {
   enabled?: boolean
   category?: string
   search?: string
+  status?: InventoryListStatus
   cropNameByCode?: Record<string, string>
 }) {
   const category = options?.category
   const search = (options?.search ?? '').trim()
+  const status = options?.status ?? 'active'
   const cropNameByCode = options?.cropNameByCode
   return useQuery({
-    queryKey: ['inventory', { category: category ?? 'all', search }],
+    queryKey: ['inventory', { category: category ?? 'all', search, status }],
     queryFn: async () => {
       if (!navigator.onLine) {
         const cached = await db.inventory.toArray()
-        const active = cached.filter((item) => item.isActive !== false)
-        if (active.length === 0) {
+        let rows = filterInventoryByStatus(cached, status)
+        if (rows.length === 0 && status === 'active') {
           throw new Error('Нет локального кэша склада. Откройте раздел онлайн один раз.')
         }
-        let rows = active
         if (category && category !== 'all') {
           rows = rows.filter((item) => item.category === category)
         }
@@ -77,11 +85,16 @@ export function useInventory(options?: {
         return rows
       }
       try {
-        return await fetchInventoryOnline({ category, search, cropNameByCode })
+        return await fetchInventoryOnline({
+          category,
+          search,
+          status,
+          cropNameByCode,
+        })
       } catch (error) {
         const cached = await db.inventory.toArray()
-        if (cached.length > 0) {
-          let rows = cached.filter((item) => item.isActive !== false)
+        if (cached.length > 0 && status === 'active') {
+          let rows = filterInventoryByStatus(cached, 'active')
           if (category && category !== 'all') {
             rows = rows.filter((item) => item.category === category)
           }
@@ -91,7 +104,7 @@ export function useInventory(options?: {
         throw error
       }
     },
-    enabled: options?.enabled ?? true,
+    enabled: options?.enabled !== false,
     networkMode: 'offlineFirst',
   })
 }
@@ -132,12 +145,23 @@ export function useRetryInventoryQueueItem() {
   })
 }
 
-export function useInventoryOperations(limit = 10) {
+export type InventoryOperationsFilters = {
+  limit?: number
+  from?: string
+  to?: string
+}
+
+export function useInventoryOperations(filters: InventoryOperationsFilters = { limit: 10 }) {
+  const { limit, from, to } = filters
   return useQuery({
-    queryKey: ['inventory', 'operations', { limit }],
+    queryKey: ['inventory', 'operations', { limit, from, to }],
     queryFn: async () => {
+      const params: Record<string, string | number> = {}
+      if (limit != null) params.limit = limit
+      if (from) params.from_date = displayDateToIso(from)
+      if (to) params.to_date = displayDateToIso(to)
       const { data } = await api.get<Record<string, unknown>[]>('/api/inventory/operations', {
-        params: { limit },
+        params,
       })
       return data.map(inventoryOperationFromApi)
     },
@@ -174,16 +198,9 @@ export function useCreateInventoryItem() {
         min_stock: payload.minStock,
         total_capacity: payload.totalCapacity,
         crop_code: cropCode,
+        variety_id: inventoryVarietyPayload(payload.category, cropCode, payload.varietyId),
       })
-      const created = inventoryItemFromApi(data)
-      if (payload.isActive === false) {
-        const { data: updated } = await api.patch<Record<string, unknown>>(
-          `/api/inventory/${created.id}`,
-          { is_active: false },
-        )
-        return inventoryItemFromApi(updated)
-      }
-      return created
+      return inventoryItemFromApi(data)
     },
     onSuccess: async () => {
       await Promise.all([
@@ -201,18 +218,13 @@ export function useUpdateInventoryItem() {
   return useMutation({
     mutationFn: async ({
       id,
-      previousIsActive,
       ...payload
     }: {
       id: string
-      /** Prior isActive — used only for toast copy */
-      previousIsActive?: boolean
     } & Partial<InventoryItemFormValues>) => {
       const body = buildInventoryItemUpdateBody(payload)
       const { data } = await api.patch<Record<string, unknown>>(`/api/inventory/${id}`, body)
       const item = inventoryItemFromApi(data)
-      // Guard against stale backend (e.g. Vite proxy → old :8000 without crop_code in schema):
-      // request can succeed (200) while crop is silently dropped.
       const sentCrop = inventoryCropPayload(payload.category, payload.cropCode)
       if (sentCrop && !item.cropCode) {
         throw new Error(
@@ -220,23 +232,97 @@ export function useUpdateInventoryItem() {
             'Перезапустите backend на порту из Vite proxy (обычно :8000) с актуальным кодом.',
         )
       }
-      return { item, previousIsActive }
+      return item
     },
-    onSuccess: async (_result, variables) => {
+    onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['inventory'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       ])
-      const wasActive = variables.previousIsActive
-      if (variables.isActive === false) {
-        toast.success('Позиция архивирована (история сохранена)')
-      } else if (wasActive === false && variables.isActive === true) {
-        toast.success('Позиция восстановлена из архива')
-      } else {
-        toast.success('Позиция обновлена')
-      }
+      toast.success('Позиция обновлена')
     },
     onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось обновить позицию')),
+  })
+}
+
+export function useArchiveInventoryItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const { data } = await api.post<Record<string, unknown>>(`/api/inventory/${id}/archive`, {
+        reason,
+      })
+      return inventoryItemFromApi(data)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['inventory'] })
+      toast.success('Позиция архивирована')
+    },
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось архивировать позицию')),
+  })
+}
+
+export function useRestoreInventoryItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, comment }: { id: string; comment?: string }) => {
+      const { data } = await api.post<Record<string, unknown>>(`/api/inventory/${id}/restore`, {
+        comment: comment || undefined,
+      })
+      return inventoryItemFromApi(data)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['inventory'] })
+      toast.success('Позиция восстановлена')
+    },
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось восстановить позицию')),
+  })
+}
+
+export function useHardDeleteInventoryItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      await api.delete(`/api/inventory/${id}`, { data: { reason } })
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['inventory'] })
+      toast.success('Позиция удалена безвозвратно')
+    },
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось удалить позицию')),
+  })
+}
+
+export type ArchiveEligibility = {
+  itemId: string
+  name: string
+  currentStock: number
+  isActive: boolean
+  stockBlocks: boolean
+  hasHistory: boolean
+  canHardDelete: boolean
+  canArchive: boolean
+}
+
+export function useInventoryArchiveEligibility(itemId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['inventory', 'archive-eligibility', itemId],
+    queryFn: async (): Promise<ArchiveEligibility> => {
+      const { data } = await api.get<Record<string, unknown>>(
+        `/api/inventory/${itemId}/archive-eligibility`,
+      )
+      return {
+        itemId: String(data.item_id),
+        name: String(data.name ?? ''),
+        currentStock: Number(data.current_stock ?? 0),
+        isActive: data.is_active !== false,
+        stockBlocks: data.stock_blocks === true,
+        hasHistory: data.has_history === true,
+        canHardDelete: data.can_hard_delete === true,
+        canArchive: data.can_archive === true,
+      }
+    },
+    enabled: Boolean(itemId) && enabled,
   })
 }
 

@@ -56,11 +56,11 @@ export function SystemStatus() {
   const activeShifts = stats?.activeShifts?.length ?? 0
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
       <StatusCard
         icon={Radio}
         title="Система"
-        value={apiOk === null ? '…' : apiOk ? 'API онлайн' : 'API недоступен'}
+        value={apiOk === null ? '…' : apiOk ? 'Сервер доступен' : 'Сервер недоступен'}
         tone={apiOk === false ? 'danger' : apiOk ? 'ok' : 'muted'}
         hint={
           queueCount > 0
@@ -73,7 +73,7 @@ export function SystemStatus() {
         title="Техника"
         value={`${warningCount} требуют внимания`}
         tone={warningCount > 0 ? 'warn' : 'ok'}
-        hint="Предупреждения по ТО"
+        hint="Предупреждения по обслуживанию"
       />
       <StatusCard
         icon={MapPinned}
@@ -84,7 +84,7 @@ export function SystemStatus() {
       />
       <StatusCard
         icon={Share2}
-        title="Шеринг"
+        title="Совместное использование"
         value={`${sharingRequests} новых заявок`}
         tone={sharingRequests > 0 ? 'warn' : 'muted'}
         hint={
@@ -108,8 +108,8 @@ type StatusCardProps = {
 
 function StatusCard({ icon: Icon, title, value, hint, tone }: StatusCardProps) {
   return (
-    <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
-      <div className="mb-1 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+      <div className="mb-0.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         <Icon className="size-3.5" aria-hidden />
         {title}
       </div>
@@ -126,7 +126,7 @@ function StatusCard({ icon: Icon, title, value, hint, tone }: StatusCardProps) {
         {tone === 'danger' ? <CloudOff className="mr-1 inline size-3.5" aria-hidden /> : null}
         {value}
       </p>
-      <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { ru } from 'date-fns/locale'
 import { isUuid } from '@/lib/display'
 import { ACTION_LABELS } from '@/lib/permissionActions'
 import { getSectionByKey } from '@/lib/sectionRegistry'
+import { getAuditCodeLabel } from './auditCodeLabels'
 import { getAuditActionLabel, humanizeAuditValue } from './auditLabels'
 import { getAuditFieldLabel, isTechnicalAuditField } from './auditFieldLabels'
 import type { AuditLogEntry } from '../types'
@@ -32,22 +33,39 @@ const ROLE_LABELS: Record<string, string> = {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  // shifts
   open: 'Открыта',
   closed: 'Закрыта',
-  // purchase / agro / maintenance
   planned: 'Запланировано',
   purchased: 'Куплено',
   cancelled: 'Отменено',
   in_progress: 'В работе',
   waiting_parts: 'Ожидает запчасти',
   done: 'Выполнено',
+  new: 'Ожидает',
+}
+
+const REPAIR_STATUS_LABELS: Record<string, string> = {
+  in_progress: 'В ремонте',
+  done: 'Завершён',
+  cancelled: 'Отменён',
+  open: 'Открыт',
+  waiting_parts: 'Ожидает запчасти',
 }
 
 const OPERATION_TYPE_LABELS: Record<string, string> = {
   income: 'Приход',
   expense: 'Расход',
   adjustment: 'Корректировка',
+}
+
+const PURPOSE_LABELS: Record<string, string> = {
+  opening: 'Начальный остаток',
+  adjustment: 'Корректировка',
+  refuel: 'Заправка',
+  install: 'Установка',
+  shipment_request: 'Расход по заявке на отгрузку',
+  harvest_income: 'Сбор урожая с поля',
+  general: 'Общее',
 }
 
 const URGENCY_LABELS: Record<string, string> = {
@@ -65,7 +83,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   fertilizer: 'Удобрения',
   parts: 'Запчасти',
   seeds: 'Семена',
-  chemicals: 'Химия',
+  chemicals: 'СЗР',
+  harvest: 'Урожай (на складе)',
   other: 'Прочее',
 }
 
@@ -83,6 +102,14 @@ const PAYMENT_LABELS: Record<string, string> = {
 const KIND_LABELS: Record<string, string> = {
   field: 'Поле',
   object: 'Объект',
+  harvest: 'Урожай',
+  inventory: 'Со склада',
+}
+
+const METER_TYPE_LABELS: Record<string, string> = {
+  motohours: 'Моточасы',
+  km: 'Километры',
+  shift_hours: 'Часы смен',
 }
 
 const MONEY_FIELDS = new Set([
@@ -93,6 +120,8 @@ const MONEY_FIELDS = new Set([
   'actual_cost',
   'estimated_cost',
   'price_per_kg',
+  'price_per_unit',
+  'price',
   'calculated_amount',
   'total_capacity',
 ])
@@ -101,11 +130,13 @@ const DATE_FIELDS = new Set([
   'date',
   'planned_date',
   'planned_end_date',
+  'end_date',
   'valid_from',
   'valid_to',
   'purchased_at',
   'date_returned',
   'done_at',
+  'planned_at',
 ])
 
 const DATETIME_FIELDS = new Set(['created_at', 'updated_at', 'changed_at', 'trial_ends_at'])
@@ -157,17 +188,19 @@ function mapKnownEnum(field: string, trimmed: string, entityType?: string | null
   if (field === 'payment_method') return PAYMENT_LABELS[trimmed] ?? null
   if (field === 'kind') return KIND_LABELS[trimmed] ?? null
   if (field === 'category') return CATEGORY_LABELS[trimmed] ?? null
+  if (field === 'purpose') return PURPOSE_LABELS[trimmed] ?? null
+  if (field === 'meter_type') return METER_TYPE_LABELS[trimmed] ?? null
 
   if (field === 'type') {
-    if (entityType === 'inventory_operation') {
-      return OPERATION_TYPE_LABELS[trimmed] ?? null
-    }
     return OPERATION_TYPE_LABELS[trimmed] ?? null
   }
 
   if (field === 'status') {
     if (entityType === 'agro_plan' && trimmed === 'planned') return 'Запланирован'
     if (entityType === 'purchase_planner' && trimmed === 'planned') return 'К покупке'
+    if (entityType === 'equipment_maintenance') {
+      return REPAIR_STATUS_LABELS[trimmed] ?? STATUS_LABELS[trimmed] ?? null
+    }
     return STATUS_LABELS[trimmed] ?? null
   }
 
@@ -218,6 +251,9 @@ export function formatAuditValue(
 
     if (trimmed === 'true') return 'Да'
     if (trimmed === 'false') return 'Нет'
+
+    const codeLabel = getAuditCodeLabel(trimmed)
+    if (codeLabel) return codeLabel
 
     return trimmed
   }

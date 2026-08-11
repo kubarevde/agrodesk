@@ -45,6 +45,7 @@ const defaults: ImplementFormValues = {
   image_url: undefined,
   current_usage_hours: undefined,
   service_interval_hours: undefined,
+  next_service_hours: undefined,
 }
 
 export function ImplementFormDialog({
@@ -83,6 +84,7 @@ export function ImplementFormDialog({
             image_url: item.image_url ?? undefined,
             current_usage_hours: item.current_usage_hours ?? undefined,
             service_interval_hours: item.service_interval_hours ?? undefined,
+            next_service_hours: item.next_service_hours ?? undefined,
           }
         : {
             ...defaults,
@@ -157,26 +159,46 @@ export function ImplementFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="impl-hours">Наработка, ч</Label>
-              <Input
-                id="impl-hours"
-                type="number"
-                min={0}
-                step="any"
-                {...form.register('current_usage_hours', numberInputRegister)}
-              />
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="impl-hours">Текущая наработка, ч</Label>
+                <Input
+                  id="impl-hours"
+                  type="number"
+                  min={0}
+                  step="any"
+                  {...form.register('current_usage_hours', numberInputRegister)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="impl-interval">Интервал ТО (каждые X ч)</Label>
+                <Input
+                  id="impl-interval"
+                  type="number"
+                  min={0}
+                  step="any"
+                  {...form.register('service_interval_hours', {
+                    setValueAs: (v) => (v === '' || v == null ? undefined : Number(v)),
+                  })}
+                />
+              </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="impl-interval">Интервал ТО, ч</Label>
+              <Label htmlFor="impl-next">Следующее ТО на, ч</Label>
               <Input
-                id="impl-interval"
+                id="impl-next"
                 type="number"
                 min={0}
                 step="any"
-                {...form.register('service_interval_hours', { valueAsNumber: true })}
+                {...form.register('next_service_hours', {
+                  setValueAs: (v) => (v === '' || v == null ? undefined : Number(v)),
+                })}
               />
+              <p className="text-xs text-muted-foreground">
+                Абсолютное значение счётчика следующего ТО. Если не указать — будет
+                наработка + интервал (не просрочка от нуля).
+              </p>
             </div>
           </div>
 

@@ -6,6 +6,7 @@ import { apiErrorMessage } from '@/lib/apiError'
 import { db } from '@/lib/db'
 import { displayDateToIso, inventoryOperationFromApi } from '@/lib/transformers'
 import type { FieldFormValues } from './schemas'
+import { mapSeasonPlantingOverlay } from './seasonPlantingTypes'
 
 function toPayload(values: FieldFormValues) {
   const polygon =
@@ -24,8 +25,6 @@ function toPayload(values: FieldFormValues) {
 
   return {
     name: values.name.trim(),
-    crop_type: values.crop_type || null,
-    crop_code: values.crop_code || null,
     area_ha: area,
     description: values.description || null,
     latitude: lat,
@@ -74,6 +73,20 @@ export function useFieldDetail(id: string | undefined) {
   })
 }
 
+export function useSeasonPlantingOverlays(seasonYear?: number, options?: { enabled?: boolean }) {
+  const year = seasonYear ?? new Date().getFullYear()
+  return useQuery({
+    queryKey: ['fields-season-plantings', year],
+    enabled: options?.enabled !== false,
+    queryFn: async () => {
+      const { data } = await api.get<Record<string, unknown>[]>('/api/fields/season-plantings', {
+        params: { season_year: year },
+      })
+      return (Array.isArray(data) ? data : []).map(mapSeasonPlantingOverlay)
+    },
+  })
+}
+
 export function useCreateField() {
   const queryClient = useQueryClient()
 
@@ -84,7 +97,7 @@ export function useCreateField() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['fields'] })
-      toast.success('Поле добавлено')
+      toast.success('Поле создано. Добавьте культуру / посев на карточке поля.')
     },
     onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось добавить поле')),
   })
@@ -130,6 +143,8 @@ export function useFieldHarvest() {
       inventoryItemId: string
       quantity: number
       date: string
+      fieldPlantingId?: string
+      harvestStatus?: 'partially_harvested' | 'harvested'
     }) => {
       const { data } = await api.post<Record<string, unknown>>(
         `/api/fields/${payload.fieldId}/harvest`,
@@ -137,14 +152,20 @@ export function useFieldHarvest() {
           inventory_item_id: payload.inventoryItemId,
           quantity: payload.quantity,
           date: displayDateToIso(payload.date),
+          ...(payload.fieldPlantingId
+            ? { field_planting_id: payload.fieldPlantingId }
+            : {}),
+          ...(payload.harvestStatus ? { harvest_status: payload.harvestStatus } : {}),
         },
       )
       return inventoryOperationFromApi(data)
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, vars) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['inventory'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+        queryClient.invalidateQueries({ queryKey: ['field-plantings', vars.fieldId] }),
+        queryClient.invalidateQueries({ queryKey: ['field-plantings-summary', vars.fieldId] }),
       ])
     },
     onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось оприходовать урожай')),

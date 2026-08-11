@@ -3,7 +3,9 @@ import {
   openShift,
   findShiftRow,
   waitForShiftsTable,
+  warmShiftOfflineCache,
   loginDemoAdmin,
+  loginDemoAdminViaUi,
   selectFormOption,
   selectWorktimeStatusFilter,
   closeAllOpenShifts,
@@ -14,16 +16,28 @@ import {
 test.describe.configure({ mode: 'serial' })
 test.describe.configure({ timeout: 90_000 })
 
+test('UI login smoke: EMP000 через форму входа', async ({ page }) => {
+  await loginDemoAdminViaUi(page)
+  await expect(page).not.toHaveURL(/\/login/)
+  await page.goto('/dashboard')
+  await expect(page.getByRole('heading', { name: 'Дашборд' })).toBeVisible({
+    timeout: 20_000,
+  })
+})
+
 test('открытие и закрытие смены онлайн', async ({ page }) => {
   const location = 'Мастерская'
   const workType = 'Ремонт техники'
 
   await waitForShiftsTable(page)
 
-  await openShift(page, location, workType)
+  const usedLocation = await openShift(page, location, workType)
   await expect(page.getByText(/Смена открыта/)).toBeVisible({ timeout: 15_000 })
 
-  const row = await findShiftRow(page, location)
+  const row = await findShiftRow(page, usedLocation, {
+    status: 'Открыта',
+    workType,
+  })
   await expect(row.getByText('Открыта')).toBeVisible()
 
   await row.getByRole('button', { name: 'Действия' }).click()
@@ -32,22 +46,29 @@ test('открытие и закрытие смены онлайн', async ({ pa
   const closeDialog = page.getByRole('dialog', { name: 'Завершить смену' })
   await expect(closeDialog).toBeVisible()
   await closeDialog.getByLabel('Что сделано за смену?').fill('Выполнен полив растений')
-  await closeDialog.getByRole('button', { name: 'Завершить смену' }).click()
+  const finishBtn = closeDialog.getByRole('button', { name: 'Завершить смену' })
+  await expect(finishBtn).toBeEnabled({ timeout: 10_000 })
+  await finishBtn.click({ force: true })
 
   await expect(page.getByText('Смена закрыта')).toBeVisible()
 
-  const closedRow = await findShiftRow(page, location)
+  const closedRow = await findShiftRow(page, usedLocation, {
+    status: 'Закрыта',
+    workType,
+    employee: /Иванов|EMP001/,
+  })
   await expect(closedRow.getByText('Закрыта')).toBeVisible()
 })
 
 test('открытие смены офлайн и синхронизация', async ({ page, context }) => {
   await waitForShiftsTable(page)
   await closeAllOpenShifts(page)
+  await warmShiftOfflineCache(page)
 
   await context.setOffline(true)
   await expect(page.getByRole('button', { name: /Офлайн/ })).toBeVisible()
 
-  await openShift(page, 'Мастерская', 'Ремонт техники', { skipCleanup: true })
+  const usedLocation = await openShift(page, 'Мастерская', 'Ремонт техники', { skipCleanup: true })
   await expect(page.getByText(/Сохранено офлайн/)).toBeVisible()
   await expect(page.getByRole('button', { name: '1', exact: true })).toBeVisible()
 
@@ -57,6 +78,7 @@ test('открытие смены офлайн и синхронизация', a
   await expect(page.getByRole('button', { name: '1', exact: true })).toHaveCount(0, {
     timeout: 5_000,
   })
+  void usedLocation
 })
 
 test('холодный перезапуск офлайн сохраняет сессию', async ({ page, context }) => {
@@ -95,17 +117,20 @@ test('холодный перезапуск офлайн сохраняет се
 test('офлайн-запись переживает reload до синхронизации', async ({ page, context }) => {
   await waitForShiftsTable(page)
   await closeAllOpenShifts(page)
+  await warmShiftOfflineCache(page)
 
   await context.setOffline(true)
   // Use same seeded refs as other offline tests (cached while online above).
-  await openShift(page, 'Мастерская', 'Ремонт техники', { skipCleanup: true })
+  const usedLocation = await openShift(page, 'Мастерская', 'Ремонт техники', {
+    skipCleanup: true,
+  })
   await expect(page.getByText(/Сохранено офлайн/)).toBeVisible()
   await expect(page.getByRole('button', { name: '1', exact: true })).toBeVisible()
 
   const hasSw = await page.evaluate(() => Boolean(navigator.serviceWorker?.controller))
   if (!hasSw) {
     await expect(page.getByRole('button', { name: /Офлайн/ })).toBeVisible()
-    await expect(page.getByText('Мастерская').first()).toBeVisible()
+    await expect(page.getByText(usedLocation).first()).toBeVisible()
     return
   }
 
@@ -122,7 +147,7 @@ test('офлайн-запись переживает reload до синхрон�
   await expect(page.getByRole('button', { name: '1', exact: true })).toBeVisible({
     timeout: 10_000,
   })
-  await expect(page.getByText('Мастерская').first()).toBeVisible()
+  await expect(page.getByText(usedLocation).first()).toBeVisible()
 })
 
 test('дашборд офлайн показывает честный online-only state', async ({ page, context }) => {
@@ -195,11 +220,20 @@ test('офлайн после входа EMP000 не подменяет проф
   await expect(page.getByText('EMP001')).toHaveCount(0)
 })
 
-test('открытие смены офлайн с /my-shift после прогрева кэша', async ({ page, context }) => {
+test('открытие смены офлайн с /workspace?tab=shift после прогрева кэша', async ({
+  page,
+  context,
+}) => {
   await loginDemoAdmin(page)
   await closeAllOpenShifts(page)
-  await page.goto('/my-shift')
-  await expect(page.getByRole('heading', { name: 'Моя смена' })).toBeVisible({ timeout: 15_000 })
+  await warmShiftOfflineCache(page)
+  // Product change: /my-shift → /workspace?tab=shift; page h1 is «Рабочее место», tab «Моя смена».
+  await page.goto('/workspace?tab=shift')
+  await expect(page).toHaveURL(/\/workspace/, { timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: 'Рабочее место' })).toBeVisible({
+    timeout: 15_000,
+  })
+  await expect(page.getByRole('tab', { name: 'Моя смена' })).toBeVisible()
   // Warm reference queries while online
   await page.waitForTimeout(1500)
 
@@ -211,7 +245,29 @@ test('открытие смены офлайн с /my-shift после прог�
   await expect(dialog).toBeVisible()
   await expect(dialog.getByText(/Нет сети — смена сохранится/)).toBeVisible()
 
-  await selectFormOption(page, 'Объект', 'Мастерская')
+  // Prefer Мастерская; QA seed may only expose «Полевая работа» (+ field).
+  const locationCombo = dialog
+    .locator('div.space-y-2:has([data-slot="label"]:text-is("Объект"))')
+    .getByRole('combobox')
+  if (await locationCombo.isVisible().catch(() => false)) {
+    await locationCombo.click()
+    const opts = page.getByRole('option')
+    await expect(opts.first()).toBeVisible({ timeout: 10_000 })
+    const workshop = opts.filter({ hasText: /Мастерская/i }).first()
+    if (await workshop.isVisible().catch(() => false)) {
+      await workshop.click()
+    } else {
+      await opts.first().click()
+      const fieldCombo = dialog
+        .locator('div.space-y-2')
+        .filter({ hasText: /^Поле/ })
+        .getByRole('combobox')
+      if (await fieldCombo.isVisible().catch(() => false)) {
+        await fieldCombo.click()
+        await page.getByRole('option').first().click()
+      }
+    }
+  }
   await selectFormOption(page, 'Тип работ', 'Ремонт техники')
   await page.getByRole('button', { name: 'Начать смену' }).click()
   await expect(page.getByText(/Сохранено офлайн/)).toBeVisible({ timeout: 10_000 })

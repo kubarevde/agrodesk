@@ -8,13 +8,12 @@ from __future__ import annotations
 
 import logging
 from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.employee import Employee
-from app.models.notification import Notification
 from app.services.action_permissions import (
     employee_has_action,
     resolve_effective_permissions,
@@ -67,19 +66,20 @@ async def notify_new_market_order(
         'Свяжитесь вне системы (звонок / мессенджер).'
     )
     ids: list[UUID] = []
+    from app.services.notification_prefs import create_employee_notification
+
     for employee in recipients:
-        db.add(
-            Notification(
-                id=uuid4(),
-                employee_id=employee.id,
-                type=NEW_MARKET_ORDER_TYPE,
-                title=title[:200],
-                body=body,
-                link=SELLER_ORDERS_LINK,
-                is_read=False,
-            )
+        row = await create_employee_notification(
+            db,
+            employee_id=employee.id,
+            notif_type=NEW_MARKET_ORDER_TYPE,
+            title=title[:200],
+            body=body,
+            link=SELLER_ORDERS_LINK,
+            prefs=employee.notification_prefs,
         )
-        ids.append(employee.id)
+        if row is not None:
+            ids.append(employee.id)
     return ids
 
 

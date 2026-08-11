@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { formatApiDate, parseApiDate, SHIFT_TIME_SLOTS } from '@/features/worktime/utils'
+import { formatApiDate, parseApiDate, shiftTimeOptions } from '@/features/worktime/utils'
 
 interface ShiftDateTimeFieldProps {
   label: string
@@ -35,6 +35,7 @@ export function ShiftDateTimeField({
 }: ShiftDateTimeFieldProps) {
   const selectedDate = date ? parseApiDate(date) : undefined
   const dateLabel = selectedDate ? format(selectedDate, 'dd.MM.yyyy') : 'Выберите дату'
+  const timeSlots = shiftTimeOptions(time)
 
   return (
     <div className="space-y-2">
@@ -64,13 +65,13 @@ export function ShiftDateTimeField({
         <Select
           value={time}
           onValueChange={(value) => value && onTimeChange(value)}
-          items={SHIFT_TIME_SLOTS.map((slot) => ({ value: slot, label: slot }))}
+          items={timeSlots.map((slot) => ({ value: slot, label: slot }))}
         >
           <SelectTrigger className={cn('w-full', timeError && 'border-destructive')} aria-invalid={Boolean(timeError)}>
             <SelectValue placeholder="Время" />
           </SelectTrigger>
           <SelectContent>
-            {SHIFT_TIME_SLOTS.map((slot) => (
+            {timeSlots.map((slot) => (
               <SelectItem key={slot} value={slot}>
                 {slot}
               </SelectItem>

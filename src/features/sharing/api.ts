@@ -7,6 +7,7 @@ import type {
   SharingListingType,
   SharingListingStatus,
   SharingRequestStatus,
+  SharingScope,
 } from './types'
 
 type ApiRecord = Record<string, unknown>
@@ -22,6 +23,23 @@ function toStringOrNull(value: unknown): string | null {
   return String(value)
 }
 
+function toPolygon(value: unknown): number[][] | null {
+  if (!Array.isArray(value) || value.length < 3) return null
+  const ring: number[][] = []
+  for (const item of value) {
+    if (!Array.isArray(item) || item.length < 2) continue
+    const lat = Number(item[0])
+    const lng = Number(item[1])
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue
+    ring.push([lat, lng])
+  }
+  return ring.length >= 3 ? ring : null
+}
+
+function toScope(value: unknown): SharingScope {
+  return value === 'partial_field' ? 'partial_field' : 'full_field'
+}
+
 export function listingFromApi(raw: ApiRecord): SharingListing {
   const images = Array.isArray(raw.images)
     ? raw.images.map((item) => String(item))
@@ -29,7 +47,8 @@ export function listingFromApi(raw: ApiRecord): SharingListing {
 
   return {
     id: String(raw.id),
-    type: raw.type as SharingListingType,
+    orgId: toStringOrNull(raw.org_id),
+    type: (raw.type as SharingListing['type']) ?? 'field',
     title: humanLabel(String(raw.title ?? ''), 'Объявление'),
     description: toStringOrNull(raw.description),
     pricePerUnit: toNumber(raw.price_per_unit),
@@ -51,6 +70,10 @@ export function listingFromApi(raw: ApiRecord): SharingListing {
     images,
     requestsCount: Number(raw.requests_count ?? 0),
     createdAt: String(raw.created_at ?? ''),
+    sharingScope: toScope(raw.sharing_scope),
+    sharedAreaHa: toNumber(raw.shared_area_ha),
+    effectivePolygon: toPolygon(raw.effective_polygon),
+    effectiveAreaHa: toNumber(raw.effective_area_ha),
   }
 }
 
@@ -104,8 +127,11 @@ export function listingCreateToApi(input: {
   lat?: number | null
   lng?: number | null
   images?: string[]
+  sharingScope?: SharingScope
+  sharedPolygon?: number[][] | null
 }): ApiRecord {
-  return {
+  const scope = input.sharingScope ?? 'full_field'
+  const body: ApiRecord = {
     type: input.type,
     title: input.title,
     description: input.description || undefined,
@@ -119,7 +145,14 @@ export function listingCreateToApi(input: {
     lat: input.lat ?? undefined,
     lng: input.lng ?? undefined,
     images: input.images?.length ? input.images : undefined,
+    sharing_scope: scope,
   }
+  if (scope === 'partial_field') {
+    body.shared_polygon = input.sharedPolygon ?? null
+  } else {
+    body.shared_polygon = null
+  }
+  return body
 }
 
 export function listingUpdateToApi(input: {
@@ -132,6 +165,8 @@ export function listingUpdateToApi(input: {
   lat?: number | null
   lng?: number | null
   images?: string[]
+  sharingScope?: SharingScope
+  sharedPolygon?: number[][] | null
 }): ApiRecord {
   const body: ApiRecord = {}
   if (input.title !== undefined) body.title = input.title
@@ -143,5 +178,11 @@ export function listingUpdateToApi(input: {
   if (input.lat !== undefined) body.lat = input.lat
   if (input.lng !== undefined) body.lng = input.lng
   if (input.images !== undefined) body.images = input.images
+  if (input.sharingScope !== undefined) body.sharing_scope = input.sharingScope
+  if (input.sharingScope === 'full_field') {
+    body.shared_polygon = null
+  } else if (input.sharedPolygon !== undefined) {
+    body.shared_polygon = input.sharedPolygon
+  }
   return body
 }

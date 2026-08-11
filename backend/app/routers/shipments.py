@@ -46,7 +46,14 @@ def calc_total_sum(quantity_kg: Decimal, price_per_kg: Decimal | None) -> Decima
     return quantity_kg * price_per_kg
 
 
-def shipment_to_response(shipment: Shipment) -> ShipmentResponse:
+def shipment_to_response(
+    shipment: Shipment,
+    *,
+    field_name: str | None = None,
+    variety_name: str | None = None,
+    planting_area_ha: Decimal | None = None,
+    harvested_qty: Decimal | None = None,
+) -> ShipmentResponse:
     return ShipmentResponse(
         id=shipment.id,
         org_id=shipment.org_id,
@@ -59,6 +66,13 @@ def shipment_to_response(shipment: Shipment) -> ShipmentResponse:
         notes=shipment.notes,
         total_sum=calc_total_sum(shipment.quantity_kg, shipment.price_per_kg),
         shipment_request_id=shipment.shipment_request_id,
+        field_id=shipment.field_id,
+        field_name=field_name,
+        variety_id=shipment.variety_id,
+        variety_name=variety_name,
+        field_planting_id=shipment.field_planting_id,
+        planting_area_ha=planting_area_ha,
+        harvested_qty=harvested_qty,
     )
 
 
@@ -198,6 +212,10 @@ async def list_shipments(
     from_date: date | None = Query(None),
     to_date: date | None = Query(None),
     crop_type: str | None = Query(None),
+    variety_id: UUID | None = Query(
+        None,
+        description='Filter by crop variety of the selected culture',
+    ),
     shipment_request_id: UUID | None = Query(
         None,
         description='Filter by optional managerial link to a harvest request',
@@ -214,6 +232,8 @@ async def list_shipments(
         query = query.where(Shipment.date <= to_date)
     if crop_type is not None:
         query = query.where(Shipment.crop_type == crop_type)
+    if variety_id is not None:
+        query = query.where(Shipment.variety_id == variety_id)
     if shipment_request_id is not None:
         query = query.where(Shipment.shipment_request_id == shipment_request_id)
 
@@ -267,6 +287,23 @@ async def create_shipment(
             crop_code=crop_code,
             ship_date=payload.date,
         )
+
+    origin_field_id = payload.field_id
+    origin_variety_id = payload.variety_id
+    origin_planting_id = payload.field_planting_id
+    if linked_request_id is not None:
+        req = await db.get(ShipmentRequest, linked_request_id)
+        if req is not None:
+            # Copy origin from request; refuse incompatible override.
+            if origin_planting_id and req.field_planting_id and origin_planting_id != req.field_planting_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail='Посев отгрузки не совпадает с заявкой',
+                )
+            origin_field_id = origin_field_id or req.field_id
+            origin_variety_id = origin_variety_id or req.variety_id
+            origin_planting_id = origin_planting_id or req.field_planting_id
+
     shipment = Shipment(
         org_id=org_id,
         date=payload.date,
@@ -277,6 +314,9 @@ async def create_shipment(
         price_per_kg=payload.price_per_kg,
         notes=payload.notes,
         shipment_request_id=linked_request_id,
+        field_id=origin_field_id,
+        variety_id=origin_variety_id,
+        field_planting_id=origin_planting_id,
         created_by=current.id,
     )
     db.add(shipment)

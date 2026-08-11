@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
@@ -11,7 +12,7 @@ from app.database import get_db
 from app.dependencies.auth import get_current_employee, require_admin, require_manager
 from app.middleware.org_context import get_org_id
 from app.models.employee import Employee
-from app.models.implement import Implement, ImplementMaintenance
+from app.models.implement import Implement, ImplementMaintenance, ImplementUsageLog
 from app.models.reference import Equipment
 from app.schemas.implement import (
     ImplementAttach,
@@ -20,13 +21,20 @@ from app.schemas.implement import (
     ImplementMaintenanceResponse,
     ImplementResponse,
     ImplementUpdate,
+    ImplementUsageLogCreate,
+    ImplementUsageLogResponse,
 )
 from app.services.audit import log_change, model_snapshot
 from app.services.dashboard import clear_dashboard_cache
+from app.services.implement_usage import (
+    add_implement_usage_log,
+    recalculate_implement_usage,
+    usage_log_load_options,
+    usage_log_to_response,
+)
 from app.services.maintenance import (
     build_maintenance_summary,
-    calculate_next_service_hours,
-    next_after_completed_service,
+    resolve_next_to_at,
 )
 from app.services.maintenance_expense import (
     create_maintenance_expense,
@@ -153,8 +161,12 @@ async def create_implement(
 
     data = payload.model_dump()
     data['condition'] = data.get('condition') or 'good'
-    nxt = calculate_next_service_hours(data.get('current_usage_hours'), data.get('service_interval_hours'))
-    data['next_service_hours'] = nxt
+    resolved = resolve_next_to_at(
+        meter_at=data.get('current_usage_hours'),
+        next_to_at=data.get('next_service_hours'),
+        next_to_interval=data.get('service_interval_hours'),
+    )
+    data['next_service_hours'] = resolved
     item = Implement(**data, org_id=org_id)
     db.add(item)
     try:
@@ -189,9 +201,15 @@ async def update_implement(
     for field, value in updates.items():
         setattr(item, field, value)
 
-    if 'current_usage_hours' in updates or 'service_interval_hours' in updates:
-        nxt = calculate_next_service_hours(item.current_usage_hours, item.service_interval_hours)
-        item.next_service_hours = nxt
+    # Absolute next TO (5.5): explicit field wins; else fill only when schedule was empty.
+    if 'next_service_hours' in updates:
+        pass
+    elif item.next_service_hours is None and item.service_interval_hours is not None:
+        resolved = resolve_next_to_at(
+            meter_at=item.current_usage_hours,
+            next_to_interval=item.service_interval_hours,
+        )
+        item.next_service_hours = Decimal(str(resolved)) if resolved is not None else None
 
     db.add(item)
     try:
@@ -282,6 +300,7 @@ async def list_implement_maintenance(
             implement_id=row.implement_id,
             date=row.date,
             type=row.type,
+            meter_at=float(row.meter_at) if row.meter_at is not None else None,
             cost=float(row.cost) if row.cost is not None else None,
             description=row.description,
             expense_id=row.expense_id,
@@ -304,6 +323,10 @@ async def create_implement_maintenance(
 ) -> ImplementMaintenanceResponse:
     org_id = get_org_id(request)
     item = await get_implement_or_404(db, implement_id, org_id)
+    current_hours = Decimal(str(item.current_usage_hours or 0))
+    meter_at = (
+        Decimal(str(payload.meter_at)) if payload.meter_at is not None else current_hours
+    )
 
     expense_id: UUID | None = None
     if should_create_maintenance_expense(payload.cost):
@@ -322,6 +345,7 @@ async def create_implement_maintenance(
         implement_id=item.id,
         date=payload.date,
         type=payload.type,
+        meter_at=meter_at,
         cost=Decimal(str(payload.cost)) if payload.cost is not None else None,
         description=payload.description,
         expense_id=expense_id,
@@ -330,15 +354,26 @@ async def create_implement_maintenance(
     db.add(record)
     await db.flush()
 
+    # Bump counter when TO reading is ahead of card value (option 1 parity).
+    if meter_at > current_hours:
+        item.current_usage_hours = meter_at
+
     interval = payload.next_service_interval
     if interval is None and item.service_interval_hours is not None:
         interval = float(item.service_interval_hours)
     if interval is not None and interval > 0:
         item.service_interval_hours = Decimal(str(interval))
-        computed = next_after_completed_service(float(item.current_usage_hours or 0), interval)
-        item.next_service_hours = Decimal(str(computed)) if computed is not None else None
+
+    resolved = resolve_next_to_at(
+        meter_at=float(meter_at),
+        next_to_at=payload.next_service_hours,
+        next_to_interval=interval,
+    )
+    if resolved is not None:
+        item.next_service_hours = Decimal(str(resolved))
         item.last_service_date = payload.date
-        db.add(item)
+
+    db.add(item)
 
     await log_change(db, org_id=org_id, entity_type='implement_maintenance', entity_id=record.id,
                      action='create', changed_by=current.id, after=model_snapshot(record))
@@ -351,7 +386,124 @@ async def create_implement_maintenance(
         implement_id=record.implement_id,
         date=record.date,
         type=record.type,
+        meter_at=float(record.meter_at) if record.meter_at is not None else None,
         cost=float(record.cost) if record.cost is not None else None,
         description=record.description,
         expense_id=record.expense_id,
     )
+
+
+@router.get('/{implement_id}/usage-logs', response_model=list[ImplementUsageLogResponse])
+async def list_implement_usage_logs(
+    request: Request,
+    implement_id: UUID,
+    from_date: date | None = Query(None),
+    to_date: date | None = Query(None),
+    limit: int = Query(50, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+    _: Employee = Depends(get_current_employee),
+) -> list[ImplementUsageLogResponse]:
+    await get_implement_or_404(db, implement_id, get_org_id(request))
+    query = (
+        select(ImplementUsageLog)
+        .options(*usage_log_load_options())
+        .where(ImplementUsageLog.implement_id == implement_id)
+    )
+    if from_date is not None:
+        query = query.where(ImplementUsageLog.date >= from_date)
+    if to_date is not None:
+        query = query.where(ImplementUsageLog.date <= to_date)
+    query = query.order_by(
+        ImplementUsageLog.date.desc(),
+        ImplementUsageLog.created_at.desc(),
+    ).limit(limit)
+    result = await db.execute(query)
+    return [
+        ImplementUsageLogResponse(**usage_log_to_response(log))
+        for log in result.scalars().all()
+    ]
+
+
+@router.post(
+    '/{implement_id}/usage-logs',
+    response_model=ImplementUsageLogResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_implement_usage_log(
+    request: Request,
+    implement_id: UUID,
+    payload: ImplementUsageLogCreate,
+    db: AsyncSession = Depends(get_db),
+    current: Employee = Depends(require_manager),
+) -> ImplementUsageLogResponse:
+    await get_implement_or_404(db, implement_id, get_org_id(request))
+    try:
+        log = await add_implement_usage_log(
+            db,
+            implement_id=implement_id,
+            value_added=payload.value_added,
+            log_date=payload.date,
+            note=payload.note,
+            created_by=current.id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    await db.flush()
+    await log_change(
+        db,
+        org_id=get_org_id(request),
+        entity_type='implement_usage_log',
+        entity_id=log.id,
+        action='create',
+        changed_by=current.id,
+        after=model_snapshot(log),
+    )
+    await db.commit()
+    clear_dashboard_cache()
+
+    result = await db.execute(
+        select(ImplementUsageLog)
+        .options(*usage_log_load_options())
+        .where(ImplementUsageLog.id == log.id)
+    )
+    return ImplementUsageLogResponse(**usage_log_to_response(result.scalar_one()))
+
+
+@router.delete(
+    '/{implement_id}/usage-logs/{log_id}',
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_implement_usage_log(
+    request: Request,
+    implement_id: UUID,
+    log_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current: Employee = Depends(require_admin),
+) -> None:
+    await get_implement_or_404(db, implement_id, get_org_id(request))
+    result = await db.execute(
+        select(ImplementUsageLog).where(
+            ImplementUsageLog.id == log_id,
+            ImplementUsageLog.implement_id == implement_id,
+        )
+    )
+    log = result.scalar_one_or_none()
+    if log is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Запись не найдена')
+
+    before = model_snapshot(log)
+    await log_change(
+        db,
+        org_id=get_org_id(request),
+        entity_type='implement_usage_log',
+        entity_id=log.id,
+        action='delete',
+        changed_by=current.id,
+        before=before,
+    )
+    await db.delete(log)
+    await db.flush()
+    await recalculate_implement_usage(db, implement_id)
+    await db.commit()
+    clear_dashboard_cache()

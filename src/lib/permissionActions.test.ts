@@ -15,6 +15,7 @@ const BACKEND_ACTION_KEYS = [
   'shift.close_others',
   'inventory.operate',
   'inventory.manage_items',
+  'inventory.delete_or_archive',
   'purchase.create',
   'purchase.manage',
   'support.view_org_tickets',
@@ -23,6 +24,15 @@ const BACKEND_ACTION_KEYS = [
   'marketplace.manage',
   'holding.view',
   'holding.switch',
+  'payroll.manage_rates',
+  'payroll.confirm',
+  'payroll.pay',
+  'payroll.view_all',
+  'tasks.create',
+  'tasks.manage',
+  'tasks.complete_own',
+  'tasks.complete_general',
+  'tasks.view_all',
 ] as const
 
 describe('permissionActions', () => {

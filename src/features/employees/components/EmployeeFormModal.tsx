@@ -20,12 +20,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { Employee } from '@/types'
-import { useCreateEmployee, useUpdateEmployee } from '@/features/employees/hooks'
+import { useCreateEmployee, useEmployees, useUpdateEmployee } from '@/features/employees/hooks'
 import {
   getEmployeeSchema,
   type EmployeeFormValues,
 } from '@/features/employees/schemas'
-import { ROLE_LABELS } from '@/features/employees/utils'
+import { ROLE_LABELS, suggestNextEmployeeLogin } from '@/features/employees/utils'
 import { numberInputRegister } from '@/lib/formNumbers'
 
 interface EmployeeFormModalProps {
@@ -58,6 +58,7 @@ function toFormValues(employee: Employee): EmployeeFormValues {
 
 export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModalProps) {
   const isEdit = Boolean(employee)
+  const { data: employees = [] } = useEmployees()
   const createEmployee = useCreateEmployee()
   const updateEmployee = useUpdateEmployee()
 
@@ -98,7 +99,13 @@ export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModal
         isActive: values.isActive,
       })
     } else {
-      await createEmployee.mutateAsync(values)
+      const login = values.employeeCode.trim()
+      await createEmployee.mutateAsync({
+        ...values,
+        employeeCode:
+          login ||
+          suggestNextEmployeeLogin(employees.map((item) => item.employeeCode)),
+      })
     }
     handleClose()
   }
@@ -114,7 +121,7 @@ export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModal
 
         <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-2">
-            <Label htmlFor="employeeCode">Код</Label>
+            <Label htmlFor="employeeCode">Логин</Label>
             <Input
               id="employeeCode"
               placeholder="EMP006"
@@ -125,7 +132,11 @@ export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModal
             />
             {errors.employeeCode ? (
               <p className="text-xs text-destructive">{errors.employeeCode.message}</p>
-            ) : null}
+            ) : isEdit ? null : (
+              <p className="text-xs text-muted-foreground">
+                Если оставить пустым, логин создастся автоматически (например EMP006).
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -155,7 +166,7 @@ export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModal
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="hourlyRate">Базовая ставка (fallback), ₽/ч</Label>
+            <Label htmlFor="hourlyRate">Базовая ставка, ₽/ч</Label>
             <Input
               id="hourlyRate"
               type="number"
@@ -168,7 +179,8 @@ export function EmployeeFormModal({ open, employee, onClose }: EmployeeFormModal
               <p className="text-xs text-destructive">{errors.hourlyRate.message}</p>
             ) : (
               <p className="text-xs text-muted-foreground">
-                Запасной тариф. Основные ставки — в карточке сотрудника → «Ставки оплаты».
+                Применяется в расчёте смен и зарплаты, если нет ставки по виду работ в карточке
+                сотрудника → «Ставки оплаты».
               </p>
             )}
           </div>

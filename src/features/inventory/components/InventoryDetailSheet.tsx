@@ -10,8 +10,14 @@ import {
 import { EntityHistoryButton } from '@/features/audit-log/components/EntityHistoryButton'
 import { humanLabel } from '@/lib/display'
 import type { InventoryItem } from '@/types'
+import { useDictionary } from '@/features/dictionaries/hooks'
 import { useInventoryItemOperations } from '@/features/inventory/hooks'
-import { getCategoryLabel, isCriticalStock, isHarvestCategory } from '@/features/inventory/utils'
+import {
+  getCategoryLabel,
+  isCriticalStock,
+  isHarvestCategory,
+} from '@/features/inventory/utils'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 import { InventoryItemOperationsHistory } from './InventoryItemOperationsHistory'
 import { HarvestFieldIncomesSummary } from './HarvestFieldIncomesSummary'
 import { StockProgressBar } from './StockProgressBar'
@@ -23,6 +29,8 @@ type InventoryDetailSheetProps = {
 }
 
 export function InventoryDetailSheet({ item, open, onClose }: InventoryDetailSheetProps) {
+  const isMobile = useIsMobile(639)
+  const { data: categories = [] } = useDictionary('inventory_category')
   const {
     data: operations = [],
     isLoading: operationsLoading,
@@ -31,16 +39,35 @@ export function InventoryDetailSheet({ item, open, onClose }: InventoryDetailShe
 
   if (!item) return null
 
+  const categoryLabel =
+    categories.find((row) => row.code === item.category)?.name ?? getCategoryLabel(item.category)
+  const harvest = isHarvestCategory(item.category) || item.isHarvest
+
   return (
     <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
+      <SheetContent
+        side={isMobile ? 'bottom' : 'right'}
+        className={
+          isMobile
+            ? 'max-h-[90vh] w-full overflow-y-auto rounded-t-xl pb-[max(1rem,env(safe-area-inset-bottom))]'
+            : 'w-full overflow-y-auto sm:max-w-md'
+        }
+      >
+        {isMobile ? (
+          <div className="mx-auto mb-1 h-1 w-10 rounded-full bg-muted-foreground/30" aria-hidden />
+        ) : null}
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Package className="size-5 text-primary" aria-hidden />
             {humanLabel(item.name, 'Товар')}
           </SheetTitle>
           <SheetDescription className="flex flex-wrap items-center gap-1.5 pt-1">
-            <Badge variant="outline">{getCategoryLabel(item.category)}</Badge>
+            <Badge
+              variant="outline"
+              className={harvest ? 'border-primary/40 bg-primary/5 text-primary' : undefined}
+            >
+              {categoryLabel}
+            </Badge>
             {isCriticalStock(item) ? (
               <Badge variant="destructive">Критичный остаток</Badge>
             ) : (
@@ -67,12 +94,40 @@ export function InventoryDetailSheet({ item, open, onClose }: InventoryDetailShe
             label="Ёмкость"
             value={`${item.totalCapacity.toLocaleString('ru-RU')} ${item.unit}`}
           />
-          <Row label="Статус позиции" value={item.isActive ? 'Активна' : 'Неактивна'} />
+          <Row label="Статус позиции" value={item.isActive ? 'Активна' : 'Архив'} />
+          {!item.isActive && item.archiveReason ? (
+            <Row label="Причина архивации" value={item.archiveReason} />
+          ) : null}
+          {!item.isActive && item.archivedAt ? (
+            <Row
+              label="Архивирована"
+              value={[
+                new Date(item.archivedAt).toLocaleString('ru-RU'),
+                item.archivedByName,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            />
+          ) : null}
+          {item.isActive && item.archiveReason ? (
+            <Row
+              label="Последняя архивация"
+              value={[
+                item.archiveReason,
+                item.archivedAt
+                  ? new Date(item.archivedAt).toLocaleString('ru-RU')
+                  : null,
+                item.archivedByName,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            />
+          ) : null}
 
-          {isHarvestCategory(item.category) || item.isHarvest ? (
+          {harvest ? (
             <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-              Урожай на складе: культура задаётся в карточке позиции; сбор — с поля; продажа —
-              через заявку; KPI культур — в «Отгрузках урожая» (с опциональной связью с заявкой).
+              Культура задаётся в карточке позиции; сбор — с поля; продажа — через заявку; KPI
+              культур — в «Отгрузках урожая» (с опциональной связью с заявкой).
             </p>
           ) : null}
 

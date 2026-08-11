@@ -12,16 +12,30 @@ def test_create_field_with_crop_code(
     client: httpx.Client,
     admin_headers: dict[str, str],
 ) -> None:
+    """Legacy crop_* on FieldCreate is ignored — culture lives on plantings."""
     name = f'Поле crop {uuid4().hex[:6]}'
     created = client.post(
         '/api/fields',
         headers=admin_headers,
-        json={'name': name, 'crop_code': 'wheat'},
+        json={'name': name, 'crop_code': 'wheat', 'crop_type': 'Пшеница', 'area_ha': 10},
     )
     assert created.status_code == 201, created.text
     body = created.json()
-    assert body.get('crop_code') == 'wheat'
-    assert body.get('crop_type') == 'Пшеница'
+    assert body.get('crop_code') is None
+    assert body.get('crop_type') is None
+
+    planting = client.post(
+        f"/api/fields/{body['id']}/plantings",
+        headers=admin_headers,
+        json={
+            'crop_code': 'wheat',
+            'area_ha': 1,
+            'season_year': date.today().year,
+            'occupies_whole_field': False,
+        },
+    )
+    assert planting.status_code == 201, planting.text
+    assert planting.json().get('crop_code') == 'wheat'
 
 
 def test_create_shipment_with_crop_code(

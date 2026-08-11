@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   BarChart2,
+  Briefcase,
   CalendarDays,
   ClipboardList,
   Clock,
@@ -10,13 +11,11 @@ import {
   History,
   LayoutDashboard,
   Map,
-  MessageCircle,
   Package,
   Settings,
   ShoppingCart,
   Store,
   Tractor,
-  TrendingUp,
   Truck,
   Users,
 } from 'lucide-react'
@@ -42,23 +41,12 @@ export interface NavGroup {
   items: NavItem[]
 }
 
-const MY_SHIFT_ITEM: NavItem = {
-  to: '/my-shift',
-  label: 'Моя смена',
-  icon: Clock,
-}
-
-const MESSENGER_ITEM: NavItem = {
-  to: '/messenger',
-  label: 'Мессенджер',
-  icon: MessageCircle,
-}
-
-const MY_SHIPMENTS_ITEM: NavItem = {
-  to: '/shipment-requests/my',
-  label: 'Мои заявки ТМЦ',
-  icon: Truck,
-  requiredAction: 'shipment_requests.execute',
+const WORKSPACE_ITEM: NavItem = {
+  to: '/workspace',
+  label: 'Рабочее место',
+  icon: Briefcase,
+  // Unlock if any nested tab area is granted.
+  alsoSections: ['my-shift', 'tasks'],
 }
 
 const SHARING_ITEM: NavItem = {
@@ -83,7 +71,7 @@ const RESOURCES_ITEMS: NavItem[] = [
 ]
 
 const FINANCE_ITEMS: NavItem[] = [
-  { to: '/shipments', label: 'Отгрузки урожая', icon: Truck },
+  { to: '/shipments', label: 'Отгрузки', icon: Truck },
   {
     to: '/shipment-requests',
     label: 'Заявки на отгрузку',
@@ -96,8 +84,7 @@ const FINANCE_ITEMS: NavItem[] = [
     icon: Store,
     requiredAction: 'marketplace.manage',
   },
-  { to: '/expenses', label: 'Затраты', icon: DollarSign },
-  { to: '/analytics/forecast', label: 'Прогноз и оптимизация', icon: TrendingUp },
+  { to: '/expenses', label: 'Затраты и доходы', icon: DollarSign },
   { to: '/reports', label: 'Отчёты', icon: BarChart2 },
 ]
 
@@ -110,7 +97,7 @@ const ADMIN_ITEMS: NavItem[] = [
 export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Операционные',
-    items: [MY_SHIFT_ITEM, MESSENGER_ITEM, MY_SHIPMENTS_ITEM, ...OPERATIONS_ITEMS],
+    items: [WORKSPACE_ITEM, ...OPERATIONS_ITEMS],
   },
   { title: 'Ресурсы', items: RESOURCES_ITEMS },
   { title: 'Финансы и отчёты', items: FINANCE_ITEMS },
@@ -120,11 +107,6 @@ export const NAV_GROUPS: NavGroup[] = [
 /** Flat list for page titles and legacy lookups. */
 export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((group) => group.items)
 
-/**
- * Build sidebar/mobile nav from the shared NAV_GROUPS + permission model.
- * When employee permissions are still loading (undefined), show DEFAULT_EMPLOYEE_SECTIONS
- * (my-shift + sharing) — not the locked-only set. Once loaded, respect exact grants.
- */
 export function getNavGroups(
   role?: CurrentUser['role'],
   allowedSections?: string[],
@@ -132,10 +114,9 @@ export function getNavGroups(
   options?: { shipmentRequestsEnabled?: boolean; marketplaceEnabled?: boolean },
 ): NavGroup[] {
   const shipmentRequestsEnabled = options?.shipmentRequestsEnabled !== false
-  // Default off — hide until org settings explicitly enable marketplace.
   const marketplaceEnabled = options?.marketplaceEnabled === true
   if (role === 'employee' && allowedSections === undefined) {
-    return [{ title: 'Операционные', items: [MY_SHIFT_ITEM, MESSENGER_ITEM, SHARING_ITEM] }]
+    return [{ title: 'Операционные', items: [WORKSPACE_ITEM, SHARING_ITEM] }]
   }
   return NAV_GROUPS.map((group) => ({
     ...group,
@@ -177,17 +158,29 @@ export function getPageTitle(pathname: string): string {
     if (normalized.includes('/guide')) return 'Как пользоваться системой'
     return 'Поддержка'
   }
+  if (normalized === '/workspace' || normalized.startsWith('/workspace/')) {
+    return 'Рабочее место'
+  }
   if (normalized === '/messenger' || normalized.startsWith('/messenger/')) {
-    return 'Мессенджер'
+    return 'Рабочее место'
+  }
+  if (normalized === '/my-shift' || normalized.startsWith('/my-shift/')) {
+    return 'Рабочее место'
+  }
+  if (normalized === '/tasks' || normalized.startsWith('/tasks/')) {
+    return 'Рабочее место'
   }
   if (normalized === '/agro-calendar' || normalized.startsWith('/agro-calendar/')) {
     return 'Агрокалендарь'
   }
   if (normalized === '/shipment-requests' || normalized.startsWith('/shipment-requests/')) {
     if (normalized.endsWith('/my') || normalized.includes('/my/')) {
-      return 'Мои заявки ТМЦ'
+      return 'Рабочее место'
     }
     return 'Заявки на отгрузку'
+  }
+  if (normalized === '/payroll-payouts' || normalized.startsWith('/payroll-payouts/')) {
+    return 'Оплата труда'
   }
   if (normalized === '/seller-market' || normalized.startsWith('/seller-market/')) {
     return 'Магазин'

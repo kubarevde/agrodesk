@@ -20,22 +20,31 @@ from app.routers import (
     audit_log,
     auth,
     dashboard,
+    crop_varieties,
     dictionaries,
     employee_rates,
     employees,
     equipment_logs,
     expenses,
     fields,
+    field_plantings,
+    field_rotation,
     holding,
     implements,
+    incomes,
     inventory,
     maintenance,
     marketplace,
     marketplace_public,
     messenger,
     notifications,
+    org_tasks,
     references,
     repair_journal,
+    piecework_records,
+    payroll_runs,
+    payroll_payouts,
+    payroll_control,
     purchase_planner,
     reports,
     settings as settings_router,
@@ -47,6 +56,7 @@ from app.routers import (
     superadmin_marketplace,
     superadmin_support,
     support,
+    tmc_shipments,
     uploads,
     weather,
 )
@@ -57,6 +67,7 @@ from app.services.telegram_notify import TelegramNotifier
 
 setup_logging()
 logger = logging.getLogger(__name__)
+# Health preflight cache (refreshed on process start / reload).
 _db_preflight: dict[str, object] = {
     'db_revision': None,
     'code_head': None,
@@ -178,9 +189,23 @@ app.include_router(audit_log.router, prefix='/api/audit-log', tags=['audit-log']
 app.include_router(analytics.router, prefix='/api/analytics', tags=['analytics'])
 app.include_router(employees.router, prefix='/api/employees', tags=['employees'])
 app.include_router(employee_rates.router, prefix='/api/employee-rates', tags=['employee-rates'])
+app.include_router(
+    piecework_records.router,
+    prefix='/api/piecework-records',
+    tags=['piecework-records'],
+)
+app.include_router(payroll_runs.router, prefix='/api/payroll-runs', tags=['payroll-runs'])
+app.include_router(payroll_payouts.router, prefix='/api/payroll-payouts', tags=['payroll-payouts'])
+app.include_router(
+    payroll_control.router,
+    prefix='/api/payroll-control',
+    tags=['payroll-control'],
+)
 app.include_router(shifts.router, prefix='/api/shifts', tags=['shifts'])
 app.include_router(references.locations_router, prefix='/api/locations', tags=['locations'])
 app.include_router(fields.router, prefix='/api/fields', tags=['fields'])
+app.include_router(field_plantings.router, prefix='/api/fields', tags=['field-plantings'])
+app.include_router(field_rotation.router, prefix='/api/fields', tags=['field-rotation'])
 app.include_router(implements.router, prefix='/api/implements', tags=['implements'])
 app.include_router(references.work_types_router, prefix='/api/work-types', tags=['work-types'])
 # maintenance before equipment so /maintenance/upcoming is not captured by /{item_id}
@@ -193,13 +218,17 @@ app.include_router(inventory.router, prefix='/api/inventory', tags=['inventory']
 app.include_router(marketplace.router, prefix='/api/marketplace', tags=['marketplace'])
 app.include_router(shipment_requests.router, prefix='/api/shipment-requests', tags=['shipment-requests'])
 app.include_router(shipments.router, prefix='/api/shipments', tags=['shipments'])
+app.include_router(tmc_shipments.router, prefix='/api/tmc-shipments', tags=['tmc-shipments'])
 app.include_router(expenses.router, prefix='/api/expenses', tags=['expenses'])
+app.include_router(org_tasks.router, prefix='/api/tasks', tags=['tasks'])
+app.include_router(incomes.router, prefix='/api/incomes', tags=['incomes'])
 app.include_router(dashboard.router, prefix='/api/dashboard', tags=['dashboard'])
 app.include_router(holding.router, prefix='/api/holding', tags=['holding'])
 app.include_router(reports.router, prefix='/api/reports', tags=['reports'])
 app.include_router(settings_router.router, prefix='/api/settings', tags=['settings'])
 app.include_router(access_groups.router, prefix='/api/settings', tags=['access-groups'])
 app.include_router(dictionaries.router, prefix='/api/dictionaries', tags=['dictionaries'])
+app.include_router(crop_varieties.router, prefix='/api/crop-varieties', tags=['crop-varieties'])
 app.include_router(sharing.router, prefix='/api/sharing', tags=['sharing'])
 app.include_router(notifications.router, prefix='/api/notifications', tags=['notifications'])
 app.include_router(uploads.router, prefix='/api/uploads', tags=['uploads'])

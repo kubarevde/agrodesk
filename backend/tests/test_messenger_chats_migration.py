@@ -120,34 +120,38 @@ def test_messenger_chats_migration_upgrade_downgrade():
     exist at head, disappear at PREV_REVISION, and return after upgrade head.
     """
     cfg = _alembic_config()
+    head_rev: str | None = None
 
-    command.upgrade(cfg, 'head')
-    after_head = asyncio.run(_schema_snapshot())
-    assert after_head['revision'] != PREV_REVISION
-    for table in TABLES:
-        assert table in after_head['tables'], f'{table} missing after upgrade head'
-    for table, indexes in EXPECTED_INDEXES.items():
-        present = after_head['indexes'].get(table, set())
-        assert indexes.issubset(present), f'{table} indexes missing: {indexes - present}'
-    for table, cols in REQUIRED_COLUMNS.items():
-        assert cols.issubset(after_head['columns'][table]), (
-            f'{table} columns missing: {cols - after_head["columns"][table]}'
-        )
-    assert after_head['support_present']
-    assert after_head['shipment_present']
+    try:
+        command.upgrade(cfg, 'head')
+        after_head = asyncio.run(_schema_snapshot())
+        head_rev = after_head['revision']
+        assert after_head['revision'] != PREV_REVISION
+        for table in TABLES:
+            assert table in after_head['tables'], f'{table} missing after upgrade head'
+        for table, indexes in EXPECTED_INDEXES.items():
+            present = after_head['indexes'].get(table, set())
+            assert indexes.issubset(present), f'{table} indexes missing: {indexes - present}'
+        for table, cols in REQUIRED_COLUMNS.items():
+            assert cols.issubset(after_head['columns'][table]), (
+                f'{table} columns missing: {cols - after_head["columns"][table]}'
+            )
+        assert after_head['support_present']
+        assert after_head['shipment_present']
 
-    command.downgrade(cfg, PREV_REVISION)
-    after_down = asyncio.run(_schema_snapshot())
-    for table in TABLES:
-        assert table not in after_down['tables'], f'{table} still present after downgrade'
-    assert after_down['revision'] == PREV_REVISION
-    assert after_down['support_present']
-    assert after_down['shipment_present']
-
-    command.upgrade(cfg, 'head')
-    after_up = asyncio.run(_schema_snapshot())
-    for table in TABLES:
-        assert table in after_up['tables']
-    assert after_up['support_present']
-    assert after_up['shipment_present']
-    assert after_up['revision'] == after_head['revision']
+        command.downgrade(cfg, PREV_REVISION)
+        after_down = asyncio.run(_schema_snapshot())
+        for table in TABLES:
+            assert table not in after_down['tables'], f'{table} still present after downgrade'
+        assert after_down['revision'] == PREV_REVISION
+        assert after_down['support_present']
+        assert after_down['shipment_present']
+    finally:
+        command.upgrade(cfg, 'head')
+        after_up = asyncio.run(_schema_snapshot())
+        for table in TABLES:
+            assert table in after_up['tables']
+        assert after_up['support_present']
+        assert after_up['shipment_present']
+        if head_rev is not None:
+            assert after_up['revision'] == head_rev

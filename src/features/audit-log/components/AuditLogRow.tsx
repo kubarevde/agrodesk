@@ -6,6 +6,7 @@ import {
   getAuditActionLabel,
   getAuditActorLabel,
   getAuditSectionLabel,
+  localizeAuditSummary,
 } from '../lib/auditLabels'
 import type { AuditLogEntry } from '../types'
 
@@ -44,6 +45,7 @@ export function formatAuditWhen(iso: string): string {
 export function AuditLogRow({ entry, onDetails, compact }: AuditLogRowProps) {
   const sectionLabel = getAuditSectionLabel(entry.entityType)
   const actorLabel = getAuditActorLabel(entry.changedByName, entry.changedBy)
+  const summaryLabel = localizeAuditSummary(entry.summary)
 
   if (compact) {
     return (
@@ -56,7 +58,9 @@ export function AuditLogRow({ entry, onDetails, compact }: AuditLogRowProps) {
           <AuditActionBadge action={entry.action} />
           <span className="text-xs text-muted-foreground">{formatAuditWhen(entry.changedAt)}</span>
         </div>
-        <p className="text-sm font-medium text-foreground">{entry.summary || sectionLabel}</p>
+        <p className="text-sm font-medium text-foreground">
+          {entry.summary ? summaryLabel : sectionLabel}
+        </p>
         <p className="mt-1 text-xs text-muted-foreground">
           {actorLabel} · {sectionLabel}
         </p>
@@ -74,7 +78,7 @@ export function AuditLogRow({ entry, onDetails, compact }: AuditLogRowProps) {
       <td className="px-3 py-2">
         <AuditActionBadge action={entry.action} />
       </td>
-      <td className="px-3 py-2 text-sm">{entry.summary || '—'}</td>
+      <td className="px-3 py-2 text-sm">{entry.summary ? summaryLabel : '—'}</td>
       <td className="px-3 py-2 text-right">
         <Button type="button" variant="ghost" size="sm" onClick={() => onDetails(entry)}>
           Подробнее

@@ -28,6 +28,7 @@ export interface ChatListItem {
   members: ChatMember[]
   lastMessage: ChatMessagePreview | null
   unreadCount: number
+  isCrossOrg?: boolean
 }
 
 export interface ChatMessage {

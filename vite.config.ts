@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
   const normalizedBase = base.endsWith('/') ? base : `${base}/`
   const apiProxyTarget =
     process.env.VITE_API_PROXY_TARGET ||
+    env.VITE_API_PROXY_TARGET ||
     process.env.VITE_API_URL ||
     env.VITE_API_URL ||
     'http://localhost:8000'

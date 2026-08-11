@@ -78,7 +78,7 @@ async def list_public_orgs(db: AsyncSession = Depends(get_db)) -> list[OrgPublic
         .order_by(Organization.name.asc())
     )
     return [
-        OrgPublicResponse(id=org.id, name=org.name, slug=org.slug)
+        OrgPublicResponse(id=org.id, name=org.name, slug=org.slug, region=org.region)
         for org in result.scalars().all()
     ]
 

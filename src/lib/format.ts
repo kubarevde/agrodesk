@@ -1,11 +1,15 @@
 import { format, isValid, parseISO } from 'date-fns'
 import { formatOrgDate, formatOrgDateTime } from '@/lib/timezone'
 
-function toDate(value: string | Date): Date {
-  if (value instanceof Date) return value
+function toDate(value: string | Date): Date | null {
+  if (value instanceof Date) return isValid(value) ? value : null
+  if (typeof value !== 'string' || !value.trim()) return null
+  // Ignore String(undefined|null) artifacts from incomplete API rows.
+  if (value === 'undefined' || value === 'null' || value === 'None') return null
   const parsed = parseISO(value)
   if (isValid(parsed)) return parsed
-  return new Date(value)
+  const fallback = new Date(value)
+  return isValid(fallback) ? fallback : null
 }
 
 export function formatMoney(
@@ -24,11 +28,13 @@ export function formatMoney(
 /** Calendar date (no wall-clock TZ shift for plain yyyy-MM-dd). */
 export function formatDate(value: string | Date, timezone?: string): string {
   if (timezone) return formatOrgDate(value, timezone)
-  return format(toDate(value), 'dd.MM.yyyy')
+  const date = toDate(value)
+  return date ? format(date, 'dd.MM.yyyy') : '—'
 }
 
 /** Instant display — pass organization timezone from useOrgTimezone(). */
 export function formatDateTime(value: string | Date, timezone?: string): string {
   if (timezone) return formatOrgDateTime(value, timezone)
-  return format(toDate(value), 'dd.MM.yyyy HH:mm')
+  const date = toDate(value)
+  return date ? format(date, 'dd.MM.yyyy HH:mm') : '—'
 }

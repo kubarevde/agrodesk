@@ -50,11 +50,29 @@ def test_marketplace_manage_in_catalog():
     assert 'marketplace.manage' not in MANAGER_EXTRA_ACTIONS
 
 
+def test_payroll_actions_in_catalog_not_default_manager():
+    for key in (
+        'payroll.manage_rates',
+        'payroll.confirm',
+        'payroll.pay',
+        'payroll.view_all',
+    ):
+        assert key in ACTION_KEYS
+        assert key not in MANAGER_EXTRA_ACTIONS
+    actions = actions_from_sections(list(SECTION_KEYS), 'manager')
+    assert 'payroll.confirm' not in actions
+    assert 'payroll.pay' not in actions
+    assert 'payroll.manage_rates' not in actions
+    assert 'payroll.view_all' not in actions
+
+
 def test_holding_actions_in_catalog_not_default_manager():
     assert 'holding.view' in ACTION_KEYS
     assert 'holding.switch' in ACTION_KEYS
     assert 'holding.view' not in MANAGER_EXTRA_ACTIONS
     assert 'holding.switch' not in MANAGER_EXTRA_ACTIONS
+    assert 'inventory.delete_or_archive' in ACTION_KEYS
+    assert 'inventory.delete_or_archive' not in MANAGER_EXTRA_ACTIONS
     actions = actions_from_sections(list(SECTION_KEYS), 'manager')
     assert 'holding.view' not in actions
     assert 'holding.switch' not in actions

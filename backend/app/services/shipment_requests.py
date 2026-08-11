@@ -12,7 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.employee import Employee
+from app.models.field_planting import FieldPlanting
 from app.models.inventory import InventoryItem, InventoryOperationType
+from app.models.reference import Location
+from app.models.crop_variety import CropVariety
 from app.models.shift import Shift, ShiftStatus
 from app.models.shipment_request import (
     ShipmentRequest,
@@ -48,7 +51,13 @@ def load_options():
     )
 
 
-def to_response(row: ShipmentRequest) -> ShipmentRequestResponse:
+def to_response(
+    row: ShipmentRequest,
+    *,
+    field_name: str | None = None,
+    variety_name: str | None = None,
+    planting_area_ha: Decimal | None = None,
+) -> ShipmentRequestResponse:
     item = row.inventory_item
     category = str(item.category) if item is not None else None
     if category is not None and hasattr(item.category, 'value'):
@@ -77,12 +86,43 @@ def to_response(row: ShipmentRequest) -> ShipmentRequestResponse:
         shift_id=row.shift_id,
         inventory_operation_id=row.inventory_operation_id,
         cancel_reason=row.cancel_reason,
+        comment=row.comment,
         created_at=row.created_at,
         updated_at=row.updated_at,
         attachments=[
             ShipmentRequestAttachmentOut.model_validate(att)
             for att in (row.attachments or [])
         ],
+        field_id=row.field_id,
+        field_name=field_name,
+        variety_id=row.variety_id,
+        variety_name=variety_name,
+        field_planting_id=row.field_planting_id,
+        planting_area_ha=planting_area_ha,
+    )
+
+
+async def enrich_response(db: AsyncSession, row: ShipmentRequest) -> ShipmentRequestResponse:
+    field_name = None
+    variety_name = None
+    planting_area = None
+    if row.field_id is not None:
+        loc = await db.get(Location, row.field_id)
+        if loc is not None:
+            field_name = loc.name
+    if row.variety_id is not None:
+        var = await db.get(CropVariety, row.variety_id)
+        if var is not None:
+            variety_name = var.name
+    if row.field_planting_id is not None:
+        planting = await db.get(FieldPlanting, row.field_planting_id)
+        if planting is not None:
+            planting_area = Decimal(str(planting.area_ha))
+    return to_response(
+        row,
+        field_name=field_name,
+        variety_name=variety_name,
+        planting_area_ha=planting_area,
     )
 
 
@@ -255,6 +295,29 @@ async def create_request(
     if assigned_to is not None:
         await get_employee_in_org_or_400(db, assigned_to, org_id)
 
+    comment = (payload.comment or '').strip() or None
+
+    field_id = payload.field_id
+    variety_id = payload.variety_id
+    field_planting_id = payload.field_planting_id
+
+    if field_planting_id is not None:
+        planting = await db.get(FieldPlanting, field_planting_id)
+        if planting is None or planting.org_id != org_id or planting.status == 'cancelled':
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Запись культуры на поле не найдена',
+            )
+        item_code = (item.crop_code or '').strip() or None
+        if item_code and planting.crop_code != item_code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Культура заявки не совпадает с культурой посева на поле',
+            )
+        field_id = planting.field_id
+        variety_id = planting.variety_id
+        field_planting_id = planting.id
+
     row = ShipmentRequest(
         org_id=org_id,
         inventory_item_id=payload.inventory_item_id,
@@ -267,6 +330,10 @@ async def create_request(
         status=ShipmentRequestStatus.new.value,
         created_by=current.id,
         assigned_to=assigned_to,
+        comment=comment,
+        field_id=field_id,
+        variety_id=variety_id,
+        field_planting_id=field_planting_id,
     )
     db.add(row)
     await db.flush()
@@ -295,6 +362,9 @@ async def update_request(
         row.planned_at = data['planned_at']
     if 'priority' in data and data['priority'] is not None:
         row.priority = data['priority']
+    if 'comment' in data:
+        text = data['comment']
+        row.comment = (str(text).strip() or None) if text is not None else None
     db.add(row)
     await db.flush()
     return await get_request_or_404(db, row.id, row.org_id)

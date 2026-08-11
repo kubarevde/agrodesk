@@ -32,7 +32,8 @@ def test_close_shift_salary(client: httpx.Client, manager_headers: dict[str, str
     locs = client.get('/api/locations', headers=manager_headers).json()
     wts = client.get('/api/work-types', headers=manager_headers).json()
     loc = next(l for l in locs if l.get('is_active'))
-    wt = next(w for w in wts if w.get('is_active'))
+    # Field-work types require field_id — use garage/logistics for salary smoke.
+    wt = next(w for w in wts if w.get('is_active') and not w.get('is_field_work'))
 
     start = '06:00:00'
     payload = {

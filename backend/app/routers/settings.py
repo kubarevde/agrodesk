@@ -22,11 +22,17 @@ from app.schemas.permissions import (
 )
 from app.services.action_permissions import ACTION_KEYS, ACTION_LABELS
 from app.services.audit import log_change, model_snapshot
-from app.services.org_timezone import DEFAULT_TIMEZONE, timezone_from_settings
+from app.services.org_timezone import (
+    AVAILABLE_TIMEZONES,
+    DEFAULT_TIMEZONE,
+    timezone_from_settings,
+    validate_timezone_name,
+)
 from app.services.org_features import (
+    PAYROLL_VISIBLE_TO_EMPLOYEES_KEY,
     SHIPMENT_REQUESTS_ENABLED_KEY,
     marketplace_enabled,
-    shipment_requests_enabled,
+    payroll_visible_to_employees,
 )
 from app.services.permissions import (
     SECTION_KEYS,
@@ -37,31 +43,26 @@ from app.services.permissions import (
 
 router = APIRouter()
 
-COMMON_TIMEZONES = [
-    'Asia/Bangkok',
-    'Asia/Novosibirsk',
-    'Asia/Yekaterinburg',
-    'Europe/Moscow',
-    'Europe/Samara',
-    'Asia/Krasnoyarsk',
-    'Asia/Irkutsk',
-    'Asia/Vladivostok',
-    'UTC',
-]
-
 
 class OrgSettingsResponse(BaseModel):
     timezone: str = DEFAULT_TIMEZONE
-    available_timezones: list[str] = Field(default_factory=lambda: list(COMMON_TIMEZONES))
-    # Documented Organization.settings key; absent → true (backward compatible).
+    available_timezones: list[str] = Field(default_factory=lambda: list(AVAILABLE_TIMEZONES))
+    # Module is core: always reported enabled for org UI. Flag may still exist in JSONB
+    # from older settings; API module gate treats absent/true as on (see org_features).
     shipment_requests_enabled: bool = True
     # Read-only for org UI — primary enablement is platform/superadmin (settings JSONB).
     marketplace_enabled: bool = False
+    # Employer toggle: show monetary earnings to employees (default True when absent).
+    payroll_visible_to_employees: bool = True
+    # Organization creation time — used by «Факт и прогноз» chart window.
+    created_at: str | None = None
 
 
 class OrgSettingsUpdate(BaseModel):
     timezone: str | None = Field(default=None, min_length=1, max_length=64)
-    shipment_requests_enabled: bool | None = None
+    # Writable by org admin — unlike marketplace_enabled / shipment_requests_enabled.
+    payroll_visible_to_employees: bool | None = None
+    # shipment_requests_enabled removed from org settings PATCH — module is always on.
     # marketplace_enabled is intentionally not writable here.
 
 
@@ -88,8 +89,12 @@ async def get_organization_settings(
     settings = _settings_dict(org)
     return OrgSettingsResponse(
         timezone=timezone_from_settings(settings),
-        shipment_requests_enabled=shipment_requests_enabled(settings),
+        available_timezones=list(AVAILABLE_TIMEZONES),
+        # Always expose as enabled — historical false flags must not hide the module in UI.
+        shipment_requests_enabled=True,
         marketplace_enabled=marketplace_enabled(settings),
+        payroll_visible_to_employees=payroll_visible_to_employees(settings),
+        created_at=org.created_at.isoformat() if org.created_at is not None else None,
     )
 
 
@@ -106,22 +111,20 @@ async def update_organization_settings(
 
     tz = timezone_from_settings(settings)
     if payload.timezone is not None:
-        tz = payload.timezone.strip()
-        if tz not in COMMON_TIMEZONES and tz != 'UTC':
-            # Allow custom IANA zones but reject empty/space junk
-            try:
-                from zoneinfo import ZoneInfo
-
-                ZoneInfo(tz)
-            except Exception as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail='Неизвестный часовой пояс',
-                ) from exc
+        try:
+            tz = validate_timezone_name(payload.timezone)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Неизвестный часовой пояс',
+            ) from exc
         settings['timezone'] = tz
 
-    if payload.shipment_requests_enabled is not None:
-        settings[SHIPMENT_REQUESTS_ENABLED_KEY] = bool(payload.shipment_requests_enabled)
+    if payload.payroll_visible_to_employees is not None:
+        settings[PAYROLL_VISIBLE_TO_EMPLOYEES_KEY] = bool(payload.payroll_visible_to_employees)
+
+    # Persist core-on for legacy JSONB that may still say false.
+    settings[SHIPMENT_REQUESTS_ENABLED_KEY] = True
 
     org.settings = settings
     flag_modified(org, 'settings')
@@ -132,8 +135,11 @@ async def update_organization_settings(
     await db.refresh(org)
     return OrgSettingsResponse(
         timezone=tz,
-        shipment_requests_enabled=shipment_requests_enabled(settings),
+        available_timezones=list(AVAILABLE_TIMEZONES),
+        shipment_requests_enabled=True,
         marketplace_enabled=marketplace_enabled(settings),
+        payroll_visible_to_employees=payroll_visible_to_employees(settings),
+        created_at=org.created_at.isoformat() if org.created_at is not None else None,
     )
 
 

@@ -14,14 +14,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import type { InventoryItem } from '@/types'
 import { ManageInSettingsLink } from '@/components/shared/ManageInSettingsLink'
 import { buildDictionarySelectOptions } from '@/features/dictionaries/labels'
 import { useDictionary } from '@/features/dictionaries/hooks'
@@ -34,7 +26,9 @@ import {
   type InventoryItemFormValues,
 } from '@/features/inventory/schemas'
 import { numberInputRegister } from '@/lib/formNumbers'
-import { ActiveToggle } from '@/features/settings/components/StatusControls'
+import { selectOptions } from '@/lib/selectOptions'
+import { LabeledSelect } from '@/components/ui/labeled-select'
+import type { InventoryItem } from '@/types'
 
 interface InventoryItemFormModalProps {
   open: boolean
@@ -52,9 +46,6 @@ const defaults = {
   isActive: true,
   cropCode: '',
 } satisfies Partial<InventoryItemFormValues>
-
-const selectClassName =
-  'flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive'
 
 export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFormModalProps) {
   const isEdit = Boolean(item)
@@ -82,9 +73,9 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
   const categoryItems = useMemo(() => {
     const rows = categories.map((row) => ({ value: row.code, label: row.name }))
     if (item?.category && !rows.some((row) => row.value === item.category)) {
-      return [{ value: item.category, label: item.category }, ...rows]
+      return selectOptions([{ value: item.category, label: item.category }, ...rows])
     }
-    return rows
+    return selectOptions(rows)
   }, [categories, item?.category])
 
   const cropItems = useMemo(
@@ -149,13 +140,11 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
               if (item) {
                 await updateItem.mutateAsync({
                   id: item.id,
-                  previousIsActive: item.isActive,
                   name: values.name,
                   category,
                   unit: values.unit,
                   minStock: values.minStock,
                   totalCapacity: values.totalCapacity,
-                  isActive: values.isActive,
                   cropCode,
                 })
               } else {
@@ -181,12 +170,10 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
               name="category"
               control={control}
               render={({ field }) => (
-                <select
-                  id="inv-category"
-                  className={selectClassName}
-                  value={field.value ?? ''}
-                  onChange={(event) => {
-                    const code = event.target.value
+                <LabeledSelect
+                  value={field.value || null}
+                  onValueChange={(value) => {
+                    const code = value ?? ''
                     field.onChange(code)
                     if (isHarvestCategory(code)) {
                       setValue('unit', 'кг', { shouldDirty: true })
@@ -194,19 +181,25 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
                       setValue('cropCode', '', { shouldValidate: true })
                     }
                   }}
-                >
-                  {categoryItems.map((category) => (
-                    <option key={category.value} value={category.value}>
-                      {category.label}
-                    </option>
-                  ))}
-                </select>
+                  options={categoryItems}
+                  placeholder={
+                    categoryItems.length === 0
+                      ? 'Сначала добавьте категории в Настройках'
+                      : 'Выберите категорию'
+                  }
+                  disabled={categoryItems.length === 0}
+                  aria-invalid={Boolean(errors.category) || undefined}
+                />
               )}
             />
-            <p className="text-xs text-muted-foreground">
-              Категории задаются в Настройках → Категории ТМЦ. «Урожай (на складе)» —
-              складской учёт продукции; KPI по культурам — в «Отгрузках урожая».
-            </p>
+            {errors.category ? (
+              <p className="text-xs text-destructive">{errors.category.message}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Категории задаются в Настройках → Категории ТМЦ. «Урожай (на складе)» —
+                складской учёт продукции; KPI по культурам — в «Отгрузках урожая».
+              </p>
+            )}
             <ManageInSettingsLink tab="inventory-cats" tabHint="категории ТМЦ" />
           </div>
 
@@ -217,33 +210,18 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
                 name="cropCode"
                 control={control}
                 render={({ field }) => (
-                  <Select
+                  <LabeledSelect
                     value={field.value || null}
                     onValueChange={(value) => field.onChange(value ?? '')}
-                    items={cropItems}
+                    options={cropItems}
+                    placeholder={
+                      cropItems.length === 0
+                        ? 'Сначала добавьте культуру в Настройках'
+                        : 'Выберите культуру'
+                    }
                     disabled={cropItems.length === 0}
-                  >
-                    <SelectTrigger
-                      id="inv-crop"
-                      className="w-full"
-                      aria-invalid={Boolean(errors.cropCode) || undefined}
-                    >
-                      <SelectValue
-                        placeholder={
-                          cropItems.length === 0
-                            ? 'Сначала добавьте культуру в Настройках'
-                            : 'Выберите культуру'
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent alignItemWithTrigger={false}>
-                      {cropItems.map((crop) => (
-                        <SelectItem key={crop.value} value={crop.value}>
-                          {crop.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    aria-invalid={Boolean(errors.cropCode) || undefined}
+                  />
                 )}
               />
               {errors.cropCode ? (
@@ -304,14 +282,6 @@ export function InventoryItemFormModal({ open, item, onClose }: InventoryItemFor
               {...register('totalCapacity', numberInputRegister)}
             />
           </div>
-
-          <Controller
-            name="isActive"
-            control={control}
-            render={({ field }) => (
-              <ActiveToggle value={field.value} onChange={field.onChange} />
-            )}
-          />
 
           <DialogFooter className="sm:justify-stretch">
             <Button

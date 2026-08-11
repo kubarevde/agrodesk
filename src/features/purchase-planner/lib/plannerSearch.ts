@@ -4,6 +4,7 @@ export const PURCHASE_PLANNER_SEARCH = {
   equipmentId: undefined as string | undefined,
   implementId: undefined as string | undefined,
   maintenanceId: undefined as string | undefined,
+  search: undefined as string | undefined,
 }
 
 export function purchasePlannerSearch(

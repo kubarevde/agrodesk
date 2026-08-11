@@ -16,7 +16,7 @@ export function ForecastDashboardWidget() {
   const { data: recommendations = [], isLoading: recLoading } = useRecommendations()
 
   if (forecastLoading || recLoading) {
-    return <Skeleton className="h-36 w-full rounded-xl" />
+    return <Skeleton className="h-28 w-full rounded-xl" />
   }
 
   const forecast = forecastData?.forecast
@@ -28,16 +28,20 @@ export function ForecastDashboardWidget() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <TrendingUp className="size-4 text-primary" />
+      <CardHeader className="flex flex-row items-center justify-between gap-2 px-4 py-3 pb-1.5">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <TrendingUp className="size-3.5 text-primary" />
           Прогноз на {periodLabel}
         </CardTitle>
-        <Link to="/analytics/forecast" className="text-sm text-primary hover:underline">
+        <Link
+          to="/expenses"
+          search={{ tab: 'forecast' }}
+          className="text-xs text-primary hover:underline"
+        >
           Подробнее
         </Link>
       </CardHeader>
-      <CardContent className="space-y-2 text-sm">
+      <CardContent className="space-y-1.5 px-4 pb-3 text-sm">
         {forecast?.insufficientData ? (
           <p className="text-muted-foreground">{getInsufficientDataMessage(forecast)}</p>
         ) : (
@@ -68,8 +72,8 @@ export function ForecastDashboardWidget() {
             </p>
           </>
         )}
-        <div className="flex flex-wrap gap-2 pt-1">
-          <Badge variant="outline">{warnings.length} рекоменд.</Badge>
+        <div className="flex flex-wrap gap-1.5 pt-0.5">
+          <Badge variant="outline">{warnings.length} рекомендаций</Badge>
           {warnings.some((r) => r.level === 'critical') ? (
             <Badge variant="destructive">Есть срочные риски</Badge>
           ) : warnings.length > 0 ? (

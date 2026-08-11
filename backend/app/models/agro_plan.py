@@ -31,6 +31,20 @@ class AgroPlan(Base):
     closed_by = Column(UUID(as_uuid=True), ForeignKey('employees.id'), nullable=True)
     closed_at = Column(DateTime(timezone=True), nullable=True)
     close_note = Column(Text, nullable=True)
+    # Optional culture context on the selected field (never required).
+    field_planting_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('field_plantings.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True,
+    )
+    crop_code = Column(String(80), nullable=True)
+    variety_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('crop_varieties.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True,
+    )
 
     location = relationship('Location', back_populates='agro_plans')
     work_type = relationship('WorkType', back_populates='agro_plans')

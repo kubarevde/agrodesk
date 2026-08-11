@@ -25,6 +25,9 @@ class AgroPlanCreate(BaseModel):
     implement_id: UUID | None = None
     employee_id: UUID | None = None
     notes: str | None = None
+    field_planting_id: UUID | None = None
+    crop_code: str | None = Field(default=None, max_length=80)
+    variety_id: UUID | None = None
 
     @model_validator(mode='before')
     @classmethod
@@ -42,6 +45,10 @@ class AgroPlanUpdate(BaseModel):
     employee_id: UUID | None = None
     notes: str | None = None
     status: str | None = Field(default=None, pattern='^(planned|in_progress|done|cancelled)$')
+    field_planting_id: UUID | None = None
+    crop_code: str | None = Field(default=None, max_length=80)
+    variety_id: UUID | None = None
+    clear_planting: bool = False
 
     @model_validator(mode='before')
     @classmethod
@@ -93,6 +100,11 @@ class AgroPlanResponse(BaseModel):
     closed_at: datetime | None = None
     close_note: str | None = None
     advisories: list[WeatherAdvisoryOut] = Field(default_factory=list)
+    field_planting_id: UUID | None = None
+    crop_code: str | None = None
+    crop_name: str | None = None
+    variety_id: UUID | None = None
+    variety_name: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

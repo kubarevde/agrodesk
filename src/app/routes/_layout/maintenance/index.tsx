@@ -10,6 +10,8 @@ const MaintenancePage = lazy(() =>
 
 type MaintenanceSearch = {
   equipmentId?: string
+  implementId?: string
+  search?: string
 }
 
 export const Route = createFileRoute('/_layout/maintenance/')({
@@ -19,6 +21,11 @@ export const Route = createFileRoute('/_layout/maintenance/')({
       typeof search.equipmentId === 'string' && search.equipmentId
         ? search.equipmentId
         : undefined,
+    implementId:
+      typeof search.implementId === 'string' && search.implementId
+        ? search.implementId
+        : undefined,
+    search: typeof search.search === 'string' && search.search ? search.search : undefined,
   }),
   component: MaintenancePage,
 })

@@ -1,3 +1,5 @@
+import { regionCodeFromValue } from '@/lib/regions.ru'
+
 /**
  * Lightweight place search for field maps.
  *
@@ -164,5 +166,101 @@ export function buildMapFlyTarget(result: GeocodeResult): {
     lng: result.lng,
     zoom: geocodeResultZoom(result),
     bbox: result.bbox,
+  }
+}
+
+const NOMINATIM_REVERSE_URL = 'https://nominatim.openstreetmap.org/reverse'
+
+type NominatimAddress = {
+  state?: string
+  region?: string
+  city?: string
+  'ISO3166-2-lvl4'?: string
+  country_code?: string
+}
+
+type NominatimReverseResponse = {
+  address?: NominatimAddress
+}
+
+const reverseCache = new Map<string, string | null>()
+
+function reverseCacheKey(lat: number, lng: number): string {
+  return `${lat.toFixed(3)},${lng.toFixed(3)}`
+}
+
+/**
+ * Resolve RF region catalog code (e.g. RU-KDA) from WGS84 coordinates via Nominatim reverse.
+ * Returns null when offline, outside RF, or no catalog match.
+ */
+export async function reverseGeocodeRegionCode(
+  lat: number,
+  lng: number,
+  options: Pick<GeocodeSearchOptions, 'signal' | 'fetchImpl' | 'isOnline' | 'language'> = {},
+): Promise<string | null> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+
+  const key = reverseCacheKey(lat, lng)
+  if (reverseCache.has(key)) return reverseCache.get(key) ?? null
+
+  const online =
+    options.isOnline ?? (() => (typeof navigator === 'undefined' ? true : navigator.onLine))
+  if (!online()) return null
+
+  const fetchImpl = options.fetchImpl ?? fetch
+  const language = options.language ?? 'ru'
+
+  const url = new URL(NOMINATIM_REVERSE_URL)
+  url.searchParams.set('lat', String(lat))
+  url.searchParams.set('lon', String(lng))
+  url.searchParams.set('format', 'json')
+  url.searchParams.set('addressdetails', '1')
+  url.searchParams.set('zoom', '10')
+  url.searchParams.set('accept-language', language)
+
+  try {
+    const response = await fetchImpl(url.toString(), {
+      method: 'GET',
+      signal: options.signal,
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': USER_AGENT,
+      },
+    })
+    if (!response.ok) {
+      reverseCache.set(key, null)
+      return null
+    }
+    const data = (await response.json()) as NominatimReverseResponse
+    const address = data.address
+    if (!address) {
+      reverseCache.set(key, null)
+      return null
+    }
+
+    const iso = address['ISO3166-2-lvl4']?.trim()
+    if (iso) {
+      const fromIso = regionCodeFromValue(iso)
+      if (fromIso) {
+        reverseCache.set(key, fromIso)
+        return fromIso
+      }
+    }
+
+    for (const candidate of [address.state, address.region, address.city]) {
+      const code = regionCodeFromValue(candidate)
+      if (code) {
+        reverseCache.set(key, code)
+        return code
+      }
+    }
+
+    reverseCache.set(key, null)
+    return null
+  } catch (error) {
+    if (options.signal?.aborted) return null
+    if (error instanceof DOMException && error.name === 'AbortError') return null
+    reverseCache.set(key, null)
+    return null
   }
 }

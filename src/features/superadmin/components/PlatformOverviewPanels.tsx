@@ -25,7 +25,7 @@ export function PlatformOverviewPanels({ stats }: PlatformOverviewPanelsProps) {
     <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Platform health</CardTitle>
+          <CardTitle className="text-base">Состояние платформы</CardTitle>
           <p className="text-xs text-muted-foreground">Организации и тарифы</p>
         </CardHeader>
         <CardContent>
@@ -33,11 +33,11 @@ export function PlatformOverviewPanels({ stats }: PlatformOverviewPanelsProps) {
             rows={[
               { label: 'Активных', value: stats.activeOrgs },
               { label: 'Неактивных', value: stats.inactiveOrgs },
-              { label: 'Trial', value: stats.trialOrgs },
-              { label: 'Basic', value: stats.basicOrgs },
-              { label: 'Pro', value: stats.proOrgs },
-              { label: 'Trial истекает ≤7д', value: stats.trialsExpiringSoon },
-              { label: 'Trial просрочен', value: stats.trialsExpiredActive },
+              { label: 'Пробный', value: stats.trialOrgs },
+              { label: 'Базовый', value: stats.basicOrgs },
+              { label: 'Профессиональный', value: stats.proOrgs },
+              { label: 'Подписка истекает ≤7д', value: stats.trialsExpiringSoon },
+              { label: 'Подписка просрочена', value: stats.trialsExpiredActive },
             ]}
           />
         </CardContent>
@@ -45,8 +45,8 @@ export function PlatformOverviewPanels({ stats }: PlatformOverviewPanelsProps) {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Usage</CardTitle>
-          <p className="text-xs text-muted-foreground">Пользователи и смены (core tenant)</p>
+          <CardTitle className="text-base">Использование</CardTitle>
+          <p className="text-xs text-muted-foreground">Пользователи и смены организаций</p>
         </CardHeader>
         <CardContent>
           <MetricList
@@ -56,7 +56,7 @@ export function PlatformOverviewPanels({ stats }: PlatformOverviewPanelsProps) {
               { label: 'Смен сегодня', value: stats.totalShiftsToday },
               { label: 'Открытых смен сегодня', value: stats.openShiftsToday },
               { label: 'Открытых смен всего', value: stats.openShifts },
-              { label: 'Тикетов всего', value: stats.supportTotal },
+              { label: 'Обращений всего', value: stats.supportTotal },
               { label: 'Непрочитанных', value: stats.supportUnread },
               { label: 'Новых / в работе', value: stats.supportNew + stats.supportInProgress },
             ]}
@@ -66,17 +66,17 @@ export function PlatformOverviewPanels({ stats }: PlatformOverviewPanelsProps) {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Feature adoption</CardTitle>
+          <CardTitle className="text-base">Подключённые возможности</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Platform flags и связи. Не holding overview.
+            Флаги платформы и связи организаций. Не обзор холдинга КФХ.
           </p>
         </CardHeader>
         <CardContent>
           <MetricList
             rows={[
-              { label: 'marketplace_enabled', value: stats.marketplaceOrgs },
-              { label: 'Головных с links', value: stats.hierarchyHeads },
-              { label: 'Связей head→child', value: stats.hierarchyLinks },
+              { label: 'Включён Marketplace', value: stats.marketplaceOrgs },
+              { label: 'Головных организаций', value: stats.hierarchyHeads },
+              { label: 'Связей головная → дочерняя', value: stats.hierarchyLinks },
             ]}
           />
         </CardContent>
@@ -84,13 +84,13 @@ export function PlatformOverviewPanels({ stats }: PlatformOverviewPanelsProps) {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Marketplace</CardTitle>
-          <p className="text-xs text-muted-foreground">Отдельно от core usage</p>
+          <CardTitle className="text-base">Маркетплейс</CardTitle>
+          <p className="text-xs text-muted-foreground">Отдельно от основной статистики</p>
         </CardHeader>
         <CardContent>
           <MetricList
             rows={[
-              { label: 'Org с флагом', value: stats.marketplaceOrgs },
+              { label: 'Организаций с витриной', value: stats.marketplaceOrgs },
               { label: 'На модерации', value: stats.listingsPendingReview },
               { label: 'Опубликовано', value: stats.listingsPublished },
               { label: 'Новых заказов', value: stats.ordersNew },

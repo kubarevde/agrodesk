@@ -15,7 +15,7 @@ export function UnreadBadge({ count, className, 'data-testid': testId }: UnreadB
       data-testid={testId ?? 'unread-badge'}
       data-count={count}
       className={cn(
-        'inline-flex min-w-5 items-center justify-center rounded-md bg-destructive px-1.5 text-xs font-medium text-destructive-foreground',
+        'inline-flex min-w-5 items-center justify-center rounded-md bg-amber-600 px-1.5 text-xs font-semibold text-white',
         className,
       )}
     >

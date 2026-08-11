@@ -63,7 +63,15 @@ def test_inventory_item_create_update(client: httpx.Client, admin_headers: dict[
 def test_organization_timezone(client: httpx.Client, admin_headers: dict[str, str]) -> None:
     r = client.get('/api/settings/organization', headers=admin_headers)
     assert r.status_code == 200, r.text
-    assert 'timezone' in r.json()
+    body = r.json()
+    assert 'timezone' in body
+    zones = body.get('available_timezones') or []
+    assert 'Europe/Moscow' in zones
+    assert 'Asia/Yekaterinburg' in zones
+    assert 'Asia/Vladivostok' in zones
+    assert 'Asia/Bangkok' in zones
+    assert 'UTC' in zones
+    assert body.get('shipment_requests_enabled') is True
 
 
 def test_cannot_deactivate_used_inventory_category(

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
-import { loginDemoAdmin } from './helpers'
+import { gotoPath, loginDemoAdmin } from './helpers'
 
-const API = process.env.VITE_API_URL ?? 'http://127.0.0.1:8000'
+const API = process.env.VITE_API_PROXY_TARGET || process.env.VITE_API_URL || 'http://127.0.0.1:8001'
 
 async function authHeaders(page: Page): Promise<Record<string, string>> {
   const token = await page.evaluate(() => localStorage.getItem('agrodesk_token'))
@@ -74,14 +74,25 @@ test.describe('shipment ↔ harvest request link', () => {
     const shipment = (await shipRes.json()) as { id: string; shipment_request_id: string }
     expect(shipment.shipment_request_id).toBe(req.id)
 
-    await page.goto('/shipments')
-    await expect(page.getByRole('heading', { name: 'Отгрузки урожая' })).toBeVisible({
+    await page.goto('/shipments', { waitUntil: 'domcontentloaded' })
+    await expect(page.getByRole('heading', { name: 'Отгрузки' })).toBeVisible({
       timeout: 20_000,
     })
-    await expect(page.getByText('E2E Link Elevator').first()).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByText(/по заявке #/i).first()).toBeVisible()
+    // Product: harvest list may keep inactive/hidden nodes; assert via API then detail page.
+    const listRes = await page.request.get(`${API}/api/shipments`, { headers })
+    expect(listRes.ok(), await listRes.text()).toBeTruthy()
+    const shipments = (await listRes.json()) as Array<{
+      id: string
+      destination?: string | null
+      elevator?: string | null
+      shipment_request_id?: string | null
+    }>
+    const linked = shipments.find((s) => s.id === shipment.id || s.shipment_request_id === req.id)
+    expect(linked, 'linked harvest shipment in API list').toBeTruthy()
+    const dest = String(linked?.destination ?? linked?.elevator ?? '')
+    expect(dest).toMatch(/E2E Link Elevator/i)
 
-    await page.goto(`/shipment-requests/${req.id}`)
+    await gotoPath(page, `/shipment-requests/${req.id}`)
     await expect(page.getByRole('heading', { name: 'Заявка' })).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText('Доход по урожаю')).toBeVisible()
     await expect(page.getByText(/30/).first()).toBeVisible()

@@ -1,6 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ShoppingCart } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,9 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { LabeledSelect } from '@/components/ui/labeled-select'
-import { selectOptions } from '@/lib/selectOptions'
+import { useDictionary } from '@/features/dictionaries/hooks'
 import {
   useAddChecklistItem,
   useToggleChecklistItem,
@@ -23,14 +20,18 @@ import {
   usePurchaseItems,
 } from '@/features/purchase-planner/hooks'
 import { purchasePlannerSearch } from '@/features/purchase-planner/lib/plannerSearch'
-import {
-  getPriorityBadgeClass,
-  getStatusBadgeClass,
-  ITEM_TYPE_LABELS,
-  PRIORITY_LABELS,
-  STATUS_LABELS,
-} from '../lib/labels'
-import type { ChecklistItemType, RepairJournalEntry, RepairStatus } from '../types'
+import { getPriorityBadgeClass, PRIORITY_LABELS, shouldShowRepairPriority } from '../lib/labels'
+import type {
+  ChecklistItem,
+  ChecklistItemType,
+  RepairJournalEntry,
+  RepairPriority,
+  RepairStatus,
+} from '../types'
+import { ChecklistItemTypeToggle } from './ChecklistItemTypeToggle'
+import { RepairChecklistRow } from './RepairChecklistRow'
+import { RepairStatusBadges } from './RepairStatusBadges'
+import { RepairStatusPanel } from './RepairStatusPanel'
 
 type RepairDetailDialogProps = {
   entry: RepairJournalEntry | null
@@ -38,17 +39,12 @@ type RepairDetailDialogProps = {
   onClose: () => void
 }
 
-const STATUS_OPTIONS = selectOptions([
-  { value: 'in_progress', label: 'В ремонте' },
-  { value: 'waiting_parts', label: 'Ожидает запчасти' },
-  { value: 'done', label: 'Готово' },
-])
-
 export function RepairDetailDialog({ entry, open, onClose }: RepairDetailDialogProps) {
   const toggle = useToggleChecklistItem()
   const addItem = useAddChecklistItem()
   const update = useUpdateRepair()
   const toPlanner = useChecklistToPurchasePlanner()
+  const { data: statusDict = [] } = useDictionary('repair_status')
   const { data: linkedPurchases = [] } = usePurchaseItems(
     { maintenanceId: entry?.id },
     Boolean(entry?.id) && open,
@@ -57,14 +53,98 @@ export function RepairDetailDialog({ entry, open, onClose }: RepairDetailDialogP
   const [newText, setNewText] = useState('')
   const [returnDate, setReturnDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [createExpense, setCreateExpense] = useState(true)
+  const [localItems, setLocalItems] = useState<ChecklistItem[]>([])
+  const [localWaiting, setLocalWaiting] = useState(false)
+  const [localStatus, setLocalStatus] = useState('in_progress')
+  const [localPriority, setLocalPriority] = useState<RepairPriority | string>('normal')
+
+  useEffect(() => {
+    if (!open || !entry) return
+    setLocalItems(entry.checklistItems)
+    setLocalWaiting(entry.waitingParts)
+    setLocalStatus(entry.status)
+    setLocalPriority(entry.priority)
+    setReturnDate(entry.dateReturned ?? new Date().toISOString().slice(0, 10))
+    // Snapshot once per open / repair id — draft edits stay local until Save.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, entry?.id])
+
+  const checklistDone = useMemo(
+    () => localItems.filter((item) => item.isDone).length,
+    [localItems],
+  )
+
+  const hasStatusChanges = useMemo(() => {
+    if (!entry) return false
+    const waitingImplied =
+      localStatus === 'waiting_parts' ? true : localWaiting
+    const savedWaiting =
+      entry.status === 'waiting_parts' ? true : entry.waitingParts
+    return (
+      localStatus !== entry.status ||
+      waitingImplied !== savedWaiting ||
+      localPriority !== entry.priority
+    )
+  }, [entry, localStatus, localWaiting, localPriority])
 
   if (!entry) return null
 
+  const handleToggle = (itemId: string, isDone: boolean) => {
+    setLocalItems((prev) =>
+      prev.map((item) =>
+        item.id === itemId
+          ? { ...item, isDone, doneAt: isDone ? new Date().toISOString() : null }
+          : item,
+      ),
+    )
+    toggle.mutate({ itemId, isDone })
+  }
+
+  const handleStatusChange = (status: RepairStatus) => {
+    setLocalStatus(status)
+    if (status === 'waiting_parts') setLocalWaiting(true)
+  }
+
+  const handleWaitingChange = (waiting: boolean) => {
+    setLocalWaiting(waiting)
+  }
+
+  const buildStatusPayload = (status: RepairStatus) => {
+    const waitingParts = status === 'waiting_parts' ? true : localWaiting
+    if (status === 'done') {
+      return {
+        status: 'done' as const,
+        waitingParts,
+        priority: localPriority as RepairPriority,
+        dateReturned: returnDate,
+        createExpense,
+      }
+    }
+    return {
+      status,
+      waitingParts,
+      priority: localPriority as RepairPriority,
+    }
+  }
+
+  const handleSave = async () => {
+    const saved = await update.mutateAsync({
+      id: entry.id,
+      payload: buildStatusPayload(localStatus as RepairStatus),
+    })
+    setLocalStatus(saved.status)
+    setLocalWaiting(saved.waitingParts)
+    setLocalPriority(saved.priority)
+  }
+
   const handleComplete = async () => {
+    setLocalStatus('done')
     await update.mutateAsync({
       id: entry.id,
       payload: {
         status: 'done',
+        waitingParts: localWaiting,
+        priority: localPriority as RepairPriority,
         dateReturned: returnDate,
         createExpense,
       },
@@ -72,11 +152,20 @@ export function RepairDetailDialog({ entry, open, onClose }: RepairDetailDialogP
     onClose()
   }
 
+  const handleDialogOpenChange = (isOpen: boolean) => {
+    if (isOpen) return
+    if (hasStatusChanges) {
+      void handleSave().finally(() => onClose())
+      return
+    }
+    onClose()
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="space-y-1">
+          <DialogTitle className="space-y-1 text-base sm:text-lg">
             {entry.equipmentId ? (
               <Link
                 to="/equipment/$equipmentId"
@@ -98,21 +187,28 @@ export function RepairDetailDialog({ entry, open, onClose }: RepairDetailDialogP
             )}
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="outline" className={getStatusBadgeClass(entry.status)}>
-              {STATUS_LABELS[entry.status] ?? entry.status}
-            </Badge>
-            <Badge variant="outline" className={getPriorityBadgeClass(entry.priority)}>
-              {PRIORITY_LABELS[entry.priority] ?? entry.priority}
-            </Badge>
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-1.5">
+            <RepairStatusBadges
+              status={localStatus}
+              waitingParts={localWaiting}
+              dict={statusDict}
+            />
+            {shouldShowRepairPriority({
+              status: localStatus,
+              waitingParts: localWaiting,
+            }) ? (
+              <Badge variant="outline" className={getPriorityBadgeClass(localPriority)}>
+                {PRIORITY_LABELS[localPriority] ?? localPriority}
+              </Badge>
+            ) : null}
           </div>
           {entry.description ? (
             <p className="text-sm text-muted-foreground">{entry.description}</p>
           ) : null}
 
           {linkedPurchases.length > 0 ? (
-            <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+            <div className="space-y-1.5 rounded-lg border border-border bg-muted/20 p-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-medium text-foreground">Закупки для ремонта</h3>
                 <Link
@@ -128,7 +224,7 @@ export function RepairDetailDialog({ entry, open, onClose }: RepairDetailDialogP
                   Весь список
                 </Link>
               </div>
-              <ul className="space-y-1 text-sm">
+              <ul className="space-y-0.5 text-sm">
                 {linkedPurchases.map((p) => (
                   <li key={p.id} className="flex justify-between gap-2">
                     <span className={p.status === 'purchased' ? 'line-through opacity-70' : ''}>
@@ -145,135 +241,110 @@ export function RepairDetailDialog({ entry, open, onClose }: RepairDetailDialogP
 
           <div className="space-y-2">
             <h3 className="text-sm font-medium text-foreground">
-              Чек-лист ({entry.checklistDone}/{entry.checklistTotal})
+              Чек-лист ({checklistDone}/{localItems.length || entry.checklistTotal})
             </h3>
-            <ul className="space-y-2">
-              {entry.checklistItems.map((item) => (
-                <li
+            <ul className="space-y-1.5">
+              {localItems.map((item) => (
+                <RepairChecklistRow
                   key={item.id}
-                  className="flex items-start gap-2 rounded-lg border border-border px-3 py-2"
-                >
-                  <input
-                    type="checkbox"
-                    className="mt-1 size-4 accent-primary"
-                    checked={item.isDone}
-                    onChange={(e) =>
-                      void toggle.mutateAsync({ itemId: item.id, isDone: e.target.checked })
-                    }
-                  />
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <p className={item.isDone ? 'text-sm line-through opacity-70' : 'text-sm'}>
-                      <span className="text-muted-foreground">
-                        {ITEM_TYPE_LABELS[item.itemType] ?? item.itemType}:{' '}
-                      </span>
-                      {item.description}
-                    </p>
-                    {item.cost != null ? (
-                      <p className="text-xs text-muted-foreground">
-                        {item.cost.toLocaleString('ru-RU')} ₽
-                      </p>
-                    ) : null}
-                    {item.itemType === 'buy' && !item.isDone ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2 text-xs"
-                        disabled={toPlanner.isPending}
-                        onClick={() => void toPlanner.mutateAsync(item.id)}
-                      >
-                        <ShoppingCart className="mr-1 size-3.5" />
-                        В планировщик закупок
-                      </Button>
-                    ) : null}
-                  </div>
-                </li>
+                  item={item}
+                  onToggle={(isDone) => handleToggle(item.id, isDone)}
+                  onToPlanner={
+                    item.itemType === 'buy' && !item.isDone
+                      ? () => {
+                          void toPlanner.mutateAsync(item.id)
+                        }
+                      : undefined
+                  }
+                  toPlannerPending={toPlanner.isPending}
+                />
               ))}
             </ul>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <LabeledSelect
-                className="sm:w-40"
-                value={newType}
-                options={selectOptions([
-                  { value: 'buy', label: 'Купить' },
-                  { value: 'repair', label: 'Отремонтировать' },
-                ])}
-                onValueChange={(v) => setNewType((v as ChecklistItemType) || 'buy')}
-              />
-              <Input
-                placeholder="Новый пункт"
-                value={newText}
-                onChange={(e) => setNewText(e.target.value)}
-              />
-              <Button
-                type="button"
-                size="sm"
-                disabled={!newText.trim() || addItem.isPending}
-                onClick={() => {
-                  void addItem
-                    .mutateAsync({
-                      repairId: entry.id,
-                      item: { itemType: newType, description: newText.trim() },
-                    })
-                    .then(() => setNewText(''))
-                }}
-              >
-                Добавить
-              </Button>
+            <div className="space-y-2 rounded-lg border border-border bg-muted/10 p-2.5">
+              <ChecklistItemTypeToggle value={newType} onChange={setNewType} />
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  placeholder="Новый пункт"
+                  value={newText}
+                  onChange={(e) => setNewText(e.target.value)}
+                  className="min-h-11 min-w-0 flex-1 text-base"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newText.trim() && !addItem.isPending) {
+                      e.preventDefault()
+                      void addItem
+                        .mutateAsync({
+                          repairId: entry.id,
+                          item: { itemType: newType, description: newText.trim() },
+                        })
+                        .then((created) => {
+                          setLocalItems((prev) =>
+                            prev.some((row) => row.id === created.id)
+                              ? prev
+                              : [...prev, created],
+                          )
+                          setNewText('')
+                        })
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  className="min-h-11 shrink-0 sm:px-4"
+                  disabled={!newText.trim() || addItem.isPending}
+                  onClick={() => {
+                    void addItem
+                      .mutateAsync({
+                        repairId: entry.id,
+                        item: { itemType: newType, description: newText.trim() },
+                      })
+                      .then((created) => {
+                        setLocalItems((prev) =>
+                          prev.some((row) => row.id === created.id)
+                            ? prev
+                            : [...prev, created],
+                        )
+                        setNewText('')
+                      })
+                  }}
+                >
+                  Добавить
+                </Button>
+              </div>
             </div>
           </div>
 
-          {entry.status !== 'done' ? (
-            <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
-              <h3 className="text-sm font-medium">Завершить ремонт</h3>
-              <LabeledSelect
-                value={entry.status}
-                options={STATUS_OPTIONS}
-                onValueChange={(v) => {
-                  if (v && v !== 'done') {
-                    void update.mutateAsync({
-                      id: entry.id,
-                      payload: { status: v as RepairStatus },
-                    })
-                  }
-                }}
-              />
-              <div className="space-y-1">
-                <Label htmlFor="return-date">Дата возврата в строй</Label>
-                <Input
-                  id="return-date"
-                  type="date"
-                  value={returnDate}
-                  onChange={(e) => setReturnDate(e.target.value)}
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-primary"
-                  checked={createExpense}
-                  onChange={(e) => setCreateExpense(e.target.checked)}
-                />
-                Создать затрату по сумме чек-листа (если ещё нет)
-              </label>
-              <Button type="button" className="w-full" onClick={() => void handleComplete()}>
-                Вернуть в строй
-              </Button>
-            </div>
-          ) : (
+          <RepairStatusPanel
+            status={localStatus}
+            waitingParts={localWaiting}
+            priority={localPriority}
+            statusDict={statusDict}
+            returnDate={returnDate}
+            createExpense={createExpense}
+            hasChanges={hasStatusChanges}
+            savePending={update.isPending}
+            onStatusChange={handleStatusChange}
+            onWaitingPartsChange={handleWaitingChange}
+            onPriorityChange={setLocalPriority}
+            onReturnDateChange={setReturnDate}
+            onCreateExpenseChange={setCreateExpense}
+            onSave={() => void handleSave()}
+            onComplete={() => void handleComplete()}
+          />
+
+          {entry.status === 'done' && entry.dateReturned && !hasStatusChanges ? (
             <p className="text-sm text-muted-foreground">
-              Возврат: {entry.dateReturned ?? '—'}
+              Возврат: {entry.dateReturned}
               {entry.expenseId ? (
                 <>
                   {' · '}
-                  <Link to="/expenses" className="text-primary hover:underline">
+                  <Link to="/expenses" search={{ tab: 'expenses' }} className="text-primary hover:underline">
                     Связанная затрата
                   </Link>
                 </>
               ) : null}
             </p>
-          )}
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

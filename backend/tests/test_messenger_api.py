@@ -150,7 +150,8 @@ def test_send_message_forbidden_for_non_member(
         headers=outsider,
         json={'body': 'Привет'},
     )
-    assert denied.status_code == 403, denied.text
+    # Non-members get 404 (do not leak chat existence), not 403.
+    assert denied.status_code == 404, denied.text
 
     ok = client.post(
         f'/api/messenger/chats/{chat_id}/messages',
@@ -168,7 +169,7 @@ def test_send_message_forbidden_for_non_member(
         f'/api/messenger/chats/{chat_id}/messages',
         headers=outsider,
     )
-    assert history_denied.status_code == 403, history_denied.text
+    assert history_denied.status_code == 404, history_denied.text
 
 
 def test_new_message_creates_notification_for_peer(
@@ -253,7 +254,8 @@ def test_admin_cannot_access_others_direct_chat(
         f'/api/messenger/chats/{chat_id}/messages',
         headers=admin_headers,
     )
-    assert denied.status_code == 403, denied.text
+    # Direct chat of others: 404 hides existence from non-participants (incl. admin).
+    assert denied.status_code == 404, denied.text
 
     # Admin still lists group chats (including ones they own for moderation)
     group = client.post(
@@ -448,3 +450,115 @@ def test_messenger_peers_available_to_employee(
     assert isinstance(body, list)
     assert all(row['id'] != emp_id for row in body)
     assert any(row.get('full_name') for row in body)
+def test_cross_org_admin_chat_and_messages(
+    client: httpx.Client,
+    admin_headers: dict[str, str],
+    demo_org_id: str,
+) -> None:
+    """Admin of demo org can DM admin of test-farm; employee cannot."""
+    orgs = client.get('/api/auth/orgs')
+    assert orgs.status_code == 200
+    other = next(
+        (o for o in orgs.json() if o['id'] != demo_org_id and o.get('slug') == 'test-farm'),
+        None,
+    )
+    if other is None:
+        pytest.skip('test-farm org not seeded')
+
+    login = client.post(
+        '/api/auth/login',
+        json={'email': 'EMP-TEST', 'password': '1234', 'org_id': other['id']},
+    )
+    assert login.status_code == 200, login.text
+    other_admin = {'Authorization': f"Bearer {login.json()['access_token']}"}
+    other_admin_id = _employee_id(client, other_admin)
+
+    # Non-admin cannot list external admins or open cross-org chat
+    emp = _employee_headers(client, demo_org_id, 'EMP001')
+    denied_list = client.get('/api/messenger/external-admins', headers=emp)
+    assert denied_list.status_code == 403, denied_list.text
+    denied_create = client.post(
+        '/api/messenger/chats/direct',
+        headers=emp,
+        json={'peer_employee_id': other_admin_id, 'cross_org': True},
+    )
+    assert denied_create.status_code == 403, denied_create.text
+
+    listed = client.get('/api/messenger/external-admins', headers=admin_headers)
+    assert listed.status_code == 200, listed.text
+    assert any(row['admin_id'] == other_admin_id for row in listed.json())
+
+    # Region filter: migration smoke may null organizations.region — restore for this check.
+    from sqlalchemy import create_engine, text
+
+    from app.config import settings
+
+    sync_url = settings.DATABASE_URL.replace('+asyncpg', '')
+    engine = create_engine(sync_url)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE organizations SET region = 'RU-TOM' "
+                "WHERE id = CAST(:id AS uuid) OR slug = 'main'"
+            ),
+            {'id': other['id']},
+        )
+    engine.dispose()
+
+    by_region = client.get(
+        '/api/messenger/external-admins',
+        headers=admin_headers,
+        params={'region': 'RU-TOM'},
+    )
+    assert by_region.status_code == 200, by_region.text
+    assert any(row['admin_id'] == other_admin_id for row in by_region.json())
+    empty_region = client.get(
+        '/api/messenger/external-admins',
+        headers=admin_headers,
+        params={'region': 'RU-KAM'},
+    )
+    assert empty_region.status_code == 200, empty_region.text
+    assert all(row['admin_id'] != other_admin_id for row in empty_region.json())
+
+    created = client.post(
+        '/api/messenger/chats/direct',
+        headers=admin_headers,
+        json={'peer_employee_id': other_admin_id, 'cross_org': True},
+    )
+    assert created.status_code == 200, created.text
+    assert created.json().get('is_cross_org') is True
+    chat_id = created.json()['id']
+
+    again = client.post(
+        '/api/messenger/chats/direct',
+        headers=other_admin,
+        json={'peer_employee_id': _employee_id(client, admin_headers), 'cross_org': True},
+    )
+    assert again.status_code == 200, again.text
+    assert again.json()['id'] == chat_id
+
+    sent = client.post(
+        f'/api/messenger/chats/{chat_id}/messages',
+        headers=admin_headers,
+        json={'body': 'Привет из демо-хозяйства'},
+    )
+    assert sent.status_code == 201, sent.text
+
+    peer_list = client.get('/api/messenger/chats', headers=other_admin)
+    assert peer_list.status_code == 200, peer_list.text
+    assert any(item['id'] == chat_id for item in peer_list.json())
+
+    peer_msgs = client.get(f'/api/messenger/chats/{chat_id}/messages', headers=other_admin)
+    assert peer_msgs.status_code == 200, peer_msgs.text
+    assert any(item['body'] == 'Привет из демо-хозяйства' for item in peer_msgs.json()['items'])
+
+    reply = client.post(
+        f'/api/messenger/chats/{chat_id}/messages',
+        headers=other_admin,
+        json={'body': 'Ответ из test-farm'},
+    )
+    assert reply.status_code == 201, reply.text
+
+    back = client.get(f'/api/messenger/chats/{chat_id}/messages', headers=admin_headers)
+    assert back.status_code == 200, back.text
+    assert any(item['body'] == 'Ответ из test-farm' for item in back.json()['items'])

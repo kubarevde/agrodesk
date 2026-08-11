@@ -7,10 +7,11 @@ import {
   Marker,
   Polygon,
   Popup,
-  TileLayer,
   Tooltip,
   useMap,
+  useMapEvents,
 } from 'react-leaflet'
+import { BasemapTileLayers } from '@/components/shared/BasemapTileLayers'
 import { cn } from '@/lib/utils'
 import '@/lib/maps/setup'
 import {
@@ -37,7 +38,11 @@ export type MapPolygon = {
   coordinates: number[][]
   color?: string
   fillColor?: string
+  /** Stroke weight in px (Leaflet pathOptions.weight). */
+  weight?: number
+  fillOpacity?: number
   label?: string
+  popupContent?: ReactNode
   onClick?: () => void
 }
 
@@ -52,7 +57,7 @@ type MapViewProps = {
   defaultBasemap?: MapBasemapId
   /** Fit map to markers/polygons when data is present. */
   fitToData?: boolean
-  /** Show schema/satellite layer switcher (default true). */
+  /** Show satellite / hybrid / schema switcher (default true). */
   showBasemapControl?: boolean
   /** Optional one-shot fly/fit from place search. */
   flyTo?: {
@@ -61,6 +66,8 @@ type MapViewProps = {
     zoom: number
     bbox?: [number, number, number, number]
   } | null
+  /** When set, map clicks pick a point (lat/lng WGS84). */
+  onMapClick?: (lat: number, lng: number) => void
 }
 
 const MARKER_COLORS: Record<MapMarkerColor, string> = {
@@ -80,6 +87,27 @@ function createColoredIcon(color: MapMarkerColor = 'blue') {
     iconAnchor: [7, 7],
     popupAnchor: [0, -8],
   })
+}
+
+function InvalidateOnResize() {
+  const map = useMap()
+
+  useEffect(() => {
+    const container = map.getContainer()
+    const sync = () => {
+      map.invalidateSize({ animate: false })
+    }
+    sync()
+    const frame = window.requestAnimationFrame(sync)
+    const observer = new ResizeObserver(sync)
+    observer.observe(container)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+  }, [map])
+
+  return null
 }
 
 function FitToData({
@@ -151,6 +179,19 @@ function FlyToPlace({
   return null
 }
 
+function MapClickHandler({
+  onMapClick,
+}: {
+  onMapClick: (lat: number, lng: number) => void
+}) {
+  useMapEvents({
+    click(event) {
+      onMapClick(event.latlng.lat, event.latlng.lng)
+    },
+  })
+  return null
+}
+
 export function MapView({
   center = [51.5, 36.5],
   zoom = 10,
@@ -162,6 +203,7 @@ export function MapView({
   fitToData = false,
   showBasemapControl = true,
   flyTo = null,
+  onMapClick,
 }: MapViewProps) {
   const [tileError, setTileError] = useState(false)
   const basemaps = useMemo(() => getBasemaps(), [])
@@ -179,14 +221,15 @@ export function MapView({
     <div
       className={cn(
         'relative w-full min-w-0 overflow-hidden rounded-lg border border-border',
+        height === '100%' && 'h-full',
         className,
       )}
-      style={{ height }}
+      style={height === '100%' ? undefined : { height }}
     >
       <MapContainer
         center={center}
         zoom={zoom}
-        className="h-full w-full touch-pan-y"
+        className={cn('h-full w-full touch-pan-y', onMapClick ? 'cursor-crosshair' : undefined)}
         scrollWheelZoom
         attributionControl={false}
       >
@@ -200,58 +243,46 @@ export function MapView({
                 checked={layer.id === activeDefault}
                 name={layer.name}
               >
-                <TileLayer
-                  url={layer.url}
-                  attribution={layer.attribution}
-                  maxZoom={layer.maxZoom ?? 19}
-                  eventHandlers={{
-                    tileerror: () => setTileError(true),
-                  }}
-                />
+                <BasemapTileLayers basemap={layer} onTileError={() => setTileError(true)} />
               </LayersControl.BaseLayer>
             ))}
           </LayersControl>
         ) : (
-          <TileLayer
-            url={basemaps.find((b) => b.id === activeDefault)?.url ?? basemaps[0].url}
-            attribution={
-              basemaps.find((b) => b.id === activeDefault)?.attribution ??
-              basemaps[0].attribution
-            }
-            maxZoom={19}
-            eventHandlers={{
-              tileerror: () => setTileError(true),
-            }}
+          <BasemapTileLayers
+            basemap={basemaps.find((b) => b.id === activeDefault) ?? basemaps[0]}
+            onTileError={() => setTileError(true)}
           />
         )}
 
+        <InvalidateOnResize />
         {fitToData ? <FitToData markers={markers} polygons={polygons} /> : null}
         {flyTo ? <FlyToPlace target={flyTo} /> : null}
+        {onMapClick ? <MapClickHandler onMapClick={onMapClick} /> : null}
 
         {markers
           .filter((marker) => Number.isFinite(marker.lat) && Number.isFinite(marker.lng))
           .map((marker) => (
-          <Marker
-            key={marker.id}
-            position={[marker.lat, marker.lng]}
-            icon={icons.get(marker.color ?? 'blue')}
-            eventHandlers={marker.onClick ? { click: marker.onClick } : undefined}
-          >
-            <Tooltip sticky>
-              {[marker.label, marker.sublabel].filter(Boolean).join(' · ')}
-            </Tooltip>
-            <Popup>
-              {marker.popupContent ?? (
-                <div className="space-y-0.5">
-                  <p className="font-medium text-foreground">{marker.label}</p>
-                  {marker.sublabel ? (
-                    <p className="text-xs text-muted-foreground">{marker.sublabel}</p>
-                  ) : null}
-                </div>
-              )}
-            </Popup>
-          </Marker>
-        ))}
+            <Marker
+              key={marker.id}
+              position={[marker.lat, marker.lng]}
+              icon={icons.get(marker.color ?? 'blue')}
+              eventHandlers={marker.onClick ? { click: marker.onClick } : undefined}
+            >
+              <Tooltip sticky>
+                {[marker.label, marker.sublabel].filter(Boolean).join(' \u00b7 ')}
+              </Tooltip>
+              <Popup>
+                {marker.popupContent ?? (
+                  <div className="space-y-0.5">
+                    <p className="font-medium text-foreground">{marker.label}</p>
+                    {marker.sublabel ? (
+                      <p className="text-xs text-muted-foreground">{marker.sublabel}</p>
+                    ) : null}
+                  </div>
+                )}
+              </Popup>
+            </Marker>
+          ))}
 
         {polygons
           .filter(
@@ -263,26 +294,27 @@ export function MapView({
               ),
           )
           .map((polygon) => (
-          <Polygon
-            key={polygon.id}
-            positions={polygon.coordinates as [number, number][]}
-            pathOptions={{
-              color: polygon.color ?? '#F9F8F5',
-              fillColor: polygon.fillColor ?? polygon.color ?? 'var(--primary)',
-              fillOpacity: 0.35,
-              weight: 2.5,
-            }}
-            eventHandlers={polygon.onClick ? { click: polygon.onClick } : undefined}
-          >
-            {polygon.label ? <Tooltip sticky>{polygon.label}</Tooltip> : null}
-          </Polygon>
-        ))}
+            <Polygon
+              key={polygon.id}
+              positions={polygon.coordinates as [number, number][]}
+              pathOptions={{
+                color: polygon.color ?? '#F9F8F5',
+                fillColor: polygon.fillColor ?? polygon.color ?? 'var(--primary)',
+                fillOpacity: polygon.fillOpacity ?? 0.35,
+                weight: polygon.weight ?? 2.5,
+              }}
+              eventHandlers={polygon.onClick ? { click: polygon.onClick } : undefined}
+            >
+              {polygon.label ? <Tooltip sticky>{polygon.label}</Tooltip> : null}
+              {polygon.popupContent ? <Popup>{polygon.popupContent}</Popup> : null}
+            </Polygon>
+          ))}
 
         {tileError ? (
           <div className="absolute inset-0 z-[1000] flex flex-col items-center justify-center gap-3 bg-background/85 p-4 text-center">
             <p className="text-sm font-medium text-foreground">Не удалось загрузить карту</p>
             <p className="text-xs text-muted-foreground">
-              Проверьте сеть или смените подложку (Спутник / Схема). Офлайн тайлы не кэшируются.
+              Проверьте сеть или смените подложку (Спутник / Гибрид / Схема). Офлайн тайлы не кэшируются.
             </p>
             <button
               type="button"

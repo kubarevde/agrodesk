@@ -1,13 +1,7 @@
-"""Unified maintenance (ТО) calculations for equipment and implements.
+﻿"""Unified maintenance (ТО) calculations for equipment and implements.
 
-Next service uses the nearest interval multiple from 0 (not current + interval).
-
-Examples (current / interval → next):
-  216 / 250 → 250
-  1301 / 250 → 1500
-  250 / 250 → 250
-  251 / 250 → 500
-  0 / 250 → 250
+Scheduling uses an absolute next reading (`next_to_at` / `next_service_hours`).
+When only an interval is known, next = current + interval (same as resolve_next_to_at).
 """
 
 from __future__ import annotations
@@ -24,7 +18,7 @@ def calculate_next_service_hours(
     current_hours: float | Decimal | int | None,
     interval_hours: float | Decimal | int | None,
 ) -> float | None:
-    """Nearest interval multiple at or above current (from 0)."""
+    """Legacy ceil-from-zero milestone. Prefer resolve_next_to_at for scheduling."""
     interval = _f(interval_hours)
     if interval <= 0:
         return None
@@ -40,12 +34,11 @@ def calculate_hours_to_next_service(
     *,
     next_service_hours: float | Decimal | int | None = None,
 ) -> float | None:
-    nxt = (
-        _f(next_service_hours)
-        if next_service_hours is not None
-        else calculate_next_service_hours(current_hours, interval_hours)
-    )
-    if nxt is None:
+    if next_service_hours is not None:
+        nxt = _f(next_service_hours)
+    elif interval_hours is not None and _f(interval_hours) > 0:
+        nxt = _f(current_hours) + _f(interval_hours)
+    else:
         return None
     return max(0.0, nxt - _f(current_hours))
 
@@ -60,13 +53,10 @@ def calculate_service_progress_percent(
     interval = _f(interval_hours)
     if interval <= 0:
         return None
-    nxt = (
-        _f(next_service_hours)
-        if next_service_hours is not None
-        else calculate_next_service_hours(current_hours, interval_hours)
-    )
-    if nxt is None:
-        return None
+    if next_service_hours is not None:
+        nxt = _f(next_service_hours)
+    else:
+        nxt = _f(current_hours) + interval
     prev = max(0.0, nxt - interval)
     current = _f(current_hours)
     if current <= prev:
@@ -101,15 +91,13 @@ def build_maintenance_summary(
     """Single DTO used by equipment and implements responses."""
     interval = _f(interval_hours) if interval_hours is not None else None
     current = _f(current_hours)
-    nxt = (
-        _f(next_service_hours)
-        if next_service_hours is not None
-        else calculate_next_service_hours(current, interval)
-    )
-    # Keep stored next if set, else compute; if interval exists always prefer formula
-    # so list/detail never diverge after meter updates.
-    if interval and interval > 0:
-        nxt = calculate_next_service_hours(current, interval)
+    # Prefer absolute stored next; fallback = current + interval (same as resolve_next_to_at).
+    if next_service_hours is not None:
+        nxt = _f(next_service_hours)
+    elif interval and interval > 0:
+        nxt = current + interval
+    else:
+        nxt = None
     return {
         'current_hours': current,
         'service_interval_hours': interval if interval and interval > 0 else None,
@@ -132,9 +120,27 @@ def next_after_completed_service(
     current_hours: float | Decimal | int | None,
     interval_hours: float | Decimal | int | None,
 ) -> float | None:
-    """After TO is recorded at current reading, schedule the following milestone."""
+    """Legacy ceil-from-zero milestone after TO (kept for tests / old callers)."""
     interval = _f(interval_hours)
     if interval <= 0:
         return None
     current = _f(current_hours)
     return (math.floor(current / interval) + 1) * interval
+
+
+def resolve_next_to_at(
+    *,
+    meter_at: float | Decimal | int | None,
+    next_to_at: float | Decimal | int | None = None,
+    next_to_interval: float | Decimal | int | None = None,
+) -> float | None:
+    """Absolute next reading: prefer next_to_at; else meter_at + interval offset."""
+    if next_to_at is not None:
+        value = _f(next_to_at)
+        return value if value > 0 else None
+    if next_to_interval is not None:
+        interval = _f(next_to_interval)
+        if interval <= 0:
+            return None
+        return _f(meter_at) + interval
+    return None

@@ -2,6 +2,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   Droplets,
+  Leaf,
+  Package,
+  Shovel,
   Sprout,
   Tractor,
   Truck,
@@ -29,6 +32,9 @@ export const IMPLEMENT_ICON_OPTIONS: Array<{ value: string; label: string; icon:
   { value: 'wheat', label: 'Колос', icon: Wheat },
   { value: 'truck', label: 'Транспорт', icon: Truck },
   { value: 'wrench', label: 'Ключ', icon: Wrench },
+  { value: 'leaf', label: 'Лист', icon: Leaf },
+  { value: 'shovel', label: 'Лопата', icon: Shovel },
+  { value: 'package', label: 'Тара', icon: Package },
 ]
 
 /** Token colors mapped to existing Tailwind design tokens / accents. */
@@ -63,6 +69,26 @@ export const IMPLEMENT_COLOR_OPTIONS: Array<{ value: string; label: string; badg
       value: 'muted',
       label: 'Нейтральный',
       badgeClass: 'bg-muted text-muted-foreground',
+    },
+    {
+      value: 'primary',
+      label: 'Бирюзовый',
+      badgeClass: 'border-primary/30 bg-primary/10 text-primary',
+    },
+    {
+      value: 'sky',
+      label: 'Голубой',
+      badgeClass: 'border-sky-500/30 bg-sky-500/10 text-sky-700',
+    },
+    {
+      value: 'teal',
+      label: 'Изумрудный',
+      badgeClass: 'border-teal-500/30 bg-teal-500/10 text-teal-700',
+    },
+    {
+      value: 'rose',
+      label: 'Розовый',
+      badgeClass: 'border-rose-500/30 bg-rose-500/10 text-rose-700',
     },
   ]
 

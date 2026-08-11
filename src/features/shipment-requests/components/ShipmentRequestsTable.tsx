@@ -2,8 +2,8 @@ import { cn } from '@/lib/utils'
 import { resolveDictionaryLabel } from '@/features/dictionaries/labels'
 import { useDictionary } from '@/features/dictionaries/hooks'
 import {
-  formatMoney,
   formatPlannedAt,
+  formatQtyPrice,
   isOverdue,
   isUrgent,
   PRIORITY_LABELS,
@@ -77,10 +77,10 @@ export function ShipmentRequestsTable({
                   >
                     {row.inventoryItemName ?? '—'}
                   </a>
-                  <p className="text-xs text-muted-foreground">{row.inventoryItemUnit}</p>
                   {row.cropCode ? (
                     <p className="text-xs text-muted-foreground">
                       Культура: {resolveDictionaryLabel(row.cropCode, crops)}
+                      {row.varietyName ? ` · ${row.varietyName}` : ''}
                     </p>
                   ) : null}
                 </td>
@@ -89,7 +89,7 @@ export function ShipmentRequestsTable({
                 </td>
                 <td className="px-3 py-3 align-top text-foreground">{row.customerName}</td>
                 <td className="px-3 py-3 align-top">
-                  {row.quantity.toLocaleString('ru-RU')} × {formatMoney(row.price)}
+                  {formatQtyPrice(row.quantity, row.inventoryItemUnit, row.price)}
                 </td>
                 <td className="px-3 py-3 align-top text-foreground">
                   {formatPlannedAt(row.plannedAt)}

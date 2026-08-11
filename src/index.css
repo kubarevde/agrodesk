@@ -139,11 +139,9 @@
     @apply font-sans;
     }
 }
-/* Field contour editor: phones use large React buttons instead of tiny Leaflet.Draw icons. */
-@media (max-width: 639px) {
-  .agrodesk-contour-map .leaflet-draw-toolbar {
-    display: none !important;
-  }
+/* Field contour editor: React toolbar replaces tiny Leaflet.Draw icons. */
+.agrodesk-contour-map .leaflet-draw-toolbar {
+  display: none !important;
 }
 
 /* Contour vertices: small primary dots instead of Leaflet’s default white squares. */

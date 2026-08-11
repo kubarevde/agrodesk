@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { OfflineBanner } from '@/components/shared/OfflineBanner'
 import { HoldingContextBanner } from '@/features/holding/components/HoldingContextBanner'
@@ -18,21 +18,32 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <TooltipProvider>
-      <div className="flex min-h-screen bg-background text-foreground">
+      <div className="flex min-h-dvh bg-background text-foreground">
         <div className="hidden md:flex">
           <AppSidebar collapsed={sidebarCollapsed} />
         </div>
 
-        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-          <SheetContent side="left" className="w-60 p-0" showCloseButton>
-            <AppSidebar
-              collapsed={false}
-              onNavigate={() => setMobileMenuOpen(false)}
-              className="w-full border-r-0"
-              showToggle={false}
-            />
-          </SheetContent>
-        </Sheet>
+        <div className="md:hidden">
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetContent
+              side="left"
+              showCloseButton
+              className="w-[min(100vw-3rem,20rem)] max-w-none gap-0 p-0 sm:max-w-none"
+            >
+              <SheetTitle className="sr-only">Главное меню</SheetTitle>
+              <SheetDescription className="sr-only">
+                Навигация по разделам АгроДеск
+              </SheetDescription>
+              <AppSidebar
+                collapsed={false}
+                mobile
+                onNavigate={() => setMobileMenuOpen(false)}
+                className="h-dvh w-full border-r-0"
+                showToggle={false}
+              />
+            </SheetContent>
+          </Sheet>
+        </div>
 
         <div className="flex min-w-0 flex-1 flex-col">
           <AppHeader />

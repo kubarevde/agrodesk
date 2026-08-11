@@ -1,9 +1,9 @@
-import { Link } from '@tanstack/react-router'
-import { ClipboardList, Package } from 'lucide-react'
+import { useNavigate } from '@tanstack/react-router'
+import { ClipboardList, Package, Plus } from 'lucide-react'
 import { useMemo } from 'react'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { SkeletonTable } from '@/components/shared/SkeletonTable'
+import { Button } from '@/components/ui/button'
 import { useOrganizationSettings } from '@/features/settings/hooks'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { useUserPermissions } from '@/features/settings/permissionsHooks'
@@ -11,18 +11,22 @@ import { useShipmentRequests } from '@/features/shipment-requests/hooks'
 import { hasAction } from '@/lib/permissionActions'
 import { displayDateToIso } from '@/lib/transformers'
 import { isoDay, isIsoDayInRange } from '../utils'
+import { ShipmentsTmcList } from './ShipmentsTmcList'
 
 type Props = {
   /** Display dates dd.MM.yyyy (same as shipments filters). */
   from: string
   to: string
+  canCreate?: boolean
+  onCreate?: () => void
 }
 
 /**
- * Read-only warehouse outbound via shipment_requests with kind=inventory only.
+ * Warehouse outbound via completed inventory shipment requests.
  * Never feeds crop KPI / shipments list / harvest Excel.
  */
-export function ShipmentsTmcOutboundPanel({ from, to }: Props) {
+export function ShipmentsTmcOutboundPanel({ from, to, canCreate, onCreate }: Props) {
+  const navigate = useNavigate()
   const { data: user } = useCurrentUser()
   const { data: perms } = useUserPermissions()
   const { data: orgSettings } = useOrganizationSettings()
@@ -49,72 +53,82 @@ export function ShipmentsTmcOutboundPanel({ from, to }: Props) {
     [rows, fromIso, toIso],
   )
 
-  if (!moduleOn || !canSee) return null
+  const openRequest = (id: string) => {
+    void navigate({
+      to: '/shipment-requests/$requestId',
+      params: { requestId: id },
+    })
+  }
+
+  const goToActiveRequests = () => {
+    void navigate({
+      to: '/shipment-requests',
+      search: { focus: 'active', createItemId: undefined },
+    })
+  }
+
+  if (!moduleOn) {
+    return (
+      <EmptyState
+        icon={Package}
+        title="Модуль заявок отключён"
+        description="Включите заявки на отгрузку в настройках организации."
+      />
+    )
+  }
+
+  if (!canSee) {
+    return (
+      <EmptyState
+        icon={Package}
+        title="Нет доступа"
+        description="Нужно право управлять заявками на отгрузку."
+      />
+    )
+  }
 
   return (
-    <Card
+    <div
+      className="space-y-4"
       data-testid="shipments-tmc-outbound"
       data-domain="warehouse-only"
-      className="border-dashed border-muted-foreground/30"
     >
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
-        <CardTitle className="flex items-center gap-2 text-base text-muted-foreground">
-          <Package className="size-4" />
-          Отгрузки ТМЦ по заявкам (склад)
-          {inPeriod.length > 0 ? (
-            <Badge variant="secondary">{inPeriod.length}</Badge>
-          ) : null}
-        </CardTitle>
-        <Link
-          to="/shipment-requests"
-          search={{ focus: 'active', createItemId: undefined }}
-          className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-        >
-          <ClipboardList className="size-3.5" />
-          К заявкам
-        </Link>
-      </CardHeader>
-      <CardContent className="space-y-2 text-sm">
-        <p className="text-xs text-muted-foreground">
-          Отдельный обзор склада: только заявки типа «ТМЦ» (`kind=inventory`). Не входит в
-          список урожая, KPI и отчёт по культурам выше. Заявки на урожай-на-складе — в
-          разделе заявок.
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Выполненные заявки на отгрузку ТМЦ со склада за выбранный период. Не входят в KPI и
+          отчёт по культурам — только складской учёт. Новая отгрузка создаёт заявку; после
+          выполнения она появится в этом списке.
         </p>
-        {isLoading ? (
-          <Skeleton className="h-20 w-full rounded-md" />
-        ) : inPeriod.length === 0 ? (
-          <p className="text-muted-foreground">За период выполненных заявок ТМЦ нет</p>
-        ) : (
-          <ul className="space-y-2">
-            {inPeriod.slice(0, 8).map((row) => (
-              <li
-                key={row.id}
-                className="flex flex-wrap items-baseline justify-between gap-2 rounded-md border border-border px-3 py-2"
-                data-source="shipment_request"
-                data-kind="inventory"
-              >
-                <span className="font-medium text-foreground">
-                  <Badge variant="outline" className="mr-2 text-muted-foreground">
-                    ТМЦ
-                  </Badge>
-                  {row.inventoryItemName ?? 'Позиция'} · {row.customerName}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {row.quantity.toLocaleString('ru-RU')} {row.inventoryItemUnit} · источник:
-                  заявка
-                  {row.shiftId ? ` · смена ${row.shiftId.slice(0, 8)}…` : ''}
-                </span>
-              </li>
-            ))}
-            {inPeriod.length > 8 ? (
-              <p className="text-xs text-muted-foreground">
-                Ещё {inPeriod.length - 8} — смотрите раздел заявок или отчёт «Заявки на
-                отгрузку».
-              </p>
-            ) : null}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+        <div className="flex flex-wrap gap-2">
+          {canCreate && onCreate ? (
+            <Button type="button" size="sm" onClick={onCreate}>
+              <Plus className="size-3.5" />
+              Добавить отгрузку
+            </Button>
+          ) : null}
+          <Button type="button" variant="outline" size="sm" onClick={goToActiveRequests}>
+            <ClipboardList className="size-3.5" />
+            К заявкам
+          </Button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <SkeletonTable rows={5} columns={5} />
+      ) : inPeriod.length === 0 ? (
+        <EmptyState
+          icon={Package}
+          title="Отгрузок ТМЦ за период нет"
+          description="Измените период, добавьте отгрузку ТМЦ или выполните существующую заявку."
+          action={
+            canCreate && onCreate
+              ? { label: 'Добавить отгрузку', onClick: onCreate }
+              : { label: 'К активным заявкам', onClick: goToActiveRequests }
+          }
+        />
+      ) : (
+        <ShipmentsTmcList rows={inPeriod} onOpen={openRequest} />
+      )}
+    </div>
   )
 }

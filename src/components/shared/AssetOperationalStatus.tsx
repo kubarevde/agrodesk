@@ -1,14 +1,13 @@
+import { useState, type MouseEvent, type KeyboardEvent } from 'react'
 import { Link } from '@tanstack/react-router'
 import { purchasePlannerSearch } from '@/features/purchase-planner/lib/plannerSearch'
 import { Badge } from '@/components/ui/badge'
 import { usePurchaseItems } from '@/features/purchase-planner/hooks'
+import { RepairDetailDialog } from '@/features/repair-journal/components/RepairDetailDialog'
+import { RepairStatusBadges } from '@/features/repair-journal/components/RepairStatusBadges'
 import { useRepairs } from '@/features/repair-journal/hooks'
-import {
-  getStatusBadgeClass,
-  STATUS_LABELS,
-} from '@/features/repair-journal/lib/labels'
-
-const ACTIVE_REPAIR_STATUSES = new Set(['in_progress', 'waiting_parts'])
+import { isActiveRepair } from '@/features/repair-journal/lib/labels'
+import { useDictionary } from '@/features/dictionaries/hooks'
 
 type AssetOperationalStatusProps = {
   equipmentId?: string
@@ -24,6 +23,8 @@ export function AssetOperationalStatus({
   compact = false,
   showPurchases = true,
 }: AssetOperationalStatusProps) {
+  const [repairOpen, setRepairOpen] = useState(false)
+  const { data: statusDict = [] } = useDictionary('repair_status')
   const { data: repairs = [] } = useRepairs({
     equipmentId,
     implementId,
@@ -38,20 +39,34 @@ export function AssetOperationalStatus({
     showPurchases,
   )
 
-  const activeRepair = repairs.find((r) => ACTIVE_REPAIR_STATUSES.has(r.status))
+  const activeRepair = repairs.find((r) => isActiveRepair(r))
   const plannedCount = showPurchases ? purchases.length : 0
   const urgentCount = purchases.filter((p) => p.urgency === 'urgent').length
 
   if (!activeRepair && plannedCount === 0) return null
 
+  const stopCardNav = (event: MouseEvent | KeyboardEvent) => {
+    event.stopPropagation()
+  }
+
   return (
     <div className={`flex flex-wrap gap-1.5 ${compact ? '' : 'mt-1'}`}>
       {activeRepair ? (
-        <Link to="/maintenance" className="inline-flex">
-          <Badge variant="outline" className={getStatusBadgeClass(activeRepair.status)}>
-            {STATUS_LABELS[activeRepair.status] ?? activeRepair.status}
-          </Badge>
-        </Link>
+        <button
+          type="button"
+          className="inline-flex cursor-pointer flex-wrap gap-1"
+          onClick={(event) => {
+            stopCardNav(event)
+            setRepairOpen(true)
+          }}
+          onKeyDown={stopCardNav}
+        >
+          <RepairStatusBadges
+            status={activeRepair.status}
+            waitingParts={activeRepair.waitingParts}
+            dict={statusDict}
+          />
+        </button>
       ) : null}
       {plannedCount > 0 ? (
         <Link
@@ -62,6 +77,7 @@ export function AssetOperationalStatus({
             implementId,
           })}
           className="inline-flex"
+          onClick={stopCardNav}
         >
           <Badge
             variant="outline"
@@ -75,6 +91,14 @@ export function AssetOperationalStatus({
             {urgentCount > 0 ? ` (${urgentCount} срочно)` : ''}
           </Badge>
         </Link>
+      ) : null}
+
+      {activeRepair ? (
+        <RepairDetailDialog
+          entry={activeRepair}
+          open={repairOpen}
+          onClose={() => setRepairOpen(false)}
+        />
       ) : null}
     </div>
   )

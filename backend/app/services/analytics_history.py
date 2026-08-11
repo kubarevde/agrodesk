@@ -15,10 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.agro_plan import AgroPlan
 from app.models.equipment_log import EquipmentMaintenance
 from app.models.expense import Expense
+from app.models.income import Income
 from app.models.inventory import InventoryItem
 from app.models.reference import Equipment, Location
 from app.models.shift import Shift
 from app.models.shipment import Shipment
+from app.models.tmc_shipment import TmcShipment
 
 # Seed codes from org_dictionaries type=expense_category (see models/dictionary.py).
 # Custom org codes are preserved as-is and also appear in by_category.
@@ -118,6 +120,28 @@ async def get_monthly_history(
             )
         ).scalars().all()
     )
+    tmc_shipments = list(
+        (
+            await db.execute(
+                select(TmcShipment).where(
+                    TmcShipment.org_id == org_id,
+                    TmcShipment.date >= start_month,
+                    TmcShipment.date <= end_date,
+                )
+            )
+        ).scalars().all()
+    )
+    manual_incomes = list(
+        (
+            await db.execute(
+                select(Income).where(
+                    Income.org_id == org_id,
+                    Income.date >= start_month,
+                    Income.date <= end_date,
+                )
+            )
+        ).scalars().all()
+    )
     shifts = list(
         (
             await db.execute(
@@ -203,9 +227,26 @@ async def get_monthly_history(
         income = _num(item.quantity_kg) * _num(item.price_per_kg)
         buckets[key]['total_income'] += income
 
+    for item in tmc_shipments:
+        key = item.date.isoformat()[:7]
+        if key not in buckets:
+            continue
+        if item.price_per_unit is None:
+            continue
+        buckets[key]['total_income'] += _num(item.quantity) * _num(item.price_per_unit)
+
+    for item in manual_incomes:
+        key = item.date.isoformat()[:7]
+        if key not in buckets:
+            continue
+        buckets[key]['total_income'] += _num(item.amount)
+
     for item in shifts:
         key = item.date.isoformat()[:7]
         if key not in buckets:
+            continue
+        # monthly/piecework leave calculated_amount=None — skip (N/A), do not treat as 0 cost
+        if item.calculated_amount is None:
             continue
         buckets[key]['total_shift_cost'] += _num(item.calculated_amount)
 

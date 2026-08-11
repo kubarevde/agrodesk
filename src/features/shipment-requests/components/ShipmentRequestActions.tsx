@@ -71,7 +71,7 @@ export function ShipmentRequestActions({
         <Button
           type="button"
           size={size}
-          variant="ghost"
+          variant="outline"
           className={btnClass}
           disabled={busy}
           onClick={() => onCancel(row.id)}

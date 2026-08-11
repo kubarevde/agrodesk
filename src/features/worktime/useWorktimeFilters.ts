@@ -7,18 +7,24 @@ const defaultRange = getDefaultMonthRange()
 type UseWorktimeFiltersOptions = {
   /** From `/worktime?field_id=` — optional filter, does not change default page behaviour. */
   fieldId?: string
+  /** From `/worktime?status=open|closed`. */
+  status?: 'open' | 'closed'
 }
 
 export function useWorktimeFilters(options?: UseWorktimeFiltersOptions) {
   const [from, setFrom] = useState(defaultRange.from)
   const [to, setTo] = useState(defaultRange.to)
   const [employeeId, setEmployeeId] = useState<string | undefined>()
-  const [status, setStatus] = useState<ShiftFilters['status']>('all')
+  const [status, setStatus] = useState<ShiftFilters['status']>(options?.status ?? 'all')
   const [fieldId, setFieldId] = useState<string | undefined>(options?.fieldId)
 
   useEffect(() => {
     setFieldId(options?.fieldId)
   }, [options?.fieldId])
+
+  useEffect(() => {
+    setStatus(options?.status ?? 'all')
+  }, [options?.status])
 
   const filters = useMemo<ShiftFilters>(
     () => ({

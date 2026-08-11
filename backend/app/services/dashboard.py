@@ -1,4 +1,5 @@
 import asyncio
+import calendar
 import time
 from datetime import date, datetime, timedelta
 from uuid import UUID
@@ -46,7 +47,9 @@ def clear_dashboard_cache() -> None:
 
 
 def month_range(today: date) -> tuple[date, date]:
-    return today.replace(day=1), today
+    """Calendar month bounds (same as salary-preview / reports.parse_month)."""
+    last_day = calendar.monthrange(today.year, today.month)[1]
+    return today.replace(day=1), date(today.year, today.month, last_day)
 
 
 def week_range(today: date) -> tuple[date, date]:
@@ -81,7 +84,7 @@ async def fetch_shift_stats(
     float,
     int,
 ]:
-    from app.services.salary import shift_pay_amount
+    from app.services.salary import shift_pay_amount, shift_pay_is_applicable
 
     async with AsyncSessionLocal() as db:
         month_result = await db.execute(
@@ -122,7 +125,8 @@ async def fetch_shift_stats(
 
         if shift.status == ShiftStatus.closed:
             hours = shift_hours(shift, now)
-            month_salary_total += shift_pay_amount(shift, hours)
+            if shift_pay_is_applicable(shift):
+                month_salary_total += shift_pay_amount(shift, hours)
             snap = shift.rate_snapshot if isinstance(shift.rate_snapshot, dict) else {}
             source = snap.get('source')
             if source == 'fallback_hourly_rate' or (

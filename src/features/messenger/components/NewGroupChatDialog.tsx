@@ -55,13 +55,14 @@ export function NewGroupChatDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Новая группа</DialogTitle>
+          <DialogTitle>Создать группу</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Название группы"
+            className="min-h-11"
             data-testid="group-name-input"
           />
           {isLoading ? (
@@ -90,16 +91,22 @@ export function NewGroupChatDialog({
           )}
         </div>
         <DialogFooter className="gap-2">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 sm:min-h-10"
+            onClick={() => onOpenChange(false)}
+          >
             Отмена
           </Button>
           <Button
             type="button"
+            className="min-h-11 sm:min-h-10"
             disabled={!name.trim() || saving}
             onClick={() => void handleSubmit()}
             data-testid="create-group-submit"
           >
-            Создать
+            Создать группу
           </Button>
         </DialogFooter>
       </DialogContent>

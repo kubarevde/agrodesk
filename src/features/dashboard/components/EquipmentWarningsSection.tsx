@@ -21,19 +21,19 @@ function remainingLabel(item: DashboardEquipmentWarning): string {
 
 export function EquipmentWarningsSection({ items, isLoading }: EquipmentWarningsSectionProps) {
   return (
-    <section className="space-y-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-base font-semibold text-foreground">Скоро ТО / Техника</h2>
+    <section className="space-y-2">
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-sm font-semibold text-foreground">Скоро обслуживание · Техника</h2>
         <Link to="/equipment" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
-          Управление техникой →
+          К списку техники
         </Link>
       </div>
 
       {isLoading ? (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {Array.from({ length: 2 }).map((_, index) => (
             <Card key={index}>
-              <CardContent className="py-4">
+              <CardContent className="py-2.5">
                 <Skeleton className="h-5 w-full" />
               </CardContent>
             </Card>
@@ -41,27 +41,27 @@ export function EquipmentWarningsSection({ items, isLoading }: EquipmentWarnings
         </div>
       ) : items.length === 0 ? (
         <Card>
-          <CardContent className="flex items-center gap-3 py-6 text-sm text-success">
-            <CheckCircle2 className="size-5 shrink-0" />
+          <CardContent className="flex items-center gap-2 py-3 text-sm text-success">
+            <CheckCircle2 className="size-4 shrink-0" />
             Вся техника в норме
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {items.map((item) => (
             <Card key={item.id}>
-              <CardContent className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <CardContent className="flex flex-col gap-1.5 py-2.5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-2">
-                  <Wrench className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  <Wrench className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
                   <div>
-                    <p className="font-medium text-foreground">{item.name}</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm font-medium text-foreground">{item.name}</p>
+                    <p className="text-xs text-muted-foreground">
                       Счётчик: {item.currentMeter.toLocaleString('ru-RU')} {item.meterLabel}
                     </p>
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                  <p className="text-sm text-muted-foreground">{remainingLabel(item)}</p>
+                <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
+                  <p className="text-xs text-muted-foreground">{remainingLabel(item)}</p>
                   <Badge className={toStatusClass(item.toStatus as ToStatus)}>
                     {toStatusLabel(item.toStatus as ToStatus)}
                   </Badge>

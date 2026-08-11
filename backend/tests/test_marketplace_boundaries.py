@@ -115,3 +115,15 @@ def test_settings_marketplace_not_writable_on_org_update_schema() -> None:
     # Extra field must not be accepted as a writable update field.
     updated = OrgSettingsUpdate.model_validate({'marketplace_enabled': True, 'timezone': 'UTC'})
     assert updated.model_dump(exclude_unset=True) == {'timezone': 'UTC'}
+
+
+def test_settings_shipment_requests_not_writable_on_org_update_schema() -> None:
+    """Org PATCH cannot disable shipment requests — module is core (8.6)."""
+    from app.routers.settings import OrgSettingsResponse, OrgSettingsUpdate
+
+    assert 'shipment_requests_enabled' in OrgSettingsResponse.model_fields
+    assert 'shipment_requests_enabled' not in OrgSettingsUpdate.model_fields
+    updated = OrgSettingsUpdate.model_validate(
+        {'shipment_requests_enabled': False, 'timezone': 'UTC'}
+    )
+    assert updated.model_dump(exclude_unset=True) == {'timezone': 'UTC'}

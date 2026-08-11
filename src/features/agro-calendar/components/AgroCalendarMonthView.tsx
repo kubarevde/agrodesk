@@ -82,11 +82,6 @@ export function AgroCalendarMonthView({
 
   return (
     <div className="space-y-4">
-      <WeatherSourcesBanner
-        weather={weather}
-        isLoading={weatherLoading}
-        isError={weatherError}
-      />
       <AgroCalendarMonthToolbar
         month={month}
         fieldId={fieldId}
@@ -104,23 +99,11 @@ export function AgroCalendarMonthView({
           <p className="font-medium text-destructive">Погодное предупреждение</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             У части планов есть риск по прогнозу (мороз, осадки, ветер при опрыскивании).
-            Откройте день или карточку плана — метка с пояснением.
+            Откройте день или карточку плана — метка с пояснением. Условия появления — в
+            «Справка: агрокалендарь».
           </p>
         </div>
-      ) : (
-        <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">Когда появляется «Погодное предупреждение»</p>
-          <ul className="mt-1 list-disc space-y-0.5 pl-4">
-            <li>Только у открытых планов (не «Выполнено» / «Отменено» и не факт смены)</li>
-            <li>У поля должны быть координаты или контур</li>
-            <li>
-              Пороги: заморозки &lt; 0°C; осадки ≥ 5 мм (иконка дождя сама по себе не
-              считается); при опрыскивании ещё ветер ≥ 5 м/с
-            </li>
-            <li>Нужен интернет; офлайн метка не показывается</li>
-          </ul>
-        </div>
-      )}
+      ) : null}
 
       {isLoading ? (
         <PageSkeleton />
@@ -144,6 +127,12 @@ export function AgroCalendarMonthView({
           onSelectPlan={onSelectPlan}
         />
       )}
+
+      <WeatherSourcesBanner
+        weather={weather}
+        isLoading={weatherLoading}
+        isError={weatherError}
+      />
     </div>
   )
 }

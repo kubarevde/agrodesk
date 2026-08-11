@@ -7,7 +7,7 @@ import {
   useIncomingSharingRequests,
   useOutgoingSharingRequests,
 } from '../hooks'
-import { REQUEST_STATUS_LABELS, TYPE_LABELS, type SharingListingType } from '../types'
+import { REQUEST_STATUS_LABELS, TYPE_LABELS, type SharingListingTypeAny } from '../types'
 import { formatRequestDates } from '../utils'
 import { SharingRequestActions } from './SharingRequestActions'
 
@@ -41,7 +41,7 @@ export function SharingMyRequestsTab() {
               <CardContent className="space-y-2 p-4">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Badge variant="outline">
-                    {TYPE_LABELS[request.listingType as SharingListingType] ??
+                    {TYPE_LABELS[request.listingType as SharingListingTypeAny] ??
                       request.listingType}
                   </Badge>
                   <Badge variant="secondary">{REQUEST_STATUS_LABELS[request.status]}</Badge>
@@ -68,7 +68,7 @@ export function SharingMyRequestsTab() {
         ) : (
           outgoing.map((request) => {
             const typeLabel =
-              TYPE_LABELS[request.listingType as SharingListingType] ?? request.listingType
+              TYPE_LABELS[request.listingType as SharingListingTypeAny] ?? request.listingType
             return (
               <Card key={request.id}>
                 <CardContent className="space-y-2 p-4">

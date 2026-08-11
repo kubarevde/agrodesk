@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  getAuditCodeLabel,
+  localizeAuditSummary,
+} from './auditCodeLabels'
+import {
   AUDIT_ACTION_FILTER_VALUES,
   AUDIT_ACTION_LABELS,
   getAuditActionFilterOptions,
@@ -15,6 +19,8 @@ describe('auditLabels', () => {
     expect(getAuditSectionLabel('all')).toBe('Все разделы')
     expect(getAuditSectionLabel('employee')).toBe('Сотрудники')
     expect(getAuditSectionLabel('equipment')).toBe('Техника и приспособления')
+    expect(getAuditSectionLabel('shipment_request')).toBe('Заявки на отгрузку')
+    expect(getAuditSectionLabel('expense')).toBe('Затраты')
   })
 
   it('maps action codes including aliases', () => {
@@ -47,6 +53,9 @@ describe('auditLabels', () => {
     const sections = getAuditSectionFilterOptions()
     expect(sections.find((o) => o.value === 'all')?.label).toBe('Все разделы')
     expect(sections.find((o) => o.value === 'shift')?.label).toBe('Смены')
+    expect(sections.find((o) => o.value === 'shipment_request')?.label).toBe(
+      'Заявки на отгрузку',
+    )
   })
 
   it('humanizes unknown codes in sentence case', () => {
@@ -56,6 +65,13 @@ describe('auditLabels', () => {
     expect(getAuditSectionLabel('custom_module')).toBe('Custom module')
   })
 
+  it('maps known technical tokens instead of English humanize', () => {
+    expect(humanizeAuditValue('shipment_request')).toBe('Заявка на отгрузку')
+    expect(humanizeAuditValue('harvest')).toBe('Урожай')
+    expect(humanizeAuditValue('price')).toBe('Цена')
+    expect(getAuditCodeLabel('new')).toBe('Новый')
+  })
+
   it('maps access_group section', () => {
     expect(getAuditSectionLabel('access_group')).toBe('Группы доступа')
   })
@@ -63,5 +79,26 @@ describe('auditLabels', () => {
   it('never shows raw uuid as actor name', () => {
     expect(getAuditActorLabel(null, 'a02119b7-5402-4128-9613-a6cd6940a963')).toBe('Система')
     expect(getAuditActorLabel('Иван Петров', 'x')).toBe('Иван Петров')
+  })
+})
+
+describe('localizeAuditSummary', () => {
+  it('rewrites technical entity codes and English phrases', () => {
+    expect(localizeAuditSummary('Создание: shipment_request «ООО Ромашка»')).toBe(
+      'Создание: Заявка на отгрузку «ООО Ромашка»',
+    )
+    expect(localizeAuditSummary('Update: Shipment request')).toBe(
+      'Изменение: Заявка на отгрузку',
+    )
+    expect(localizeAuditSummary('Создание: ТМЦ «harvest»')).toBe(
+      'Создание: ТМЦ «Урожай»',
+    )
+    expect(localizeAuditSummary('Price')).toBe('Цена')
+  })
+
+  it('keeps already-Russian summaries', () => {
+    expect(localizeAuditSummary('Создание: Сотрудник «Иван»')).toBe(
+      'Создание: Сотрудник «Иван»',
+    )
   })
 })

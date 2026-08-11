@@ -86,7 +86,8 @@ export function AccessGroupsTab() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="min-w-0 text-sm text-muted-foreground break-words">
           Группа полностью заменяет права роли для назначенных сотрудников. Без группы
-          действуют чекбоксы роли ниже. Предустановка «Снабженец» — закупки + склад.
+          действуют чекбоксы роли ниже. Предустановку «Снабженец» можно переименовать —
+          системный код и права сохраняются.
         </p>
         <Button type="button" onClick={openCreate} className="h-11 w-full shrink-0 sm:w-auto">
           <Plus className="size-4" />

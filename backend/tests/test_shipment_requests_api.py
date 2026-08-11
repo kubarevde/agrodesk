@@ -33,19 +33,23 @@ def _create_request(
     item_id: str,
     quantity: float = 10,
     price: float = 100,
+    comment: str | None = None,
 ) -> dict:
     planned = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+    payload = {
+        'customer_name': 'ООО ТестПокупатель',
+        'inventory_item_id': item_id,
+        'quantity': quantity,
+        'price': price,
+        'planned_at': planned,
+        'priority': 'normal',
+    }
+    if comment is not None:
+        payload['comment'] = comment
     response = client.post(
         '/api/shipment-requests',
         headers=headers,
-        json={
-            'customer_name': 'ООО ТестПокупатель',
-            'inventory_item_id': item_id,
-            'quantity': quantity,
-            'price': price,
-            'planned_at': planned,
-            'priority': 'normal',
-        },
+        json=payload,
     )
     assert response.status_code == 201, response.text
     return response.json()
@@ -53,11 +57,14 @@ def _create_request(
 
 def test_create_shipment_request(client: httpx.Client, admin_headers: dict[str, str]) -> None:
     item_id = _create_item(client, admin_headers, stock=50)
-    row = _create_request(client, admin_headers, item_id=item_id, quantity=12, price=55)
+    row = _create_request(
+        client, admin_headers, item_id=item_id, quantity=12, price=55, comment='  Срочно к утру  '
+    )
     assert row['status'] == 'new'
     assert row['inventory_item_id'] == item_id
     assert float(row['quantity']) == 12
     assert row['created_by']
+    assert row['comment'] == 'Срочно к утру'
     assert row['inventory_operation_id'] is None
 
 

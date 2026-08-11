@@ -14,6 +14,7 @@ export const ACTION_KEYS = [
   'shift.close_others',
   'inventory.operate',
   'inventory.manage_items',
+  'inventory.delete_or_archive',
   'purchase.create',
   'purchase.manage',
   'support.view_org_tickets',
@@ -22,6 +23,15 @@ export const ACTION_KEYS = [
   'marketplace.manage',
   'holding.view',
   'holding.switch',
+  'payroll.manage_rates',
+  'payroll.confirm',
+  'payroll.pay',
+  'payroll.view_all',
+  'tasks.create',
+  'tasks.manage',
+  'tasks.complete_own',
+  'tasks.complete_general',
+  'tasks.view_all',
 ] as const
 
 export type PermissionAction = (typeof ACTION_KEYS)[number]
@@ -33,6 +43,7 @@ export const ACTION_LABELS: Record<PermissionAction, string> = {
   'shift.close_others': 'Закрыть чужую смену',
   'inventory.operate': 'Приход / расход / корректировка ТМЦ',
   'inventory.manage_items': 'Управление позициями склада',
+  'inventory.delete_or_archive': 'Удалять и архивировать позиции ТМЦ',
   'purchase.create': 'Создавать заявки на закупку',
   'purchase.manage': 'Управлять закупками (удаление, затраты)',
   'support.view_org_tickets': 'Видеть все обращения организации',
@@ -41,7 +52,89 @@ export const ACTION_LABELS: Record<PermissionAction, string> = {
   'marketplace.manage': 'Управлять витриной маркетплейса (импорт и объявления)',
   'holding.view': 'Обзор дочерних КФХ (holding)',
   'holding.switch': 'Переключение в дочернюю КФХ (holding)',
+  'payroll.manage_rates': 'Управлять ставками и схемами оплаты сотрудников',
+  'payroll.confirm': 'Подтверждать начисление зарплаты',
+  'payroll.pay': 'Фиксировать выдачу зарплаты',
+  'payroll.view_all': 'Видеть начисления и выдачи всех сотрудников',
+  'tasks.create': 'Создавать задачи',
+  'tasks.manage': 'Управлять всеми задачами',
+  'tasks.complete_own': 'Отмечать выполненными свои задачи',
+  'tasks.complete_general': 'Отмечать выполненными общие задачи',
+  'tasks.view_all': 'Видеть все задачи организации',
 }
+
+/** UI grouping for Settings → Доступы (action checkboxes). */
+export const ACTION_UI_GROUPS: readonly {
+  id: string
+  label: string
+  actions: readonly PermissionAction[]
+}[] = [
+  {
+    id: 'shift',
+    label: 'Смены',
+    actions: [
+      'shift.open_own',
+      'shift.open_for_others',
+      'shift.close_own',
+      'shift.close_others',
+    ],
+  },
+  {
+    id: 'inventory',
+    label: 'Склад',
+    actions: [
+      'inventory.operate',
+      'inventory.manage_items',
+      'inventory.delete_or_archive',
+    ],
+  },
+  {
+    id: 'purchase',
+    label: 'Закупки',
+    actions: ['purchase.create', 'purchase.manage'],
+  },
+  {
+    id: 'support',
+    label: 'Поддержка',
+    actions: ['support.view_org_tickets'],
+  },
+  {
+    id: 'shipment_requests',
+    label: 'Заявки на отгрузку',
+    actions: ['shipment_requests.manage', 'shipment_requests.execute'],
+  },
+  {
+    id: 'marketplace',
+    label: 'Маркетплейс',
+    actions: ['marketplace.manage'],
+  },
+  {
+    id: 'holding',
+    label: 'Холдинг',
+    actions: ['holding.view', 'holding.switch'],
+  },
+  {
+    id: 'payroll',
+    label: 'Оплата труда',
+    actions: [
+      'payroll.manage_rates',
+      'payroll.confirm',
+      'payroll.pay',
+      'payroll.view_all',
+    ],
+  },
+  {
+    id: 'tasks',
+    label: 'Задачи',
+    actions: [
+      'tasks.create',
+      'tasks.manage',
+      'tasks.complete_own',
+      'tasks.complete_general',
+      'tasks.view_all',
+    ],
+  },
+] as const
 
 /** Employee-safe baselines when a section is granted (matches backend SECTION_IMPLIED_ACTIONS). */
 export const SECTION_IMPLIED_ACTIONS: Record<string, readonly PermissionAction[]> = {
@@ -50,6 +143,7 @@ export const SECTION_IMPLIED_ACTIONS: Record<string, readonly PermissionAction[]
   inventory: ['inventory.operate'],
   'purchase-planner': ['purchase.create'],
   shipments: ['shipment_requests.execute'],
+  tasks: ['tasks.complete_own'],
 }
 
 export function impliedActionsForSections(sections: string[]): PermissionAction[] {
@@ -89,7 +183,9 @@ export function syncActionsWithSectionToggle(
   } else {
     const stillImplied = new Set(impliedActionsForSections(nextSections))
     nextActions = nextActions.filter(
-      (action) => !implied.has(action as PermissionAction) || stillImplied.has(action as PermissionAction),
+      (action) =>
+        !implied.has(action as PermissionAction) ||
+        stillImplied.has(action as PermissionAction),
     )
   }
 

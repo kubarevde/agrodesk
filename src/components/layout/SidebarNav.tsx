@@ -6,7 +6,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useCurrentUser } from '@/features/auth/hooks'
-import { UnreadBadge } from '@/features/messenger/components/UnreadBadge'
 import { useMessengerUnreadCount } from '@/features/messenger/hooks'
 import { useOrganizationSettings } from '@/features/settings/hooks'
 import { useUserPermissions } from '@/features/settings/permissionsHooks'
@@ -15,6 +14,7 @@ import { getNavGroups } from './navigation'
 interface SidebarNavProps {
   collapsed: boolean
   onNavigate?: () => void
+  mobile?: boolean
 }
 
 function NavSkeleton({ collapsed }: { collapsed: boolean }) {
@@ -33,7 +33,7 @@ function NavSkeleton({ collapsed }: { collapsed: boolean }) {
   )
 }
 
-export function SidebarNav({ collapsed, onNavigate }: SidebarNavProps) {
+export function SidebarNav({ collapsed, onNavigate, mobile = false }: SidebarNavProps) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const { data: user } = useCurrentUser()
   const { data: perms, isPending } = useUserPermissions(Boolean(user))
@@ -50,7 +50,12 @@ export function SidebarNav({ collapsed, onNavigate }: SidebarNavProps) {
   })
 
   return (
-    <nav className="flex flex-1 flex-col gap-4 overflow-y-auto px-2 py-1">
+    <nav
+      className={cn(
+        'flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-2 py-1',
+        mobile && 'pb-2',
+      )}
+    >
       {navGroups.map((group) => (
         <div key={group.title} className="space-y-1">
           {!collapsed ? (
@@ -63,18 +68,24 @@ export function SidebarNav({ collapsed, onNavigate }: SidebarNavProps) {
               pathname === to ||
               pathname === `${to}/` ||
               pathname.startsWith(`${to}/`) ||
+              (to === '/workspace' &&
+                (pathname.startsWith('/my-shift') ||
+                  pathname.startsWith('/tasks') ||
+                  pathname.startsWith('/messenger') ||
+                  pathname.includes('/shipment-requests/my'))) ||
               (to === '/equipment' &&
                 (pathname === '/implements' ||
                   pathname === '/implements/' ||
                   pathname.startsWith('/implements/')))
-            const showMessengerBadge = to === '/messenger' && messengerUnread > 0
+            const showWorkspaceDot = to === '/workspace' && messengerUnread > 0
 
             const link = (
               <Link
                 to={to}
                 onClick={onNavigate}
                 className={cn(
-                  'relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                  'relative flex items-center gap-3 rounded-md px-3 text-sm transition-colors',
+                  mobile ? 'min-h-11 py-2.5' : 'py-2',
                   'border-l-[3px] border-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
                   isActive && 'border-l-primary bg-primary/10 text-primary',
                   collapsed && 'justify-center px-2',
@@ -82,11 +93,14 @@ export function SidebarNav({ collapsed, onNavigate }: SidebarNavProps) {
               >
                 <Icon className="size-5 shrink-0" />
                 {!collapsed ? <span className="min-w-0 flex-1 truncate">{label}</span> : null}
-                {showMessengerBadge ? (
-                  <UnreadBadge
-                    count={messengerUnread}
-                    className={cn(collapsed && 'absolute -right-0.5 -top-0.5 min-w-4 px-1')}
-                    data-testid="nav-messenger-unread"
+                {showWorkspaceDot ? (
+                  <span
+                    className={cn(
+                      'size-2 shrink-0 rounded-full bg-primary',
+                      collapsed && 'absolute -right-0.5 -top-0.5',
+                    )}
+                    aria-label="Есть непрочитанные сообщения"
+                    data-testid="nav-workspace-activity"
                   />
                 ) : null}
               </Link>
@@ -101,7 +115,7 @@ export function SidebarNav({ collapsed, onNavigate }: SidebarNavProps) {
                 <TooltipTrigger className="w-full">{link}</TooltipTrigger>
                 <TooltipContent side="right">
                   {label}
-                  {showMessengerBadge ? ` (${messengerUnread})` : ''}
+                  {showWorkspaceDot ? ' · есть новое' : ''}
                 </TooltipContent>
               </Tooltip>
             )

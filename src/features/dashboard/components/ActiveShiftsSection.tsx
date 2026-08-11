@@ -1,5 +1,4 @@
 import { Users } from 'lucide-react'
-import { EmptyState } from '@/components/shared/EmptyState'
 import { SkeletonTable } from '@/components/shared/SkeletonTable'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -21,11 +20,11 @@ interface ActiveShiftsSectionProps {
 
 function ActiveShiftsCardList({ shifts }: { shifts: DashboardActiveShift[] }) {
   return (
-    <div className="space-y-3 md:hidden">
+    <div className="space-y-2 md:hidden">
       {shifts.map((shift) => (
-        <div key={shift.id} className="rounded-lg border border-border bg-surface p-4">
-          <p className="font-medium text-foreground">{shift.employeeName}</p>
-          <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+        <div key={shift.id} className="rounded-lg border border-border bg-surface p-3">
+          <p className="text-sm font-medium text-foreground">{shift.employeeName}</p>
+          <div className="mt-1.5 grid grid-cols-2 gap-1 text-xs text-muted-foreground">
             <span>Объект</span>
             <span className="text-right text-foreground">{shift.location}</span>
             <span>Начало</span>
@@ -44,16 +43,17 @@ function ActiveShiftsCardList({ shifts }: { shifts: DashboardActiveShift[] }) {
 export function ActiveShiftsSection({ shifts, isLoading }: ActiveShiftsSectionProps) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base font-semibold text-foreground">
-          Кто сейчас работает
-        </CardTitle>
+      <CardHeader className="px-4 py-3">
+        <CardTitle className="text-sm font-semibold text-foreground">Кто сейчас работает</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-4 pb-3 pt-0">
         {isLoading ? (
           <SkeletonTable />
         ) : shifts.length === 0 ? (
-          <EmptyState icon={Users} title="Сейчас никто не работает" />
+          <div className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
+            <Users className="size-4 shrink-0" />
+            Сейчас никто не работает
+          </div>
         ) : (
           <>
             <div className="hidden md:block">

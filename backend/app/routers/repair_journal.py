@@ -21,6 +21,8 @@ from app.models.reference import Equipment
 from app.models.purchase_planner import PurchasePlannerItem
 from app.schemas.purchase_planner import PurchasePlannerResponse
 from app.schemas.repair_journal import (
+    IN_REPAIR_STATUSES,
+    WAITING_PARTS_STATUS,
     ActiveRepairsCountResponse,
     ChecklistItemCreate,
     ChecklistItemResponse,
@@ -28,6 +30,7 @@ from app.schemas.repair_journal import (
     RepairJournalCreate,
     RepairJournalResponse,
     RepairJournalUpdate,
+    normalize_waiting_parts,
 )
 from app.services.audit import log_change, model_snapshot
 from app.services.dashboard import clear_dashboard_cache
@@ -39,8 +42,16 @@ from app.services.permissions import require_manager_section
 
 router = APIRouter(dependencies=[Depends(require_manager_section('maintenance'))])
 
-ACTIVE_STATUSES = ('in_progress', 'waiting_parts')
 PRIORITY_ORDER = {'urgent': 0, 'normal': 1, 'low': 2}
+
+
+def _active_repair_clause():
+    """In repair, waiting_parts status, or waiting_parts flag."""
+    return or_(
+        EquipmentMaintenance.status.in_(tuple(IN_REPAIR_STATUSES)),
+        EquipmentMaintenance.status == WAITING_PARTS_STATUS,
+        EquipmentMaintenance.waiting_parts.is_(True),
+    )
 
 
 def _checklist_to_response(item: MaintenanceChecklistItem) -> ChecklistItemResponse:
@@ -77,6 +88,7 @@ def repair_to_response(record: EquipmentMaintenance) -> RepairJournalResponse:
         type=record.type,
         description=record.description,
         status=record.status or 'done',
+        waiting_parts=bool(record.waiting_parts),
         priority=record.priority or 'normal',
         date_returned=record.date_returned,
         meter_at=float(record.meter_at) if record.meter_at is not None else None,
@@ -154,10 +166,7 @@ async def active_repairs_count(
     result = await db.execute(
         select(EquipmentMaintenance)
         .options(*_load_options())
-        .where(
-            _org_filter(org_id),
-            EquipmentMaintenance.status.in_(ACTIVE_STATUSES),
-        )
+        .where(_org_filter(org_id), _active_repair_clause())
         .order_by(EquipmentMaintenance.date.desc())
     )
     rows = list(result.scalars().all())
@@ -170,6 +179,11 @@ async def active_repairs_count(
 async def list_repairs(
     request: Request,
     status_filter: str | None = Query(None, alias='status'),
+    waiting_parts: bool | None = Query(None),
+    attention: bool = Query(
+        False,
+        description='True: status in_progress (or legacy open) OR waiting_parts',
+    ),
     equipment_id: UUID | None = None,
     implement_id: UUID | None = None,
     priority: str | None = None,
@@ -184,10 +198,14 @@ async def list_repairs(
         .where(_org_filter(org_id))
         .order_by(EquipmentMaintenance.date.desc(), EquipmentMaintenance.created_at.desc())
     )
-    if status_filter:
+    if attention:
+        query = query.where(_active_repair_clause())
+    elif status_filter:
         query = query.where(EquipmentMaintenance.status == status_filter)
     elif not include_done:
-        query = query.where(EquipmentMaintenance.status.in_(ACTIVE_STATUSES))
+        query = query.where(_active_repair_clause())
+    if waiting_parts is not None:
+        query = query.where(EquipmentMaintenance.waiting_parts.is_(waiting_parts))
     if equipment_id:
         query = query.where(EquipmentMaintenance.equipment_id == equipment_id)
     if implement_id:
@@ -230,6 +248,9 @@ async def create_repair(
         )
         expense_id = expense.id
 
+    status_code = payload.status
+    waiting = normalize_waiting_parts(status_code, bool(payload.waiting_parts))
+
     record = EquipmentMaintenance(
         equipment_id=payload.equipment_id,
         implement_id=payload.implement_id,
@@ -237,7 +258,8 @@ async def create_repair(
         type=payload.type,
         description=payload.description,
         priority=payload.priority,
-        status=payload.status,
+        status=status_code,
+        waiting_parts=waiting,
         meter_at=Decimal(str(payload.meter_at)) if payload.meter_at is not None else None,
         cost=Decimal(str(payload.cost)) if payload.cost is not None else None,
         expense_id=expense_id,
@@ -309,6 +331,11 @@ async def update_repair(
             setattr(record, field, Decimal(str(value)))
         else:
             setattr(record, field, value)
+
+    record.waiting_parts = normalize_waiting_parts(
+        record.status or '',
+        bool(record.waiting_parts),
+    )
 
     if create_expense and record.expense_id is None:
         checklist_sum = sum(

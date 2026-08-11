@@ -18,9 +18,10 @@ async function invalidateExpenseQueries(queryClient: ReturnType<typeof useQueryC
   ])
 }
 
-export function useExpenses(filters: ExpenseFilters = {}) {
+export function useExpenses(filters: ExpenseFilters = {}, enabled = true) {
   return useQuery({
     queryKey: ['expenses', filters],
+    enabled,
     queryFn: async (): Promise<Expense[]> => {
       const { data } = await api.get<Record<string, unknown>[]>('/api/expenses', {
         params: expenseFiltersToApi(filters),

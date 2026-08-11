@@ -25,7 +25,7 @@ export function EmployeeSectionLinks() {
   const items = getNavItems(user.role, perms?.allowedSections, perms?.actions, {
     shipmentRequestsEnabled: orgSettings?.shipmentRequestsEnabled !== false,
     marketplaceEnabled: orgSettings?.marketplaceEnabled === true,
-  }).filter((item) => item.to !== '/my-shift')
+  }).filter((item) => item.to !== '/workspace' && item.to !== '/my-shift')
 
   if (items.length === 0) return null
 

@@ -92,6 +92,9 @@ def advisory_to_out(item: WeatherAdvisory) -> WeatherAdvisoryOut:
 def plan_to_response(
     plan: AgroPlan,
     advisories: list[WeatherAdvisory] | None = None,
+    *,
+    crop_name: str | None = None,
+    variety_name: str | None = None,
 ) -> AgroPlanResponse:
     field_ids = [item.location_id for item in plan.fields]
     field_names = [
@@ -128,24 +131,117 @@ def plan_to_response(
         closed_at=getattr(plan, 'closed_at', None),
         close_note=getattr(plan, 'close_note', None),
         advisories=[advisory_to_out(a) for a in (advisories or [])],
+        field_planting_id=getattr(plan, 'field_planting_id', None),
+        crop_code=getattr(plan, 'crop_code', None),
+        crop_name=crop_name,
+        variety_id=getattr(plan, 'variety_id', None),
+        variety_name=variety_name,
     )
 
 
+async def _crop_variety_labels(
+    db: AsyncSession,
+    org_id: UUID,
+    crop_code: str | None,
+    variety_id: UUID | None,
+) -> tuple[str | None, str | None]:
+    crop_name: str | None = None
+    variety_name: str | None = None
+    if crop_code:
+        from app.models.dictionary import OrgDictionary
+
+        row = (
+            await db.execute(
+                select(OrgDictionary.name).where(
+                    OrgDictionary.org_id == org_id,
+                    OrgDictionary.type == 'crop',
+                    OrgDictionary.code == crop_code,
+                )
+            )
+        ).scalar_one_or_none()
+        crop_name = str(row) if row else None
+    if variety_id is not None:
+        from app.models.crop_variety import CropVariety
+
+        var = await db.get(CropVariety, variety_id)
+        if var is not None and var.org_id == org_id:
+            variety_name = var.name
+    return crop_name, variety_name
+
+
 async def plans_to_responses(
+    db: AsyncSession,
+    org_id: UUID,
     plans: list[AgroPlan],
     *,
     include_advisories: bool = False,
 ) -> list[AgroPlanResponse]:
-    if not include_advisories:
-        return [plan_to_response(plan) for plan in plans]
-    by_id = await advisories_for_plans(plans)
-    return [plan_to_response(plan, by_id.get(plan.id)) for plan in plans]
+    from app.models.crop_variety import CropVariety
+    from app.models.dictionary import OrgDictionary
+
+    crop_codes = {getattr(p, 'crop_code', None) for p in plans if getattr(p, 'crop_code', None)}
+    variety_ids = {
+        getattr(p, 'variety_id', None) for p in plans if getattr(p, 'variety_id', None) is not None
+    }
+    crop_names: dict[str, str] = {}
+    if crop_codes:
+        rows = (
+            await db.execute(
+                select(OrgDictionary.code, OrgDictionary.name).where(
+                    OrgDictionary.org_id == org_id,
+                    OrgDictionary.type == 'crop',
+                    OrgDictionary.code.in_(list(crop_codes)),
+                )
+            )
+        ).all()
+        crop_names = {str(code): str(name) for code, name in rows}
+    variety_names: dict[UUID, str] = {}
+    if variety_ids:
+        rows = (
+            await db.execute(
+                select(CropVariety.id, CropVariety.name).where(
+                    CropVariety.org_id == org_id,
+                    CropVariety.id.in_(list(variety_ids)),
+                )
+            )
+        ).all()
+        variety_names = {vid: str(name) for vid, name in rows}
+
+    by_id = await advisories_for_plans(plans) if include_advisories else {}
+    return [
+        plan_to_response(
+            plan,
+            by_id.get(plan.id) if include_advisories else None,
+            crop_name=crop_names.get(str(getattr(plan, 'crop_code', None) or '')) or None,
+            variety_name=(
+                variety_names.get(getattr(plan, 'variety_id'))
+                if getattr(plan, 'variety_id', None)
+                else None
+            ),
+        )
+        for plan in plans
+    ]
 
 
-async def plan_to_response_with_advisories(plan: AgroPlan) -> AgroPlanResponse:
+async def plan_to_response_with_advisories(
+    db: AsyncSession,
+    org_id: UUID,
+    plan: AgroPlan,
+) -> AgroPlanResponse:
     """Single-plan response including weather advisories (additive, online weather)."""
     items = await compute_plan_advisories(plan)
-    return plan_to_response(plan, advisories=items)
+    crop_name, variety_name = await _crop_variety_labels(
+        db,
+        org_id,
+        getattr(plan, 'crop_code', None),
+        getattr(plan, 'variety_id', None),
+    )
+    return plan_to_response(
+        plan,
+        advisories=items,
+        crop_name=crop_name,
+        variety_name=variety_name,
+    )
 
 
 async def get_plan_or_404(db: AsyncSession, plan_id: UUID, org_id: UUID) -> AgroPlan:
@@ -248,7 +344,7 @@ async def list_agro_plans_today(
         for plan in plans:
             if plan.closed_by and plan.__dict__.get('closed_by_user') is None:
                 plan.closed_by_user = by_id.get(plan.closed_by)
-    return await plans_to_responses(plans, include_advisories=include_advisories)
+    return await plans_to_responses(db, org_id, plans, include_advisories=include_advisories)
 
 
 @router.get('', response_model=list[AgroPlanResponse])
@@ -319,7 +415,7 @@ async def list_agro_plans(
         for plan in plans:
             if plan.closed_by and plan.__dict__.get('closed_by_user') is None:
                 plan.closed_by_user = by_id.get(plan.closed_by)
-    return await plans_to_responses(plans, include_advisories=include_advisories)
+    return await plans_to_responses(db, org_id, plans, include_advisories=include_advisories)
 
 
 @router.post('', response_model=AgroPlanResponse, status_code=status.HTTP_201_CREATED)
@@ -360,7 +456,32 @@ async def create_agro_plan(
         status='planned',
         entry_kind='plan',
         created_by=current.id,
+        field_planting_id=payload.field_planting_id,
+        crop_code=(payload.crop_code or '').strip() or None,
+        variety_id=payload.variety_id,
     )
+    if plan.field_planting_id is not None:
+        from app.models.field_planting import FieldPlanting
+
+        planting = await db.get(FieldPlanting, plan.field_planting_id)
+        if (
+            planting is None
+            or planting.org_id != org_id
+            or planting.field_id not in field_ids
+            or planting.status == 'cancelled'
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Выбранная культура не относится к выбранным полям',
+            )
+        plan.crop_code = planting.crop_code
+        plan.variety_id = planting.variety_id
+    elif plan.variety_id is not None and plan.crop_code:
+        from app.services.field_planting_service import assert_variety_for_crop
+
+        await assert_variety_for_crop(
+            db, org_id=org_id, crop_code=plan.crop_code, variety_id=plan.variety_id
+        )
     # Assign junction rows while plan is still transient — assigning
     # plan.fields after flush triggers async lazy-load (MissingGreenlet).
     set_plan_fields(plan, field_ids)
@@ -392,7 +513,9 @@ async def create_agro_plan(
             ) from exc
         raise
 
-    response = await plan_to_response_with_advisories(await get_plan_or_404(db, plan.id, org_id))
+    response = await plan_to_response_with_advisories(
+        db, org_id, await get_plan_or_404(db, plan.id, org_id)
+    )
     logger.info('POST /api/agro-plan created id=%s fields=%s', plan.id, response.field_ids)
     return response
 
@@ -435,6 +558,31 @@ async def update_agro_plan(
                 field_ids.append(field_id)
         set_plan_fields(plan, field_ids)
 
+    clear_planting = bool(update_data.pop('clear_planting', False))
+    if clear_planting:
+        update_data['field_planting_id'] = None
+        update_data['crop_code'] = None
+        update_data['variety_id'] = None
+    elif update_data.get('field_planting_id') is not None:
+        from app.models.field_planting import FieldPlanting
+
+        planting = await db.get(FieldPlanting, update_data['field_planting_id'])
+        plan_field_ids = [item.location_id for item in plan.fields] or [plan.location_id]
+        if (
+            planting is None
+            or planting.org_id != org_id
+            or planting.field_id not in plan_field_ids
+            or planting.status == 'cancelled'
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Выбранная культура не относится к выбранным полям',
+            )
+        update_data['crop_code'] = planting.crop_code
+        update_data['variety_id'] = planting.variety_id
+    elif 'crop_code' in update_data and update_data.get('crop_code') is not None:
+        update_data['crop_code'] = str(update_data['crop_code']).strip() or None
+
     new_status = update_data.pop('status', None)
     for field, value in update_data.items():
         setattr(plan, field, value)
@@ -469,7 +617,9 @@ async def update_agro_plan(
             ) from exc
         raise
 
-    return await plan_to_response_with_advisories(await get_plan_or_404(db, plan.id, org_id))
+    return await plan_to_response_with_advisories(
+        db, org_id, await get_plan_or_404(db, plan.id, org_id)
+    )
 
 
 @router.post('/{plan_id}/close', response_model=AgroPlanResponse)
@@ -508,7 +658,9 @@ async def close_agro_plan(
         after=model_snapshot(plan),
     )
     await db.commit()
-    return plan_to_response(await get_plan_or_404(db, plan.id, org_id))
+    return await plan_to_response_with_advisories(
+        db, org_id, await get_plan_or_404(db, plan.id, org_id)
+    )
 
 
 @router.get('/{plan_id}/weather-advisory', response_model=AgroPlanWeatherAdvisoryResponse)

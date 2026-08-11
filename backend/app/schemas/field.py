@@ -6,8 +6,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class FieldCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
-    crop_type: str | None = Field(default=None, max_length=100)
-    crop_code: str | None = Field(default=None, max_length=80)
+    # Legacy: accepted for old clients but ignored on write (crop lives on field_plantings).
+    crop_type: str | None = Field(default=None, max_length=100, deprecated=True)
+    crop_code: str | None = Field(default=None, max_length=80, deprecated=True)
     area_ha: float | None = Field(default=None, ge=0)
     soil_type: str | None = Field(default=None, max_length=100)
     description: str | None = None
@@ -18,8 +19,9 @@ class FieldCreate(BaseModel):
 
 class FieldUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
-    crop_type: str | None = Field(default=None, max_length=100)
-    crop_code: str | None = Field(default=None, max_length=80)
+    # Legacy: accepted but ignored on write — do not use as source of truth.
+    crop_type: str | None = Field(default=None, max_length=100, deprecated=True)
+    crop_code: str | None = Field(default=None, max_length=80, deprecated=True)
     area_ha: float | None = Field(default=None, ge=0)
     soil_type: str | None = Field(default=None, max_length=100)
     description: str | None = None
@@ -34,6 +36,7 @@ class FieldResponse(BaseModel):
 
     id: UUID
     name: str
+    # Legacy read-only snapshot for diagnostics / migration; not current culture.
     crop_type: str | None = None
     crop_code: str | None = None
     area_ha: float | None = None
@@ -50,6 +53,11 @@ class FieldHarvestCreate(BaseModel):
     inventory_item_id: UUID
     quantity: float = Field(gt=0)
     date: date_type | None = None
+    field_planting_id: UUID | None = None
+    harvest_status: str | None = Field(
+        default=None,
+        pattern='^(partially_harvested|harvested)$',
+    )
 
     @field_validator('date')
     @classmethod

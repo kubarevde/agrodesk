@@ -64,11 +64,13 @@ function forecastFromApi(raw: ApiRecord): ForecastResponse['forecast'] {
 export async function fetchForecast(params?: {
   monthsAhead?: number
   method?: string
+  monthsBack?: number
 }): Promise<ForecastResponse> {
   const { data } = await api.get<ApiRecord>('/api/analytics/forecast', {
     params: {
       months_ahead: params?.monthsAhead ?? 1,
       method: params?.method ?? 'auto',
+      months_back: params?.monthsBack ?? 36,
     },
   })
   const history = Array.isArray(data.history)

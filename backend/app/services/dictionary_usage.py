@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.dictionary import OrgDictionary
 from app.models.expense import Expense
+from app.models.field_planting import ACTIVE_AREA_STATUSES, FieldPlanting
 from app.models.implement import Implement
 from app.models.inventory import InventoryItem
 from app.models.reference import Location
@@ -21,7 +22,7 @@ async def crop_usage_breakdown(
     org_id: UUID,
     item: OrgDictionary,
 ) -> dict[str, int]:
-    """Counts of crop references by domain (fields / shipments / harvest SKUs)."""
+    """Counts of crop references by domain (fields / plantings / shipments / harvest SKUs)."""
     fields = await db.scalar(
         select(func.count())
         .select_from(Location)
@@ -33,6 +34,15 @@ async def crop_usage_breakdown(
                 Location.crop_type == item.code,
                 Location.crop_code == item.code,
             ),
+        )
+    )
+    plantings = await db.scalar(
+        select(func.count())
+        .select_from(FieldPlanting)
+        .where(
+            FieldPlanting.org_id == org_id,
+            FieldPlanting.crop_code == item.code,
+            FieldPlanting.status.in_(ACTIVE_AREA_STATUSES),
         )
     )
     shipments = await db.scalar(
@@ -57,6 +67,7 @@ async def crop_usage_breakdown(
     )
     return {
         'fields': int(fields or 0),
+        'plantings': int(plantings or 0),
         'shipments': int(shipments or 0),
         'inventory': int(inventory or 0),
     }
@@ -65,7 +76,9 @@ async def crop_usage_breakdown(
 def format_crop_usage_detail(name: str, breakdown: dict[str, int]) -> str:
     parts: list[str] = []
     if breakdown.get('fields'):
-        parts.append(f"поля: {breakdown['fields']}")
+        parts.append(f"поля (legacy): {breakdown['fields']}")
+    if breakdown.get('plantings'):
+        parts.append(f"посевы: {breakdown['plantings']}")
     if breakdown.get('shipments'):
         parts.append(f"отгрузки: {breakdown['shipments']}")
     if breakdown.get('inventory'):

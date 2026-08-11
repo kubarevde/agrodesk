@@ -8,6 +8,8 @@ import {
   humanizeRecommendationTitle,
   humanizeSelectionReason,
   humanizeWhyNumbers,
+  listMonthKeysInclusive,
+  resolveFactForecastChartRange,
 } from './forecastUi'
 
 describe('forecastUi', () => {
@@ -47,5 +49,18 @@ describe('forecastUi', () => {
   it('derives recommendation context from why numbers', () => {
     const derived = humanizeWhyNumbers({ growth_pct: 120, last_month: 41000 }, 'warning')
     expect(derived.context).toContain('2 раза')
+  })
+
+  it('resolves one calendar year from org creation', () => {
+    const range = resolveFactForecastChartRange('2026-03-15T10:00:00Z', new Date('2026-06-01'))
+    expect(range.startMonth).toBe('2026-03')
+    expect(range.endMonth).toBe('2027-02')
+    expect(listMonthKeysInclusive(range.startMonth, range.endMonth)).toHaveLength(12)
+  })
+
+  it('rolls to last 12 months after the first org year', () => {
+    const range = resolveFactForecastChartRange('2024-01-10T00:00:00Z', new Date('2026-07-15'))
+    expect(range.startMonth).toBe('2025-08')
+    expect(range.endMonth).toBe('2026-07')
   })
 })

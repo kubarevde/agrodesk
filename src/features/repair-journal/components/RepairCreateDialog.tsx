@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { DatePicker } from '@/components/shared/DatePicker'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -7,24 +7,38 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LabeledSelect } from '@/components/ui/labeled-select'
 import { Textarea } from '@/components/ui/textarea'
 import { selectOptions } from '@/lib/selectOptions'
 import { useEquipment } from '@/features/equipment/hooks'
 import { useImplements } from '@/features/implements/hooks'
+import { useDictionary } from '@/features/dictionaries/hooks'
 import { useCreateRepair } from '../hooks'
-import type { ChecklistItemInput, ChecklistItemType, RepairPriority } from '../types'
+import {
+  CLOSED_REPAIR_STATUSES,
+  isWaitingPartsStatus,
+  STATUS_LABELS,
+  WAITING_PARTS_STATUS,
+} from '../lib/labels'
+import type { RepairPriority, RepairStatus } from '../types'
+import { RepairAssetFields } from './RepairAssetFields'
+import {
+  RepairChecklistDraft,
+  type ChecklistDraftItem,
+} from './RepairChecklistDraft'
 
 type RepairCreateDialogProps = {
   open: boolean
   onClose: () => void
   defaultEquipmentId?: string
   defaultImplementId?: string
+  /**
+   * Equipment/implement card: asset fixed, no switch/select.
+   * General maintenance journal must leave this false.
+   */
+  lockAsset?: boolean
 }
-
-type DraftItem = ChecklistItemInput & { key: string }
 
 const PRIORITY_OPTIONS = selectOptions([
   { value: 'urgent', label: 'Срочно' },
@@ -32,29 +46,58 @@ const PRIORITY_OPTIONS = selectOptions([
   { value: 'low', label: 'Низкий' },
 ])
 
-const TYPE_OPTIONS = selectOptions([
-  { value: 'buy', label: 'Купить' },
-  { value: 'repair', label: 'Отремонтировать' },
-])
+const FALLBACK_CREATE_STATUSES = [
+  { code: 'in_progress', name: STATUS_LABELS.in_progress },
+  { code: WAITING_PARTS_STATUS, name: STATUS_LABELS.waiting_parts },
+]
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10)
+}
 
 export function RepairCreateDialog({
   open,
   onClose,
   defaultEquipmentId,
   defaultImplementId,
+  lockAsset = false,
 }: RepairCreateDialogProps) {
   const create = useCreateRepair()
   const { data: equipment = [] } = useEquipment({ is_active: true })
   const { data: implementsList = [] } = useImplements()
-  const [assetKind, setAssetKind] = useState<'equipment' | 'implement'>(
-    defaultImplementId && !defaultEquipmentId ? 'implement' : 'equipment',
-  )
-  const [equipmentId, setEquipmentId] = useState(defaultEquipmentId ?? '')
-  const [implementId, setImplementId] = useState(defaultImplementId ?? '')
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const { data: statusDict = [] } = useDictionary('repair_status')
+
+  const [assetKind, setAssetKind] = useState<'equipment' | 'implement'>('equipment')
+  const [equipmentId, setEquipmentId] = useState('')
+  const [implementId, setImplementId] = useState('')
+  const [date, setDate] = useState(todayIso)
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState<RepairPriority>('normal')
-  const [items, setItems] = useState<DraftItem[]>([])
+  const [status, setStatus] = useState<RepairStatus>('in_progress')
+  const [extraWaiting, setExtraWaiting] = useState(false)
+  const [items, setItems] = useState<ChecklistDraftItem[]>([])
+
+  useEffect(() => {
+    if (!open) return
+    const kind: 'equipment' | 'implement' =
+      defaultImplementId && !defaultEquipmentId ? 'implement' : 'equipment'
+    setAssetKind(kind)
+    setEquipmentId(defaultEquipmentId ?? '')
+    setImplementId(defaultImplementId ?? '')
+    setDate(todayIso())
+    setDescription('')
+    setPriority('normal')
+    setStatus('in_progress')
+    setExtraWaiting(false)
+    setItems([])
+  }, [open, defaultEquipmentId, defaultImplementId])
+
+  const openStatuses = (statusDict.length > 0 ? statusDict : FALLBACK_CREATE_STATUSES).filter(
+    (item) => !CLOSED_REPAIR_STATUSES.has(item.code),
+  )
+  const statusOptions = selectOptions(
+    openStatuses.map((item) => ({ value: item.code, label: item.name })),
+  )
 
   const equipmentOptions = selectOptions(
     equipment.map((item) => ({ value: item.id, label: item.name })),
@@ -63,17 +106,16 @@ export function RepairCreateDialog({
     implementsList.map((item) => ({ value: item.id, label: item.name })),
   )
 
-  const reset = () => {
-    setDescription('')
-    setPriority('normal')
-    setItems([])
-    setDate(new Date().toISOString().slice(0, 10))
-  }
+  const lockedLabel =
+    assetKind === 'equipment'
+      ? equipment.find((item) => item.id === equipmentId)?.name
+      : implementsList.find((item) => item.id === implementId)?.name
 
   const handleSubmit = async () => {
     const eq = assetKind === 'equipment' ? equipmentId || null : null
     const impl = assetKind === 'implement' ? implementId || null : null
     if (!eq && !impl) return
+    const waitingParts = isWaitingPartsStatus(status) || extraWaiting
     await create.mutateAsync({
       equipmentId: eq,
       implementId: impl,
@@ -81,6 +123,8 @@ export function RepairCreateDialog({
       type: 'Ремонт',
       description: description.trim() || null,
       priority,
+      status,
+      waitingParts,
       checklistItems: items
         .filter((item) => item.description.trim())
         .map(({ itemType, description: text, cost }) => ({
@@ -89,9 +133,16 @@ export function RepairCreateDialog({
           cost: cost ?? null,
         })),
     })
-    reset()
     onClose()
   }
+
+  const canSubmit =
+    !create.isPending &&
+    (assetKind === 'equipment' ? Boolean(equipmentId) : Boolean(implementId))
+
+  const submitLabel = isWaitingPartsStatus(status)
+    ? 'Отметить ожидание запчастей'
+    : 'Поставить на ремонт'
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -100,51 +151,60 @@ export function RepairCreateDialog({
           <DialogTitle>Постановка на ремонт</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant={assetKind === 'equipment' ? 'default' : 'outline'}
-              onClick={() => setAssetKind('equipment')}
-            >
-              Техника
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={assetKind === 'implement' ? 'default' : 'outline'}
-              onClick={() => setAssetKind('implement')}
-            >
-              Приспособление
-            </Button>
-          </div>
-          {assetKind === 'equipment' ? (
-            <LabeledSelect
-              label="Техника"
-              value={equipmentId}
-              options={equipmentOptions}
-              placeholder="Выберите технику"
-              onValueChange={(v) => setEquipmentId(v || '')}
-            />
-          ) : (
-            <LabeledSelect
-              label="Приспособление"
-              value={implementId}
-              options={implementOptions}
-              placeholder="Выберите приспособление"
-              onValueChange={(v) => setImplementId(v || '')}
-            />
-          )}
+          <RepairAssetFields
+            assetKind={assetKind}
+            onAssetKindChange={setAssetKind}
+            equipmentId={equipmentId}
+            implementId={implementId}
+            onEquipmentIdChange={setEquipmentId}
+            onImplementIdChange={setImplementId}
+            equipmentOptions={equipmentOptions}
+            implementOptions={implementOptions}
+            lockAsset={lockAsset}
+            lockedLabel={lockedLabel}
+          />
+
           <div className="space-y-1">
             <Label htmlFor="repair-date">Дата постановки</Label>
-            <Input id="repair-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <DatePicker
+              id="repair-date"
+              value={date}
+              onChange={(next) => {
+                if (next) setDate(next)
+              }}
+            />
           </div>
+
+          <LabeledSelect
+            label="Статус"
+            value={status}
+            options={statusOptions}
+            onValueChange={(v) => {
+              const next = (v as RepairStatus) || 'in_progress'
+              setStatus(next)
+              if (isWaitingPartsStatus(next)) setExtraWaiting(false)
+            }}
+          />
+
+          {status === 'in_progress' ? (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="size-4 accent-primary"
+                checked={extraWaiting}
+                onChange={(e) => setExtraWaiting(e.target.checked)}
+              />
+              Также ожидает запчасти
+            </label>
+          ) : null}
+
           <LabeledSelect
             label="Приоритет"
             value={priority}
             options={PRIORITY_OPTIONS}
             onValueChange={(v) => setPriority((v as RepairPriority) || 'normal')}
           />
+
           <div className="space-y-1">
             <Label htmlFor="repair-desc">Описание проблемы</Label>
             <Textarea
@@ -155,98 +215,15 @@ export function RepairCreateDialog({
             />
           </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Чек-лист</Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  setItems((prev) => [
-                    ...prev,
-                    { key: crypto.randomUUID(), itemType: 'buy', description: '', cost: null },
-                  ])
-                }
-              >
-                <Plus className="mr-1 size-3.5" />
-                Пункт
-              </Button>
-            </div>
-            {items.map((item) => (
-              <div key={item.key} className="space-y-2 rounded-lg border border-border p-2">
-                <LabeledSelect
-                  label="Тип пункта"
-                  value={item.itemType}
-                  options={TYPE_OPTIONS}
-                  onValueChange={(v) =>
-                    setItems((prev) =>
-                      prev.map((row) =>
-                        row.key === item.key
-                          ? { ...row, itemType: (v as ChecklistItemType) || 'buy' }
-                          : row,
-                      ),
-                    )
-                  }
-                />
-                <div className="space-y-1">
-                  <Label htmlFor={`checklist-desc-${item.key}`}>Что сделать</Label>
-                  <Input
-                    id={`checklist-desc-${item.key}`}
-                    placeholder="Например: купить ремень ГРМ"
-                    value={item.description}
-                  onChange={(e) =>
-                    setItems((prev) =>
-                      prev.map((row) =>
-                        row.key === item.key ? { ...row, description: e.target.value } : row,
-                      ),
-                    )
-                  }
-                />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor={`checklist-cost-${item.key}`}>Плановая стоимость, ₽</Label>
-                  <div className="flex gap-2">
-                  <Input
-                    id={`checklist-cost-${item.key}`}
-                    type="number"
-                    min={0}
-                    placeholder="Необязательно"
-                    value={item.cost ?? ''}
-                    onChange={(e) =>
-                      setItems((prev) =>
-                        prev.map((row) =>
-                          row.key === item.key
-                            ? {
-                                ...row,
-                                cost: e.target.value === '' ? null : Number(e.target.value),
-                              }
-                            : row,
-                        ),
-                      )
-                    }
-                  />
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => setItems((prev) => prev.filter((row) => row.key !== item.key))}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <RepairChecklistDraft items={items} onChange={setItems} />
 
           <Button
             type="button"
-            className="w-full"
-            disabled={create.isPending || (assetKind === 'equipment' ? !equipmentId : !implementId)}
+            className="min-h-11 w-full"
+            disabled={!canSubmit}
             onClick={() => void handleSubmit()}
           >
-            Поставить на ремонт
+            {submitLabel}
           </Button>
         </div>
       </DialogContent>

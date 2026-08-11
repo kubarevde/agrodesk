@@ -4,6 +4,8 @@ export type SelectedOrg = {
   id: string
   name: string
   slug: string
+  /** Optional RF catalog code; missing on old localStorage entries. */
+  region?: string | null
 }
 
 export function getSelectedOrg(): SelectedOrg | null {

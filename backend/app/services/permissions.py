@@ -20,6 +20,7 @@ SECTION_KEYS: tuple[str, ...] = (
     'dashboard',
     'worktime',
     'agro-calendar',
+    'tasks',
     'sharing',
     'fields',
     'equipment',
@@ -41,6 +42,7 @@ SECTION_LABELS: dict[str, str] = {
     'dashboard': 'Дашборд',
     'worktime': 'Смены',
     'agro-calendar': 'Агрокалендарь',
+    'tasks': 'Задачи',
     'sharing': 'Шеринг',
     'fields': 'Поля',
     'equipment': 'Техника',
@@ -48,9 +50,9 @@ SECTION_LABELS: dict[str, str] = {
     'maintenance': 'Ремонт и обслуживание',
     'purchase-planner': 'Планировщик закупок',
     'inventory': 'Склад ТМЦ',
-    'shipments': 'Отгрузки урожая',
-    'expenses': 'Затраты',
-    'analytics': 'Прогноз и оптимизация',
+    'shipments': 'Отгрузки',
+    'expenses': 'Затраты и доходы',
+    'analytics': 'Факт и прогноз',
     'reports': 'Отчёты',
     'employees': 'Сотрудники',
     'audit-log': 'История изменений',
@@ -60,7 +62,7 @@ SECTION_LABELS: dict[str, str] = {
 DEFAULT_MANAGER_SECTIONS: list[str] = list(SECTION_KEYS)
 # Default grants for new orgs / missing employee key. Sharing is included by
 # default but is NOT locked — admins can revoke it in Settings → Доступы.
-DEFAULT_EMPLOYEE_SECTIONS: list[str] = ['my-shift', 'sharing']
+DEFAULT_EMPLOYEE_SECTIONS: list[str] = ['my-shift', 'sharing', 'tasks']
 # Sole non-revocable employee section. Do not add sharing (or anything else) here.
 EMPLOYEE_LOCKED_SECTIONS: tuple[str, ...] = ('my-shift',)
 
@@ -194,6 +196,31 @@ def require_manager_section(section: str):
                 detail='Раздел недоступен для вашей роли',
             )
         return employee
+
+    return _checker
+
+
+def require_any_manager_section(*sections: str):
+    """Allow access if the employee has any of the listed sections."""
+
+    async def _checker(
+        employee: Employee = Depends(get_current_employee),
+        db: AsyncSession = Depends(get_db),
+    ) -> Employee:
+        if employee.role == EmployeeRole.admin:
+            return employee
+        from app.services.action_permissions import (
+            employee_has_section,
+            resolve_effective_permissions,
+        )
+
+        effective = await resolve_effective_permissions(db, employee)
+        if any(employee_has_section(effective, section) for section in sections):
+            return employee
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Раздел недоступен для вашей роли',
+        )
 
     return _checker
 

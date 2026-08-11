@@ -42,6 +42,7 @@ class DualWriter:
         field_id: str | None = None,
         agro_plan_id: str | None = None,
         start_comment: str | None = None,
+        implement_id: str | None = None,
     ) -> ShiftOpResult:
         result = await self.api.open_shift(
             tg_id,
@@ -52,6 +53,7 @@ class DualWriter:
             lng,
             field_id=field_id,
             agro_plan_id=agro_plan_id,
+            implement_id=implement_id,
         )
         if not result.ok or result.data is None:
             return result
