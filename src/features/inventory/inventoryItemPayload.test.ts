@@ -38,8 +38,9 @@ describe('inventoryItemPayload', () => {
       unit: 'кг',
       min_stock: 1,
       total_capacity: 10,
-      is_active: true,
       crop_code: 'wheat',
+      variety_id: null,
+      clear_variety: true,
     })
   })
 
@@ -49,7 +50,7 @@ describe('inventoryItemPayload', () => {
         category: 'fuel',
         cropCode: 'wheat',
       }),
-    ).toMatchObject({ category: 'fuel', crop_code: null })
+    ).toMatchObject({ category: 'fuel', crop_code: null, variety_id: null })
   })
 
   it('buildInventoryItemUpdateBody rejects harvest without crop', () => {

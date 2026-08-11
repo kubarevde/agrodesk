@@ -75,11 +75,17 @@ export function OrgChildrenSection({
         <div>
           <p className="text-sm font-medium">Дочерние КФХ</p>
           <p className="text-xs text-muted-foreground">
-            Только superadmin. Настройки и маркетплейс детей не меняются.
+            Привязка доступна только суперадмину. Настройки кабинета и доступ к
+            маркетплейсу у дочерних организаций не меняются.
           </p>
         </div>
       ) : (
-        <p className="text-sm font-medium">Дочерние КФХ</p>
+        <div>
+          <p className="text-sm font-medium">Дочерние КФХ</p>
+          <p className="text-xs text-muted-foreground">
+            Привязка не меняет маркетплейс и параметры кабинета дочерних организаций.
+          </p>
+        </div>
       )}
 
       {childrenQuery.isLoading ? (

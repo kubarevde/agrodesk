@@ -48,11 +48,18 @@ function sample(
     shiftId: null,
     inventoryOperationId: null,
     cancelReason: null,
+    comment: null,
     inventoryItemCategory: null,
     cropCode: null,
     isHarvest: false,
     kind: 'inventory',
     attachments: [],
+    fieldId: null,
+    fieldName: null,
+    varietyId: null,
+    varietyName: null,
+    fieldPlantingId: null,
+    plantingAreaHa: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }
@@ -65,6 +72,7 @@ describe('MyShipmentRequestsList for executor', () => {
         rows: [sample('new', 'a'), sample('in_progress', 'b')],
         onStart: () => undefined,
         onComplete: () => undefined,
+        onOpen: () => undefined,
       }),
     )
     expect(html).toContain('data-layout="cards"')
@@ -74,6 +82,7 @@ describe('MyShipmentRequestsList for executor', () => {
     expect(html).toContain('Взять в работу')
     expect(html).toContain('Выполнено')
     expect(html).toContain('min-h-11')
+    expect(html).toContain('role="link"')
   })
 
   it('hides complete button unless status is in_progress', () => {
@@ -88,6 +97,7 @@ describe('MyShipmentRequestsList for executor', () => {
         rows: [sample('new', 'n1')],
         onStart: () => undefined,
         onComplete: () => undefined,
+        onOpen: () => undefined,
       }),
     )
     expect(htmlNew).toContain('Взять в работу')
@@ -98,11 +108,27 @@ describe('MyShipmentRequestsList for executor', () => {
         rows: [sample('done', 'd1')],
         onStart: () => undefined,
         onComplete: () => undefined,
+        onOpen: () => undefined,
       }),
     )
     expect(htmlDone).not.toContain('Взять в работу')
     expect(htmlDone).not.toContain('>Выполнено</button>')
     expect(htmlDone).toContain('data-status="done"')
+  })
+
+  it('shows truncated comment on the card', () => {
+    const row = sample('new', 'c1')
+    row.comment = 'Доставить до 10:00 к складу №2'
+    const html = renderToStaticMarkup(
+      createElement(MyShipmentRequestsList, {
+        rows: [row],
+        onStart: () => undefined,
+        onComplete: () => undefined,
+        onOpen: () => undefined,
+      }),
+    )
+    expect(html).toContain('Доставить до 10:00')
+    expect(html).toContain('line-clamp-2')
   })
 
   it('excludes foreign assigned requests from executor access set', () => {

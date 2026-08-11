@@ -139,7 +139,14 @@ export function SupportListPage() {
                     ) : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {ticket.unreadForUser ? <Badge>Новый ответ</Badge> : null}
+                    {ticket.unreadForUser ? (
+                      <Badge
+                        variant="outline"
+                        className="border-amber-600/40 bg-amber-400/90 text-amber-950"
+                      >
+                        Новый ответ
+                      </Badge>
+                    ) : null}
                     <Badge className={priorityBadgeClass(ticket.priority)}>
                       {priorityLabel(ticket.priority)}
                     </Badge>

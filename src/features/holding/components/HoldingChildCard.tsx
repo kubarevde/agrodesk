@@ -28,10 +28,10 @@ export function HoldingChildCard({ child, canSwitch }: HoldingChildCardProps) {
 
   return (
     <Card data-testid="holding-child-card">
-      <CardHeader className="flex flex-row items-start justify-between gap-2 pb-2">
+      <CardHeader className="flex flex-row items-start justify-between gap-2 px-3 py-2.5 pb-1.5">
         <div className="min-w-0">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Building2 className="size-4 shrink-0 text-primary" />
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Building2 className="size-3.5 shrink-0 text-primary" />
             <span className="truncate">{child.name}</span>
           </CardTitle>
           <p className="mt-0.5 text-xs text-muted-foreground">
@@ -62,8 +62,8 @@ export function HoldingChildCard({ child, canSwitch }: HoldingChildCardProps) {
           Открыть КФХ
         </Button>
       </CardHeader>
-      <CardContent>
-        <ul className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+      <CardContent className="px-3 pb-2.5">
+        <ul className="grid grid-cols-3 gap-1.5 text-sm">
           <Metric label="Сотрудники" value={String(child.employeesCount)} />
           <Metric label="На смене" value={String(child.activeShiftsCount)} />
           <Metric label="Смены / мес." value={String(child.monthShiftsCount)} />
@@ -81,9 +81,9 @@ export function HoldingChildCard({ child, canSwitch }: HoldingChildCardProps) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <li className="rounded-md bg-muted/40 px-2 py-1.5">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="font-medium text-foreground">{value}</p>
+    <li className="rounded-md bg-muted/40 px-1.5 py-1">
+      <p className="text-[11px] leading-tight text-muted-foreground">{label}</p>
+      <p className="text-xs font-medium text-foreground">{value}</p>
     </li>
   )
 }

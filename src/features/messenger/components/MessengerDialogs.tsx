@@ -16,7 +16,10 @@ interface MessengerDialogsProps {
   setGroupOpen: (open: boolean) => void
   setSettingsOpen: (open: boolean) => void
   onCreated: (chatId: string) => void
-  createDirect: (peerId: string) => Promise<{ id: string }>
+  createDirect: (
+    peerId: string,
+    options?: { crossOrg?: boolean },
+  ) => Promise<{ id: string }>
   createGroup: (payload: { name: string; memberIds: string[] }) => Promise<{ id: string }>
   updateGroup: (payload: {
     name?: string
@@ -46,9 +49,10 @@ export function MessengerDialogs({
         open={directOpen}
         onOpenChange={setDirectOpen}
         currentUserId={userId}
-        onSubmit={async (peerId) => {
+        isAdmin={isAdmin}
+        onSubmit={async (peerId, options) => {
           try {
-            const chat = await createDirect(peerId)
+            const chat = await createDirect(peerId, options)
             onCreated(chat.id)
           } catch (error) {
             toast.error(apiErrorMessage(error, 'Не удалось открыть чат'))

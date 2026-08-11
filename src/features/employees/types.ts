@@ -1,9 +1,13 @@
+export type PaymentScheme = 'hourly' | 'per_shift' | 'monthly' | 'piecework'
+
 export interface EmployeeRate {
   id: string
   employeeId: string
   employeeName: string
   workTypeId: string | null
   workTypeName: string | null
+  paymentScheme: PaymentScheme
+  pieceworkUnit: string | null
   rate: number
   overtimeMultiplier: number
   overtimeThresholdHours: number
@@ -60,4 +64,6 @@ export interface EmployeeEarnings {
   hours: number
   totalAmount: number
   shifts: EmployeeEarningsShift[]
+  /** When true, money amounts are hidden by org setting (employee role). */
+  hidden?: boolean
 }

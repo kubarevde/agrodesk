@@ -6,6 +6,8 @@ const requiredNumber = (message: string) => z.number({ error: message })
 export const fieldHarvestSchema = z
   .object({
     inventoryItemId: z.string().min(1, 'Выберите позицию урожая'),
+    fieldPlantingId: z.string().optional(),
+    harvestStatus: z.enum(['partially_harvested', 'harvested']).optional(),
     quantity: requiredNumber('Укажите количество').positive('Количество должно быть больше 0'),
     date: z.string().min(1, 'Выберите дату'),
   })

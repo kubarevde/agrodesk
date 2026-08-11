@@ -1,12 +1,5 @@
-import { format, parseISO } from 'date-fns'
-import { ru } from 'date-fns/locale'
-import { CalendarIcon } from 'lucide-react'
-import type { Control, FieldErrors, UseFormRegister, UseFormWatch } from 'react-hook-form'
-import { Controller } from 'react-hook-form'
-import { Calendar } from '@/components/ui/calendar'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -14,21 +7,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { RegionSelect } from '@/components/shared/RegionSelect'
 import { OrgFormSection } from '@/features/superadmin/components/OrgFormSection'
+import { OrgSubscriptionEndsField } from '@/features/superadmin/components/OrgSubscriptionEndsField'
+import { ORG_PLAN_OPTIONS, ORG_PLANS, isOrgPlanCode } from '@/features/superadmin/plans'
 import type { OrgFormValues } from '@/features/superadmin/schemas'
-
-const PLAN_ITEMS = [
-  { value: 'trial', label: 'Trial' },
-  { value: 'basic', label: 'Basic' },
-  { value: 'pro', label: 'Pro' },
-]
+import type {
+  Control,
+  FieldErrors,
+  UseFormRegister,
+  UseFormSetValue,
+  UseFormWatch,
+} from 'react-hook-form'
+import { Controller } from 'react-hook-form'
 
 type OrgStatusLimitsBlockProps = {
   register: UseFormRegister<OrgFormValues>
   control: Control<OrgFormValues>
   errors: FieldErrors<OrgFormValues>
   watch: UseFormWatch<OrgFormValues>
+  setValue: UseFormSetValue<OrgFormValues>
   showActiveToggle: boolean
+  /** When true, changing plan updates maxEmployees to the plan default. */
+  applyPlanEmployeeDefaults: boolean
 }
 
 export function OrgStatusLimitsBlock({
@@ -36,10 +37,12 @@ export function OrgStatusLimitsBlock({
   control,
   errors,
   watch,
+  setValue,
   showActiveToggle,
+  applyPlanEmployeeDefaults,
 }: OrgStatusLimitsBlockProps) {
   const plan = watch('plan')
-  const showTrialDate = plan === 'trial'
+  const planMeta = isOrgPlanCode(plan) ? ORG_PLANS[plan] : null
 
   return (
     <OrgFormSection
@@ -52,12 +55,24 @@ export function OrgStatusLimitsBlock({
           name="plan"
           control={control}
           render={({ field }) => (
-            <Select value={field.value} onValueChange={field.onChange} items={PLAN_ITEMS}>
+            <Select
+              value={field.value}
+              onValueChange={(value) => {
+                const next = value ?? field.value
+                field.onChange(next)
+                if (applyPlanEmployeeDefaults && isOrgPlanCode(next)) {
+                  setValue('maxEmployees', ORG_PLANS[next].defaultMaxEmployees, {
+                    shouldDirty: true,
+                  })
+                }
+              }}
+              items={ORG_PLAN_OPTIONS}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PLAN_ITEMS.map((item) => (
+                {ORG_PLAN_OPTIONS.map((item) => (
                   <SelectItem key={item.value} value={item.value}>
                     {item.label}
                   </SelectItem>
@@ -66,6 +81,23 @@ export function OrgStatusLimitsBlock({
             </Select>
           )}
         />
+        {planMeta ? (
+          <p className="text-xs text-muted-foreground">{planMeta.summary}</p>
+        ) : null}
+      </div>
+
+      <div className="space-y-2">
+        <RegionSelect
+          label="Регион"
+          value={watch('region')}
+          onValueChange={(code) =>
+            setValue('region', code, { shouldDirty: true, shouldValidate: true })
+          }
+          emptyLabel="Не указан"
+        />
+        <p className="text-xs text-muted-foreground">
+          Необязательно. Общесистемный справочник регионов РФ — не из настроек организации.
+        </p>
       </div>
 
       <div className="space-y-2">
@@ -76,41 +108,18 @@ export function OrgStatusLimitsBlock({
           min={1}
           {...register('maxEmployees', { valueAsNumber: true })}
         />
+        <p className="text-xs text-muted-foreground">
+          При создании нового сотрудника система не даст превысить этот лимит.
+          {planMeta
+            ? ` Рекомендуемое значение для «${planMeta.label}»: ${planMeta.defaultMaxEmployees}.`
+            : null}
+        </p>
         {errors.maxEmployees ? (
           <p className="text-xs text-destructive">{errors.maxEmployees.message}</p>
         ) : null}
       </div>
 
-      {showTrialDate ? (
-        <div className="space-y-2">
-          <Label>Trial до</Label>
-          <Controller
-            name="trialEndsAt"
-            control={control}
-            render={({ field }) => (
-              <Popover>
-                <PopoverTrigger className="inline-flex h-9 w-full items-center justify-start gap-2 rounded-lg border border-input px-3 text-sm">
-                  <CalendarIcon className="size-4 text-muted-foreground" />
-                  {field.value
-                    ? format(parseISO(field.value), 'dd MMMM yyyy', { locale: ru })
-                    : 'Не указано'}
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    locale={ru}
-                    selected={field.value ? parseISO(field.value) : undefined}
-                    onSelect={(date) =>
-                      field.onChange(date ? format(date, 'yyyy-MM-dd') : null)
-                    }
-                  />
-                </PopoverContent>
-              </Popover>
-            )}
-          />
-          <p className="text-xs text-muted-foreground">Актуально только для плана Trial.</p>
-        </div>
-      ) : null}
+      <OrgSubscriptionEndsField control={control} plan={plan} />
 
       {showActiveToggle ? (
         <Controller

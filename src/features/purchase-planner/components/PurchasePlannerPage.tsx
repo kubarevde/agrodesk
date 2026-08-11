@@ -3,6 +3,7 @@ import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Plus, ShoppingCart } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { ListSearchField } from '@/components/shared/ListSearchField'
 import { SectionHelp } from '@/components/shared/SectionHelp'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { purchasePlannerHelp } from '@/features/help/modules'
@@ -10,9 +11,11 @@ import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { selectOptions } from '@/lib/selectOptions'
 import { accessLoadErrorDescription } from '@/lib/apiError'
 import { useEmployees } from '@/features/employees/hooks'
+import { useListSearch } from '@/hooks/useListSearch'
 import { usePurchaseItems } from '../hooks'
 import { usePurchaseCapabilities } from '../hooks/usePurchaseCapabilities'
 import { purchasePlannerSearch } from '../lib/plannerSearch'
+import { filterPurchasesBySearch } from '../purchaseSearch'
 import { PurchaseChecklistView } from './PurchaseChecklistView'
 import { PurchaseFormDialog } from './PurchaseFormDialog'
 import { PurchaseManageView } from './PurchaseManageView'
@@ -49,6 +52,7 @@ export function PurchasePlannerPage() {
     equipmentId?: string
     implementId?: string
     maintenanceId?: string
+    search?: string
   }
   const mode: PlannerMode =
     !caps.showManageMode || search.mode === 'checklist' ? 'checklist' : 'manage'
@@ -58,6 +62,23 @@ export function PurchasePlannerPage() {
   const [responsibleId, setResponsibleId] = useState('all')
   const [createOpen, setCreateOpen] = useState(false)
   const { data: employees = [] } = useEmployees({ enabled: caps.isManager })
+
+  const { searchInput, setSearchInput, debouncedSearch } = useListSearch({
+    search: search.search ?? '',
+    onSearchChange: (next) => {
+      void navigate({
+        to: '/purchase-planner',
+        search: purchasePlannerSearch({
+          mode: search.mode === 'checklist' ? 'checklist' : undefined,
+          equipmentId: search.equipmentId,
+          implementId: search.implementId,
+          maintenanceId: search.maintenanceId,
+          search: next || undefined,
+        }),
+        replace: true,
+      })
+    },
+  })
 
   const assetFilters = {
     equipmentId: search.equipmentId,
@@ -73,6 +94,8 @@ export function PurchasePlannerPage() {
     ...assetFilters,
   })
 
+  const filteredManageItems = filterPurchasesBySearch(data, debouncedSearch)
+
   const setMode = (next: PlannerMode) => {
     void navigate({
       to: '/purchase-planner',
@@ -81,6 +104,7 @@ export function PurchasePlannerPage() {
         equipmentId: search.equipmentId,
         implementId: search.implementId,
         maintenanceId: search.maintenanceId,
+        search: search.search,
       }),
     })
   }
@@ -128,13 +152,25 @@ export function PurchasePlannerPage() {
         />
       ) : null}
 
-      <PurchasePlannerFilterBanner filters={assetFilters} mode={mode} />
+      <PurchasePlannerFilterBanner
+        filters={assetFilters}
+        mode={mode}
+        search={debouncedSearch}
+      />
+
+      <ListSearchField
+        value={searchInput}
+        onChange={setSearchInput}
+        placeholder="Поиск по названию, месту или связанному объекту…"
+        aria-label="Поиск по закупкам"
+        className="sm:max-w-md"
+      />
 
       {mode === 'checklist' ? (
-        <PurchaseChecklistView assetFilters={assetFilters} />
+        <PurchaseChecklistView assetFilters={assetFilters} search={debouncedSearch} />
       ) : (
         <PurchaseManageView
-          items={data}
+          items={filteredManageItems}
           status={status}
           onStatusChange={setStatus}
           urgency={urgency}
@@ -150,6 +186,7 @@ export function PurchasePlannerPage() {
             ...employees.map((e) => ({ value: e.id, label: e.employeeName })),
           ])}
           onAdd={() => setCreateOpen(true)}
+          search={debouncedSearch}
         />
       )}
 

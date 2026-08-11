@@ -1,6 +1,7 @@
 import { format, parseISO } from 'date-fns'
 import type { Organization } from '@/features/superadmin/types'
 import { OrgFormSection } from '@/features/superadmin/components/OrgFormSection'
+import { regionLabel } from '@/lib/regions.ru'
 
 type OrgSummaryBlockProps = {
   organization: Organization
@@ -10,8 +11,15 @@ type OrgSummaryBlockProps = {
 export function OrgSummaryBlock({ organization, hierarchyLabel }: OrgSummaryBlockProps) {
   const rows: { label: string; value: string }[] = [
     { label: 'Название', value: organization.name },
-    { label: 'Slug', value: organization.slug },
-    { label: 'Владелец', value: organization.ownerEmail ?? '—' },
+    { label: 'Адрес (латиницей)', value: organization.slug },
+    { label: 'Владелец (email входа)', value: organization.ownerEmail ?? '—' },
+    { label: 'Регион', value: regionLabel(organization.region) },
+    {
+      label: 'Истекает',
+      value: organization.trialEndsAt
+        ? format(parseISO(organization.trialEndsAt), 'dd.MM.yyyy')
+        : '—',
+    },
     {
       label: 'Создана',
       value: organization.createdAt

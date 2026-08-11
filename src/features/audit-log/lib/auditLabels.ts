@@ -1,12 +1,19 @@
 import { selectOptions, type SelectOption } from '@/lib/selectOptions'
+import { getAuditCodeLabel, localizeAuditSummary } from './auditCodeLabels'
+
+export { localizeAuditSummary }
 
 /**
  * Humanize snake_case / kebab-case / camelCase for unknown codes/values.
- * Sentence case: "start_time" → "Start time" (not Title Case per word).
+ * Prefer AUDIT_CODE_LABELS; otherwise sentence case (English letters only for unknowns).
  */
 export function humanizeAuditValue(value: string): string {
   const trimmed = value.trim()
   if (!trimmed) return 'Неизвестно'
+
+  const mapped = getAuditCodeLabel(trimmed)
+  if (mapped) return mapped
+
   if (trimmed === 'all') return 'Все'
 
   const spaced = trimmed
@@ -18,6 +25,9 @@ export function humanizeAuditValue(value: string): string {
   if (!spaced) return 'Неизвестно'
 
   const lower = spaced.toLowerCase()
+  const fromSpaced = getAuditCodeLabel(lower.replace(/\s+/g, '_'))
+  if (fromSpaced) return fromSpaced
+
   return lower.charAt(0).toUpperCase() + lower.slice(1)
 }
 
@@ -38,19 +48,28 @@ export const AUDIT_SECTION_LABELS = {
   expenses: 'Затраты',
   shipment: 'Отгрузки',
   shipments: 'Отгрузки',
+  shipment_request: 'Заявки на отгрузку',
+  tmc_shipment: 'Отгрузки ТМЦ',
   equipment: 'Техника и приспособления',
   equipment_maintenance: 'Ремонт и ТО',
   equipment_meter_log: 'Показания',
   implement: 'Приспособления',
   implement_maintenance: 'ТО приспособления',
+  implement_usage_log: 'Наработка приспособления',
   employee_rate: 'Ставки',
   location: 'Объекты / поля',
   work_type: 'Типы работ',
   dictionary_item: 'Справочники',
+  crop_variety: 'Сорта культур',
+  field_planting: 'Посевы на поле',
+  field_rotation_plan: 'План севооборота',
   organization: 'Организация',
   purchase_planner: 'Планировщик закупок',
   maintenance_checklist_item: 'Чек-лист ремонта',
   access_group: 'Группы доступа',
+  support_ticket: 'Поддержка',
+  chat: 'Чаты',
+  holding_session: 'Сессии холдинга',
 } as const satisfies Record<string, string>
 
 export const AUDIT_ACTION_LABELS = {
@@ -61,6 +80,8 @@ export const AUDIT_ACTION_LABELS = {
   updated: 'Изменение',
   delete: 'Удаление',
   deleted: 'Удаление',
+  archive: 'Архивирование',
+  restore: 'Восстановление',
   login: 'Вход',
   logout: 'Выход',
 } as const satisfies Record<string, string>
@@ -75,17 +96,23 @@ export const AUDIT_SECTION_FILTER_VALUES = [
   'inventory_operation',
   'expense',
   'shipment',
+  'shipment_request',
+  'tmc_shipment',
   'equipment',
   'equipment_maintenance',
   'equipment_meter_log',
   'implement',
+  'implement_maintenance',
+  'implement_usage_log',
   'employee_rate',
   'location',
   'work_type',
   'dictionary_item',
+  'crop_variety',
   'organization',
   'purchase_planner',
   'access_group',
+  'support_ticket',
 ] as const
 
 export function getAuditSectionLabel(value: string | null | undefined): string {

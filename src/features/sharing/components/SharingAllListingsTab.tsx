@@ -6,7 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCurrentUser } from '@/features/auth/hooks'
 import { useFields } from '@/features/fields/hooks'
 import { useSharingListings } from '../hooks'
-import type { PriceFilter, SharingListing, SharingListingType } from '../types'
+import {
+  DEFAULT_PRICE_FILTER,
+  type SharingListing,
+  type SharingListingType,
+  type SharingPriceFilter,
+} from '../types'
 import { matchesPriceFilter } from '../utils'
 import { SharingFilters } from './SharingFilters'
 import { SharingListingCard } from './SharingListingCard'
@@ -25,7 +30,7 @@ export function SharingAllListingsTab({
   const [view, setView] = useState<'cards' | 'map'>('cards')
   const [type, setType] = useState<SharingListingType | undefined>()
   const [region, setRegion] = useState('')
-  const [price, setPrice] = useState<PriceFilter>('all')
+  const [price, setPrice] = useState<SharingPriceFilter>(DEFAULT_PRICE_FILTER)
 
   const filters = useMemo(
     () => ({ type, region: region.trim() || undefined }),
@@ -57,13 +62,13 @@ export function SharingAllListingsTab({
       />
 
       <Tabs value={view} onValueChange={(value) => setView(value as typeof view)}>
-        <TabsList>
-          <TabsTrigger value="cards">
-            <LayoutGrid className="size-3.5" />
+        <TabsList className="grid h-auto min-h-11 w-full grid-cols-2 p-1 sm:inline-flex sm:w-fit">
+          <TabsTrigger value="cards" className="min-h-10 gap-1.5 text-sm">
+            <LayoutGrid className="size-4" />
             Карточки
           </TabsTrigger>
-          <TabsTrigger value="map">
-            <Map className="size-3.5" />
+          <TabsTrigger value="map" className="min-h-10 gap-1.5 text-sm">
+            <Map className="size-4" />
             Карта
           </TabsTrigger>
         </TabsList>
@@ -78,7 +83,7 @@ export function SharingAllListingsTab({
               description="Измените фильтры или дождитесь новых предложений"
             />
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(320px,1fr))]">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] sm:gap-4">
               {filtered.map((listing) => (
                 <SharingListingCard
                   key={listing.id}
@@ -97,7 +102,11 @@ export function SharingAllListingsTab({
           {isLoading ? (
             <PageSkeleton />
           ) : (
-            <SharingListingsMap listings={filtered} onDetails={onDetails} />
+            <SharingListingsMap
+              listings={filtered}
+              fieldsById={fieldsById}
+              onDetails={onDetails}
+            />
           )}
         </TabsContent>
       </Tabs>

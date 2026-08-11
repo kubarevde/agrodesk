@@ -1,10 +1,18 @@
 interface AgroLogoProps {
   showText: boolean
+  /** Leave room for the sheet close button on mobile. */
+  reserveCloseSpace?: boolean
 }
 
-export function AgroLogo({ showText }: AgroLogoProps) {
+export function AgroLogo({ showText, reserveCloseSpace = false }: AgroLogoProps) {
   return (
-    <div className="flex h-14 shrink-0 items-center gap-3 overflow-hidden px-4">
+    <div
+      className={
+        reserveCloseSpace
+          ? 'flex h-14 shrink-0 items-center gap-3 overflow-hidden px-4 pr-14'
+          : 'flex h-14 shrink-0 items-center gap-3 overflow-hidden px-4'
+      }
+    >
       <svg
         viewBox="0 0 32 32"
         aria-hidden="true"

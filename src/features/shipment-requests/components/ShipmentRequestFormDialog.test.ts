@@ -39,6 +39,36 @@ vi.mock('../hooks', () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   }),
+  useShipmentRequests: () => ({
+    data: [{ id: 'sr-1', customerName: 'ООО Ромашка' }],
+    isLoading: false,
+  }),
+}))
+
+vi.mock('@/features/dictionaries/hooks', () => ({
+  useDictionary: () => ({
+    data: [
+      { code: 'seeds', name: 'Семена' },
+      { code: 'fertilizer', name: 'Удобрения' },
+    ],
+    isLoading: false,
+  }),
+}))
+
+vi.mock('@/components/shared/DateTimePicker', () => ({
+  DateTimePicker: (props: Record<string, unknown>) =>
+    createElement('input', { ...props, 'data-testid': 'datetime-picker' }),
+}))
+
+vi.mock('@/components/shared/AutocompleteInput', () => ({
+  AutocompleteInput: (props: Record<string, unknown>) =>
+    createElement('input', {
+      id: props.id,
+      value: props.value,
+      placeholder: props.placeholder,
+      required: props.required,
+      'data-testid': 'autocomplete-input',
+    }),
 }))
 
 vi.mock('@/components/ui/dialog', () => ({
@@ -56,18 +86,23 @@ vi.mock('@/components/ui/dialog', () => ({
 
 vi.mock('@/components/ui/labeled-select', () => ({
   LabeledSelect: (props: {
-    value?: string
+    value?: string | null
     disabled?: boolean
     placeholder?: string
   }) =>
     createElement('select', {
       value: props.value ?? '',
       disabled: props.disabled,
-      'data-testid': 'item-select',
+      'data-testid': 'labeled-select',
       'data-value': props.value ?? '',
       'data-placeholder': props.placeholder,
       'data-disabled': props.disabled ? 'true' : 'false',
     }),
+}))
+
+vi.mock('@/components/ui/textarea', () => ({
+  Textarea: (props: Record<string, unknown>) =>
+    createElement('textarea', { ...props, 'data-testid': 'comment' }),
 }))
 
 vi.mock('@/components/ui/button', () => ({
@@ -93,7 +128,8 @@ describe('ShipmentRequestFormDialog open sources', () => {
       }),
     )
     expect(html).toContain('Заявка на отгрузку ТМЦ')
-    expect(html).toContain('data-disabled="false"')
+    expect(html).toContain('Категория ТМЦ')
+    expect(html).toContain('Комментарий')
     expect(html).toContain('Ответственный')
   })
 

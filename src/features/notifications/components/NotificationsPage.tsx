@@ -3,7 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { Bell } from 'lucide-react'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
-import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -11,30 +11,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useIsMobile } from '@/hooks/useMediaQuery'
+import { useOrgTimezone } from '@/features/settings/useOrgTimezone'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
+  useMarkAllNotificationsRead,
   useMarkNotificationRead,
   useNotifications,
 } from '@/features/notifications/hooks'
+import type { NotificationTypeGroup } from '@/features/notifications/types'
 import {
-  notificationTimeAgo,
-  notificationTypeLabel,
   matchesTypeGroup,
+  NOTIFICATION_TYPE_FILTER_OPTIONS,
 } from '@/features/notifications/utils'
-import { useOrgTimezone } from '@/features/settings/useOrgTimezone'
+import { NotificationListItem } from './NotificationListItem'
+import { NotificationsDesktopTable } from './NotificationsDesktopTable'
 
 type ReadFilter = 'all' | 'unread'
-type TypeFilter = 'all' | 'maintenance' | 'sharing'
+type TypeFilter = 'all' | NotificationTypeGroup
 
 export function NotificationsPage() {
   const navigate = useNavigate()
+  const isMobile = useIsMobile(639)
   const [readFilter, setReadFilter] = useState<ReadFilter>('all')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
 
@@ -48,20 +45,23 @@ export function NotificationsPage() {
 
   const { data: items = [], isLoading } = useNotifications(apiFilters)
   const markRead = useMarkNotificationRead()
+  const markAllRead = useMarkAllNotificationsRead()
   const timezone = useOrgTimezone()
 
   const filtered = useMemo(
     () =>
       items.filter((item) =>
-        matchesTypeGroup(
-          item.type,
-          typeFilter === 'all' ? undefined : typeFilter,
-        ),
+        matchesTypeGroup(item.type, typeFilter === 'all' ? undefined : typeFilter),
       ),
     [items, typeFilter],
   )
 
-  const handleRowClick = async (id: string, link: string | null, isRead: boolean) => {
+  const unreadVisible = useMemo(
+    () => filtered.some((item) => !item.isRead),
+    [filtered],
+  )
+
+  const handleOpen = async (id: string, link: string | null, isRead: boolean) => {
     if (!isRead) {
       await markRead.mutateAsync(id)
     }
@@ -71,10 +71,23 @@ export function NotificationsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-foreground">Уведомления</h1>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-xl font-semibold text-foreground sm:text-2xl">Уведомления</h1>
+        {unreadVisible ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 w-full sm:min-h-9 sm:w-auto"
+            disabled={markAllRead.isPending}
+            onClick={() => markAllRead.mutate()}
+          >
+            Отметить все прочитанными
+          </Button>
+        ) : null}
+      </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
         <Select
           value={readFilter}
           onValueChange={(value) => setReadFilter(value as ReadFilter)}
@@ -83,7 +96,7 @@ export function NotificationsPage() {
             { value: 'unread', label: 'Непрочитанные' },
           ]}
         >
-          <SelectTrigger className="w-full sm:w-44">
+          <SelectTrigger className="min-h-11 w-full sm:min-h-9 sm:w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -95,19 +108,17 @@ export function NotificationsPage() {
         <Select
           value={typeFilter}
           onValueChange={(value) => setTypeFilter(value as TypeFilter)}
-          items={[
-            { value: 'all', label: 'Все типы' },
-            { value: 'maintenance', label: 'ТО' },
-            { value: 'sharing', label: 'Шеринг' },
-          ]}
+          items={NOTIFICATION_TYPE_FILTER_OPTIONS}
         >
-          <SelectTrigger className="w-full sm:w-44">
+          <SelectTrigger className="min-h-11 w-full sm:min-h-9 sm:w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Все типы</SelectItem>
-            <SelectItem value="maintenance">ТО</SelectItem>
-            <SelectItem value="sharing">Шеринг</SelectItem>
+            {NOTIFICATION_TYPE_FILTER_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -118,43 +129,26 @@ export function NotificationsPage() {
         <EmptyState
           icon={Bell}
           title="Уведомлений нет"
-          description="Здесь появятся уведомления о ТО и заявках шеринга"
+          description="Здесь появятся уведомления о ТО, шеринге, поддержке и других событиях"
         />
+      ) : isMobile ? (
+        <ul className="space-y-2.5">
+          {filtered.map((item) => (
+            <li key={item.id}>
+              <NotificationListItem
+                item={item}
+                timezone={timezone}
+                onClick={() => void handleOpen(item.id, item.link, item.isRead)}
+              />
+            </li>
+          ))}
+        </ul>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Тип</TableHead>
-                <TableHead>Заголовок</TableHead>
-                <TableHead>Сообщение</TableHead>
-                <TableHead>Время</TableHead>
-                <TableHead>Прочитано</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((item) => (
-                <TableRow
-                  key={item.id}
-                  className="cursor-pointer"
-                  onClick={() => void handleRowClick(item.id, item.link, item.isRead)}
-                >
-                  <TableCell>{notificationTypeLabel(item.type)}</TableCell>
-                  <TableCell className="font-medium">{item.title}</TableCell>
-                  <TableCell className="max-w-xs truncate">{item.body || '—'}</TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    {notificationTimeAgo(item.createdAt, timezone)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={item.isRead ? 'secondary' : 'outline'}>
-                      {item.isRead ? 'Да' : 'Нет'}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <NotificationsDesktopTable
+          items={filtered}
+          timezone={timezone}
+          onOpen={(id, link, isRead) => void handleOpen(id, link, isRead)}
+        />
       )}
     </div>
   )

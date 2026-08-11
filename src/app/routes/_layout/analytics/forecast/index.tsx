@@ -1,14 +1,14 @@
-import { lazy } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-import { makeSectionBeforeLoad } from '@/lib/routeSectionGuard'
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import { makeAnySectionBeforeLoad } from '@/lib/routeSectionGuard'
 
-const ForecastPage = lazy(() =>
-  import('@/features/analytics/components/ForecastPage').then((module) => ({
-    default: module.ForecastPage,
-  })),
-)
-
+/** Legacy URL — redirect into «Затраты и доходы» → «Факт и прогноз». */
 export const Route = createFileRoute('/_layout/analytics/forecast/')({
-  beforeLoad: makeSectionBeforeLoad('analytics'),
-  component: ForecastPage,
+  beforeLoad: async (opts) => {
+    await makeAnySectionBeforeLoad(['expenses', 'analytics'])(opts)
+    throw redirect({
+      to: '/expenses',
+      search: { tab: 'forecast' },
+    })
+  },
+  component: () => null,
 })

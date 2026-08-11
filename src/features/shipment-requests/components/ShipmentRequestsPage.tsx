@@ -33,6 +33,7 @@ const isActive = (row: ShipmentRequest) =>
 
 export function ShipmentRequestsPage({ initialCreateItemId = null }: Props) {
   const { focus } = routeApi.useSearch()
+  const navigate = routeApi.useNavigate()
   const { data: user } = useCurrentUser()
   const { data: perms } = useUserPermissions()
   const { data: orgSettings } = useOrganizationSettings()
@@ -109,6 +110,27 @@ export function ShipmentRequestsPage({ initialCreateItemId = null }: Props) {
           </Button>
         ) : null}
       </div>
+
+      {focus === 'active' ? (
+        <div
+          className="flex flex-col gap-2 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+          data-testid="shipment-requests-focus-active"
+        >
+          <p className="text-sm text-foreground">
+            Показаны только активные заявки: «Ожидает» и «В работе»
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              void navigate({ search: { focus: undefined, createItemId: undefined } })
+            }
+          >
+            Показать все
+          </Button>
+        </div>
+      ) : null}
 
       <ShipmentRequestFiltersBar filters={filters} onChange={setFilters} inventoryItems={inventory} />
 

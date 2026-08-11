@@ -17,13 +17,13 @@ export function UrgentPurchasesSection({
   items,
   isLoading,
 }: UrgentPurchasesSectionProps) {
-  if (isLoading) return <Skeleton className="h-36 w-full rounded-xl" />
+  if (isLoading) return <Skeleton className="h-28 w-full rounded-xl" />
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <ShoppingCart className="size-4 text-primary" />
+      <CardHeader className="flex flex-row items-center justify-between gap-2 px-4 py-3 pb-1.5">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <ShoppingCart className="size-3.5 text-primary" />
           Срочные закупки
           {count > 0 ? (
             <Badge variant="destructive" className="ml-1">
@@ -34,16 +34,16 @@ export function UrgentPurchasesSection({
         <Link
           to="/purchase-planner"
           search={purchasePlannerSearch({ mode: 'checklist' })}
-          className="text-sm text-primary hover:underline"
+          className="text-xs text-primary hover:underline"
         >
           Открыть
         </Link>
       </CardHeader>
-      <CardContent className="space-y-2 text-sm">
+      <CardContent className="space-y-1.5 px-4 pb-3 text-sm">
         {items.length === 0 ? (
           <p className="text-muted-foreground">Срочных покупок нет</p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-1.5">
             {items.map((item) => (
               <li key={item.id} className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-foreground">{item.title}</span>

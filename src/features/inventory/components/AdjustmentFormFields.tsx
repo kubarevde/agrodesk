@@ -1,12 +1,8 @@
-import { format } from 'date-fns'
-import { ru } from 'date-fns/locale'
-import { CalendarIcon } from 'lucide-react'
 import type { Control, FieldErrors, UseFormRegister } from 'react-hook-form'
 import { Controller } from 'react-hook-form'
-import { Calendar } from '@/components/ui/calendar'
+import { DatePicker } from '@/components/shared/DatePicker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -15,7 +11,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { InventoryItem } from '@/types'
-import { formatApiDate, parseApiDate } from '@/features/worktime/utils'
 import type { AdjustmentFormValues } from '@/features/inventory/schemas'
 import { numberInputRegister } from '@/lib/formNumbers'
 import { selectOptions } from '@/lib/selectOptions'
@@ -135,29 +130,23 @@ export function AdjustmentFormFields({
       </div>
 
       <div className="space-y-2">
-        <Label>Дата</Label>
+        <Label htmlFor="adj-date">Дата</Label>
         <Controller
           control={control}
           name="date"
           render={({ field }) => (
-            <Popover>
-              <PopoverTrigger className="inline-flex h-8 w-full items-center justify-start gap-2 rounded-lg border border-input bg-transparent px-2.5 text-sm">
-                <CalendarIcon className="size-4" />
-                {field.value
-                  ? format(parseApiDate(field.value), 'd MMMM yyyy', { locale: ru })
-                  : 'Дата'}
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={field.value ? parseApiDate(field.value) : undefined}
-                  onSelect={(day) => day && field.onChange(formatApiDate(day))}
-                  disabled={{ after: new Date() }}
-                />
-              </PopoverContent>
-            </Popover>
+            <DatePicker
+              id="adj-date"
+              value={field.value || undefined}
+              onChange={(next) => field.onChange(next ?? '')}
+              disableFuture
+              className="min-h-11 sm:min-h-9"
+            />
           )}
         />
+        {errors.date ? (
+          <p className="text-xs text-destructive">{errors.date.message}</p>
+        ) : null}
       </div>
     </>
   )

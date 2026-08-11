@@ -39,6 +39,11 @@ export type AgroPlan = {
   closedAt: string | null
   closeNote: string | null
   advisories: WeatherAdvisory[]
+  fieldPlantingId: string | null
+  cropCode: string | null
+  cropName: string | null
+  varietyId: string | null
+  varietyName: string | null
 }
 
 export type AgroPlanFilters = {
@@ -59,6 +64,10 @@ export type AgroPlanFormInput = {
   implementId?: string
   employeeId?: string
   notes?: string
+  fieldPlantingId?: string | null
+  cropCode?: string | null
+  varietyId?: string | null
+  clearPlanting?: boolean
 }
 
 export type AgroPlanCloseOutcome = 'done' | 'cancelled'

@@ -19,6 +19,12 @@ export function sectionForPath(pathname: string): string | null {
   if (normalized === '/messenger' || normalized.startsWith('/messenger/')) {
     return null
   }
+  if (normalized === '/workspace' || normalized.startsWith('/workspace/')) {
+    return null
+  }
+  if (normalized === '/payroll-payouts' || normalized.startsWith('/payroll-payouts/')) {
+    return null
+  }
   if (normalized === '/seller-market' || normalized.startsWith('/seller-market/')) {
     return null
   }
@@ -46,7 +52,10 @@ export function canAccessPath(
   if (!allowedSections) {
     return role !== 'employee' || DEFAULT_EMPLOYEE_SECTIONS.includes(section)
   }
-  return allowedSections.includes(section)
+  if (allowedSections.includes(section)) return true
+  // Legacy «Прогноз» grant opens «Затраты и доходы» (вкладка «Факт и прогноз»).
+  if (section === 'expenses' && allowedSections.includes('analytics')) return true
+  return false
 }
 
 export function filterNavBySections<T extends { to: string; alsoSections?: string[] }>(
@@ -104,6 +113,7 @@ export function resolveHomeRoute(
     if (seen.has(key)) continue
     seen.add(key)
     if (!sections.includes(key)) continue
+    if (key === 'my-shift') return '/workspace'
     const def = getSectionByKey(key)
     if (def?.route) return def.route
   }

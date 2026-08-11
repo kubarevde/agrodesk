@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { Employee, Shift } from '@/types'
 import { api } from '@/lib/api'
+import { apiErrorMessage } from '@/lib/apiError'
 import { db } from '@/lib/db'
 import {
   employeeCreateToApi,
@@ -93,7 +94,7 @@ export function useCreateEmployee() {
       await queryClient.invalidateQueries({ queryKey: ['employees'] })
       toast.success('Сотрудник добавлен')
     },
-    onError: () => toast.error('Не удалось добавить сотрудника'),
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось добавить сотрудника')),
   })
 }
 

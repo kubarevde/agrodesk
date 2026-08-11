@@ -13,9 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { numberInputRegister } from '@/lib/formNumbers'
 import type { EquipmentFormValues } from '../schemas'
 import { EQUIPMENT_TYPES, METER_TYPE_OPTIONS } from '../types'
-import { numberInputRegister } from '@/lib/formNumbers'
+import { EquipmentLocationPicker } from './EquipmentLocationPicker'
 
 type EquipmentFormFieldsProps = {
   control: Control<EquipmentFormValues>
@@ -31,6 +32,8 @@ export function EquipmentFormFields({
   watch,
 }: EquipmentFormFieldsProps) {
   const meterType = watch('meter_type')
+  const latitude = watch('latitude')
+  const longitude = watch('longitude')
   const unit = meterType === 'km' ? 'км' : meterType === 'shift_hours' ? 'ч' : 'мч'
 
   const fillGeolocation = () => {
@@ -40,8 +43,8 @@ export function EquipmentFormFields({
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setValue('latitude', Number(pos.coords.latitude.toFixed(6)))
-        setValue('longitude', Number(pos.coords.longitude.toFixed(6)))
+        setValue('latitude', Number(pos.coords.latitude.toFixed(6)), { shouldDirty: true })
+        setValue('longitude', Number(pos.coords.longitude.toFixed(6)), { shouldDirty: true })
         toast.success('Координаты подставлены')
       },
       () => toast.error('Не удалось получить координаты'),
@@ -149,6 +152,19 @@ export function EquipmentFormFields({
           />
         </div>
       </div>
+
+      <EquipmentLocationPicker
+        latitude={latitude}
+        longitude={longitude}
+        onChange={(lat, lng) => {
+          setValue('latitude', lat, { shouldDirty: true })
+          setValue('longitude', lng, { shouldDirty: true })
+        }}
+        onClear={() => {
+          setValue('latitude', undefined, { shouldDirty: true })
+          setValue('longitude', undefined, { shouldDirty: true })
+        }}
+      />
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">

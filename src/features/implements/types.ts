@@ -28,9 +28,27 @@ export type ImplementMaintenanceResponse = {
   implement_id: string
   date: string
   type: string
+  meter_at: number | null
   cost: number | null
   description: string | null
   expense_id: string | null
+  /** For shared TO history UI */
+  meter_label?: string
+}
+
+export type ImplementUsageLogResponse = {
+  id: string
+  implement_id: string
+  implement_name: string
+  date: string
+  value_added: number
+  meter_after: number
+  meter_label: string
+  source: 'manual' | 'shift' | string
+  note: string | null
+  created_by_name: string | null
+  shift_id?: string | null
+  shift_label?: string | null
 }
 
 export const MAINTENANCE_TYPES = [

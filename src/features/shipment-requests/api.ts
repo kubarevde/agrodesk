@@ -54,9 +54,16 @@ function itemFromApi(raw: ApiRecord): ShipmentRequest {
     inventoryOperationId:
       raw.inventory_operation_id != null ? String(raw.inventory_operation_id) : null,
     cancelReason: raw.cancel_reason != null ? String(raw.cancel_reason) : null,
+    comment: raw.comment != null && String(raw.comment).trim() ? String(raw.comment) : null,
     createdAt: String(raw.created_at ?? ''),
     updatedAt: String(raw.updated_at ?? ''),
     attachments,
+    fieldId: raw.field_id != null ? String(raw.field_id) : null,
+    fieldName: raw.field_name != null ? String(raw.field_name) : null,
+    varietyId: raw.variety_id != null ? String(raw.variety_id) : null,
+    varietyName: raw.variety_name != null ? String(raw.variety_name) : null,
+    fieldPlantingId: raw.field_planting_id != null ? String(raw.field_planting_id) : null,
+    plantingAreaHa: raw.planting_area_ha == null ? null : Number(raw.planting_area_ha),
   }
 }
 
@@ -94,6 +101,10 @@ export async function createShipmentRequest(
     planned_at: payload.plannedAt,
     priority: payload.priority,
     assigned_to: payload.assignedTo || null,
+    comment: payload.comment?.trim() || null,
+    field_planting_id: payload.fieldPlantingId || null,
+    field_id: payload.fieldId || null,
+    variety_id: payload.varietyId || null,
   })
   return itemFromApi(data as ApiRecord)
 }
@@ -108,6 +119,7 @@ export async function updateShipmentRequest(
   if (payload.price !== undefined) body.price = payload.price
   if (payload.plannedAt !== undefined) body.planned_at = payload.plannedAt
   if (payload.priority !== undefined) body.priority = payload.priority
+  if (payload.comment !== undefined) body.comment = payload.comment?.trim() || null
   const { data } = await api.patch<ApiRecord>(`/api/shipment-requests/${id}`, body)
   return itemFromApi(data as ApiRecord)
 }

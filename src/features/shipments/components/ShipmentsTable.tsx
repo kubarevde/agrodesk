@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { ClipboardList, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { ClipboardList, Pencil, Trash2 } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -9,12 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { CardActionsMenu } from '@/components/shared/CardActionsMenu'
 import type { Shipment } from '@/types'
 import { formatKg, formatMoney, sumShipments } from '@/features/shipments/utils'
 import { shortRequestRef } from '@/features/shipments/requestLink'
@@ -25,6 +20,7 @@ interface ShipmentsTableProps {
   canDelete: boolean
   onEdit: (shipment: Shipment) => void
   onDelete: (shipment: Shipment) => void
+  onRowClick?: (shipment: Shipment) => void
 }
 
 export function ShipmentsTable({
@@ -33,6 +29,7 @@ export function ShipmentsTable({
   canDelete,
   onEdit,
   onDelete,
+  onRowClick,
 }: ShipmentsTableProps) {
   const totals = sumShipments(shipments)
   const showActions = canEdit || canDelete
@@ -57,65 +54,77 @@ export function ShipmentsTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {shipments.map((shipment) => (
-            <TableRow key={shipment.id}>
-              <TableCell>{shipment.date}</TableCell>
-              <TableCell className="font-medium">{shipment.cropType}</TableCell>
-              <TableCell>{formatKg(shipment.quantityKg)}</TableCell>
-              <TableCell>{shipment.destination || '—'}</TableCell>
-              <TableCell>
-                {shipment.pricePerKg != null ? formatMoney(shipment.pricePerKg) : '—'}
-              </TableCell>
-              <TableCell>
-                {shipment.totalSum != null ? formatMoney(shipment.totalSum) : '—'}
-                <p className="text-xs font-normal text-muted-foreground">урожай</p>
-              </TableCell>
-              <TableCell>
-                {shipment.shipmentRequestId ? (
-                  <Link
-                    to="/shipment-requests/$requestId"
-                    params={{ requestId: shipment.shipmentRequestId }}
-                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                    title="Открыть заявку"
-                  >
-                    <ClipboardList className="size-3.5" />
-                    по заявке #{shortRequestRef(shipment.shipmentRequestId)}
-                  </Link>
-                ) : (
-                  <span className="text-xs text-muted-foreground">—</span>
-                )}
-              </TableCell>
-              {showActions ? (
+          {shipments.map((shipment) => {
+            const rowActions = [
+              ...(canEdit
+                ? [
+                    {
+                      id: 'edit',
+                      label: 'Редактировать',
+                      icon: Pencil,
+                      onSelect: () => onEdit(shipment),
+                    },
+                  ]
+                : []),
+              ...(canDelete
+                ? [
+                    {
+                      id: 'delete',
+                      label: 'Удалить',
+                      icon: Trash2,
+                      variant: 'destructive' as const,
+                      onSelect: () => onDelete(shipment),
+                    },
+                  ]
+                : []),
+            ]
+            return (
+              <TableRow
+                key={shipment.id}
+                className={onRowClick ? 'cursor-pointer' : undefined}
+                onClick={onRowClick ? () => onRowClick(shipment) : undefined}
+              >
+                <TableCell>{shipment.date}</TableCell>
+                <TableCell className="font-medium">{shipment.cropType}</TableCell>
+                <TableCell>{formatKg(shipment.quantityKg)}</TableCell>
                 <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      className="inline-flex size-8 items-center justify-center rounded-lg hover:bg-muted"
-                      aria-label="Действия"
-                    >
-                      <MoreHorizontal className="size-4" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {canEdit ? (
-                        <DropdownMenuItem onClick={() => onEdit(shipment)}>
-                          <Pencil className="size-4" />
-                          Редактировать
-                        </DropdownMenuItem>
-                      ) : null}
-                      {canDelete ? (
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => onDelete(shipment)}
-                        >
-                          <Trash2 className="size-4" />
-                          Удалить
-                        </DropdownMenuItem>
-                      ) : null}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {shipment.destination || '—'}
+                  {shipment.notes ? (
+                    <p className="mt-1 text-xs font-normal text-muted-foreground whitespace-pre-wrap">
+                      {shipment.notes}
+                    </p>
+                  ) : null}
                 </TableCell>
-              ) : null}
-            </TableRow>
-          ))}
+                <TableCell>
+                  {shipment.pricePerKg != null ? formatMoney(shipment.pricePerKg) : '—'}
+                </TableCell>
+                <TableCell>
+                  {shipment.totalSum != null ? formatMoney(shipment.totalSum) : '—'}
+                  <p className="text-xs font-normal text-muted-foreground">урожай</p>
+                </TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  {shipment.shipmentRequestId ? (
+                    <Link
+                      to="/shipment-requests/$requestId"
+                      params={{ requestId: shipment.shipmentRequestId }}
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      title="Открыть заявку"
+                    >
+                      <ClipboardList className="size-3.5" />
+                      по заявке #{shortRequestRef(shipment.shipmentRequestId)}
+                    </Link>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                {showActions ? (
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <CardActionsMenu actions={rowActions} title={shipment.cropType} />
+                  </TableCell>
+                ) : null}
+              </TableRow>
+            )
+          })}
         </TableBody>
         <TableFooter>
           <TableRow>

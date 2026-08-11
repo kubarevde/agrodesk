@@ -8,6 +8,9 @@ export type DictionaryType =
   | 'implement_category'
   | 'inventory_category'
   | 'expense_category'
+  | 'income_category'
+  | 'maintenance_type'
+  | 'repair_status'
 
 export type DictionaryItem = {
   id: string
@@ -18,6 +21,7 @@ export type DictionaryItem = {
   sort_order: number
   icon: string | null
   color: string | null
+  default_interval: number | null
 }
 
 const LABELS: Record<DictionaryType, string> = {
@@ -25,6 +29,9 @@ const LABELS: Record<DictionaryType, string> = {
   implement_category: 'Категории приспособлений',
   inventory_category: 'Категории ТМЦ',
   expense_category: 'Категории затрат',
+  income_category: 'Категории доходов',
+  maintenance_type: 'Типы ТО',
+  repair_status: 'Статусы ремонта',
 }
 
 export function dictionaryTypeLabel(type: DictionaryType): string {
@@ -41,6 +48,10 @@ function mapItem(raw: Record<string, unknown>): DictionaryItem {
     sort_order: Number(raw.sort_order ?? 0),
     icon: raw.icon != null && raw.icon !== '' ? String(raw.icon) : null,
     color: raw.color != null && raw.color !== '' ? String(raw.color) : null,
+    default_interval:
+      raw.default_interval == null || raw.default_interval === ''
+        ? null
+        : Number(raw.default_interval),
   }
 }
 
@@ -71,6 +82,7 @@ export function useCreateDictionaryItem(type: DictionaryType) {
       name: string
       icon?: string | null
       color?: string | null
+      default_interval?: number | null
     }) => {
       const { data } = await api.post<Record<string, unknown>>(`/api/dictionaries/${type}`, payload)
       return mapItem(data)
@@ -92,6 +104,7 @@ export function useUpdateDictionaryItem(type: DictionaryType) {
       is_active?: boolean
       icon?: string | null
       color?: string | null
+      default_interval?: number | null
     }) => {
       const { id, ...body } = payload
       const { data } = await api.patch<Record<string, unknown>>(

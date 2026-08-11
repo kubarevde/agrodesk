@@ -1,8 +1,14 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { MyShiftPage } from '@/features/auth/MyShiftPage'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { makeSectionBeforeLoad } from '@/lib/routeSectionGuard'
 
 export const Route = createFileRoute('/_layout/my-shift/')({
-  beforeLoad: makeSectionBeforeLoad('my-shift'),
-  component: MyShiftPage,
+  beforeLoad: async (ctx) => {
+    await makeSectionBeforeLoad('my-shift')(ctx)
+    throw redirect({
+      to: '/workspace',
+      search: { tab: 'shift' },
+      replace: true,
+    })
+  },
+  component: () => null,
 })

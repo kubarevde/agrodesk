@@ -10,6 +10,7 @@ import {
   createGroupChat,
   fetchChatMessages,
   fetchChats,
+  fetchExternalOrgAdmins,
   fetchMessengerPeers,
   markChatRead,
   sendChatMessage,
@@ -51,6 +52,19 @@ export function useMessengerPeers(enabled = true) {
   })
 }
 
+export function useExternalOrgAdmins(
+  filters: { q?: string; region?: string | null },
+  enabled = true,
+) {
+  const q = filters.q?.trim() ?? ''
+  const region = filters.region ?? null
+  return useQuery({
+    queryKey: ['messenger', 'external-admins', q, region],
+    queryFn: () => fetchExternalOrgAdmins({ q, region }),
+    enabled,
+  })
+}
+
 export function useChatMessages(chatId: string | undefined) {
   return useInfiniteQuery({
     queryKey: ['messenger', 'messages', chatId],
@@ -75,7 +89,10 @@ export function useChatMessages(chatId: string | undefined) {
 export function useCreateDirectChat() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (peerEmployeeId: string) => createDirectChat(peerEmployeeId),
+    mutationFn: (input: string | { peerEmployeeId: string; crossOrg?: boolean }) => {
+      if (typeof input === 'string') return createDirectChat(input)
+      return createDirectChat(input.peerEmployeeId, { crossOrg: input.crossOrg })
+    },
     onSuccess: async (chat) => {
       qc.setQueryData<ChatListItem[]>(['messenger', 'chats'], (old) => {
         if (!old) return [chat]

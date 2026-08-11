@@ -1,8 +1,6 @@
-import { Ban, HardHat, Pencil, Share2, Tractor } from 'lucide-react'
-import { useNavigate } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { Ban, Pencil, Share2, Tractor } from 'lucide-react'
+import { useMemo, useRef, type SyntheticEvent } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AssetOperationalStatus } from '@/components/shared/AssetOperationalStatus'
 import { AssetPurchasePlannerHint } from '@/components/shared/AssetPurchasePlannerHint'
@@ -39,7 +37,7 @@ export function EquipmentCard({
   onShare,
   onDeactivate,
 }: EquipmentCardProps) {
-  const navigate = useNavigate()
+  const suppressNavRef = useRef(false)
   const progress = meterProgress(item.current_meter, item.next_to_at, item.maintenance)
   const nextAt = nextServiceHours(item.next_to_at, item.maintenance)
   const remaining = hoursToNextService(item.current_meter, item.next_to_at, item.maintenance)
@@ -75,50 +73,74 @@ export function EquipmentCard({
     return list
   }, [canDeactivate, canManage, item, onDeactivate, onEdit, onShare])
 
+  const openDetails = () => {
+    if (suppressNavRef.current) return
+    onDetails(item)
+  }
+
+  const stopCardNav = (event: SyntheticEvent) => {
+    event.stopPropagation()
+  }
+
   return (
     <Card
       className="flex cursor-pointer flex-col overflow-hidden transition-colors hover:border-primary/40"
       data-testid="equipment-card"
       role="link"
       tabIndex={0}
-      onClick={() => onDetails(item)}
+      onClick={openDetails}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
-          onDetails(item)
+          openDetails()
         }
       }}
     >
       {item.image_url ? (
-        <div className="flex h-28 w-full items-center justify-center bg-muted sm:h-32">
+        <div className="flex h-24 w-full items-center justify-center bg-muted sm:h-32">
           <img
             src={mediaUrl(item.image_url)}
             alt={item.name}
-            className="max-h-28 w-full object-contain sm:max-h-32"
+            className="max-h-24 w-full object-contain sm:max-h-32"
           />
         </div>
       ) : (
-        <div className="flex h-24 w-full items-center justify-center bg-muted text-muted-foreground sm:h-28">
-          <Tractor className="size-8 opacity-50" />
+        <div className="flex h-20 w-full items-center justify-center bg-muted text-muted-foreground sm:h-28">
+          <Tractor className="size-7 opacity-50 sm:size-8" />
         </div>
       )}
 
-      <CardHeader className="space-y-2 pb-2">
+      <CardHeader className="space-y-2 p-3 pb-2 sm:p-4 sm:pb-2">
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="min-w-0 text-lg font-semibold leading-snug break-words text-foreground">
+          <CardTitle className="min-w-0 flex-1 text-base font-semibold leading-snug break-words text-foreground sm:text-lg">
             {item.name}
           </CardTitle>
-          {actions.length > 0 ? <CardActionsMenu actions={actions} title={item.name} /> : null}
+          <CardActionsMenu
+            actions={actions}
+            title={item.name}
+            onOpenChange={(menuOpen) => {
+              if (!menuOpen) {
+                suppressNavRef.current = true
+                window.setTimeout(() => {
+                  suppressNavRef.current = false
+                }, 400)
+              }
+            }}
+          />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div
+          className="flex flex-wrap items-center gap-1.5"
+          onClick={stopCardNav}
+          onKeyDown={stopCardNav}
+        >
           {item.type ? <Badge variant="secondary">{item.type}</Badge> : null}
           <ToStatusBadge status={status} />
           <AssetOperationalStatus equipmentId={item.id} compact showPurchases={false} />
         </div>
       </CardHeader>
 
-      <CardContent className="flex flex-1 flex-col gap-3">
+      <CardContent className="flex flex-1 flex-col gap-2 p-3 pt-0 sm:gap-3 sm:p-4 sm:pt-0">
         <div className="space-y-1">
           {nextAt != null ? (
             <>
@@ -128,10 +150,16 @@ export function EquipmentCard({
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                {item.current_meter} {item.meter_label} → {nextAt} {item.meter_label}
-                {remaining != null ? ` (осталось ${remaining})` : ''}
-              </p>
+              <div className="text-xs text-muted-foreground">
+                <p className="tabular-nums">
+                  {item.current_meter} {item.meter_label}
+                  <span className="text-muted-foreground/80"> → </span>
+                  {nextAt} {item.meter_label}
+                </p>
+                {remaining != null ? (
+                  <p className="mt-0.5">Осталось {remaining}</p>
+                ) : null}
+              </div>
             </>
           ) : (
             <p className="text-sm font-medium tabular-nums text-foreground">
@@ -139,14 +167,14 @@ export function EquipmentCard({
             </p>
           )}
           {item.meter_type === 'shift_hours' ? (
-            <p className="hidden text-xs text-muted-foreground sm:block">Автозапись из смен</p>
+            <p className="text-xs text-muted-foreground">Автозапись из смен</p>
           ) : null}
         </div>
 
         {attached.length > 0 ? (
           <div className="flex flex-wrap gap-1.5">
             {visible.map((row) => (
-              <Badge key={row.id} variant="outline" className="max-w-full truncate">
+              <Badge key={row.id} variant="outline" className="max-w-[11rem] truncate sm:max-w-full">
                 {row.name}
               </Badge>
             ))}
@@ -160,28 +188,11 @@ export function EquipmentCard({
           <p className="text-xs text-muted-foreground">Без приспособлений</p>
         )}
 
-        <AssetPurchasePlannerHint equipmentId={item.id} />
-
-        <div
-          className="mt-auto"
-          onClick={(event) => event.stopPropagation()}
-          onKeyDown={(event) => event.stopPropagation()}
-        >
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11 w-full sm:min-h-10"
-            onClick={() => {
-              void navigate({
-                to: '/maintenance',
-                search: { equipmentId: item.id },
-              })
-            }}
-          >
-            <HardHat className="size-4" />
-            Ремонт и обслуживание
-          </Button>
-        </div>
+        <AssetPurchasePlannerHint
+          equipmentId={item.id}
+          linkLabel="Открыть закупки"
+          className="px-2.5 py-1.5"
+        />
       </CardContent>
     </Card>
   )

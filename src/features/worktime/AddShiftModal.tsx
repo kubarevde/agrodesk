@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { apiErrorMessage } from '@/lib/apiError'
 import { entityOptions } from '@/lib/selectOptions'
+import { findFieldWorkLocation } from '@/features/settings/fieldWorkLocation'
 import { addShiftSchema, type AddShiftFormValues } from './addShiftSchema'
 import { ShiftDateTimeField } from './components/ShiftDateTimeField'
 import { ShiftFieldSelect, ShiftImplementSelect } from './components/ShiftFieldImplementFields'
@@ -77,6 +78,7 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
   const workTypeId = watch('workType')
   const selectedWorkType = workTypes.find((item) => item.id === workTypeId)
   const isFieldWork = Boolean(selectedWorkType?.isFieldWork)
+  const fieldWorkLocation = useMemo(() => findFieldWorkLocation(locations), [locations])
 
   const employeeOptions = useMemo(
     () =>
@@ -116,6 +118,13 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
     }
   }, [open, reset])
 
+  useEffect(() => {
+    if (!isFieldWork) return
+    if (fieldWorkLocation?.id) {
+      setValue('location', fieldWorkLocation.id, { shouldValidate: true })
+    }
+  }, [isFieldWork, fieldWorkLocation?.id, setValue])
+
   const handleClose = () => {
     reset(getDefaultValues())
     setCommentHidden(false)
@@ -135,13 +144,17 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
         toast.error('Для полевой работы укажите поле')
         return
       }
+      const locationId =
+        workType?.isFieldWork && fieldWorkLocation?.id
+          ? fieldWorkLocation.id
+          : values.location
       await createShift.mutateAsync({
         employeeId: employee.id,
         date: values.startDate,
         startTime: values.startTime,
         endTime: values.endTime,
         endDate: values.endDate,
-        locationId: values.location,
+        locationId,
         workTypeId: values.workType,
         equipmentId: values.equipment || undefined,
         fieldId: values.fieldId || undefined,
@@ -234,7 +247,15 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
 
           <div className="space-y-2">
             <Label>Объект</Label>
-            {locationsLoading ? (
+            {isFieldWork ? (
+              <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
+                {fieldWorkLocation?.name ?? 'Полевая работа'}
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  Подставляется автоматически для полевых типов работ. Укажите конкретное поле
+                  ниже.
+                </span>
+              </p>
+            ) : locationsLoading ? (
               <Skeleton className="h-8 w-full" />
             ) : (
               <Controller
@@ -251,7 +272,7 @@ export function AddShiftModal({ open, onClose }: AddShiftModalProps) {
                 )}
               />
             )}
-            {errors.location ? (
+            {!isFieldWork && errors.location ? (
               <p className="text-xs text-destructive">{errors.location.message}</p>
             ) : null}
           </div>

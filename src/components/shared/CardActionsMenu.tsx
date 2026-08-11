@@ -28,23 +28,34 @@ type CardActionsMenuProps = {
   /** Sheet title on mobile */
   title?: string
   ariaLabel?: string
-  /** Stop parent card click handlers */
+  /** Stop parent card/row click handlers */
   stopPropagation?: boolean
+  /** Notify parent when open state changes (e.g. suppress card navigation on close) */
+  onOpenChange?: (open: boolean) => void
   className?: string
+  /**
+   * Raise menu above sheets/drawers (z-[1100]).
+   * Use inside Sheet so desktop dropdown is not hidden behind it.
+   */
+  elevated?: boolean
 }
 
 const triggerClassName =
   'inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground sm:size-10'
 
 /**
- * Unified «…» menu: dropdown on desktop, bottom action sheet on mobile.
+ * Unified «…» menu (Fields card pattern):
+ * - desktop: dropdown with full-width labels (not clipped to trigger width)
+ * - mobile: bottom action sheet (not a side drawer)
  */
 export function CardActionsMenu({
   actions,
   title = 'Действия',
   ariaLabel = 'Ещё действия',
   stopPropagation = true,
+  onOpenChange,
   className,
+  elevated = false,
 }: CardActionsMenuProps) {
   const isMobile = useIsMobile(639)
   const [open, setOpen] = useState(false)
@@ -55,6 +66,11 @@ export function CardActionsMenu({
     if (stopPropagation) event.stopPropagation()
   }
 
+  const setMenuOpen = (next: boolean) => {
+    setOpen(next)
+    onOpenChange?.(next)
+  }
+
   if (isMobile) {
     return (
       <>
@@ -63,19 +79,30 @@ export function CardActionsMenu({
           className={cn(triggerClassName, className)}
           aria-label={ariaLabel}
           data-testid="card-actions-trigger"
+          onPointerDown={stop}
           onClick={(event) => {
             stop(event)
-            setOpen(true)
+            setMenuOpen(true)
           }}
           onKeyDown={stop}
         >
           <MoreHorizontal className="size-5" />
         </button>
-        <Sheet open={open} onOpenChange={setOpen}>
+        <Sheet
+          open={open}
+          onOpenChange={(next) => {
+            setMenuOpen(next)
+          }}
+        >
           <SheetContent
             side="bottom"
-            className="gap-0 px-0 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2"
+            className={cn(
+              'gap-0 px-0 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2',
+              elevated && 'z-[1200]',
+            )}
+            overlayClassName={elevated ? 'z-[1200]' : undefined}
             showCloseButton={false}
+            onPointerDown={stop}
             onClick={stop}
           >
             <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-muted-foreground/30" aria-hidden />
@@ -97,8 +124,9 @@ export function CardActionsMenu({
                     )}
                     onClick={(event) => {
                       stop(event)
-                      setOpen(false)
-                      action.onSelect()
+                      setMenuOpen(false)
+                      // Defer action so sheet close + card ghost-click settle first.
+                      window.setTimeout(() => action.onSelect(), 0)
                     }}
                   >
                     {action.icon ? (
@@ -116,11 +144,18 @@ export function CardActionsMenu({
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      open={open}
+      onOpenChange={(next) => {
+        setMenuOpen(next)
+      }}
+      modal={!elevated}
+    >
       <DropdownMenuTrigger
         className={cn(triggerClassName, className)}
         aria-label={ariaLabel}
         data-testid="card-actions-trigger"
+        onPointerDown={stop}
         onClick={stop}
         onKeyDown={stop}
       >
@@ -129,8 +164,10 @@ export function CardActionsMenu({
       <DropdownMenuContent
         align="end"
         sideOffset={6}
-        className="w-auto min-w-44 max-w-xs p-1.5"
+        className={cn('!w-auto min-w-48 max-w-xs p-1.5', elevated && 'z-[1200]')}
+        positionerClassName={elevated ? 'z-[1200]' : undefined}
         onClick={stop}
+        onPointerDown={stop}
       >
         {actions.map((action) => (
           <DropdownMenuItem
@@ -142,7 +179,7 @@ export function CardActionsMenu({
             {action.icon ? (
               <action.icon className="size-4 shrink-0 opacity-80" aria-hidden />
             ) : null}
-            <span className="min-w-0">{action.label}</span>
+            <span>{action.label}</span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

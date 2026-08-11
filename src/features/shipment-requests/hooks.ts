@@ -107,11 +107,25 @@ export function useCompleteShipmentRequest() {
       id: string
       payload?: ShipmentRequestCompletePayload
     }) => completeShipmentRequest(id, payload),
-    onSuccess: async () => {
+    onSuccess: async (row) => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: QUERY_KEY }),
         qc.invalidateQueries({ queryKey: ['inventory'] }),
       ])
+      if (row.isHarvest || row.kind === 'harvest') {
+        toast.success('Заявка выполнена — ТМЦ списаны со склада', {
+          description: 'Доход появится после записи в «Отгрузки урожая».',
+          action: {
+            label: 'Создать отгрузку',
+            onClick: () => {
+              window.location.assign(
+                `/shipments?tab=harvest&requestId=${encodeURIComponent(row.id)}`,
+              )
+            },
+          },
+        })
+        return
+      }
       toast.success('Заявка выполнена — ТМЦ списаны')
     },
     onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось выполнить заявку')),

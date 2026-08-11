@@ -11,8 +11,8 @@ type OrgPlatformFeaturesBlockProps = {
 export function OrgPlatformFeaturesBlock({ control, errors }: OrgPlatformFeaturesBlockProps) {
   return (
     <OrgFormSection
-      title="Platform features"
-      description="Только platform-level флаги. Не наследуются head → child и недоступны org-admin."
+      title="Функции платформы"
+      description="Флаги уровня платформы: задаёт только суперадмин. Не наследуются дочерним организациям и не видны администратору организации в её кабинете."
     >
       <Controller
         name="marketplaceEnabled"
@@ -26,10 +26,11 @@ export function OrgPlatformFeaturesBlock({ control, errors }: OrgPlatformFeature
               onChange={(event) => field.onChange(event.target.checked)}
             />
             <span>
-              <span className="font-medium">marketplace_enabled</span>
+              <span className="font-medium">Доступ к витрине маркетплейса</span>
               <span className="mt-0.5 block text-xs text-muted-foreground">
-                Включает витрину и seller-cabinet для этой организации. Отдельный toggle —
-                не связан с attach/detach КФХ.
+                Включает витрину и кабинет продавца для этой организации. Не связано с
+                привязкой хозяйств к холдингу (головная → дочерняя) — связи холдинга этот
+                флаг не меняют и не наследуют.
               </span>
             </span>
           </label>
@@ -39,10 +40,11 @@ export function OrgPlatformFeaturesBlock({ control, errors }: OrgPlatformFeature
         <p className="text-xs text-destructive">{errors.marketplaceEnabled.message}</p>
       ) : null}
 
-      <div className="space-y-1 opacity-60">
-        <p className="text-sm text-muted-foreground">Tenant settings</p>
+      <div className="space-y-1 rounded-md border border-dashed border-border bg-muted/20 px-3 py-2">
+        <p className="text-sm font-medium text-foreground">Настройки организации</p>
         <p className="text-xs text-muted-foreground">
-          Часовой пояс, словари, доступы — только в кабинете организации, не здесь.
+          Часовой пояс, справочники и права доступа настраиваются в кабинете самой
+          организации (Настройки), а не в этой панели суперадмина.
         </p>
       </div>
     </OrgFormSection>

@@ -58,14 +58,53 @@ export function SystemGuidePage({ section }: SystemGuidePageProps) {
     )
   }
 
+  const navButtons = (
+    <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
+      <Button
+        type="button"
+        variant="ghost"
+        className="min-h-11"
+        disabled={isFirst}
+        onClick={() => go(safeIndex - 1)}
+      >
+        <ChevronLeft className="size-4" />
+        Назад
+      </Button>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        {progress.completedAt ? (
+          <Button type="button" variant="outline" className="min-h-11" onClick={restart}>
+            Пройти заново
+          </Button>
+        ) : null}
+        {isLast ? (
+          <Button
+            type="button"
+            className="min-h-11"
+            onClick={() => {
+              complete()
+              void navigate({ to: '/support' })
+            }}
+          >
+            Готово
+          </Button>
+        ) : (
+          <Button type="button" className="min-h-11" onClick={() => go(safeIndex + 1)}>
+            Далее
+            <ChevronRight className="size-4" />
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+
   return (
-    <div className="mx-auto max-w-lg space-y-6">
+    <div className="mx-auto w-full max-w-lg space-y-6 lg:max-w-5xl">
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-primary">
           <BookOpen className="size-5" aria-hidden />
           <span className="text-sm font-medium">Обучающий гайд</span>
         </div>
-        <h1 className="text-2xl font-semibold text-foreground">{step.title}</h1>
+        <h1 className="text-2xl font-semibold text-foreground lg:text-3xl">{step.title}</h1>
         <p className="text-sm text-muted-foreground">
           Шаг {safeIndex + 1} из {steps.length} · сценарии под вашу роль
         </p>
@@ -76,59 +115,43 @@ export function SystemGuidePage({ section }: SystemGuidePageProps) {
         />
       </div>
 
-      <GuideStepToc steps={steps} activeIndex={safeIndex} onSelect={go} />
-      <GuideStepCard
-        step={step}
-        onOpenHref={(href) => {
-          void navigate({ to: href })
-        }}
-      />
+      <div className="lg:grid lg:grid-cols-[minmax(220px,280px)_minmax(0,1fr)] lg:items-start lg:gap-8">
+        <GuideStepToc
+          variant="sidebar"
+          className="hidden lg:block"
+          steps={steps}
+          activeIndex={safeIndex}
+          onSelect={go}
+        />
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-        <Button
-          type="button"
-          variant="ghost"
-          className="min-h-11"
-          disabled={isFirst}
-          onClick={() => go(safeIndex - 1)}
-        >
-          <ChevronLeft className="size-4" />
-          Назад
-        </Button>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          {progress.completedAt ? (
-            <Button type="button" variant="outline" className="min-h-11" onClick={restart}>
-              Пройти заново
-            </Button>
-          ) : null}
-          {isLast ? (
-            <Button
-              type="button"
-              className="min-h-11"
-              onClick={() => {
-                complete()
-                void navigate({ to: '/support' })
-              }}
-            >
-              Готово
-            </Button>
-          ) : (
-            <Button type="button" className="min-h-11" onClick={() => go(safeIndex + 1)}>
-              Далее
-              <ChevronRight className="size-4" />
-            </Button>
-          )}
+        <div className="space-y-6">
+          <GuideStepToc
+            variant="accordion"
+            className="lg:hidden"
+            steps={steps}
+            activeIndex={safeIndex}
+            onSelect={go}
+          />
+
+          <GuideStepCard
+            step={step}
+            onOpenHref={(href) => {
+              void navigate({ to: href })
+            }}
+          />
+
+          {navButtons}
+
+          <Button
+            type="button"
+            variant="link"
+            className="h-auto px-0 text-muted-foreground"
+            onClick={() => void navigate({ to: '/support' })}
+          >
+            Вернуться в поддержку
+          </Button>
         </div>
       </div>
-
-      <Button
-        type="button"
-        variant="link"
-        className="h-auto px-0 text-muted-foreground"
-        onClick={() => void navigate({ to: '/support' })}
-      >
-        Вернуться в поддержку
-      </Button>
     </div>
   )
 }

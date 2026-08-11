@@ -1,4 +1,4 @@
-import { getRouteApi } from '@tanstack/react-router'
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { Plus, Users } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
@@ -12,26 +12,24 @@ import { useEmployees, useUpdateEmployee } from '@/features/employees/hooks'
 import { useAllEmployeeRates } from '@/features/employees/salaryHooks'
 import { RoleSectionHelp } from '@/features/help/components/RoleSectionHelp'
 import { employeesHelp } from '@/features/help/content'
-import { EmployeeDetailSheet } from './EmployeeDetailSheet'
 import { EmployeeFormModal } from './EmployeeFormModal'
 import { EmployeeToggleDialog } from './EmployeeToggleDialog'
 import { EmployeesTable } from './EmployeesTable'
-import { SalaryCalcTab } from './SalaryCalcTab'
+import { PayrollLaborTab } from '@/features/payroll/components/PayrollLaborTab'
 import type { EmployeeRowActions } from './employeesColumns'
 
 const employeesRoute = getRouteApi('/_layout/employees/')
 
 export function EmployeesPage() {
   const { tab } = employeesRoute.useSearch()
-  const navigate = employeesRoute.useNavigate()
+  const routeNavigate = employeesRoute.useNavigate()
+  const navigate = useNavigate()
   const { data: user } = useCurrentUser()
   const isAdmin = user?.role === 'admin'
   const canManage = user?.role === 'manager' || user?.role === 'admin'
   const { data: employees = [], isLoading, isError } = useEmployees()
   const { data: allRates = [] } = useAllEmployeeRates(canManage)
   const updateEmployee = useUpdateEmployee()
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
-  const [detailOpen, setDetailOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
   const [toggleTarget, setToggleTarget] = useState<Employee | null>(null)
@@ -41,10 +39,15 @@ export function EmployeesPage() {
     [allRates],
   )
 
-  const openDetails = useCallback((employee: Employee) => {
-    setSelectedEmployee(employee)
-    setDetailOpen(true)
-  }, [])
+  const openDetails = useCallback(
+    (employee: Employee) => {
+      void navigate({
+        to: '/employees/$employeeId',
+        params: { employeeId: employee.id },
+      })
+    },
+    [navigate],
+  )
 
   const openCreate = () => {
     setEditingEmployee(null)
@@ -100,7 +103,7 @@ export function EmployeesPage() {
         {isAdmin && tab === 'list' ? (
           <Button
             type="button"
-            className="bg-primary hover:bg-primary-hover text-primary-foreground"
+            className="min-h-11 w-full bg-primary text-primary-foreground hover:bg-primary-hover sm:w-auto sm:min-h-10"
             onClick={openCreate}
           >
             <Plus className="size-4" />
@@ -113,19 +116,29 @@ export function EmployeesPage() {
         <Tabs
           value={tab}
           onValueChange={(value) =>
-            void navigate({ search: { tab: value === 'salary' ? 'salary' : 'list' } })
+            void routeNavigate({
+              search: {
+                tab: value === 'salary' ? 'salary' : 'list',
+                payroll: value === 'salary' ? 'accruals' : undefined,
+                runId: undefined,
+              },
+            })
           }
         >
-          <TabsList>
-            <TabsTrigger value="list">Сотрудники</TabsTrigger>
-            <TabsTrigger value="salary">Расчёт ЗП</TabsTrigger>
+          <TabsList className="grid h-auto min-h-11 w-full grid-cols-2 gap-0.5 p-1">
+            <TabsTrigger value="list" className="min-h-10 whitespace-normal px-2 text-xs sm:text-sm">
+              Список сотрудников
+            </TabsTrigger>
+            <TabsTrigger value="salary" className="min-h-10 whitespace-normal px-2 text-xs sm:text-sm">
+              Оплата труда
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="list" className="mt-4 space-y-4">
             <RoleSectionHelp section="сотрудники" items={employeesHelp} guideSection="employees" />
             {listContent}
           </TabsContent>
           <TabsContent value="salary" className="mt-4">
-            <SalaryCalcTab />
+            <PayrollLaborTab />
           </TabsContent>
         </Tabs>
       ) : (
@@ -134,12 +147,6 @@ export function EmployeesPage() {
           {listContent}
         </div>
       )}
-
-      <EmployeeDetailSheet
-        employee={selectedEmployee}
-        open={detailOpen}
-        onClose={() => setDetailOpen(false)}
-      />
 
       {isAdmin ? (
         <EmployeeFormModal

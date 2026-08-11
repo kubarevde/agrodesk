@@ -1,17 +1,16 @@
+import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ShoppingCart, Wrench } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { usePurchaseItems } from '@/features/purchase-planner/hooks'
 import { purchasePlannerSearch } from '@/features/purchase-planner/lib/plannerSearch'
+import { RepairDetailDialog } from '@/features/repair-journal/components/RepairDetailDialog'
+import { RepairStatusBadges } from '@/features/repair-journal/components/RepairStatusBadges'
 import { useRepairs } from '@/features/repair-journal/hooks'
-import {
-  getStatusBadgeClass,
-  STATUS_LABELS,
-} from '@/features/repair-journal/lib/labels'
+import { isActiveRepair, isInRepair } from '@/features/repair-journal/lib/labels'
+import { useDictionary } from '@/features/dictionaries/hooks'
 import { AssetOperationalStatus } from './AssetOperationalStatus'
 import { plannedPositionsLabel } from './AssetPurchasePlannerHint'
-
-const ACTIVE_STATUSES = new Set(['in_progress', 'waiting_parts'])
 
 type AssetOperationalSummaryProps = {
   equipmentId?: string
@@ -26,6 +25,8 @@ export function AssetOperationalSummary({
   equipmentName,
   implementName,
 }: AssetOperationalSummaryProps) {
+  const [repairOpen, setRepairOpen] = useState(false)
+  const { data: statusDict = [] } = useDictionary('repair_status')
   const { data: repairs = [], isLoading: repairsLoading } = useRepairs({
     equipmentId,
     implementId,
@@ -40,7 +41,7 @@ export function AssetOperationalSummary({
     return <p className="text-sm text-muted-foreground">Загрузка статуса…</p>
   }
 
-  const activeRepair = repairs.find((r) => ACTIVE_STATUSES.has(r.status))
+  const activeRepair = repairs.find((r) => isActiveRepair(r))
   const lastDone = repairs.find((r) => r.status === 'done')
   const repairPurchases = activeRepair
     ? openPurchases.filter((p) => p.maintenanceId === activeRepair.id)
@@ -51,8 +52,10 @@ export function AssetOperationalSummary({
 
   const assetName = equipmentName ?? implementName ?? 'единица'
   let nextAction = 'В строю — плановое ТО по расписанию'
-  if (activeRepair?.status === 'waiting_parts') {
+  if (activeRepair?.waitingParts && !isInRepair(activeRepair)) {
     nextAction = `Ожидает запчасти${repairPurchases.length ? ` (${repairPurchases.length} к покупке)` : ''}`
+  } else if (activeRepair?.waitingParts) {
+    nextAction = `В ремонте и ожидает запчасти${repairPurchases.length ? ` (${repairPurchases.length} к покупке)` : ''}`
   } else if (activeRepair) {
     nextAction = 'В ремонте — завершите чек-лист работ'
   } else if (openPurchases.length > 0) {
@@ -84,31 +87,40 @@ export function AssetOperationalSummary({
           <div className="flex flex-wrap items-center gap-2">
             <Wrench className="size-4 text-primary" />
             <p className="text-sm font-medium">{activeRepair.type}</p>
-            <Badge variant="outline" className={getStatusBadgeClass(activeRepair.status)}>
-              {STATUS_LABELS[activeRepair.status] ?? activeRepair.status}
-            </Badge>
+            <RepairStatusBadges
+              status={activeRepair.status}
+              waitingParts={activeRepair.waitingParts}
+              dict={statusDict}
+            />
           </div>
           <p className="text-xs text-muted-foreground">
             Чек-лист: {activeRepair.checklistDone}/{activeRepair.checklistTotal}
           </p>
           <div className="flex flex-wrap gap-2">
-            <Link
-              to="/maintenance"
-              className="inline-flex h-8 items-center rounded-md border border-border px-3 text-sm hover:bg-muted/30"
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11 sm:min-h-8 sm:px-3"
+              onClick={() => setRepairOpen(true)}
             >
               Открыть ремонт
-            </Link>
+            </Button>
             {repairPurchases.length > 0 ? (
               <Link
                 to="/purchase-planner"
                 search={plannerLinkSearch}
-                className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-3 text-sm hover:bg-muted/30"
+                className="inline-flex min-h-11 items-center gap-1 rounded-md border border-border px-3 text-sm hover:bg-muted/30 sm:min-h-8"
               >
                 <ShoppingCart className="size-3.5" />
                 Закупки ремонта ({repairPurchases.length})
               </Link>
             ) : null}
           </div>
+          <RepairDetailDialog
+            entry={activeRepair}
+            open={repairOpen}
+            onClose={() => setRepairOpen(false)}
+          />
         </div>
       ) : null}
 

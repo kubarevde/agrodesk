@@ -54,15 +54,16 @@ export function ShiftFieldSelect<T extends Record<string, unknown>>({
           render={({ field }) => {
             const value = typeof field.value === 'string' ? field.value : ''
             const selected = activeFields.find((item) => item.id === value)
+            const selectValue = value || (required ? null : 'none')
             return (
               <div className="space-y-1.5">
                 <LabeledSelect
-                  value={value || 'none'}
+                  value={selectValue}
                   onValueChange={(next) =>
                     field.onChange((!next || next === 'none' ? '' : next) as never)
                   }
                   options={options}
-                  placeholder="Не выбрано"
+                  placeholder={required ? 'Выберите поле' : 'Не выбрано'}
                 />
                 {selected ? (
                   <p className="text-xs text-muted-foreground">

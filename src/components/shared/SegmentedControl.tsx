@@ -42,8 +42,11 @@ export function SegmentedControl<T extends string>({
             role="tab"
             aria-selected={active}
             className={cn(
-              'min-w-0 flex-1 truncate rounded-lg font-medium transition-colors',
-              size === 'lg' ? 'min-h-11 px-3 py-2.5 text-sm' : 'min-h-9 px-2 py-1.5 text-xs sm:text-sm',
+              'flex-1 rounded-lg font-medium transition-colors',
+              // lg next to search: keep labels readable (avoid truncate under sm:w-auto)
+              size === 'lg'
+                ? 'min-h-11 min-w-0 px-2 py-2.5 text-xs sm:min-w-[5.5rem] sm:px-3 sm:text-sm'
+                : 'min-h-11 min-w-0 truncate px-2 py-1.5 text-xs sm:min-h-9 sm:text-sm',
               active
                 ? 'bg-background text-foreground shadow-sm ring-1 ring-border/60'
                 : 'text-muted-foreground hover:text-foreground',

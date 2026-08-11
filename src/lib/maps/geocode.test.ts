@@ -3,6 +3,7 @@ import {
   buildMapFlyTarget,
   geocodeResultZoom,
   parseCoordinateQuery,
+  reverseGeocodeRegionCode,
   searchPlaces,
 } from './geocode'
 
@@ -91,5 +92,46 @@ describe('searchPlaces', () => {
     expect(fetchImpl).not.toHaveBeenCalled()
     expect(results[0]?.lat).toBe(51.5)
     expect(results[0]?.lng).toBe(36.2)
+  })
+})
+
+describe('reverseGeocodeRegionCode', () => {
+  it('maps ISO3166-2-lvl4 to catalog code', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        address: {
+          'ISO3166-2-lvl4': 'RU-KRS',
+          state: 'Курская область',
+          country_code: 'ru',
+        },
+      }),
+    })
+
+    const code = await reverseGeocodeRegionCode(51.73, 36.19, {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      isOnline: () => true,
+    })
+    expect(code).toBe('RU-KRS')
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain('/reverse')
+  })
+
+  it('falls back to state name matching', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        address: {
+          state: 'Краснодарский край',
+          country_code: 'ru',
+        },
+      }),
+    })
+
+    // Use unique coords so cache from previous test does not collide
+    const code = await reverseGeocodeRegionCode(45.03, 38.97, {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      isOnline: () => true,
+    })
+    expect(code).toBe('RU-KDA')
   })
 })

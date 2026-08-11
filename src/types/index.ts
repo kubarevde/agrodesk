@@ -6,6 +6,8 @@ export interface Shift {
   telegramId: string
   startTime: string
   endTime: string | null
+  /** End calendar day for overnight / multi-day closed shifts (display dd.MM.yyyy). */
+  endDate?: string | null
   workType: string
   location: string
   equipment: string
@@ -24,6 +26,8 @@ export interface Shift {
   durationRounded: number | null
   latitude: number | null
   longitude: number | null
+  /** True when start/end was corrected via manager edit. */
+  timeAdjusted?: boolean
   /** Present on offline-created rows for local filtering before sync. */
   employeeId?: string
   _isLocal?: boolean
@@ -45,6 +49,10 @@ export interface Location {
   name: string
   description?: string
   isActive: boolean
+  code?: string | null
+  isSystem?: boolean
+  latitude?: number | null
+  longitude?: number | null
 }
 
 export interface WorkType {
@@ -136,13 +144,14 @@ export interface Implement {
   last_service_date?: string | null
 }
 
-export type SharingListingType = 'field' | 'equipment' | 'implement' | 'parts'
-export type SharingListingStatus = 'active' | 'paused' | 'done'
+export type SharingListingType = 'field' | 'equipment' | 'implement'
+export type SharingListingStatus = 'active' | 'paused' | 'done' | 'archived'
 export type SharingRequestStatus = 'pending' | 'accepted' | 'rejected' | 'done'
 
 export interface SharingListing {
   id: string
-  type: SharingListingType
+  orgId?: string | null
+  type: SharingListingType | 'parts'
   title: string
   description: string | null
   pricePerUnit: number | null
@@ -164,6 +173,10 @@ export interface SharingListing {
   images: string[]
   requestsCount: number
   createdAt: string
+  sharingScope: 'full_field' | 'partial_field'
+  sharedAreaHa: number | null
+  effectivePolygon: number[][] | null
+  effectiveAreaHa: number | null
 }
 
 export interface SharingRequest {
@@ -231,7 +244,14 @@ export interface InventoryItem {
   totalCapacity: number
   isActive: boolean
   cropCode?: string | null
+  varietyId?: string | null
+  varietyName?: string | null
   isHarvest?: boolean
+  archivedAt?: string | null
+  archivedBy?: string | null
+  archivedByName?: string | null
+  archiveReason?: string | null
+  canHardDelete?: boolean | null
 }
 
 export interface InventoryOperation {
@@ -262,13 +282,42 @@ export interface Shipment {
   totalSum: number | null
   notes?: string
   shipmentRequestId?: string | null
+  fieldId?: string | null
+  fieldName?: string | null
+  varietyId?: string | null
+  varietyName?: string | null
+  fieldPlantingId?: string | null
 }
 
 export interface ShipmentFilters {
   from?: string
   to?: string
   cropType?: string
+  varietyId?: string
   shipmentRequestId?: string
+}
+
+/** Managerial non-harvest outbound (parallel to crop Shipment). */
+export interface TmcShipment {
+  id: string
+  date: string
+  inventoryItemId: string
+  itemName: string
+  category: string
+  unit: string
+  quantity: number
+  destination?: string
+  pricePerUnit: number | null
+  totalSum: number | null
+  notes?: string
+  shipmentRequestId?: string | null
+}
+
+export interface TmcShipmentFilters {
+  from?: string
+  to?: string
+  category?: string
+  inventoryItemId?: string
 }
 
 export interface Expense {
@@ -289,6 +338,45 @@ export interface ExpenseFilters {
   to?: string
   category?: Expense['category']
   equipmentId?: string
+}
+
+/** Manual income row (API `/api/incomes`). Shipment revenue is not stored here. */
+export interface ManualIncome {
+  id: string
+  date: string
+  /** Dictionary code from income_category */
+  category: string
+  amount: number
+  description: string
+  counterparty?: string
+  paymentMethod?: 'cash' | 'transfer' | 'invoice'
+  cropCode?: string | null
+  varietyId?: string | null
+  varietyName?: string | null
+}
+
+export interface ManualIncomeFilters {
+  from?: string
+  to?: string
+  category?: string
+}
+
+export type IncomeLedgerSource = 'harvest_shipment' | 'tmc_shipment' | 'manual'
+
+/** Unified row for the Доходы tab (auto from shipments + manual). */
+export interface IncomeLedgerEntry {
+  id: string
+  source: IncomeLedgerSource
+  sourceId: string
+  date: string
+  /** Chart/group key */
+  groupKey: string
+  title: string
+  amount: number
+  description?: string
+  counterparty?: string
+  paymentMethod?: 'cash' | 'transfer' | 'invoice'
+  editable: boolean
 }
 
 export interface SyncQueueItem {

@@ -15,7 +15,7 @@ export function OrgHierarchySection({ orgId, enabled }: OrgHierarchySectionProps
   return (
     <OrgFormSection
       title="Структура холдинга"
-      description="Связи head → child отдельно от формы сохранения. Marketplace и tenant settings детей не меняются."
+      description="Связь головная → дочерняя (head → child) нужна для обзора холдинга. Она не влияет на доступ к маркетплейсу и не меняет параметры кабинета дочерних организаций (часовой пояс, справочники, права)."
     >
       {parentQuery.isLoading ? (
         <Skeleton className="h-12 w-full" />
@@ -34,9 +34,14 @@ export function OrgHierarchySection({ orgId, enabled }: OrgHierarchySectionProps
           </p>
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">
-          Нет головной связи — организация самостоятельная или может стать головной.
-        </p>
+        <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-2">
+          <p className="text-sm font-medium text-foreground">Нет головной связи</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Организация не привязана к головной: она самостоятельная или может стать
+            головной и иметь дочерние КФХ. Это не означает отключение маркетплейса и не
+            меняет настройки её кабинета.
+          </p>
+        </div>
       )}
 
       <OrgChildrenSection headOrgId={orgId} enabled={enabled} embedded />

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { getCategoryLabel, getInventoryOperationLabel, isHarvestCategory } from './utils'
+import {
+  getCategoryLabel,
+  getInventoryOperationLabel,
+  isHarvestCategory,
+  quoteFieldName,
+} from './utils'
 
 describe('inventory category helpers', () => {
   it('recognizes harvest category case-insensitively', () => {
@@ -13,13 +18,19 @@ describe('inventory category helpers', () => {
     expect(getCategoryLabel('harvest')).toContain('Урожай')
   })
 
-  it('labels harvest income with field name', () => {
+  it('labels harvest income with quoted field name', () => {
     expect(
       getInventoryOperationLabel({
         type: 'income',
         purpose: 'harvest_income',
-        fieldName: 'Север',
+        fieldName: 'Кандинское поле',
       }),
-    ).toBe('Сбор с поля Север')
+    ).toBe('Сбор с поля "Кандинское поле"')
+  })
+
+  it('does not double-quote field names that already have quotes', () => {
+    expect(quoteFieldName('"Север"')).toBe('"Север"')
+    expect(quoteFieldName('«Юг»')).toBe('«Юг»')
+    expect(quoteFieldName('Север')).toBe('"Север"')
   })
 })

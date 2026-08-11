@@ -9,6 +9,7 @@ type WeatherSourcesBannerProps = {
   isError: boolean
 }
 
+/** Compact weather meta line for calendar footer (coords, sources, update time). */
 export function WeatherSourcesBanner({
   weather,
   isLoading,
@@ -16,16 +17,19 @@ export function WeatherSourcesBanner({
 }: WeatherSourcesBannerProps) {
   if (isLoading) {
     return (
-      <div className="h-10 animate-pulse rounded-md bg-muted/60" aria-hidden />
+      <div
+        className="h-4 w-full max-w-md animate-pulse rounded bg-muted/60"
+        aria-hidden
+      />
     )
   }
 
   if (isError || !weather) {
     return (
-      <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-        <CloudOff className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-        <p>Прогноз погоды временно недоступен. Координаты поля и внешние API не подменены.</p>
-      </div>
+      <p className="flex items-center gap-1.5 text-[11px] leading-snug text-muted-foreground sm:text-xs">
+        <CloudOff className="size-3 shrink-0" aria-hidden />
+        <span>Прогноз временно недоступен</span>
+      </p>
     )
   }
 
@@ -42,21 +46,29 @@ export function WeatherSourcesBanner({
     .join(', ')
 
   return (
-    <div className="rounded-md border border-border bg-surface px-3 py-2 text-xs text-muted-foreground">
-      <p className="text-foreground">
-        Погода: {weather.fieldName}
-        <span className="text-muted-foreground">
+    <footer
+      className="text-[11px] leading-snug text-muted-foreground sm:text-xs"
+      data-testid="weather-sources-footer"
+    >
+      <p className="break-words">
+        <span className="text-foreground">{weather.fieldName}</span>
+        <span>
           {' '}
           ({weather.latitude.toFixed(2)}, {weather.longitude.toFixed(2)})
         </span>
+        <span className="text-muted-foreground/70"> · </span>
+        <span>
+          {sourceNames} ({weather.sourcesUsed}/{weather.sourcesTotal})
+        </span>
+        <span className="text-muted-foreground/70"> · </span>
+        <span>обновлено {updated}</span>
+        {weather.unavailable && weather.message ? (
+          <>
+            <span className="text-muted-foreground/70"> · </span>
+            <span className="text-destructive">{weather.message}</span>
+          </>
+        ) : null}
       </p>
-      <p className="mt-0.5">
-        Источники: {sourceNames}. Использовано {weather.sourcesUsed} из{' '}
-        {weather.sourcesTotal}. Обновлено: {updated}.
-      </p>
-      {weather.unavailable ? (
-        <p className="mt-0.5 text-destructive">{weather.message}</p>
-      ) : null}
-    </div>
+    </footer>
   )
 }

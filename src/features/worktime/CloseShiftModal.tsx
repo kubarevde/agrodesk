@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Info, Loader2, Square } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,8 +14,13 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentUser } from '@/features/auth/hooks'
 import type { Shift } from '@/types'
-import { closeShiftSchema, type CloseShiftFormValues } from './closeShiftSchema'
-import { useCloseShift } from './hooks'
+import {
+  buildCloseShiftSchema,
+  type CloseShiftFormValues,
+  type PieceworkUnit,
+} from './closeShiftSchema'
+import { PieceworkCloseFields } from './PieceworkCloseFields'
+import { useCloseShift, useShiftPayScheme } from './hooks'
 import { useLiveShiftDuration } from './useLiveShiftDuration'
 import { formatShiftTime, previewShiftRoundedHours } from './utils'
 
@@ -34,6 +39,8 @@ interface CloseShiftModalProps {
 const defaultValues: CloseShiftFormValues = {
   description: '',
   comment: '',
+  quantity: undefined,
+  unit: undefined,
 }
 
 export function CloseShiftModal({
@@ -54,32 +61,42 @@ export function CloseShiftModal({
     (Boolean(employeeId) && employeeId === user?.id)
 
   const closeShift = useCloseShift()
+  const { data: payScheme, isLoading: schemeLoading } = useShiftPayScheme(shiftId, open)
+  const isPiecework = payScheme?.paymentScheme === 'piecework'
   const [commentHidden, setCommentHidden] = useState(false)
   const durationLabel = useLiveShiftDuration(startTime, shiftDate, open)
   const roundedPreview = open ? previewShiftRoundedHours(startTime, shiftDate) : 0
   const showMeterHint =
     Boolean(equipmentName) && equipmentMeterType === 'shift_hours' && roundedPreview > 0
 
+  const schema = useMemo(() => buildCloseShiftSchema(Boolean(isPiecework)), [isPiecework])
+
   const {
     register,
     handleSubmit,
     reset,
     setValue,
+    setError,
     watch,
     formState: { errors, isSubmitting },
   } = useForm<CloseShiftFormValues>({
-    resolver: zodResolver(closeShiftSchema),
+    resolver: zodResolver(schema),
     defaultValues,
   })
 
   const descriptionValue = watch('description') ?? ''
+  const unitValue = watch('unit') as PieceworkUnit | undefined
 
   useEffect(() => {
     if (!open) {
       reset(defaultValues)
       setCommentHidden(false)
+      return
     }
-  }, [open, reset])
+    if (isPiecework && payScheme?.pieceworkUnit) {
+      setValue('unit', payScheme.pieceworkUnit as PieceworkUnit)
+    }
+  }, [open, reset, isPiecework, payScheme?.pieceworkUnit, setValue])
 
   const handleClose = () => {
     reset(defaultValues)
@@ -89,11 +106,24 @@ export function CloseShiftModal({
 
   const onSubmit = (values: CloseShiftFormValues) => {
     if (!canClose) return
+    if (isPiecework) {
+      if (values.quantity == null || Number.isNaN(values.quantity) || values.quantity <= 0) {
+        setError('quantity', { message: 'Укажите объём выработки' })
+        return
+      }
+      if (!values.unit) {
+        setError('unit', { message: 'Укажите единицу измерения' })
+        return
+      }
+    }
     closeShift.mutate(
       {
         id: shiftId,
         description: values.description,
         comment: values.comment ?? '',
+        ...(isPiecework
+          ? { quantity: values.quantity, unit: values.unit }
+          : {}),
       },
       {
         onSuccess: () => {
@@ -161,6 +191,18 @@ export function CloseShiftModal({
             </div>
           )}
 
+          {schemeLoading ? (
+            <div className="h-20 animate-pulse rounded-lg bg-muted" />
+          ) : isPiecework ? (
+            <PieceworkCloseFields
+              register={register}
+              setValue={setValue}
+              errors={errors}
+              unitValue={unitValue}
+              suggestedUnit={payScheme?.pieceworkUnit}
+            />
+          ) : null}
+
           {canClose ? (
             <DialogFooter className="flex-col gap-3 sm:flex-col sm:justify-stretch">
               {showMeterHint ? (
@@ -173,7 +215,7 @@ export function CloseShiftModal({
               <Button
                 type="submit"
                 variant="destructive"
-                disabled={isSubmitting || closeShift.isPending}
+                disabled={isSubmitting || closeShift.isPending || schemeLoading}
                 className="w-full"
               >
                 {isSubmitting || closeShift.isPending ? (

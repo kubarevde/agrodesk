@@ -1,47 +1,60 @@
-import { useEffect, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { api } from '@/lib/api'
+import { apiErrorMessage } from '@/lib/apiError'
+import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-const STORAGE_KEY = 'agrodesk_notification_prefs'
-
-export type NotificationPrefs = {
-  toWarning: boolean
-  toOverdue: boolean
-  sharingNewRequests: boolean
-  sharingRequestDecision: boolean
+export type NotificationPrefItem = {
+  type: string
+  label: string
+  enabled: boolean
 }
 
-const DEFAULT_PREFS: NotificationPrefs = {
-  toWarning: true,
-  toOverdue: true,
-  sharingNewRequests: true,
-  sharingRequestDecision: true,
+const PREFS_QUERY_KEY = ['notifications', 'prefs'] as const
+
+function useNotificationPrefs() {
+  return useQuery({
+    queryKey: PREFS_QUERY_KEY,
+    queryFn: async (): Promise<NotificationPrefItem[]> => {
+      const { data } = await api.get<{ items: NotificationPrefItem[] }>(
+        '/api/notifications/prefs',
+      )
+      return data.items
+    },
+  })
 }
 
-function loadPrefs(): NotificationPrefs {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return DEFAULT_PREFS
-    const parsed = JSON.parse(raw) as Partial<NotificationPrefs>
-    return {
-      toWarning: parsed.toWarning ?? true,
-      toOverdue: parsed.toOverdue ?? true,
-      sharingNewRequests: parsed.sharingNewRequests ?? true,
-      sharingRequestDecision: parsed.sharingRequestDecision ?? true,
-    }
-  } catch {
-    return DEFAULT_PREFS
-  }
+function useUpdateNotificationPrefs() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (prefs: Record<string, boolean>) => {
+      const { data } = await api.patch<{ items: NotificationPrefItem[] }>(
+        '/api/notifications/prefs',
+        { prefs },
+      )
+      return data.items
+    },
+    onSuccess: (items) => {
+      queryClient.setQueryData(PREFS_QUERY_KEY, items)
+      toast.success('Настройки уведомлений сохранены')
+    },
+    onError: (error) =>
+      toast.error(apiErrorMessage(error, 'Не удалось сохранить настройки уведомлений')),
+  })
 }
 
 function PrefToggle({
   label,
   description,
   value,
+  disabled,
   onChange,
 }: {
   label: string
   description?: string
   value: boolean
+  disabled?: boolean
   onChange: (value: boolean) => void
 }) {
   return (
@@ -54,11 +67,12 @@ function PrefToggle({
         type="button"
         role="switch"
         aria-checked={value}
+        disabled={disabled}
         onClick={() => onChange(!value)}
         className={
           value
-            ? 'relative h-6 w-11 shrink-0 rounded-full bg-success transition-colors'
-            : 'relative h-6 w-11 shrink-0 rounded-full bg-muted transition-colors'
+            ? 'relative h-6 w-11 shrink-0 rounded-full bg-success transition-colors disabled:opacity-50'
+            : 'relative h-6 w-11 shrink-0 rounded-full bg-muted transition-colors disabled:opacity-50'
         }
       >
         <span
@@ -74,18 +88,14 @@ function PrefToggle({
 }
 
 export function NotificationPrefsTab() {
-  const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS)
+  const { data: items = [], isLoading, isError } = useNotificationPrefs()
+  const update = useUpdateNotificationPrefs()
 
-  useEffect(() => {
-    setPrefs(loadPrefs())
-  }, [])
-
-  const update = (patch: Partial<NotificationPrefs>) => {
-    setPrefs((current) => {
-      const next = { ...current, ...patch }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-      return next
-    })
+  if (isLoading) return <PageSkeleton />
+  if (isError) {
+    return (
+      <p className="text-sm text-destructive">Не удалось загрузить настройки уведомлений.</p>
+    )
   }
 
   return (
@@ -93,31 +103,20 @@ export function NotificationPrefsTab() {
       <CardHeader>
         <CardTitle className="text-base text-foreground">Уведомления</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Настройки относятся только к вашему аккаунту и сохраняются в браузере. Telegram-бот учтёт
-          их на этапе 4.
+          Включайте и отключайте типы событий для вашего аккаунта. Выключенный тип не создаёт
+          новые уведомления в колокольчике (уже полученные остаются в списке).
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
-        <PrefToggle
-          label="Уведомлять о скором ТО (за 15% ресурса)"
-          value={prefs.toWarning}
-          onChange={(value) => update({ toWarning: value })}
-        />
-        <PrefToggle
-          label="Уведомлять о просроченном ТО"
-          value={prefs.toOverdue}
-          onChange={(value) => update({ toOverdue: value })}
-        />
-        <PrefToggle
-          label="Уведомлять о новых заявках шеринга"
-          value={prefs.sharingNewRequests}
-          onChange={(value) => update({ sharingNewRequests: value })}
-        />
-        <PrefToggle
-          label="Уведомлять о принятии/отклонении заявок"
-          value={prefs.sharingRequestDecision}
-          onChange={(value) => update({ sharingRequestDecision: value })}
-        />
+        {items.map((item) => (
+          <PrefToggle
+            key={item.type}
+            label={item.label}
+            value={item.enabled}
+            disabled={update.isPending}
+            onChange={(enabled) => update.mutate({ [item.type]: enabled })}
+          />
+        ))}
       </CardContent>
     </Card>
   )

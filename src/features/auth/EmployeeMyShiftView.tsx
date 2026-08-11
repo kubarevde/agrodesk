@@ -20,14 +20,17 @@ import { myShiftHelp } from '@/features/help/content'
 import { CurrentShiftCard } from './CurrentShiftCard'
 import { EmployeeAgroTodaySection } from './EmployeeAgroTodaySection'
 import { EmployeeSectionLinks } from './EmployeeSectionLinks'
+import { formatMyShiftSubtitle } from './formatMyShiftSubtitle'
 import { MonthShiftsList } from './MonthShiftsList'
 import { MyEarningsSection } from './MyEarningsSection'
+import { MyTasksBlock } from '@/features/tasks/components/MyTasksBlock'
 
 interface EmployeeMyShiftViewProps {
   user: CurrentUser
+  embedded?: boolean
 }
 
-export function EmployeeMyShiftView({ user }: EmployeeMyShiftViewProps) {
+export function EmployeeMyShiftView({ user, embedded = false }: EmployeeMyShiftViewProps) {
   const monthRange = useMemo(() => getDefaultMonthRange(), [])
   const openFilters = useMemo(
     () => ({ employeeId: user.id, status: 'open' as const }),
@@ -59,17 +62,18 @@ export function EmployeeMyShiftView({ user }: EmployeeMyShiftViewProps) {
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Моя смена</h1>
-        <p className="text-sm text-muted-foreground">
-          {user.fullName}
-          {user.employeeCode ? ` · ${user.employeeCode}` : ''}
-        </p>
-      </div>
+      {embedded ? null : (
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Моя смена</h1>
+          <p className="text-sm text-muted-foreground">{formatMyShiftSubtitle(user)}</p>
+        </div>
+      )}
 
-      <GuideNudgeBanner />
+      {embedded ? null : <GuideNudgeBanner />}
 
-      <RoleSectionHelp section="моя смена" items={myShiftHelp} guideSection="my-shift" />
+      {embedded ? null : (
+        <RoleSectionHelp section="моя смена" items={myShiftHelp} guideSection="my-shift" />
+      )}
 
       <StaleCacheNotice detail="Список смен с устройства — может быть неполным до следующего онлайн-обновления." />
 
@@ -79,6 +83,8 @@ export function EmployeeMyShiftView({ user }: EmployeeMyShiftViewProps) {
         onStart={() => setOpenShiftOpen(true)}
         onFinish={setCloseShiftTarget}
       />
+
+      <MyTasksBlock />
 
       <EmployeeSectionLinks />
 

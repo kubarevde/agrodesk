@@ -9,6 +9,9 @@ export const agroPlanFormSchema = z.object({
   implementId: z.string().optional(),
   employeeId: z.string().optional(),
   notes: z.string().optional(),
+  fieldPlantingId: z.string().optional().nullable().or(z.literal('')),
+  cropCode: z.string().max(80).optional().or(z.literal('')),
+  varietyId: z.string().optional().nullable().or(z.literal('')),
 })
 
 export type AgroPlanFormValues = z.infer<typeof agroPlanFormSchema>

@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
+const navigate = vi.fn()
+
 vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigate,
   Link: (props: { children?: unknown; to?: string }) =>
     createElement('a', { href: props.to }, props.children as never),
 }))
@@ -24,7 +27,7 @@ vi.mock('@/features/settings/hooks', () => ({
 }))
 
 vi.mock('@/features/shipment-requests/hooks', () => ({
-  useShipmentRequests: (_filters?: { kind?: string }) => ({
+  useShipmentRequests: () => ({
     data: [
       {
         id: 'r1',
@@ -32,6 +35,7 @@ vi.mock('@/features/shipment-requests/hooks', () => ({
         inventoryItemUnit: 'л',
         customerName: 'ООО Агро',
         quantity: 5,
+        price: 62.8,
         completedAt: '2026-07-15T10:00:00Z',
         shiftId: 'shift-uuid-1',
         status: 'done',
@@ -43,39 +47,42 @@ vi.mock('@/features/shipment-requests/hooks', () => ({
   }),
 }))
 
-vi.mock('@/components/ui/badge', () => ({
-  Badge: (props: { children?: unknown }) =>
-    createElement('span', null, props.children as never),
+vi.mock('@/components/shared/CardActionsMenu', () => ({
+  CardActionsMenu: () => createElement('button', { type: 'button' }, '…'),
 }))
 
-vi.mock('@/components/ui/card', () => ({
-  Card: (props: {
-    children?: unknown
-    'data-testid'?: string
-    'data-domain'?: string
-    className?: string
-  }) =>
-    createElement(
-      'div',
-      {
-        'data-testid': props['data-testid'],
-        'data-domain': props['data-domain'],
-      },
-      props.children as never,
-    ),
-  CardHeader: (props: { children?: unknown }) => createElement('div', null, props.children as never),
-  CardTitle: (props: { children?: unknown }) => createElement('h2', null, props.children as never),
-  CardContent: (props: { children?: unknown }) => createElement('div', null, props.children as never),
+vi.mock('@/components/shared/SkeletonTable', () => ({
+  SkeletonTable: () => createElement('div', { 'data-skeleton': '1' }),
 }))
 
-vi.mock('@/components/ui/skeleton', () => ({
-  Skeleton: () => createElement('div', { 'data-skeleton': '1' }),
+vi.mock('@/components/shared/EmptyState', () => ({
+  EmptyState: (props: { title?: string }) =>
+    createElement('div', { 'data-empty': props.title }),
+}))
+
+vi.mock('@/components/ui/button', () => ({
+  Button: (props: { children?: unknown; onClick?: () => void }) =>
+    createElement('button', { type: 'button', onClick: props.onClick }, props.children as never),
+}))
+
+vi.mock('@/components/ui/table', () => ({
+  Table: (props: { children?: unknown }) => createElement('table', null, props.children as never),
+  TableHeader: (props: { children?: unknown }) =>
+    createElement('thead', null, props.children as never),
+  TableBody: (props: { children?: unknown }) =>
+    createElement('tbody', null, props.children as never),
+  TableRow: (props: { children?: unknown; 'data-testid'?: string }) =>
+    createElement('tr', { 'data-testid': props['data-testid'] }, props.children as never),
+  TableHead: (props: { children?: unknown }) =>
+    createElement('th', null, props.children as never),
+  TableCell: (props: { children?: unknown }) =>
+    createElement('td', null, props.children as never),
 }))
 
 import { ShipmentsTmcOutboundPanel } from './ShipmentsTmcOutboundPanel'
 
 describe('ShipmentsTmcOutboundPanel', () => {
-  it('renders warehouse-only block for inventory kind requests', () => {
+  it('renders warehouse-only list for inventory requests without tech jargon', () => {
     const html = renderToStaticMarkup(
       createElement(ShipmentsTmcOutboundPanel, {
         from: '01.07.2026',
@@ -85,10 +92,11 @@ describe('ShipmentsTmcOutboundPanel', () => {
     expect(html).toContain('data-testid="shipments-tmc-outbound"')
     expect(html).toContain('data-domain="warehouse-only"')
     expect(html).toContain('Дизель')
-    expect(html).toContain('источник: заявка')
+    expect(html).toContain('ООО Агро')
     expect(html).toContain('data-source="shipment_request"')
     expect(html).toContain('data-kind="inventory"')
-    expect(html).toContain('/shipment-requests')
+    expect(html).toContain('К заявкам')
+    expect(html).not.toContain('kind=inventory')
     expect(html).not.toContain('Пшеница')
   })
 })

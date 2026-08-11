@@ -34,7 +34,7 @@ function TotalsStrip({
       <Total label="Смены / мес." value={String(totals.monthShiftsCount)} />
       <Total label="Урожай / мес." value={formatTonnes(totals.monthShipmentsKg)} />
       <Total label="Затраты / мес." value={formatMoney(totals.monthExpensesSum)} />
-      <Total label="ТМЦ критич." value={String(totals.criticalInventoryCount)} />
+      <Total label="Критических остатков" value={String(totals.criticalInventoryCount)} />
       <Total label="Активные заявки" value={String(totals.shipmentRequestsActive)} />
     </div>
   )
@@ -42,9 +42,9 @@ function TotalsStrip({
 
 function Total({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border bg-background px-3 py-2">
+    <div className="rounded-lg border border-border bg-background px-2.5 py-1.5">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-lg font-semibold tabular-nums text-foreground">{value}</p>
+      <p className="text-base font-semibold tabular-nums text-foreground">{value}</p>
     </div>
   )
 }
@@ -63,18 +63,18 @@ export function HoldingOverviewSection() {
   const childCount = children.length
 
   return (
-    <section className="space-y-3" data-testid="holding-overview">
+    <section className="space-y-2" data-testid="holding-overview">
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Network className="size-4 text-primary" />
+        <CardHeader className="px-4 py-3 pb-1.5">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Network className="size-3.5 text-primary" />
             Обзор дочерних КФХ
           </CardTitle>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Сводка по связанным хозяйствам. Ниже — дашборд только этой организации.
           </p>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3 px-4 pb-3">
           {data.totals && childCount > 0 ? (
             <TotalsStrip totals={data.totals} childCount={childCount} />
           ) : null}
@@ -84,7 +84,7 @@ export function HoldingOverviewSection() {
               Дочерние КФХ ещё не привязаны. Связи настраивает суперадмин.
             </p>
           ) : (
-            <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid gap-2 lg:grid-cols-2">
               {children.map((child) => (
                 <HoldingChildCard key={child.orgId} child={child} canSwitch={canSwitch} />
               ))}

@@ -39,6 +39,7 @@ function entryFromApi(raw: ApiRecord): RepairJournalEntry {
     type: String(raw.type ?? ''),
     description: raw.description != null ? String(raw.description) : null,
     status: String(raw.status ?? 'done'),
+    waitingParts: Boolean(raw.waiting_parts),
     priority: String(raw.priority ?? 'normal'),
     dateReturned: raw.date_returned != null ? String(raw.date_returned) : null,
     meterAt: raw.meter_at == null ? null : Number(raw.meter_at),
@@ -55,6 +56,8 @@ export async function fetchRepairs(filters: RepairFilters = {}): Promise<RepairJ
   const { data } = await api.get<ApiRecord[]>('/api/equipment-maintenance', {
     params: {
       status: filters.status || undefined,
+      waiting_parts: filters.waitingParts,
+      attention: filters.attention || undefined,
       equipment_id: filters.equipmentId || undefined,
       implement_id: filters.implementId || undefined,
       priority: filters.priority || undefined,
@@ -83,6 +86,7 @@ export async function createRepair(payload: RepairCreatePayload): Promise<Repair
     meter_at: payload.meterAt ?? null,
     cost: payload.cost ?? null,
     status: payload.status ?? 'in_progress',
+    waiting_parts: payload.waitingParts ?? false,
     checklist_items: (payload.checklistItems ?? []).map((item) => ({
       item_type: item.itemType,
       description: item.description,
@@ -105,6 +109,7 @@ export async function updateRepair(
   if (payload.meterAt !== undefined) body.meter_at = payload.meterAt
   if (payload.cost !== undefined) body.cost = payload.cost
   if (payload.status !== undefined) body.status = payload.status
+  if (payload.waitingParts !== undefined) body.waiting_parts = payload.waitingParts
   if (payload.dateReturned !== undefined) body.date_returned = payload.dateReturned
   if (payload.expenseId !== undefined) body.expense_id = payload.expenseId
   if (payload.createExpense !== undefined) body.create_expense = payload.createExpense

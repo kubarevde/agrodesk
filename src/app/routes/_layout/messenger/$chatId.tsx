@@ -1,17 +1,12 @@
-import { lazy } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-
-const MessengerPageLazy = lazy(() =>
-  import('@/features/messenger/components/MessengerPage').then((m) => ({
-    default: m.MessengerPage,
-  })),
-)
-
-function MessengerChatRoute() {
-  const { chatId } = Route.useParams()
-  return <MessengerPageLazy chatId={chatId} />
-}
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_layout/messenger/$chatId')({
-  component: MessengerChatRoute,
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: '/workspace',
+      search: { tab: 'messenger', chatId: params.chatId },
+      replace: true,
+    })
+  },
+  component: () => null,
 })

@@ -29,7 +29,8 @@ export const maintenanceFormSchema = z.object({
   meter_at: z.number().min(0).optional(),
   cost: z.number().min(0).optional(),
   description: z.string().optional(),
-  next_to_interval: z.number().gt(0).optional(),
+  /** Absolute next service reading (km / mth / hours). */
+  next_to_at: z.number().gt(0).optional(),
 })
 
 export type MaintenanceFormValues = z.infer<typeof maintenanceFormSchema>

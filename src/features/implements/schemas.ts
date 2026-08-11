@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { MAINTENANCE_TYPES } from './types'
 
 export const implementFormSchema = z.object({
   name: z.string().min(1, 'Укажите название'),
@@ -11,6 +10,7 @@ export const implementFormSchema = z.object({
   image_url: z.string().optional(),
   current_usage_hours: z.number().min(0).optional(),
   service_interval_hours: z.number().positive().optional(),
+  next_service_hours: z.number().positive().optional(),
 })
 
 export type ImplementFormValues = z.infer<typeof implementFormSchema>
@@ -23,9 +23,20 @@ export type AttachFormValues = z.infer<typeof attachSchema>
 
 export const maintenanceFormSchema = z.object({
   date: z.string().min(1, 'Укажите дату'),
-  type: z.enum(MAINTENANCE_TYPES, { message: 'Выберите тип ТО' }),
+  type: z.string().min(1, 'Выберите тип ТО'),
+  meter_at: z.number().min(0).optional(),
   cost: z.number().min(0).optional(),
   description: z.string().optional(),
+  next_service_hours: z.number().positive().optional(),
+  next_service_interval: z.number().positive().optional(),
 })
 
 export type MaintenanceFormValues = z.infer<typeof maintenanceFormSchema>
+
+export const usageLogSchema = z.object({
+  value_added: z.number().positive('Укажите прибавку'),
+  date: z.string().min(1, 'Укажите дату'),
+  note: z.string().optional(),
+})
+
+export type UsageLogFormValues = z.infer<typeof usageLogSchema>

@@ -9,7 +9,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -65,16 +65,21 @@ function getDurationLabel(shift: Shift): string {
 
 export function ShiftDetailModal({ shift, open, onClose, onDelete }: ShiftDetailModalProps) {
   const { data: user } = useCurrentUser()
+  const [liveShift, setLiveShift] = useState(shift)
+  useEffect(() => {
+    setLiveShift(shift)
+  }, [shift])
+
   const isManager = user?.role === 'admin' || user?.role === 'manager'
   const canClose =
-    shift.status === 'open' &&
-    (isManager || (Boolean(shift.employeeId) && shift.employeeId === user?.id))
+    liveShift.status === 'open' &&
+    (isManager || (Boolean(liveShift.employeeId) && liveShift.employeeId === user?.id))
   const [closeModalOpen, setCloseModalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
-  const hasDescription = Boolean(shift.description || shift.comment)
-  const hasGeo = shift.latitude != null && shift.longitude != null
+  const hasDescription = Boolean(liveShift.description || liveShift.comment)
+  const hasGeo = liveShift.latitude != null && liveShift.longitude != null
   const mapsUrl = hasGeo
-    ? `https://www.google.com/maps?q=${shift.latitude},${shift.longitude}`
+    ? `https://www.google.com/maps?q=${liveShift.latitude},${liveShift.longitude}`
     : ''
 
   return (
@@ -83,16 +88,16 @@ export function ShiftDetailModal({ shift, open, onClose, onDelete }: ShiftDetail
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <div className="flex flex-wrap items-center gap-2 pr-8">
-              <DialogTitle>Смена — {shift.employeeName}</DialogTitle>
+              <DialogTitle>Смена — {liveShift.employeeName}</DialogTitle>
               <Badge
                 variant="outline"
                 className={
-                  shift.status === 'open'
+                  liveShift.status === 'open'
                     ? 'border-success/30 bg-success/10 text-success'
                     : 'border-border bg-muted text-muted-foreground'
                 }
               >
-                {shift.status === 'open' ? 'Открыта' : 'Закрыта'}
+                {liveShift.status === 'open' ? 'Открыта' : 'Закрыта'}
               </Badge>
             </div>
           </DialogHeader>
@@ -100,59 +105,72 @@ export function ShiftDetailModal({ shift, open, onClose, onDelete }: ShiftDetail
           <section className="space-y-3">
             <h3 className="text-sm font-medium text-foreground">Основное</h3>
             <div className="grid gap-4 sm:grid-cols-2">
-              <DetailItem icon={Calendar} label="Дата" value={shift.date} />
+              <DetailItem icon={Calendar} label="Дата" value={liveShift.date} />
               <DetailItem
                 icon={User}
                 label="Сотрудник"
-                value={`${shift.employeeName} (${shift.employeeCode})`}
+                value={`${liveShift.employeeName} (${liveShift.employeeCode})`}
               />
-              <DetailItem icon={MapPin} label="Объект" value={shift.location} />
-              {shift.fieldName ? (
-                <DetailItem icon={MapPin} label="Поле" value={shift.fieldName} />
+              <DetailItem icon={MapPin} label="Объект" value={liveShift.location} />
+              {liveShift.fieldName ? (
+                <DetailItem icon={MapPin} label="Поле" value={liveShift.fieldName} />
               ) : null}
-              <DetailItem icon={Wrench} label="Тип работ" value={shift.workType} />
+              <DetailItem icon={Wrench} label="Тип работ" value={liveShift.workType} />
               <DetailItem
                 icon={Truck}
                 label="Техника"
                 value={
                   <span className="space-y-1">
-                    <span className="block">{shift.equipment || '—'}</span>
-                    {shift.equipmentMeterLabel ? (
+                    <span className="block">{liveShift.equipment || '—'}</span>
+                    {liveShift.equipmentMeterLabel ? (
                       <span className="block text-xs text-muted-foreground">
-                        Тип счётчика: {shift.equipmentMeterLabel}
+                        Тип счётчика: {liveShift.equipmentMeterLabel}
                       </span>
                     ) : null}
-                    {shift.equipmentMeterType === 'shift_hours' &&
-                    shift.status === 'closed' &&
-                    shift.durationRounded != null ? (
+                    {liveShift.equipmentMeterType === 'shift_hours' &&
+                    liveShift.status === 'closed' &&
+                    liveShift.durationRounded != null ? (
                       <span className="block text-xs text-muted-foreground">
-                        Эта смена добавила {shift.durationRounded} ч к счётчику
+                        Эта смена добавила {liveShift.durationRounded} ч к счётчику
                       </span>
                     ) : null}
                   </span>
                 }
               />
-              {shift.implementName ? (
-                <DetailItem icon={Wrench} label="Приспособление" value={shift.implementName} />
+              {liveShift.implementName ? (
+                <DetailItem icon={Wrench} label="Приспособление" value={liveShift.implementName} />
               ) : null}
-              <DetailItem icon={Clock} label="Начало" value={formatShiftTime(shift.startTime)} />
+              <DetailItem icon={Clock} label="Начало" value={formatShiftTime(liveShift.startTime)} />
               <DetailItem
                 icon={Clock}
                 label="Конец"
-                value={shift.endTime ? formatShiftTime(shift.endTime) : 'Смена открыта'}
+                value={
+                  liveShift.endTime
+                    ? `${formatShiftTime(liveShift.endTime)}${
+                        liveShift.endDate && liveShift.endDate !== liveShift.date
+                          ? ` · ${liveShift.endDate}`
+                          : ''
+                      }`
+                    : 'Смена открыта'
+                }
               />
               <DetailItem
                 icon={Timer}
                 label="Длительность"
                 value={
-                  shift.status === 'open' ? (
-                    <LiveDuration shift={shift} />
+                  liveShift.status === 'open' ? (
+                    <LiveDuration shift={liveShift} />
                   ) : (
-                    getDurationLabel(shift)
+                    getDurationLabel(liveShift)
                   )
                 }
               />
             </div>
+            {liveShift.timeAdjusted ? (
+              <p className="text-xs text-muted-foreground">
+                Время смены скорректировано вручную. Подробности — в истории изменений.
+              </p>
+            ) : null}
           </section>
 
           {hasDescription ? (
@@ -160,11 +178,11 @@ export function ShiftDetailModal({ shift, open, onClose, onDelete }: ShiftDetail
               <h3 className="text-sm font-medium text-foreground">Описание</h3>
               <p className="text-sm">
                 <span className="text-muted-foreground">Что сделано: </span>
-                {shift.description || '—'}
+                {liveShift.description || '—'}
               </p>
               <p className="text-sm">
                 <span className="text-muted-foreground">Комментарий: </span>
-                {shift.comment || '—'}
+                {liveShift.comment || '—'}
               </p>
             </section>
           ) : null}
@@ -173,7 +191,7 @@ export function ShiftDetailModal({ shift, open, onClose, onDelete }: ShiftDetail
             <section className="space-y-2">
               <h3 className="text-sm font-medium text-foreground">Геолокация</h3>
               <p className="text-sm text-foreground">
-                Координаты: {shift.latitude}, {shift.longitude}
+                Координаты: {liveShift.latitude}, {liveShift.longitude}
               </p>
               <a
                 href={mapsUrl}
@@ -192,7 +210,7 @@ export function ShiftDetailModal({ shift, open, onClose, onDelete }: ShiftDetail
                 type="button"
                 variant="outline"
                 className="text-destructive"
-                onClick={() => onDelete(shift)}
+                onClick={() => onDelete(liveShift)}
               >
                 Удалить смену
               </Button>
@@ -219,12 +237,12 @@ export function ShiftDetailModal({ shift, open, onClose, onDelete }: ShiftDetail
       </Dialog>
 
       <CloseShiftModal
-        shiftId={shift.id}
-        employeeId={shift.employeeId}
-        startTime={shift.startTime}
-        shiftDate={shift.date}
-        equipmentName={shift.equipment || undefined}
-        equipmentMeterType={shift.equipmentMeterType}
+        shiftId={liveShift.id}
+        employeeId={liveShift.employeeId}
+        startTime={liveShift.startTime}
+        shiftDate={liveShift.date}
+        equipmentName={liveShift.equipment || undefined}
+        equipmentMeterType={liveShift.equipmentMeterType}
         open={closeModalOpen}
         onClose={() => setCloseModalOpen(false)}
         onSuccess={onClose}
@@ -232,9 +250,10 @@ export function ShiftDetailModal({ shift, open, onClose, onDelete }: ShiftDetail
 
       {isManager ? (
         <EditShiftModal
-          shift={shift}
+          shift={liveShift}
           open={editModalOpen}
           onClose={() => setEditModalOpen(false)}
+          onUpdated={setLiveShift}
         />
       ) : null}
     </>

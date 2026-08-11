@@ -74,6 +74,7 @@ export function OrgModal({ open, onOpenChange, organization, onCreated }: OrgMod
         trialEndsAt: organization.trialEndsAt,
         isActive: organization.isActive,
         marketplaceEnabled: organization.marketplaceEnabled === true,
+        region: organization.region ?? null,
       })
       return
     }
@@ -108,7 +109,8 @@ export function OrgModal({ open, onOpenChange, organization, onCreated }: OrgMod
         ownerEmail: values.ownerEmail,
         plan: values.plan,
         maxEmployees: values.maxEmployees,
-        trialEndsAt: values.plan === 'trial' ? values.trialEndsAt : null,
+        trialEndsAt: values.trialEndsAt,
+        region: values.region,
       })
       onOpenChange(false)
       onCreated?.(result)
@@ -119,13 +121,19 @@ export function OrgModal({ open, onOpenChange, organization, onCreated }: OrgMod
 
   const busy = isSubmitting || createOrg.isPending || updateOrg.isPending
 
+  const handleOpenChange = (next: boolean) => {
+    // Keep the form open while a request is in flight (Cancel/X still work after it finishes).
+    if (!next && busy) return
+    onOpenChange(next)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange} disablePointerDismissal>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Редактировать организацию' : 'Новая организация'}</DialogTitle>
         </DialogHeader>
-        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+        <form className="space-y-4" noValidate onSubmit={handleSubmit(onSubmit)}>
           {isEdit && organization ? (
             <OrgSummaryBlock organization={organization} hierarchyLabel={hierarchyLabel} />
           ) : (
@@ -137,7 +145,9 @@ export function OrgModal({ open, onOpenChange, organization, onCreated }: OrgMod
             control={control}
             errors={errors}
             watch={watch}
+            setValue={setValue}
             showActiveToggle={isEdit}
+            applyPlanEmployeeDefaults={!isEdit}
           />
 
           {isEdit ? <OrgPlatformFeaturesBlock control={control} errors={errors} /> : null}

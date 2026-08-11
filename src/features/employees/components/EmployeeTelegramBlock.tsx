@@ -76,7 +76,7 @@ export function EmployeeTelegramBlock({
           value={value}
           onChange={(event) => setValue(event.target.value)}
           placeholder="123456789"
-          className="min-w-[10rem] flex-1"
+          className="min-w-0 w-full flex-1 basis-full sm:basis-auto sm:min-w-[10rem]"
         />
         <Button
           type="button"

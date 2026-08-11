@@ -29,7 +29,7 @@ describe('superadmin org form schema', () => {
     expect(parsed.success).toBe(true)
   })
 
-  it('update payload clears trial date for non-trial plans and sends marketplace explicitly', () => {
+  it('update payload keeps subscription end date for any plan and sends marketplace explicitly', () => {
     const payload = buildOrgUpdatePayload({
       ...ORG_FORM_DEFAULTS,
       plan: 'pro',
@@ -40,9 +40,10 @@ describe('superadmin org form schema', () => {
     expect(payload).toEqual({
       plan: 'pro',
       maxEmployees: 10,
-      trialEndsAt: null,
+      trialEndsAt: '2026-12-31',
       isActive: false,
       marketplaceEnabled: true,
+      region: null,
     })
     expect(payload).not.toHaveProperty('name')
     expect(payload).not.toHaveProperty('slug')

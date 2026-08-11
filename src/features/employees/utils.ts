@@ -40,3 +40,16 @@ export function getStatusLabel(isActive: boolean): string {
 export function formatTelegramId(telegramId: string): string {
   return telegramId.trim() ? telegramId : '—'
 }
+
+/** Next free EMP### login from existing codes (UI autofill when login left empty). */
+export function suggestNextEmployeeLogin(existingCodes: string[]): string {
+  let maxNum = 0
+  for (const raw of existingCodes) {
+    const match = /^EMP(\d+)$/i.exec(raw.trim())
+    if (!match) continue
+    const n = Number.parseInt(match[1], 10)
+    if (!Number.isNaN(n) && n > maxNum) maxNum = n
+  }
+  const next = maxNum + 1
+  return `EMP${String(next).padStart(3, '0')}`
+}

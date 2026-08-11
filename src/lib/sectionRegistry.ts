@@ -22,8 +22,8 @@ export const SECTION_REGISTRY: readonly SectionDefinition[] = [
   {
     key: 'my-shift',
     title: 'Моя смена',
-    route: '/my-shift',
-    showInSidebar: true,
+    route: '/workspace',
+    showInSidebar: false,
     showInEmployeeHome: false,
     employeeGrantable: true,
     alwaysVisibleForEmployee: true,
@@ -52,6 +52,15 @@ export const SECTION_REGISTRY: readonly SectionDefinition[] = [
     route: '/agro-calendar',
     showInSidebar: true,
     showInEmployeeHome: true,
+    employeeGrantable: true,
+    alwaysVisibleForEmployee: false,
+  },
+  {
+    key: 'tasks',
+    title: 'Задачи',
+    route: '/workspace',
+    showInSidebar: false,
+    showInEmployeeHome: false,
     employeeGrantable: true,
     alwaysVisibleForEmployee: false,
   },
@@ -121,7 +130,7 @@ export const SECTION_REGISTRY: readonly SectionDefinition[] = [
   },
   {
     key: 'shipments',
-    title: 'Отгрузки урожая',
+    title: 'Отгрузки',
     route: '/shipments',
     showInSidebar: true,
     showInEmployeeHome: true,
@@ -130,7 +139,7 @@ export const SECTION_REGISTRY: readonly SectionDefinition[] = [
   },
   {
     key: 'expenses',
-    title: 'Затраты',
+    title: 'Затраты и доходы',
     route: '/expenses',
     showInSidebar: true,
     showInEmployeeHome: true,
@@ -139,10 +148,10 @@ export const SECTION_REGISTRY: readonly SectionDefinition[] = [
   },
   {
     key: 'analytics',
-    title: 'Прогноз и оптимизация',
-    route: '/analytics/forecast',
-    showInSidebar: true,
-    showInEmployeeHome: true,
+    title: 'Факт и прогноз',
+    route: '/expenses',
+    showInSidebar: false,
+    showInEmployeeHome: false,
     employeeGrantable: true,
     alwaysVisibleForEmployee: false,
   },
@@ -197,7 +206,7 @@ export const EMPLOYEE_LOCKED_SECTIONS: string[] = SECTION_REGISTRY.filter(
  * Default employee grants when org has no custom role_permissions.employee.
  * Includes sharing as a convenient default — still revocable in Settings.
  */
-export const DEFAULT_EMPLOYEE_SECTIONS: string[] = ['my-shift', 'sharing']
+export const DEFAULT_EMPLOYEE_SECTIONS: string[] = ['my-shift', 'sharing', 'tasks']
 
 export function getSectionByKey(key: string): SectionDefinition | undefined {
   return SECTION_REGISTRY.find((s) => s.key === key)

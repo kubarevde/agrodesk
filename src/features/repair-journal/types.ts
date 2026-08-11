@@ -1,4 +1,4 @@
-export type RepairStatus = 'in_progress' | 'waiting_parts' | 'done'
+export type RepairStatus = 'in_progress' | 'done' | 'cancelled' | string
 export type RepairPriority = 'urgent' | 'normal' | 'low'
 export type ChecklistItemType = 'buy' | 'repair'
 
@@ -23,7 +23,8 @@ export type RepairJournalEntry = {
   date: string
   type: string
   description: string | null
-  status: RepairStatus | string
+  status: RepairStatus
+  waitingParts: boolean
   priority: RepairPriority | string
   dateReturned: string | null
   meterAt: number | null
@@ -42,6 +43,9 @@ export type ActiveRepairsSummary = {
 
 export type RepairFilters = {
   status?: string
+  waitingParts?: boolean
+  /** Combined: in_progress OR waiting_parts */
+  attention?: boolean
   equipmentId?: string
   implementId?: string
   priority?: string
@@ -65,6 +69,7 @@ export type RepairCreatePayload = {
   meterAt?: number | null
   cost?: number | null
   status?: RepairStatus
+  waitingParts?: boolean
   checklistItems?: ChecklistItemInput[]
 }
 
@@ -76,6 +81,7 @@ export type RepairUpdatePayload = {
   meterAt?: number | null
   cost?: number | null
   status?: RepairStatus
+  waitingParts?: boolean
   dateReturned?: string | null
   expenseId?: string | null
   createExpense?: boolean

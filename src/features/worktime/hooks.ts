@@ -173,12 +173,40 @@ export function useCloseShift() {
         queryClient.invalidateQueries({ queryKey: ['equipment'] }),
         queryClient.invalidateQueries({ queryKey: ['agro-plan'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+        queryClient.invalidateQueries({ queryKey: ['piecework-records'] }),
       ])
       const hours = result.shift.durationRounded ?? 0
       toast.success(`Смена закрыта — ${hours} ч`)
     },
     onError: (error) => {
       toast.error(apiErrorMessage(error, 'Не удалось закрыть смену'))
+    },
+  })
+}
+
+export type ShiftPayScheme = {
+  paymentScheme: string
+  pieceworkUnit: string | null
+  rate: number | null
+  source: string
+  units: string[]
+}
+
+export function useShiftPayScheme(shiftId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['shift-pay-scheme', shiftId],
+    enabled: Boolean(shiftId) && enabled && navigator.onLine,
+    queryFn: async (): Promise<ShiftPayScheme> => {
+      const { data } = await api.get<Record<string, unknown>>(
+        `/api/shifts/${shiftId}/pay-scheme`,
+      )
+      return {
+        paymentScheme: String(data.payment_scheme ?? 'hourly'),
+        pieceworkUnit: data.piecework_unit != null ? String(data.piecework_unit) : null,
+        rate: data.rate != null ? Number(data.rate) : null,
+        source: String(data.source ?? ''),
+        units: Array.isArray(data.units) ? data.units.map(String) : [],
+      }
     },
   })
 }
@@ -216,7 +244,13 @@ export function useUpdateShift() {
       return shiftFromApi(data)
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['shifts'] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['shifts'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+        queryClient.invalidateQueries({ queryKey: ['audit-log'] }),
+        queryClient.invalidateQueries({ queryKey: ['salary-preview'] }),
+        queryClient.invalidateQueries({ queryKey: ['employees', 'salary'] }),
+      ])
     },
   })
 }

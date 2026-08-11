@@ -6,8 +6,11 @@ import {
 } from './guide'
 import {
   GUIDE_VERSION,
+  GUIDE_STORAGE_KEY,
+  consumeFirstLoginGuideRedirect,
   loadGuideProgress,
   saveGuideProgress,
+  shouldOpenGuideOnLogin,
   shouldShowGuideNudge,
   type GuideProgress,
 } from './guideStorage'
@@ -50,6 +53,7 @@ describe('GUIDE_CATALOG_IDS', () => {
       'harvest-flow',
       'equipment',
       'people',
+      'expenses',
       'reports',
       'settings',
       'control-gaps',
@@ -77,6 +81,16 @@ describe('GUIDE_CATALOG_IDS', () => {
 })
 
 describe('getGuideStepsForUser', () => {
+  it('orders manager setup: settings → people → fields → inventory', () => {
+    const ids = getGuideStepsForUser('admin', undefined).map((s) => s.id)
+    expect(ids.indexOf('settings')).toBeLessThan(ids.indexOf('people'))
+    expect(ids.indexOf('people')).toBeLessThan(ids.indexOf('fields'))
+    expect(ids.indexOf('fields')).toBeLessThan(ids.indexOf('inventory'))
+    expect(ids.indexOf('inventory')).toBeLessThan(ids.indexOf('equipment'))
+    expect(ids.indexOf('equipment')).toBeLessThan(ids.indexOf('daily'))
+    expect(ids).toContain('expenses')
+  })
+
   it('hides admin-only steps for employee', () => {
     const steps = getGuideStepsForUser('employee', ['my-shift', 'agro-calendar'])
     const ids = steps.map((s) => s.id)
@@ -122,9 +136,9 @@ describe('getGuideStepsForUser', () => {
     const manager = getGuideStepsForUser('manager', sections)
     const admin = getGuideStepsForUser('admin', [...sections, 'settings'])
     expect(manager.length).toBeGreaterThanOrEqual(10)
-    expect(manager.length).toBeLessThanOrEqual(16)
+    expect(manager.length).toBeLessThanOrEqual(20)
     expect(admin.length).toBeGreaterThanOrEqual(10)
-    expect(admin.length).toBeLessThanOrEqual(17)
+    expect(admin.length).toBeLessThanOrEqual(22)
     expect(admin.map((s) => s.id)).toContain('settings')
     expect(manager.map((s) => s.id)).toContain('harvest-flow')
     expect(manager.map((s) => s.id)).not.toContain('settings')
@@ -166,6 +180,7 @@ describe('shouldShowGuideNudge', () => {
     completedAt: null,
     stepIndex: 0,
     lastSectionId: null,
+    firstLoginRedirectAt: null,
   }
 
   it('shows when not completed or dismissed', () => {
@@ -177,24 +192,49 @@ describe('shouldShowGuideNudge', () => {
   })
 })
 
+describe('shouldOpenGuideOnLogin / consumeFirstLoginGuideRedirect', () => {
+  const employeeId = 'emp-1'
+  const pristine: GuideProgress = {
+    version: GUIDE_VERSION,
+    dismissedAt: null,
+    completedAt: null,
+    stepIndex: 0,
+    lastSectionId: null,
+    firstLoginRedirectAt: null,
+  }
+
+  it('opens once for a pristine user and skips the next login', () => {
+    expect(shouldOpenGuideOnLogin(pristine)).toBe(true)
+    expect(consumeFirstLoginGuideRedirect(employeeId)).toBe(true)
+    expect(consumeFirstLoginGuideRedirect(employeeId)).toBe(false)
+    expect(loadGuideProgress(employeeId).firstLoginRedirectAt).toBeTruthy()
+  })
+
+  it('does not open after complete or dismiss', () => {
+    expect(shouldOpenGuideOnLogin({ ...pristine, completedAt: '2026-01-01' })).toBe(false)
+    expect(shouldOpenGuideOnLogin({ ...pristine, dismissedAt: '2026-01-01' })).toBe(false)
+  })
+})
+
 describe('guideStorage lastSectionId', () => {
-  it('round-trips lastSectionId and version defaults', () => {
-    const key = 'agrodesk_system_guide_v1'
-    localStorage.removeItem(key)
-    saveGuideProgress({
+  it('round-trips lastSectionId and version defaults per employee', () => {
+    const employeeId = 'emp-storage'
+    localStorage.removeItem(`${GUIDE_STORAGE_KEY}:${employeeId}`)
+    saveGuideProgress(employeeId, {
       version: GUIDE_VERSION,
       dismissedAt: null,
       completedAt: null,
       stepIndex: 3,
       lastSectionId: 'inventory',
+      firstLoginRedirectAt: null,
     })
-    const loaded = loadGuideProgress()
+    const loaded = loadGuideProgress(employeeId)
     expect(loaded.lastSectionId).toBe('inventory')
     expect(loaded.stepIndex).toBe(3)
     expect(loaded.version).toBe(GUIDE_VERSION)
 
     localStorage.setItem(
-      key,
+      `${GUIDE_STORAGE_KEY}:${employeeId}`,
       JSON.stringify({
         version: 1,
         dismissedAt: null,
@@ -202,9 +242,29 @@ describe('guideStorage lastSectionId', () => {
         stepIndex: 1,
       }),
     )
-    const legacy = loadGuideProgress()
+    const legacy = loadGuideProgress(employeeId)
     expect(legacy.lastSectionId).toBeNull()
     expect(legacy.stepIndex).toBe(1)
+    expect(legacy.firstLoginRedirectAt).toBeNull()
+  })
+
+  it('migrates legacy global key into employee-scoped storage', () => {
+    const employeeId = 'emp-migrate'
+    localStorage.setItem(
+      GUIDE_STORAGE_KEY,
+      JSON.stringify({
+        version: 2,
+        dismissedAt: null,
+        completedAt: '2026-02-01',
+        stepIndex: 2,
+        lastSectionId: 'fields',
+      }),
+    )
+    const loaded = loadGuideProgress(employeeId)
+    expect(loaded.completedAt).toBe('2026-02-01')
+    expect(loaded.lastSectionId).toBe('fields')
+    expect(localStorage.getItem(GUIDE_STORAGE_KEY)).toBeNull()
+    expect(localStorage.getItem(`${GUIDE_STORAGE_KEY}:${employeeId}`)).toBeTruthy()
   })
 })
 

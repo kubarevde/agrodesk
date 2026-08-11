@@ -174,6 +174,81 @@ export function formatMonthLabel(monthKey: string): string {
   }
 }
 
+function formatMonthKey(date: Date): string {
+  return format(date, 'yyyy-MM')
+}
+
+/**
+ * Chart window for «Что было и что ожидается»:
+ * one calendar year from organization creation.
+ * After the first year — rolling last 12 months (never before creation).
+ */
+export function resolveFactForecastChartRange(
+  orgCreatedAt: string | Date | null | undefined,
+  now = new Date(),
+): { startMonth: string; endMonth: string } {
+  const created = orgCreatedAt ? new Date(orgCreatedAt) : now
+  const orgMonth = new Date(created.getFullYear(), created.getMonth(), 1)
+  const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  const firstYearEnd = addMonths(orgMonth, 11)
+
+  if (currentMonth.getTime() <= firstYearEnd.getTime()) {
+    return {
+      startMonth: formatMonthKey(orgMonth),
+      endMonth: formatMonthKey(firstYearEnd),
+    }
+  }
+
+  const rollingStart = addMonths(currentMonth, -11)
+  const start = rollingStart.getTime() < orgMonth.getTime() ? orgMonth : rollingStart
+  return {
+    startMonth: formatMonthKey(start),
+    endMonth: formatMonthKey(currentMonth),
+  }
+}
+
+export function listMonthKeysInclusive(startMonth: string, endMonth: string): string[] {
+  const out: string[] = []
+  let cursor = parseISO(`${startMonth}-01`)
+  const end = parseISO(`${endMonth}-01`)
+  if (Number.isNaN(cursor.getTime()) || Number.isNaN(end.getTime()) || cursor > end) {
+    return out
+  }
+  while (cursor <= end) {
+    out.push(formatMonthKey(cursor))
+    cursor = addMonths(cursor, 1)
+  }
+  return out
+}
+
+/** Keep history rows inside the chart window; pad missing months with zeros. */
+export function windowForecastHistory(
+  history: ForecastHistoryRow[],
+  orgCreatedAt: string | Date | null | undefined,
+  now = new Date(),
+): ForecastHistoryRow[] {
+  const { startMonth, endMonth } = resolveFactForecastChartRange(orgCreatedAt, now)
+  const currentMonth = format(new Date(now.getFullYear(), now.getMonth(), 1), 'yyyy-MM')
+  // Pad fact months only through "now" (or window end if already past); forecast point is appended in the chart.
+  const padEnd = currentMonth < endMonth ? currentMonth : endMonth
+  const byMonth = new Map(history.map((row) => [row.month, row]))
+  return listMonthKeysInclusive(startMonth, padEnd).map((month) => {
+    const existing = byMonth.get(month)
+    if (existing) return existing
+    return {
+      month,
+      totalExpenses: 0,
+      totalIncome: 0,
+      totalMargin: 0,
+      totalShiftCost: 0,
+      totalMaintenanceCost: 0,
+      criticalInventoryCount: 0,
+      plannedWorkload: 0,
+      byCategory: {},
+    }
+  })
+}
+
 export function humanizeRecommendationTitle(title: string): string {
   return title.replace(/«([a-z_]+)»/gi, (_, cat: string) => {
     const label = LEGACY_EXPENSE_CATEGORY_LABELS[cat.toLowerCase()]
@@ -245,7 +320,7 @@ export function getRecommendationActionLink(
     return { label: 'Открыть технику', to: '/equipment' }
   }
   if (type === 'expense_category' || type === 'finance') {
-    return { label: 'Открыть расходы', to: '/expenses' }
+    return { label: 'Открыть затраты', to: '/expenses' }
   }
   return null
 }

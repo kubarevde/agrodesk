@@ -59,6 +59,22 @@ export function groupShipmentsByCrop(
   }))
 }
 
+/** Apply harvest list filters that may also be sent to the API. */
+export function filterHarvestShipments(
+  shipments: Shipment[],
+  filters: { cropType?: string; varietyId?: string },
+): Shipment[] {
+  const cropType = filters.cropType?.trim()
+  const varietyId = filters.varietyId?.trim()
+  if (!cropType && !varietyId) return shipments
+
+  return shipments.filter((row) => {
+    if (cropType && row.cropType !== cropType) return false
+    if (varietyId && row.varietyId !== varietyId) return false
+    return true
+  })
+}
+
 /** ISO date (yyyy-MM-dd) from completedAt / plannedAt for range checks. */
 export function isoDay(value: string | null | undefined): string | null {
   if (!value) return null

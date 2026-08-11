@@ -6,7 +6,7 @@ import {
   Trash2,
   Wrench,
 } from 'lucide-react'
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,6 +19,7 @@ import {
   meterProgress,
   nextServiceHours,
 } from '@/features/equipment/types'
+import { mediaUrl } from '@/lib/media'
 import { implementToStatus, type ImplementResponse } from '../types'
 import { ImplementCategoryBadge } from './ImplementCategoryBadge'
 
@@ -58,6 +59,7 @@ export function ImplementCard({
     item.next_service_hours,
     item.maintenance,
   )
+  const suppressNavRef = useRef(false)
 
   const actions = useMemo((): CardActionItem[] => {
     const list: CardActionItem[] = []
@@ -95,26 +97,60 @@ export function ImplementCard({
     return list
   }, [canDelete, canManage, item, onDelete, onDetach, onMaintenance, onShare])
 
+  const openDetails = () => {
+    if (suppressNavRef.current) return
+    onDetails(item)
+  }
+
+  const attached = Boolean(item.current_equipment_id)
+
   return (
     <Card
       className="flex cursor-pointer flex-col overflow-hidden transition-colors hover:border-primary/40"
       data-testid="implement-card"
       role="link"
       tabIndex={0}
-      onClick={() => onDetails(item)}
+      onClick={openDetails}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
-          onDetails(item)
+          openDetails()
         }
       }}
     >
-      <CardHeader className="space-y-2 pb-2">
+      {item.image_url ? (
+        <div className="flex h-24 w-full items-center justify-center bg-muted sm:h-32">
+          <img
+            src={mediaUrl(item.image_url)}
+            alt={item.name}
+            className="max-h-24 w-full object-contain sm:max-h-32"
+          />
+        </div>
+      ) : (
+        <div className="flex h-20 w-full items-center justify-center bg-muted text-muted-foreground sm:h-28">
+          <Wrench className="size-7 opacity-50 sm:size-8" />
+        </div>
+      )}
+
+      <CardHeader className="space-y-2 p-3 pb-2 sm:p-4 sm:pb-2">
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="min-w-0 text-lg font-semibold leading-snug break-words text-foreground">
+          <CardTitle className="min-w-0 flex-1 text-base font-semibold leading-snug break-words text-foreground sm:text-lg">
             {item.name}
           </CardTitle>
-          <CardActionsMenu actions={actions} title={item.name} />
+          {actions.length > 0 ? (
+            <CardActionsMenu
+              actions={actions}
+              title={item.name}
+              onOpenChange={(menuOpen) => {
+                if (!menuOpen) {
+                  suppressNavRef.current = true
+                  window.setTimeout(() => {
+                    suppressNavRef.current = false
+                  }, 400)
+                }
+              }}
+            />
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -129,7 +165,7 @@ export function ImplementCard({
         </div>
       </CardHeader>
 
-      <CardContent className="flex flex-1 flex-col gap-3">
+      <CardContent className="flex flex-1 flex-col gap-2 p-3 pt-0 sm:gap-3 sm:p-4 sm:pt-0">
         <div className="space-y-1">
           {nextAt != null ? (
             <>
@@ -139,10 +175,14 @@ export function ImplementCard({
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                {item.current_usage_hours} ч → ТО на {nextAt} ч
-                {remaining != null ? ` (осталось ${remaining})` : ''}
-              </p>
+              <div className="text-xs text-muted-foreground">
+                <p className="tabular-nums">
+                  {item.current_usage_hours} ч
+                  <span className="text-muted-foreground/80"> → </span>
+                  ТО на {nextAt} ч
+                </p>
+                {remaining != null ? <p className="mt-0.5">Осталось {remaining}</p> : null}
+              </div>
             </>
           ) : (
             <p className="text-sm font-medium tabular-nums text-foreground">
@@ -158,7 +198,11 @@ export function ImplementCard({
           )}
         </div>
 
-        <AssetPurchasePlannerHint implementId={item.id} />
+        <AssetPurchasePlannerHint
+          implementId={item.id}
+          linkLabel="Открыть закупки"
+          className="px-2.5 py-1.5"
+        />
 
         {canManage ? (
           <div
@@ -169,10 +213,10 @@ export function ImplementCard({
             <Button
               type="button"
               className="min-h-11 flex-1 bg-primary text-primary-foreground hover:bg-primary-hover sm:min-h-10"
-              onClick={() => onAttach(item)}
+              onClick={() => (attached ? onDetach(item) : onAttach(item))}
             >
-              <Link2 className="size-4" />
-              Прикрепить
+              {attached ? <Link2Off className="size-4" /> : <Link2 className="size-4" />}
+              {attached ? 'Открепить' : 'Прикрепить'}
             </Button>
             <Button
               type="button"

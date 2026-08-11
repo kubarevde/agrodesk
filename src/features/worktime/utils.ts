@@ -24,8 +24,38 @@ export const SHIFT_TIME_SLOTS = Array.from({ length: 48 }, (_, index) => {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 })
 
+/** Ensure current HH:mm is selectable even if not on the 30-minute grid. */
+export function shiftTimeOptions(current?: string | null): string[] {
+  const base = [...SHIFT_TIME_SLOTS]
+  const slot = current?.slice(0, 5)
+  if (slot && /^\d{2}:\d{2}$/.test(slot) && !base.includes(slot)) {
+    base.push(slot)
+    base.sort()
+  }
+  return base
+}
+
 export function toShiftTimeValue(time: string): string {
   return time.length === 5 ? `${time}:00` : time
+}
+
+/** Infer end calendar day when API has no end_date (legacy overnight). */
+export function inferShiftEndDate(shift: {
+  date: string
+  startTime: string
+  endTime: string | null
+  endDate?: string | null
+}): string {
+  if (shift.endDate) return shift.endDate
+  if (!shift.endTime) return shift.date
+  const start = formatShiftTime(shift.startTime)
+  const end = formatShiftTime(shift.endTime)
+  if (start !== '—' && end !== '—' && end < start) {
+    const next = parseApiDate(shift.date)
+    next.setDate(next.getDate() + 1)
+    return formatApiDate(next)
+  }
+  return shift.date
 }
 
 export function calcShiftDurationMinutes(

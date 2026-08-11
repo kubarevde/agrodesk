@@ -1,12 +1,26 @@
 import { z } from 'zod'
 import { parseApiDate } from '@/features/worktime/utils'
+import { parseIsoDate } from '@/lib/dates'
 
 const requiredNumber = (message: string) => z.number({ error: message })
 
+function parseFormDate(value: string): Date | undefined {
+  const iso = parseIsoDate(value)
+  if (iso) return iso
+  // Legacy inventory forms used dd.MM.yyyy before shared DatePicker.
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(value.trim())) {
+    const parsed = parseApiDate(value)
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed
+  }
+  return undefined
+}
+
 function dateNotInFuture(value: string) {
-  const selected = parseApiDate(value)
+  const selected = parseFormDate(value)
+  if (!selected) return false
   const today = new Date()
   today.setHours(0, 0, 0, 0)
+  selected.setHours(0, 0, 0, 0)
   return selected <= today
 }
 
@@ -46,6 +60,8 @@ export const inventoryItemSchema = z
     isActive: z.boolean(),
     /** Required when category=harvest — org crop dictionary code */
     cropCode: z.string().max(80).optional().or(z.literal('')),
+    /** Optional variety for harvest SKU */
+    varietyId: z.string().optional().nullable().or(z.literal('')),
   })
   .superRefine((values, ctx) => {
     if (values.category.trim().toLowerCase() !== 'harvest') return

@@ -12,6 +12,9 @@ export const shipmentSchema = z.object({
   notes: z.string().optional(),
   /** Optional managerial link to a done harvest shipment_request */
   shipmentRequestId: z.string().optional().or(z.literal('')),
+  varietyId: z.string().optional().nullable().or(z.literal('')),
+  fieldId: z.string().optional().nullable().or(z.literal('')),
+  fieldPlantingId: z.string().optional().nullable().or(z.literal('')),
 })
 
 export type ShipmentFormValues = z.infer<typeof shipmentSchema>

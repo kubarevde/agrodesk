@@ -2,8 +2,8 @@ import { cn } from '@/lib/utils'
 import { resolveDictionaryLabel } from '@/features/dictionaries/labels'
 import { useDictionary } from '@/features/dictionaries/hooks'
 import {
-  formatMoney,
   formatPlannedAt,
+  formatQtyPrice,
   isOverdue,
   isUrgent,
   PRIORITY_LABELS,
@@ -57,11 +57,14 @@ export function ShipmentRequestsCards({
             <p className="text-xs text-muted-foreground">
               {categoryColumnLabel(row.inventoryItemCategory, row.isHarvest)}
               {cropName ? ` · ${cropName}` : ''}
+              {row.varietyName ? ` · ${row.varietyName}` : ''}
             </p>
             <p className="text-sm text-muted-foreground">{row.customerName}</p>
+            {row.comment ? (
+              <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{row.comment}</p>
+            ) : null}
             <p className="mt-1 text-sm text-foreground">
-              {row.quantity.toLocaleString('ru-RU')} {row.inventoryItemUnit} ·{' '}
-              {formatMoney(row.price)}
+              {formatQtyPrice(row.quantity, row.inventoryItemUnit, row.price)}
             </p>
             <p
               className={cn(

@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Plus } from 'lucide-react'
 import { useEffect } from 'react'
 import { Controller, useForm } from 'react-hook-form'
+import { AutocompleteInput } from '@/components/shared/AutocompleteInput'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -20,6 +21,7 @@ import { ActiveToggle } from './StatusControls'
 interface WorkTypeFormModalProps {
   open: boolean
   workType?: WorkType | null
+  nameSuggestions?: string[]
   onClose: () => void
 }
 
@@ -30,7 +32,12 @@ const defaults: WorkTypeFormValues = {
   isActive: true,
 }
 
-export function WorkTypeFormModal({ open, workType, onClose }: WorkTypeFormModalProps) {
+export function WorkTypeFormModal({
+  open,
+  workType,
+  nameSuggestions = [],
+  onClose,
+}: WorkTypeFormModalProps) {
   const isEdit = Boolean(workType)
   const createWorkType = useCreateWorkType()
   const updateWorkType = useUpdateWorkType()
@@ -39,11 +46,14 @@ export function WorkTypeFormModal({ open, workType, onClose }: WorkTypeFormModal
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<WorkTypeFormValues>({
     resolver: zodResolver(workTypeSchema),
     defaultValues: defaults,
   })
+  const nameValue = watch('name')
 
   useEffect(() => {
     if (!open) {
@@ -80,7 +90,15 @@ export function WorkTypeFormModal({ open, workType, onClose }: WorkTypeFormModal
         >
           <div className="space-y-2">
             <Label htmlFor="work-type-name">Название</Label>
-            <Input id="work-type-name" {...register('name')} />
+            <AutocompleteInput
+              id="work-type-name"
+              value={nameValue}
+              onChange={(next) =>
+                setValue('name', next, { shouldDirty: true, shouldValidate: true })
+              }
+              suggestions={nameSuggestions}
+              aria-invalid={Boolean(errors.name)}
+            />
             {errors.name ? (
               <p className="text-xs text-destructive">{errors.name.message}</p>
             ) : null}

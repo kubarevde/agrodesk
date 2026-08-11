@@ -1,11 +1,26 @@
 import type { InventoryItem } from '@/types'
 import { getCategoryLabel, isHarvestCategory } from '@/features/inventory/utils'
 
-/** Active warehouse items for shipment-request form — all categories, including harvest. */
+type SelectableOptions = {
+  /** Drop harvest / crop warehouse items (TMC-only forms). */
+  excludeHarvest?: boolean
+}
+
+/** Active warehouse items for shipment-request form — optionally by category. */
 export function selectableInventoryItemsForRequest(
   items: InventoryItem[],
+  category?: string | null,
+  options?: SelectableOptions,
 ): InventoryItem[] {
-  return items.filter((item) => item.isActive !== false)
+  let active = items.filter((item) => item.isActive !== false)
+  if (options?.excludeHarvest) {
+    active = active.filter(
+      (item) => !isHarvestCategory(item.category) && item.isHarvest !== true,
+    )
+  }
+  const code = (category ?? '').trim()
+  if (!code || code === 'all') return active
+  return active.filter((item) => item.category === code)
 }
 
 export function shipmentRequestItemOptionLabel(item: InventoryItem): string {

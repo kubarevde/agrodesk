@@ -1,11 +1,9 @@
-import { format } from 'date-fns'
-import { ru } from 'date-fns/locale'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CalendarIcon, Loader2, Minus } from 'lucide-react'
+import { Loader2, Minus } from 'lucide-react'
 import { useEffect } from 'react'
 import { Controller, useForm } from 'react-hook-form'
+import { DatePicker } from '@/components/shared/DatePicker'
 import { Button } from '@/components/ui/button'
-import { Calendar } from '@/components/ui/calendar'
 import {
   Dialog,
   DialogContent,
@@ -15,7 +13,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -25,9 +22,9 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import type { InventoryItem } from '@/types'
-import { formatApiDate, parseApiDate } from '@/features/worktime/utils'
 import { useCreateExpense } from '@/features/inventory/hooks'
 import { expenseSchema, type ExpenseFormValues } from '@/features/inventory/schemas'
+import { formatIsoDate } from '@/lib/dates'
 import { numberInputRegister } from '@/lib/formNumbers'
 
 interface ExpenseModalProps {
@@ -41,7 +38,7 @@ function getDefaultValues(): Partial<ExpenseFormValues> {
     itemId: '',
     quantity: undefined,
     reason: '',
-    date: formatApiDate(new Date()),
+    date: formatIsoDate(new Date()),
   }
 }
 
@@ -72,8 +69,6 @@ export function ExpenseModal({ open, items, onClose }: ExpenseModalProps) {
     await createExpense.mutateAsync(values)
     handleClose()
   }
-
-  const today = new Date()
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
@@ -128,33 +123,19 @@ export function ExpenseModal({ open, items, onClose }: ExpenseModalProps) {
           </div>
 
           <div className="space-y-2">
-            <Label>Дата списания</Label>
+            <Label htmlFor="expense-date">Дата списания</Label>
             <Controller
               name="date"
               control={control}
-              render={({ field }) => {
-                const selected = field.value ? parseApiDate(field.value) : undefined
-                const label = selected ? format(selected, 'dd.MM.yyyy') : 'Выберите дату'
-
-                return (
-                  <Popover>
-                    <PopoverTrigger className="inline-flex h-8 w-full items-center justify-start gap-2 rounded-lg border border-input bg-transparent px-2.5 text-sm font-normal">
-                      <CalendarIcon className="size-4 text-muted-foreground" />
-                      {label}
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        locale={ru}
-                        selected={selected}
-                        disabled={(date) => date > today}
-                        onSelect={(value) => value && field.onChange(formatApiDate(value))}
-                        defaultMonth={selected}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                )
-              }}
+              render={({ field }) => (
+                <DatePicker
+                  id="expense-date"
+                  value={field.value || undefined}
+                  onChange={(next) => field.onChange(next ?? '')}
+                  disableFuture
+                  className="min-h-11 sm:min-h-9"
+                />
+              )}
             />
             {errors.date ? (
               <p className="text-xs text-destructive">{errors.date.message}</p>

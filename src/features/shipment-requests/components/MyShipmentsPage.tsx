@@ -8,15 +8,17 @@ import { hasAction } from '@/lib/permissionActions'
 import { useMyShipmentRequests, useStartShipmentRequest } from '../hooks'
 import type { ShipmentRequest } from '../types'
 import { MyShipmentCompleteDialog } from './MyShipmentCompleteDialog'
+import { MyShipmentRequestDetailSheet } from './MyShipmentRequestDetailSheet'
 import { MyShipmentRequestsList } from './MyShipmentRequestsList'
 
-export function MyShipmentsPage() {
+export function MyShipmentsPage({ embedded = false }: { embedded?: boolean }) {
   const { data: user } = useCurrentUser()
   const { data: perms } = useUserPermissions()
   const canExecute = hasAction(perms?.actions, 'shipment_requests.execute', user?.role)
   const { data: rows = [], isLoading } = useMyShipmentRequests(canExecute)
   const start = useStartShipmentRequest()
   const [completeRow, setCompleteRow] = useState<ShipmentRequest | null>(null)
+  const [detailRow, setDetailRow] = useState<ShipmentRequest | null>(null)
 
   if (!canExecute) {
     return (
@@ -28,14 +30,23 @@ export function MyShipmentsPage() {
     )
   }
 
+  const busyId = start.isPending ? (start.variables ?? null) : null
+  const liveDetail =
+    detailRow == null
+      ? null
+      : (rows.find((r) => r.id === detailRow.id) ?? detailRow)
+
   return (
-    <div className="mx-auto max-w-lg space-y-6">
-      <div>
+    <div className={embedded ? 'space-y-6' : 'mx-auto max-w-lg space-y-6'}>
+      {embedded ? null : (
+        <div>
           <h1 className="text-2xl font-semibold text-foreground">Мои заявки ТМЦ</h1>
-        <p className="text-sm text-muted-foreground">
-          Заявки без исполнителя и назначенные вам. Списание ТМЦ — только при «Выполнено».
-        </p>
-      </div>
+          <p className="text-sm text-muted-foreground">
+            Заявки без исполнителя и назначенные вам. Списание ТМЦ — только при «Выполнено».
+            Нажмите карточку, чтобы открыть детали.
+          </p>
+        </div>
+      )}
 
       {isLoading ? (
         <Skeleton className="h-48 w-full rounded-xl" />
@@ -48,11 +59,24 @@ export function MyShipmentsPage() {
       ) : (
         <MyShipmentRequestsList
           rows={rows}
-          busyId={start.isPending ? (start.variables ?? null) : null}
+          busyId={busyId}
           onStart={(id) => start.mutate(id)}
           onComplete={setCompleteRow}
+          onOpen={setDetailRow}
         />
       )}
+
+      <MyShipmentRequestDetailSheet
+        row={liveDetail}
+        open={Boolean(detailRow)}
+        busy={busyId === detailRow?.id}
+        onClose={() => setDetailRow(null)}
+        onStart={(id) => start.mutate(id)}
+        onComplete={(row) => {
+          setDetailRow(null)
+          setCompleteRow(row)
+        }}
+      />
 
       <MyShipmentCompleteDialog
         row={completeRow}

@@ -57,7 +57,12 @@ export function ShiftsTable({ shifts, actions }: ShiftsTableProps) {
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
+            <TableRow
+              key={row.id}
+              className="cursor-pointer"
+              data-testid={`shift-row-${row.original.id}`}
+              onClick={() => actions.onDetails(row.original)}
+            >
               {row.getVisibleCells().map((cell) => (
                 <TableCell key={cell.id}>
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}

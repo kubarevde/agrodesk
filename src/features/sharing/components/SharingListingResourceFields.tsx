@@ -5,6 +5,7 @@ import { LabeledSelect } from '@/components/ui/labeled-select'
 import { useFields } from '@/features/fields/hooks'
 import { useImplements } from '@/features/implements/hooks'
 import { useEquipment } from '@/features/worktime/referenceHooks'
+import { reverseGeocodeRegionCode } from '@/lib/maps/geocode'
 import { entityOptions } from '@/lib/selectOptions'
 import type { SharingListingFormValues } from '../schemas'
 
@@ -12,12 +13,26 @@ type Props = {
   control: Control<SharingListingFormValues>
   setValue: UseFormSetValue<SharingListingFormValues>
   disabledResource?: boolean
+  onFieldChange?: () => void
+}
+
+async function applyRegionFromCoords(
+  setValue: UseFormSetValue<SharingListingFormValues>,
+  lat: number | null | undefined,
+  lng: number | null | undefined,
+) {
+  if (lat == null || lng == null) return
+  const code = await reverseGeocodeRegionCode(lat, lng)
+  if (code) {
+    setValue('region', code, { shouldDirty: true, shouldValidate: true })
+  }
 }
 
 export function SharingListingResourceFields({
   control,
   setValue,
   disabledResource,
+  onFieldChange,
 }: Props) {
   const type = useWatch({ control, name: 'type' })
   const title = useWatch({ control, name: 'title' })
@@ -57,8 +72,6 @@ export function SharingListingResourceFields({
     [equipment],
   )
 
-  if (type === 'parts') return null
-
   if (type === 'field') {
     return (
       <div className="space-y-2">
@@ -76,9 +89,13 @@ export function SharingListingResourceFields({
               onValueChange={(value) => {
                 field.onChange(value ?? '')
                 const selected = fields.find((item) => item.id === value)
-                setValue('lat', selected?.latitude ?? null)
-                setValue('lng', selected?.longitude ?? null)
+                const lat = selected?.latitude ?? null
+                const lng = selected?.longitude ?? null
+                setValue('lat', lat)
+                setValue('lng', lng)
                 if (selected && !title) setValue('title', `Аренда: ${selected.name}`)
+                onFieldChange?.()
+                void applyRegionFromCoords(setValue, lat, lng)
               }}
             />
           )}
@@ -104,9 +121,12 @@ export function SharingListingResourceFields({
               onValueChange={(value) => {
                 field.onChange(value ?? '')
                 const selected = equipment.find((item) => item.id === value)
-                setValue('lat', selected?.latitude ?? null)
-                setValue('lng', selected?.longitude ?? null)
+                const lat = selected?.latitude ?? null
+                const lng = selected?.longitude ?? null
+                setValue('lat', lat)
+                setValue('lng', lng)
                 if (selected && !title) setValue('title', selected.name)
+                void applyRegionFromCoords(setValue, lat, lng)
               }}
             />
           )}
@@ -133,6 +153,15 @@ export function SharingListingResourceFields({
                 field.onChange(value ?? '')
                 const selected = implementsList.find((item) => item.id === value)
                 if (selected && !title) setValue('title', selected.name)
+                const linkedId = selected?.current_equipment_id
+                const linked = linkedId
+                  ? equipment.find((item) => item.id === linkedId)
+                  : undefined
+                if (linked?.latitude != null && linked.longitude != null) {
+                  setValue('lat', linked.latitude)
+                  setValue('lng', linked.longitude)
+                  void applyRegionFromCoords(setValue, linked.latitude, linked.longitude)
+                }
               }}
             />
           )}
@@ -150,9 +179,16 @@ export function SharingListingResourceFields({
               value={field.value || 'none'}
               options={relatedEquipmentOptions}
               placeholder="Не выбрано"
-              onValueChange={(value) =>
-                field.onChange(!value || value === 'none' ? '' : value)
-              }
+              onValueChange={(value) => {
+                const next = !value || value === 'none' ? '' : value
+                field.onChange(next)
+                const selected = equipment.find((item) => item.id === next)
+                if (selected?.latitude != null && selected.longitude != null) {
+                  setValue('lat', selected.latitude)
+                  setValue('lng', selected.longitude)
+                  void applyRegionFromCoords(setValue, selected.latitude, selected.longitude)
+                }
+              }}
             />
           )}
         />

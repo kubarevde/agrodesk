@@ -35,10 +35,22 @@ const fuel = {
 const inactive = { ...harvest, id: 'x', isActive: false } as InventoryItem
 
 describe('shipment request item select', () => {
+  it('filters selectable items by category', () => {
+    const list = selectableInventoryItemsForRequest([harvest, fuel, inactive], 'harvest')
+    expect(list.map((i) => i.id)).toEqual(['h1'])
+  })
+
   it('includes harvest SKUs among selectable items', () => {
     const list = selectableInventoryItemsForRequest([harvest, fuel, inactive])
     expect(list.map((i) => i.id)).toEqual(['h1', 'f1'])
     expect(list.some((i) => i.category === 'harvest')).toBe(true)
+  })
+
+  it('excludes harvest when inventoryOnly / excludeHarvest', () => {
+    const list = selectableInventoryItemsForRequest([harvest, fuel, inactive], null, {
+      excludeHarvest: true,
+    })
+    expect(list.map((i) => i.id)).toEqual(['f1'])
   })
 
   it('labels harvest with category in option text', () => {

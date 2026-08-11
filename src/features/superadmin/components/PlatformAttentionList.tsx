@@ -11,7 +11,7 @@ export function PlatformAttentionList({ items }: PlatformAttentionListProps) {
     return (
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Attention</CardTitle>
+          <CardTitle className="text-base">Требует внимания</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">Сейчас нет сигналов, требующих внимания</p>
@@ -23,7 +23,7 @@ export function PlatformAttentionList({ items }: PlatformAttentionListProps) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Attention</CardTitle>
+        <CardTitle className="text-base">Требует внимания</CardTitle>
         <p className="text-xs text-muted-foreground">Только по реальным счётчикам, без трендов</p>
       </CardHeader>
       <CardContent>

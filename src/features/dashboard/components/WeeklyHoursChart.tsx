@@ -27,7 +27,7 @@ function ChartTooltip({ active, payload }: ChartTooltipProps) {
 
   const point = payload[0].payload
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-sm shadow-md">
+    <div className="rounded-lg border border-border bg-popover px-2.5 py-1.5 text-xs shadow-md">
       <p className="font-medium text-foreground">{point.day}</p>
       <p className="text-muted-foreground">{point.hours} ч</p>
       <p className="text-muted-foreground">{point.shiftsCount} смен</p>
@@ -38,26 +38,24 @@ function ChartTooltip({ active, payload }: ChartTooltipProps) {
 export function WeeklyHoursChart({ data }: WeeklyHoursChartProps) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base font-semibold text-foreground">
-          Часы по дням
-        </CardTitle>
+      <CardHeader className="px-4 py-3 pb-1.5">
+        <CardTitle className="text-sm font-semibold text-foreground">Часы по дням</CardTitle>
       </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={240}>
-          <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+      <CardContent className="px-4 pb-3 pt-0">
+        <ResponsiveContainer width="100%" height={180}>
+          <LineChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
             <XAxis
               dataKey="day"
               tickLine={false}
               axisLine={false}
-              tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+              tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
             />
             <YAxis
               tickLine={false}
               axisLine={false}
-              tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
-              width={32}
+              tick={{ fill: 'var(--muted-foreground)', fontSize: 11 }}
+              width={28}
             />
             <Tooltip content={<ChartTooltip />} />
             <Line
@@ -65,8 +63,8 @@ export function WeeklyHoursChart({ data }: WeeklyHoursChartProps) {
               dataKey="hours"
               stroke="#01696F"
               strokeWidth={2}
-              dot={{ r: 4, fill: '#01696F', strokeWidth: 0 }}
-              activeDot={{ r: 5, fill: '#01696F' }}
+              dot={{ r: 3, fill: '#01696F', strokeWidth: 0 }}
+              activeDot={{ r: 4, fill: '#01696F' }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -78,11 +76,11 @@ export function WeeklyHoursChart({ data }: WeeklyHoursChartProps) {
 export function WeeklyHoursChartSkeleton() {
   return (
     <Card>
-      <CardHeader>
-        <Skeleton className="h-5 w-56" />
+      <CardHeader className="px-4 py-3 pb-1.5">
+        <Skeleton className="h-4 w-40" />
       </CardHeader>
-      <CardContent>
-        <Skeleton className="h-60 w-full" />
+      <CardContent className="px-4 pb-3 pt-0">
+        <Skeleton className="h-[180px] w-full" />
       </CardContent>
     </Card>
   )

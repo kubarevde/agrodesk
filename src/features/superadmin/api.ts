@@ -16,6 +16,7 @@ type ApiOrg = {
   employees_count: number
   active_shifts_count: number
   marketplace_enabled?: boolean
+  region?: string | null
 }
 
 type ApiStats = {
@@ -93,6 +94,7 @@ function mapOrg(raw: ApiOrg): Organization {
     employeesCount: raw.employees_count,
     activeShiftsCount: raw.active_shifts_count,
     marketplaceEnabled: raw.marketplace_enabled === true,
+    region: raw.region ?? null,
   }
 }
 
@@ -158,6 +160,7 @@ export async function createOrganization(
     plan: payload.plan,
     max_employees: payload.maxEmployees,
     trial_ends_at: payload.trialEndsAt,
+    region: payload.region ?? null,
   })
   return {
     organization: mapOrg(data.organization),
@@ -178,6 +181,7 @@ export async function updateOrganization(
   if (payload.marketplaceEnabled !== undefined) {
     body.marketplace_enabled = payload.marketplaceEnabled
   }
+  if (payload.region !== undefined) body.region = payload.region
 
   const { data } = await superadminApi.patch<ApiOrg>(
     `/superadmin/api/organizations/${id}`,

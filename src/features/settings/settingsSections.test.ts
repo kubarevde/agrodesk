@@ -14,7 +14,7 @@ describe('settingsSections', () => {
   it('parses known and unknown tab ids', () => {
     expect(parseSettingsTab('access')).toBe('access')
     expect(parseSettingsTab('nope')).toBe(DEFAULT_SETTINGS_TAB)
-    expect(getSettingsSectionLabel('timezone')).toBe('Часовой пояс')
+    expect(getSettingsSectionLabel('timezone')).toBe('Организация')
   })
 
   it('lists all expected sections', () => {
@@ -23,6 +23,9 @@ describe('settingsSections', () => {
       'implement-cats',
       'inventory-cats',
       'expense-cats',
+      'income-cats',
+      'maintenance-types',
+      'repair-statuses',
       'locations',
       'work-types',
       'timezone',

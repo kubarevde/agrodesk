@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { CalendarIcon, Loader2 } from 'lucide-react'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import {
@@ -16,7 +16,18 @@ import {
 import { Label } from '@/components/ui/label'
 import { LabeledSelect } from '@/components/ui/labeled-select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { CropVarietySelect } from '@/components/shared/CropVarietySelect'
+import { FieldPlantingSelect } from '@/components/shared/FieldPlantingSelect'
+import { buildDictionarySelectOptions } from '@/features/dictionaries/labels'
+import { useDictionary } from '@/features/dictionaries/hooks'
 import { useFields } from '@/features/fields/hooks'
 import { useImplements } from '@/features/implements/hooks'
 import { formatApiDate, parseApiDate } from '@/features/worktime/utils'
@@ -56,6 +67,9 @@ function emptyValues(plannedDate: string): AgroPlanFormValues {
     implementId: '',
     employeeId: '',
     notes: '',
+    fieldPlantingId: '',
+    cropCode: '',
+    varietyId: '',
   }
 }
 
@@ -69,6 +83,9 @@ function valuesFromPlan(plan: AgroPlan): AgroPlanFormValues {
     implementId: plan.implementId ?? '',
     employeeId: plan.employeeId ?? '',
     notes: plan.notes ?? '',
+    fieldPlantingId: plan.fieldPlantingId ?? '',
+    cropCode: plan.cropCode ?? '',
+    varietyId: plan.varietyId ?? '',
   }
 }
 
@@ -82,6 +99,7 @@ export function AgroPlanFormDialog({
   const createPlan = useCreateAgroPlan()
   const updatePlan = useUpdateAgroPlan()
   const { data: fields = [] } = useFields()
+  const { data: crops = [] } = useDictionary('crop')
   const { data: workTypes = [] } = useWorkTypes()
   const { data: equipment = [] } = useEquipment()
   const { data: implementsList = [] } = useImplements()
@@ -90,6 +108,14 @@ export function AgroPlanFormDialog({
   const form = useForm<AgroPlanFormValues>({
     resolver: zodResolver(agroPlanFormSchema),
     defaultValues: emptyValues(formatApiDate(new Date())),
+  })
+
+  const fieldIds = useWatch({ control: form.control, name: 'fieldIds' })
+  const fieldPlantingId = useWatch({ control: form.control, name: 'fieldPlantingId' })
+  const cropCode = useWatch({ control: form.control, name: 'cropCode' })
+  const cropItems = buildDictionarySelectOptions(crops, {
+    valueKey: 'code',
+    orphanValue: plan?.cropCode ?? undefined,
   })
 
   useEffect(() => {
@@ -123,6 +149,10 @@ export function AgroPlanFormDialog({
               implementId: values.implementId || undefined,
               employeeId: values.employeeId || undefined,
               notes: values.notes || undefined,
+              fieldPlantingId: values.fieldPlantingId || null,
+              cropCode: values.cropCode || null,
+              varietyId: values.varietyId || null,
+              clearPlanting: !values.fieldPlantingId && !values.cropCode && !values.varietyId,
             }
             if (plan) {
               await updatePlan.mutateAsync({ id: plan.id, ...payload })
@@ -137,12 +167,72 @@ export function AgroPlanFormDialog({
 
           <AgroPlanFieldsPicker
             fields={fields.map((item) => ({ id: item.id, name: item.name }))}
-            selectedIds={form.watch('fieldIds')}
+            selectedIds={fieldIds}
             onChange={(ids) => {
               form.setValue('fieldIds', ids, { shouldValidate: true })
+              form.setValue('fieldPlantingId', '', { shouldDirty: true })
             }}
             error={form.formState.errors.fieldIds?.message}
           />
+
+          {fieldIds.length > 0 ? (
+            <>
+              <FieldPlantingSelect
+                fieldIds={fieldIds}
+                value={fieldPlantingId}
+                onChange={(id, planting) => {
+                  form.setValue('fieldPlantingId', id ?? '', { shouldDirty: true })
+                  if (planting) {
+                    form.setValue('cropCode', planting.cropCode, { shouldDirty: true })
+                    form.setValue('varietyId', planting.varietyId ?? '', { shouldDirty: true })
+                  }
+                }}
+              />
+              {!fieldPlantingId ? (
+                <>
+                  <div className="space-y-2">
+                    <Label>Культура (необязательно)</Label>
+                    <Select
+                      value={cropCode || '__none__'}
+                      onValueChange={(code) => {
+                        const next = !code || code === '__none__' ? '' : code
+                        form.setValue('cropCode', next, { shouldDirty: true })
+                        form.setValue('varietyId', '', { shouldDirty: true })
+                      }}
+                      items={[
+                        { value: '__none__', label: 'Не указано' },
+                        ...cropItems,
+                      ]}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Не указано" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Не указано</SelectItem>
+                        {cropItems.map((crop) => (
+                          <SelectItem key={crop.value} value={crop.value}>
+                            {crop.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Controller
+                    name="varietyId"
+                    control={form.control}
+                    render={({ field }) => (
+                      <CropVarietySelect
+                        cropCode={cropCode}
+                        value={field.value}
+                        onChange={(id) => field.onChange(id ?? '')}
+                        showWhenEmpty
+                      />
+                    )}
+                  />
+                </>
+              ) : null}
+            </>
+          ) : null}
 
           <SelectField
             label="Тип работы"

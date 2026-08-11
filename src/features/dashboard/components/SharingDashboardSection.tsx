@@ -20,21 +20,21 @@ export function SharingDashboardSection({
   const loading = isLoading || isLoadingStats
 
   return (
-    <section className="space-y-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-base font-semibold text-foreground">Шеринг</h2>
+    <section className="space-y-2">
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-sm font-semibold text-foreground">Совместное использование</h2>
         <Link to="/sharing" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
-          Перейти к шерингу →
+          Открыть раздел
         </Link>
       </div>
 
       <Card>
-        <CardContent className="flex flex-col gap-3 py-5 sm:flex-row sm:items-center sm:justify-between">
+        <CardContent className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
           {loading ? (
             <Skeleton className="h-5 w-56" />
           ) : (
             <div className="flex flex-wrap items-center gap-2">
-              <Handshake className="size-4 text-muted-foreground" />
+              <Handshake className="size-3.5 text-muted-foreground" />
               <p className="text-sm text-foreground">
                 Активных объявлений: <span className="font-semibold">{listings.length}</span>
               </p>

@@ -23,6 +23,14 @@ export const LEGACY_EXPENSE_CATEGORY_LABELS: Readonly<Record<string, string>> = 
   other: 'Прочее',
 }
 
+export const LEGACY_INCOME_CATEGORY_LABELS: Readonly<Record<string, string>> = {
+  services: 'Услуги',
+  sharing: 'Шеринг / аренда',
+  other_sales: 'Прочая реализация',
+  subsidy: 'Субсидии',
+  other: 'Прочее',
+}
+
 export function resolveDictionaryLabel(
   value: string | null | undefined,
   dictionary?: DictionaryLabelRow[],

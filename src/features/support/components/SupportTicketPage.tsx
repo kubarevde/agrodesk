@@ -76,7 +76,14 @@ export function SupportTicketPage({ ticketId }: SupportTicketPageProps) {
             <Badge className={priorityBadgeClass(ticket.priority)}>
               {priorityLabel(ticket.priority)}
             </Badge>
-            {ticket.unreadForUser ? <Badge>Новый ответ поддержки</Badge> : null}
+            {ticket.unreadForUser ? (
+              <Badge
+                variant="outline"
+                className="border-amber-600/40 bg-amber-400/90 text-amber-950"
+              >
+                Новый ответ поддержки
+              </Badge>
+            ) : null}
           </div>
           <h1 className="text-xl font-semibold text-foreground sm:text-2xl">{ticket.subject}</h1>
           <p className="text-sm text-muted-foreground">

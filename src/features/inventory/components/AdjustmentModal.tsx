@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import type { InventoryItem } from '@/types'
-import { formatApiDate } from '@/features/worktime/utils'
+import { formatIsoDate } from '@/lib/dates'
 import { useCreateAdjustment } from '@/features/inventory/hooks'
 import { adjustmentSchema, type AdjustmentFormValues } from '@/features/inventory/schemas'
 import { selectOptions } from '@/lib/selectOptions'
@@ -29,7 +29,7 @@ function defaults(): Partial<AdjustmentFormValues> {
     direction: 'increase',
     quantity: undefined,
     reason: '',
-    date: formatApiDate(new Date()),
+    date: formatIsoDate(new Date()),
   }
 }
 

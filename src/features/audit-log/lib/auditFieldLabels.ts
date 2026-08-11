@@ -26,9 +26,12 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   category: 'Категория',
   date: 'Дата',
   created_by: 'Создал',
+  waiting_parts: 'Ожидает запчасти',
+  priority: 'Приоритет',
+  date_returned: 'Возврат в строй',
 
   // employee
-  employee_code: 'Код сотрудника',
+  employee_code: 'Логин',
   full_name: 'ФИО',
   hourly_rate: 'Ставка в час',
   role: 'Роль',
@@ -39,6 +42,8 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   // shift
   start_time: 'Время начала',
   end_time: 'Время окончания',
+  end_date: 'Дата окончания',
+  time_adjusted: 'Время скорректировано',
   duration_raw: 'Длительность (факт)',
   duration_rounded: 'Длительность (округл.)',
   latitude: 'Широта',
@@ -70,14 +75,22 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   cost: 'Стоимость',
   item_id: 'Позиция склада',
 
-  // expenses / shipments
+  // expenses / shipments / shipment requests
   amount: 'Сумма',
   payment_method: 'Способ оплаты',
   quantity_kg: 'Количество, кг',
   price_per_kg: 'Цена за кг',
+  price_per_unit: 'Цена за единицу',
+  price: 'Цена',
   destination: 'Направление',
   crop_type: 'Культура',
   crop_code: 'Культура',
+  customer_name: 'Клиент',
+  cancel_reason: 'Причина отмены',
+  planned_at: 'План на',
+  assigned_to: 'Исполнитель',
+  shipment_request_id: 'Заявка на отгрузку',
+  is_harvest: 'Урожай',
 
   // equipment / maintenance
   meter_type: 'Тип счётчика',
@@ -85,8 +98,6 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   to_interval: 'Интервал ТО',
   serial_number: 'Серийный номер',
   year_of_manufacture: 'Год выпуска',
-  date_returned: 'Дата возврата в строй',
-  priority: 'Приоритет',
   item_type: 'Тип пункта',
   is_done: 'Выполнено',
   done_at: 'Дата выполнения',
@@ -122,12 +133,12 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   slug: 'Код организации',
   plan: 'Тариф',
   owner_email: 'Email владельца',
-  trial_ends_at: 'Окончание триала',
+  trial_ends_at: 'Истекает (подписка)',
   max_employees: 'Лимит сотрудников',
   settings: 'Настройки организации',
 
   // location / field extras
-  kind: 'Тип объекта',
+  kind: 'Тип',
   area_ha: 'Площадь, га',
   polygon: 'Контур поля',
   soil_type: 'Тип почвы',
@@ -146,6 +157,7 @@ export const AUDIT_ENTITY_FIELD_LABELS: Record<string, Record<string, string>> =
   inventory_operation: {
     type: 'Тип операции',
     date: 'Дата операции',
+    purpose: 'Назначение операции',
   },
   inventory_item: {
     category: 'Категория ТМЦ',
@@ -165,6 +177,21 @@ export const AUDIT_ENTITY_FIELD_LABELS: Record<string, Record<string, string>> =
   },
   agro_plan: {
     status: 'Статус плана',
+  },
+  equipment_maintenance: {
+    status: 'Статус ремонта',
+    waiting_parts: 'Ожидает запчасти',
+  },
+  shipment_request: {
+    status: 'Статус заявки',
+    kind: 'Тип заявки',
+    priority: 'Приоритет',
+  },
+  location: {
+    kind: 'Тип объекта',
+  },
+  tmc_shipment: {
+    price_per_unit: 'Цена за единицу',
   },
   organization: {
     settings: 'Права ролей и параметры',

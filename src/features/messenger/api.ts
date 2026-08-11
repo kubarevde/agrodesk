@@ -1,4 +1,5 @@
 import { api } from '@/lib/api'
+import { regionLabel } from '@/lib/regions.ru'
 import type {
   ChatListItem,
   ChatMember,
@@ -44,6 +45,7 @@ export function chatFromApi(raw: Record<string, unknown>): ChatListItem {
     members: membersRaw.map((m) => memberFromApi(m as Record<string, unknown>)),
     lastMessage: previewFromApi(raw.last_message as Record<string, unknown> | null),
     unreadCount: Number(raw.unread_count ?? 0),
+    isCrossOrg: Boolean(raw.is_cross_org),
   }
 }
 
@@ -79,9 +81,13 @@ export async function fetchChats(): Promise<ChatListItem[]> {
   return data.map(chatFromApi)
 }
 
-export async function createDirectChat(peerEmployeeId: string): Promise<ChatListItem> {
+export async function createDirectChat(
+  peerEmployeeId: string,
+  options?: { crossOrg?: boolean },
+): Promise<ChatListItem> {
   const { data } = await api.post<Record<string, unknown>>('/api/messenger/chats/direct', {
     peer_employee_id: peerEmployeeId,
+    cross_org: Boolean(options?.crossOrg),
   })
   return chatFromApi(data)
 }
@@ -167,6 +173,17 @@ export type MessengerPeer = {
   employeeCode: string
 }
 
+export type ExternalOrgAdmin = {
+  orgId: string
+  orgName: string
+  orgSlug: string
+  region: string | null
+  regionLabel: string | null
+  adminId: string
+  adminName: string
+  adminCode: string
+}
+
 export async function fetchMessengerPeers(): Promise<MessengerPeer[]> {
   const { data } = await api.get<Record<string, unknown>[]>('/api/messenger/peers')
   return data.map((raw) => ({
@@ -174,6 +191,31 @@ export async function fetchMessengerPeers(): Promise<MessengerPeer[]> {
     fullName: String(raw.full_name ?? ''),
     employeeCode: String(raw.employee_code ?? ''),
   }))
+}
+
+export async function fetchExternalOrgAdmins(params?: {
+  q?: string
+  region?: string | null
+}): Promise<ExternalOrgAdmin[]> {
+  const { data } = await api.get<Record<string, unknown>[]>('/api/messenger/external-admins', {
+    params: {
+      q: params?.q?.trim() || undefined,
+      region: params?.region || undefined,
+    },
+  })
+  return data.map((raw) => {
+    const region = raw.region != null ? String(raw.region) : null
+    return {
+      orgId: String(raw.org_id),
+      orgName: String(raw.org_name ?? ''),
+      orgSlug: String(raw.org_slug ?? ''),
+      region,
+      regionLabel: region ? regionLabel(region) : null,
+      adminId: String(raw.admin_id),
+      adminName: String(raw.admin_name ?? ''),
+      adminCode: String(raw.admin_code ?? ''),
+    }
+  })
 }
 
 export function totalUnread(chats: ChatListItem[]): number {

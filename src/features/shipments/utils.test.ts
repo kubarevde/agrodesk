@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Shipment } from '@/types'
-import { isoDay, isIsoDayInRange, sumShipments } from './utils'
+import { filterHarvestShipments, isoDay, isIsoDayInRange, sumShipments } from './utils'
 
 function shipment(partial: Partial<Shipment> & Pick<Shipment, 'id' | 'date' | 'quantityKg'>): Shipment {
   return {
@@ -12,6 +12,29 @@ function shipment(partial: Partial<Shipment> & Pick<Shipment, 'id' | 'date' | 'q
     ...partial,
   }
 }
+
+describe('filterHarvestShipments', () => {
+  const rows = [
+    shipment({ id: '1', date: '10.08.2026', quantityKg: 100, cropType: 'Пшеница', varietyId: 'v1' }),
+    shipment({ id: '2', date: '11.08.2026', quantityKg: 200, cropType: 'Пшеница', varietyId: 'v2' }),
+    shipment({ id: '3', date: '12.08.2026', quantityKg: 300, cropType: 'Ячмень', varietyId: 'v3' }),
+    shipment({ id: '4', date: '13.08.2026', quantityKg: 400, cropType: 'Пшеница', varietyId: null }),
+  ]
+
+  it('filters by variety id', () => {
+    expect(filterHarvestShipments(rows, { varietyId: 'v2' }).map((r) => r.id)).toEqual(['2'])
+  })
+
+  it('filters by crop and variety together', () => {
+    expect(
+      filterHarvestShipments(rows, { cropType: 'Пшеница', varietyId: 'v1' }).map((r) => r.id),
+    ).toEqual(['1'])
+  })
+
+  it('keeps all rows when filters are empty', () => {
+    expect(filterHarvestShipments(rows, {})).toHaveLength(4)
+  })
+})
 
 describe('shipments date helpers', () => {
   it('extracts ISO day from datetime', () => {

@@ -1,6 +1,18 @@
 import type { InventoryItem } from '@/types'
 import { isHarvestCategory } from '@/features/inventory/utils'
 
+export type InventoryListStatus = 'active' | 'archived' | 'all'
+
+/** Client-side mirror of GET /api/inventory?status= (offline / older APIs). */
+export function filterInventoryByStatus(
+  items: InventoryItem[],
+  status: InventoryListStatus,
+): InventoryItem[] {
+  if (status === 'archived') return items.filter((item) => item.isActive === false)
+  if (status === 'all') return items
+  return items.filter((item) => item.isActive !== false)
+}
+
 /** Client-side mirror of GET /api/inventory?search= (offline / tests). */
 export function filterInventoryBySearch(
   items: InventoryItem[],
@@ -22,10 +34,18 @@ export function filterInventoryBySearch(
 export function inventoryListQueryParams(options: {
   category?: string
   search?: string
+  /** Prefer status; isActive kept for backward-compatible tests. */
+  status?: InventoryListStatus
   isActive?: boolean
 }): Record<string, string | boolean> {
   const params: Record<string, string | boolean> = {}
-  if (options.isActive !== undefined) params.is_active = options.isActive
+  if (options.status) {
+    params.status = options.status
+  } else if (options.isActive !== undefined) {
+    params.is_active = options.isActive
+  } else {
+    params.status = 'active'
+  }
   if (options.category && options.category !== 'all') params.category = options.category
   const search = (options.search ?? '').trim()
   if (search) params.search = search

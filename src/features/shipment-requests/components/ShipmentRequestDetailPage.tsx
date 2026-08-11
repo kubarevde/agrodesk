@@ -75,9 +75,22 @@ export function ShipmentRequestDetailPage({ requestId }: Props) {
           {row.inventoryItemName ?? 'ТМЦ'} · {row.quantity.toLocaleString('ru-RU')}{' '}
           {row.inventoryItemUnit} · {formatMoney(row.price)}
         </p>
+        {row.comment ? (
+          <div className="space-y-0.5">
+            <p className="text-xs text-muted-foreground">Комментарий</p>
+            <p className="text-sm text-foreground whitespace-pre-wrap">{row.comment}</p>
+          </div>
+        ) : null}
         {row.cropCode ? (
           <p className="text-xs text-muted-foreground">
             Культура: {resolveDictionaryLabel(row.cropCode, crops)}
+            {row.varietyName ? ` · Сорт: ${row.varietyName}` : row.varietyId ? ' · Сорт: не указан' : ''}
+          </p>
+        ) : null}
+        {row.isHarvest ? (
+          <p className="text-xs text-muted-foreground">
+            Поле происхождения: {row.fieldName ?? 'Не указано'}
+            {row.plantingAreaHa != null ? ` · ${row.plantingAreaHa} га` : ''}
           </p>
         ) : null}
         <p className="text-xs text-muted-foreground">
@@ -100,7 +113,10 @@ export function ShipmentRequestDetailPage({ requestId }: Props) {
               type="button"
               className="min-h-11 shrink-0 bg-primary hover:bg-primary-hover text-primary-foreground"
               onClick={() =>
-                void navigate({ to: '/shipments', search: { requestId: row.id } })
+                void navigate({
+                  to: '/shipments',
+                  search: { tab: 'harvest', requestId: row.id },
+                })
               }
             >
               <Plus className="size-4" />
@@ -119,7 +135,7 @@ export function ShipmentRequestDetailPage({ requestId }: Props) {
             title="Нет связанных отгрузок урожая"
             description={
               canCreateCropShipment
-                ? 'Создайте запись в «Отгрузках урожая» и привяжите эту заявку.'
+                ? 'Выполнение заявки только списало склад. Доход в «Отгрузках» и «Доходах» появится после кнопки «Создать запись отгрузки урожая» (с ценой).'
                 : 'Доступно для выполненных заявок на урожай.'
             }
           />

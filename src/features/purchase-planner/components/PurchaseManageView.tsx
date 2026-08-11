@@ -28,6 +28,7 @@ type PurchaseManageViewProps = {
   categoryOptions: ReturnType<typeof selectOptions>
   responsibleOptions: ReturnType<typeof selectOptions>
   onAdd: () => void
+  search?: string
 }
 
 export function PurchaseManageView({
@@ -44,6 +45,7 @@ export function PurchaseManageView({
   categoryOptions,
   responsibleOptions,
   onAdd,
+  search = '',
 }: PurchaseManageViewProps) {
   return (
     <div className="space-y-3">
@@ -82,7 +84,15 @@ export function PurchaseManageView({
           />
         </div>
 
-      <PurchaseList items={items} />
+      <PurchaseList
+        items={items}
+        pageResetKey={`${status}|${urgency}|${category}|${responsibleId}|${search}`}
+        emptyMessage={
+          search
+            ? 'Ничего не найдено. Измените поисковый запрос.'
+            : undefined
+        }
+      />
     </div>
   )
 }

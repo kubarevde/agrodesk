@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { DatePicker } from '@/components/shared/DatePicker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -111,7 +112,18 @@ export function EquipmentStockSection({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={`${purpose}-date`}>Дата</Label>
-          <Input id={`${purpose}-date`} type="date" {...form.register('date')} />
+          <Controller
+            name="date"
+            control={form.control}
+            render={({ field }) => (
+              <DatePicker
+                id={`${purpose}-date`}
+                value={field.value || undefined}
+                onChange={(next) => field.onChange(next ?? '')}
+                placeholder="Выберите дату"
+              />
+            )}
+          />
         </div>
         <div className="space-y-1.5 sm:col-span-2">
           <Label htmlFor={`${purpose}-comment`}>Комментарий</Label>

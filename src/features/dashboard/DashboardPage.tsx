@@ -49,12 +49,12 @@ export function DashboardPage() {
 
   if (!isOnline && (!stats || isError)) {
     return (
-      <div className="space-y-4">
-        <h1 className="text-2xl font-semibold text-foreground">Дашборд</h1>
+      <div className="space-y-3">
+        <h1 className="text-xl font-semibold text-foreground">Дашборд</h1>
         <OnlineOnlyNotice
           hideWhenOnline={false}
           title="Дашборд доступен только онлайн"
-          description="KPI и финансы считаются на сервере. Без сети откройте «Рабочее время» — смены можно вести офлайн; данные подтянутся после подключения."
+          description="Показатели и финансы считаются на сервере. Без сети откройте «Рабочее время» — смены можно вести офлайн; данные подтянутся после подключения."
         />
         <RoleSectionHelp section="дашборд" items={dashboardHelp} guideSection="dashboard" />
       </div>
@@ -62,9 +62,9 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-semibold text-foreground">Дашборд</h1>
+    <div className="space-y-3">
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-xl font-semibold text-foreground">Дашборд</h1>
         <div className="flex items-center gap-2 self-end sm:self-auto">
           <p className="text-xs text-muted-foreground">Обновлено в {updatedLabel}</p>
           <Button
@@ -98,7 +98,7 @@ export function DashboardPage() {
 
       {isLoading || !stats ? <KpiCardsSkeleton /> : <KpiCards stats={stats} />}
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid gap-2 lg:grid-cols-2">
         <EquipmentWarningsSection
           items={stats?.equipmentWarnings ?? []}
           isLoading={isLoading}
@@ -109,13 +109,13 @@ export function DashboardPage() {
       {isLoading || !stats ? <FinanceCardsSkeleton /> : <FinanceCards stats={stats} />}
 
       {canForecast ? (
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid gap-2 lg:grid-cols-2">
           <ForecastDashboardWidget />
           <ActiveRepairsWidget />
         </div>
       ) : null}
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid gap-2 lg:grid-cols-2">
         {isLoading || !stats ? (
           <WeeklyHoursChartSkeleton />
         ) : (
@@ -124,7 +124,7 @@ export function DashboardPage() {
         <ActiveShiftsSection shifts={stats?.activeShifts ?? []} isLoading={isLoading} />
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid gap-2 lg:grid-cols-2">
         <CriticalInventorySection
           items={stats?.criticalInventory ?? []}
           isLoading={isLoading}
@@ -136,7 +136,7 @@ export function DashboardPage() {
         />
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid gap-2 lg:grid-cols-2">
         <SharingDashboardSection
           newRequests={stats?.sharingNewRequests ?? 0}
           isLoadingStats={isLoading}

@@ -13,6 +13,8 @@ import type {
   Equipment,
   Expense,
   ExpenseFilters,
+  ManualIncome,
+  ManualIncomeFilters,
   InventoryItem,
   InventoryOperation,
   Location,
@@ -20,6 +22,8 @@ import type {
   ShiftFilters,
   Shipment,
   ShipmentFilters,
+  TmcShipment,
+  TmcShipmentFilters,
   WorkType,
 } from '@/types'
 
@@ -65,6 +69,8 @@ export interface ShiftManualAddInput {
 export interface ShiftCloseInput {
   description: string
   comment?: string
+  quantity?: number
+  unit?: string
 }
 
 export interface ShiftUpdateInput {
@@ -72,6 +78,7 @@ export interface ShiftUpdateInput {
   date?: string
   startTime?: string
   endTime?: string | null
+  endDate?: string | null
   locationId?: string
   workTypeId?: string
   equipmentId?: string | null
@@ -120,6 +127,7 @@ export function shiftFromApi(raw: ApiRecord): Shift {
     telegramId: '',
     startTime: normalizeTime(raw.start_time),
     endTime: raw.end_time ? normalizeTime(raw.end_time) : null,
+    endDate: raw.end_date != null ? isoDateToDisplay(String(raw.end_date)) : null,
     workType: humanLabel(String(raw.work_type), 'Тип работ'),
     location: humanLabel(String(raw.location), 'Объект'),
     equipment: raw.equipment ? humanLabel(String(raw.equipment), '') : '',
@@ -139,6 +147,7 @@ export function shiftFromApi(raw: ApiRecord): Shift {
     durationRounded: raw.duration_rounded != null ? Number(raw.duration_rounded) : null,
     latitude: raw.latitude != null ? Number(raw.latitude) : null,
     longitude: raw.longitude != null ? Number(raw.longitude) : null,
+    timeAdjusted: Boolean(raw.time_adjusted),
     employeeId: raw.employee_id != null ? String(raw.employee_id) : undefined,
   }
 }
@@ -179,6 +188,8 @@ export function shiftCloseToApi(payload: ShiftCloseInput): ApiRecord {
   return {
     description: payload.description,
     comment: payload.comment || undefined,
+    quantity: payload.quantity,
+    unit: payload.unit || undefined,
   }
 }
 
@@ -189,6 +200,9 @@ export function shiftUpdateToApi(payload: ShiftUpdateInput): ApiRecord {
   if (payload.date !== undefined) body.date = displayDateToIso(payload.date)
   if (payload.startTime !== undefined) body.start_time = toShiftTimeValue(payload.startTime)
   if (payload.endTime !== undefined) body.end_time = payload.endTime ? toShiftTimeValue(payload.endTime) : null
+  if (payload.endDate !== undefined) {
+    body.end_date = payload.endDate ? displayDateToIso(payload.endDate) : null
+  }
   if (payload.locationId !== undefined) body.location_id = payload.locationId
   if (payload.workTypeId !== undefined) body.work_type_id = payload.workTypeId
   if (payload.equipmentId !== undefined) body.equipment_id = payload.equipmentId || null
@@ -279,6 +293,10 @@ export function locationFromApi(raw: ApiRecord): Location {
     name: humanLabel(String(raw.name), 'Без названия'),
     description: raw.description ? String(raw.description) : undefined,
     isActive: raw.is_active !== false,
+    code: raw.code != null ? String(raw.code) : null,
+    isSystem: Boolean(raw.is_system),
+    latitude: raw.latitude != null ? Number(raw.latitude) : null,
+    longitude: raw.longitude != null ? Number(raw.longitude) : null,
   }
 }
 
@@ -303,6 +321,12 @@ export function equipmentFromApi(raw: ApiRecord): Equipment {
   }
 }
 
+function inventoryIsActiveFromApi(raw: ApiRecord): boolean {
+  const value = raw.is_active
+  if (value === false || value === 0 || value === '0' || value === 'false') return false
+  return true
+}
+
 export function inventoryItemFromApi(raw: ApiRecord): InventoryItem {
   return {
     id: String(raw.id),
@@ -312,9 +336,16 @@ export function inventoryItemFromApi(raw: ApiRecord): InventoryItem {
     currentStock: toNumber(raw.current_stock),
     minStock: toNumber(raw.min_stock),
     totalCapacity: toNumber(raw.total_capacity),
-    isActive: raw.is_active !== false,
+    isActive: inventoryIsActiveFromApi(raw),
     cropCode: raw.crop_code != null ? String(raw.crop_code) : null,
+    varietyId: raw.variety_id != null ? String(raw.variety_id) : null,
+    varietyName: raw.variety_name != null ? String(raw.variety_name) : null,
     isHarvest: raw.is_harvest === true,
+    archivedAt: raw.archived_at != null ? String(raw.archived_at) : null,
+    archivedBy: raw.archived_by != null ? String(raw.archived_by) : null,
+    archivedByName: raw.archived_by_name != null ? String(raw.archived_by_name) : null,
+    archiveReason: raw.archive_reason != null ? String(raw.archive_reason) : null,
+    canHardDelete: raw.can_hard_delete === true ? true : raw.can_hard_delete === false ? false : null,
   }
 }
 
@@ -380,6 +411,11 @@ export function shipmentFromApi(raw: ApiRecord): Shipment {
     notes: raw.notes ? String(raw.notes) : undefined,
     shipmentRequestId:
       raw.shipment_request_id != null ? String(raw.shipment_request_id) : null,
+    fieldId: raw.field_id != null ? String(raw.field_id) : null,
+    fieldName: raw.field_name != null ? String(raw.field_name) : null,
+    varietyId: raw.variety_id != null ? String(raw.variety_id) : null,
+    varietyName: raw.variety_name != null ? String(raw.variety_name) : null,
+    fieldPlantingId: raw.field_planting_id != null ? String(raw.field_planting_id) : null,
   }
 }
 
@@ -388,6 +424,7 @@ export function shipmentFiltersToApi(filters: ShipmentFilters): ApiRecord {
   if (filters.from) params.from_date = displayDateToIso(filters.from)
   if (filters.to) params.to_date = displayDateToIso(filters.to)
   if (filters.cropType) params.crop_type = filters.cropType
+  if (filters.varietyId) params.variety_id = filters.varietyId
   if (filters.shipmentRequestId) params.shipment_request_id = filters.shipmentRequestId
   return params
 }
@@ -401,6 +438,9 @@ export function shipmentCreateToApi(values: {
   pricePerKg?: number | null
   notes?: string
   shipmentRequestId?: string | null
+  varietyId?: string | null
+  fieldId?: string | null
+  fieldPlantingId?: string | null
 }): ApiRecord {
   return {
     date: displayDateToIso(values.date),
@@ -411,6 +451,9 @@ export function shipmentCreateToApi(values: {
     price_per_kg: values.pricePerKg ?? undefined,
     notes: values.notes || undefined,
     shipment_request_id: values.shipmentRequestId || null,
+    variety_id: values.varietyId || null,
+    field_id: values.fieldId || null,
+    field_planting_id: values.fieldPlantingId || null,
   }
 }
 
@@ -423,6 +466,9 @@ export function shipmentUpdateToApi(values: {
   pricePerKg?: number | null
   notes?: string
   shipmentRequestId?: string | null
+  varietyId?: string | null
+  fieldId?: string | null
+  fieldPlantingId?: string | null
 }): ApiRecord {
   const body: ApiRecord = {}
   if (values.date !== undefined) body.date = displayDateToIso(values.date)
@@ -431,6 +477,87 @@ export function shipmentUpdateToApi(values: {
   if (values.quantityKg !== undefined) body.quantity_kg = values.quantityKg
   if (values.destination !== undefined) body.destination = values.destination || null
   if (values.pricePerKg !== undefined) body.price_per_kg = values.pricePerKg
+  if (values.notes !== undefined) body.notes = values.notes || null
+  if (values.shipmentRequestId !== undefined) {
+    body.shipment_request_id = values.shipmentRequestId || null
+  }
+  if (values.varietyId !== undefined) body.variety_id = values.varietyId || null
+  if (values.fieldId !== undefined) body.field_id = values.fieldId || null
+  if (values.fieldPlantingId !== undefined) {
+    body.field_planting_id = values.fieldPlantingId || null
+  }
+  return body
+}
+
+export function tmcShipmentFromApi(raw: ApiRecord): TmcShipment {
+  const quantity = toNumber(raw.quantity)
+  const pricePerUnit = raw.price_per_unit != null ? toNumber(raw.price_per_unit) : null
+  return {
+    id: String(raw.id),
+    date: isoDateToDisplay(String(raw.date)),
+    inventoryItemId: String(raw.inventory_item_id),
+    itemName: String(raw.item_name),
+    category: String(raw.category),
+    unit: String(raw.unit || 'шт'),
+    quantity,
+    destination: raw.destination ? String(raw.destination) : undefined,
+    pricePerUnit,
+    totalSum:
+      raw.total_sum != null
+        ? toNumber(raw.total_sum)
+        : pricePerUnit != null
+          ? quantity * pricePerUnit
+          : null,
+    notes: raw.notes ? String(raw.notes) : undefined,
+    shipmentRequestId:
+      raw.shipment_request_id != null ? String(raw.shipment_request_id) : null,
+  }
+}
+
+export function tmcShipmentFiltersToApi(filters: TmcShipmentFilters): ApiRecord {
+  const params: ApiRecord = {}
+  if (filters.from) params.from_date = displayDateToIso(filters.from)
+  if (filters.to) params.to_date = displayDateToIso(filters.to)
+  if (filters.category) params.category = filters.category
+  if (filters.inventoryItemId) params.inventory_item_id = filters.inventoryItemId
+  return params
+}
+
+export function tmcShipmentCreateToApi(values: {
+  date: string
+  inventoryItemId: string
+  quantity: number
+  destination?: string
+  pricePerUnit?: number | null
+  notes?: string
+  shipmentRequestId?: string | null
+}): ApiRecord {
+  return {
+    date: displayDateToIso(values.date),
+    inventory_item_id: values.inventoryItemId,
+    quantity: values.quantity,
+    destination: values.destination || undefined,
+    price_per_unit: values.pricePerUnit ?? undefined,
+    notes: values.notes || undefined,
+    shipment_request_id: values.shipmentRequestId || null,
+  }
+}
+
+export function tmcShipmentUpdateToApi(values: {
+  date?: string
+  inventoryItemId?: string
+  quantity?: number
+  destination?: string
+  pricePerUnit?: number | null
+  notes?: string
+  shipmentRequestId?: string | null
+}): ApiRecord {
+  const body: ApiRecord = {}
+  if (values.date !== undefined) body.date = displayDateToIso(values.date)
+  if (values.inventoryItemId !== undefined) body.inventory_item_id = values.inventoryItemId
+  if (values.quantity !== undefined) body.quantity = values.quantity
+  if (values.destination !== undefined) body.destination = values.destination || null
+  if (values.pricePerUnit !== undefined) body.price_per_unit = values.pricePerUnit
   if (values.notes !== undefined) body.notes = values.notes || null
   if (values.shipmentRequestId !== undefined) {
     body.shipment_request_id = values.shipmentRequestId || null
@@ -500,6 +627,78 @@ export function expenseUpdateToApi(values: {
   if (values.supplier !== undefined) body.supplier = values.supplier || null
   if (values.paymentMethod !== undefined) body.payment_method = values.paymentMethod || null
   if (values.equipmentId !== undefined) body.equipment_id = values.equipmentId || null
+  return body
+}
+
+export function manualIncomeFromApi(raw: ApiRecord): ManualIncome {
+  return {
+    id: String(raw.id),
+    date: isoDateToDisplay(String(raw.date)),
+    category: String(raw.category ?? ''),
+    amount: toNumber(raw.amount),
+    description: String(raw.description ?? ''),
+    counterparty: raw.counterparty ? String(raw.counterparty) : undefined,
+    paymentMethod: raw.payment_method
+      ? (raw.payment_method as ManualIncome['paymentMethod'])
+      : undefined,
+    cropCode: raw.crop_code != null ? String(raw.crop_code) : null,
+    varietyId: raw.variety_id != null ? String(raw.variety_id) : null,
+    varietyName: raw.variety_name != null ? String(raw.variety_name) : null,
+  }
+}
+
+export function manualIncomeFiltersToApi(filters: ManualIncomeFilters): ApiRecord {
+  const params: ApiRecord = {}
+  if (filters.from) params.from_date = displayDateToIso(filters.from)
+  if (filters.to) params.to_date = displayDateToIso(filters.to)
+  if (filters.category) params.category = filters.category
+  return params
+}
+
+export function manualIncomeCreateToApi(values: {
+  date: string
+  category: string
+  amount: number
+  description: string
+  counterparty?: string
+  paymentMethod?: ManualIncome['paymentMethod']
+  cropCode?: string | null
+  varietyId?: string | null
+}): ApiRecord {
+  return {
+    date: displayDateToIso(values.date),
+    category: values.category,
+    amount: values.amount,
+    description: values.description,
+    counterparty: values.counterparty || undefined,
+    payment_method: values.paymentMethod || undefined,
+    crop_code: values.cropCode || null,
+    variety_id: values.varietyId || null,
+  }
+}
+
+export function manualIncomeUpdateToApi(values: {
+  date?: string
+  category?: string
+  amount?: number
+  description?: string
+  counterparty?: string
+  paymentMethod?: ManualIncome['paymentMethod']
+  cropCode?: string | null
+  varietyId?: string | null
+}): ApiRecord {
+  const body: ApiRecord = {}
+  if (values.date !== undefined) body.date = displayDateToIso(values.date)
+  if (values.category !== undefined) body.category = values.category
+  if (values.amount !== undefined) body.amount = values.amount
+  if (values.description !== undefined) body.description = values.description
+  if (values.counterparty !== undefined) body.counterparty = values.counterparty || null
+  if (values.paymentMethod !== undefined) body.payment_method = values.paymentMethod || null
+  if (values.cropCode !== undefined) body.crop_code = values.cropCode || null
+  if (values.varietyId !== undefined) {
+    body.variety_id = values.varietyId || null
+    if (!values.varietyId) body.clear_variety = true
+  }
   return body
 }
 

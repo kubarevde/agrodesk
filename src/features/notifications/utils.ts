@@ -1,8 +1,8 @@
+import { Handshake, LifeBuoy, MessageCircle, Store, Wrench, type LucideIcon } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { Handshake, MessageCircle, Store, Wrench, type LucideIcon } from 'lucide-react'
 import { formatOrgDateTime } from '@/lib/timezone'
-import { NOTIFICATION_TYPE_GROUPS } from './types'
+import { NOTIFICATION_TYPE_GROUPS, type NotificationTypeGroup } from './types'
 
 export function notificationTimeAgo(createdAt: string, timezone?: string): string {
   const date = new Date(createdAt)
@@ -22,6 +22,7 @@ export function notificationTypeLabel(type: string): string {
 }
 
 export function notificationTypeIcon(type: string): LucideIcon {
+  if (type === 'support_reply') return LifeBuoy
   if (type === 'new_message') return MessageCircle
   if (type === 'new_market_order' || type === 'marketplace_moderation') return Store
   if (NOTIFICATION_TYPE_GROUPS.sharing.includes(type as never)) return Handshake
@@ -31,8 +32,25 @@ export function notificationTypeIcon(type: string): LucideIcon {
 
 export function matchesTypeGroup(
   type: string,
-  group: 'maintenance' | 'sharing' | undefined,
+  group: NotificationTypeGroup | undefined,
 ): boolean {
   if (!group) return true
+  if (group === 'support') return type === 'support_reply'
+  if (group === 'messenger') return type === 'new_message'
+  if (group === 'marketplace') {
+    return type === 'new_market_order' || type === 'marketplace_moderation'
+  }
   return NOTIFICATION_TYPE_GROUPS[group].includes(type as never)
 }
+
+export const NOTIFICATION_TYPE_FILTER_OPTIONS: Array<{
+  value: 'all' | NotificationTypeGroup
+  label: string
+}> = [
+  { value: 'all', label: 'Все типы' },
+  { value: 'maintenance', label: 'ТО' },
+  { value: 'sharing', label: 'Шеринг' },
+  { value: 'support', label: 'Поддержка' },
+  { value: 'messenger', label: 'Мессенджер' },
+  { value: 'marketplace', label: 'Витрина' },
+]

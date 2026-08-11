@@ -7,9 +7,15 @@ import type {
   AttachFormValues,
   ImplementFormValues,
   MaintenanceFormValues,
+  UsageLogFormValues,
 } from './schemas'
-import type { ImplementMaintenanceResponse, ImplementResponse } from './types'
+import type {
+  ImplementMaintenanceResponse,
+  ImplementResponse,
+  ImplementUsageLogResponse,
+} from './types'
 import { mapImplementFromApi } from './types'
+import { toIsoDate } from '@/features/equipment/types'
 
 type ImplementFilters = {
   category?: string
@@ -30,6 +36,7 @@ function toPayload(values: ImplementFormValues) {
     image_url: values.image_url || null,
     current_usage_hours: clean(values.current_usage_hours) ?? 0,
     service_interval_hours: clean(values.service_interval_hours),
+    next_service_hours: clean(values.next_service_hours),
   }
 }
 
@@ -159,7 +166,10 @@ export function useDetachImplement() {
       return data
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['implements'] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['implements'] }),
+        queryClient.invalidateQueries({ queryKey: ['equipment'] }),
+      ])
       toast.success('Приспособление откреплено')
     },
     onError: () => toast.error('Не удалось открепить'),
@@ -174,8 +184,46 @@ export function useImplementMaintenance(id: string | undefined) {
       const { data } = await api.get<ImplementMaintenanceResponse[]>(
         `/api/implements/${id}/maintenance`,
       )
+      return data.map((row) => ({ ...row, meter_label: 'ч' }))
+    },
+  })
+}
+
+export function useImplementUsageLogs(id: string | undefined) {
+  return useQuery({
+    queryKey: ['implements', id, 'usage-logs'],
+    enabled: Boolean(id),
+    queryFn: async () => {
+      const { data } = await api.get<ImplementUsageLogResponse[]>(
+        `/api/implements/${id}/usage-logs`,
+      )
       return data
     },
+  })
+}
+
+export function useAddImplementUsageLog(id: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (values: UsageLogFormValues) => {
+      const { data } = await api.post<ImplementUsageLogResponse>(
+        `/api/implements/${id}/usage-logs`,
+        {
+          value_added: values.value_added,
+          date: toIsoDate(values.date) ?? values.date,
+          note: values.note || null,
+        },
+      )
+      return data
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['implements'] }),
+        queryClient.invalidateQueries({ queryKey: ['implements', id, 'usage-logs'] }),
+      ])
+      toast.success('Наработка записана')
+    },
+    onError: (error) => toast.error(apiErrorMessage(error, 'Не удалось записать наработку')),
   })
 }
 
@@ -186,10 +234,13 @@ export function useAddImplementMaintenance() {
       const { data } = await api.post<ImplementMaintenanceResponse>(
         `/api/implements/${id}/maintenance`,
         {
-          date: values.date,
+          date: toIsoDate(values.date) ?? values.date,
           type: values.type,
+          meter_at: values.meter_at ?? null,
           cost: values.cost ?? null,
           description: values.description || null,
+          next_service_hours: values.next_service_hours ?? null,
+          next_service_interval: values.next_service_interval ?? null,
         },
       )
       return data
@@ -198,6 +249,7 @@ export function useAddImplementMaintenance() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['implements'] }),
         queryClient.invalidateQueries({ queryKey: ['implements', vars.id, 'maintenance'] }),
+        queryClient.invalidateQueries({ queryKey: ['implements', vars.id, 'usage-logs'] }),
         queryClient.invalidateQueries({ queryKey: ['expenses'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       ])

@@ -53,11 +53,13 @@ export type MaintenanceResponse = {
   meter_at: number | null
   cost: number | null
   description: string | null
+  next_to_at: number | null
   next_to_interval: number | null
   meter_label: string
   expense_id: string | null
 }
 
+/** @deprecated Prefer org dictionary `maintenance_type`. Kept for legacy fallbacks. */
 export const EQUIPMENT_MAINTENANCE_TYPES = [
   'ТО-1',
   'ТО-2',

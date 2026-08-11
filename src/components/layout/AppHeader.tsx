@@ -29,13 +29,13 @@ export function AppHeader() {
   const { data: user } = useCurrentUser()
 
   return (
-    <header className="grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-header-border bg-surface px-4">
+    <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-header-border bg-surface px-4">
       <div className="flex min-w-0 items-center gap-3">
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="md:hidden"
+          className="size-11 shrink-0 md:hidden"
           onClick={() => setMobileMenuOpen(true)}
           aria-label="Открыть меню"
         >
@@ -50,12 +50,9 @@ export function AppHeader() {
         </Breadcrumb>
       </div>
 
-      <div className="flex items-center justify-center gap-2">
+      <div className="flex shrink-0 items-center justify-end gap-2">
         <SyncStatusIndicator />
         <NotificationBell />
-      </div>
-
-      <div className="flex items-center justify-end gap-2">
         {canInstall ? (
           <Button type="button" variant="outline" size="sm" onClick={() => void install()}>
             <Download className="size-4" />

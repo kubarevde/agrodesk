@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import {
   Area,
   CartesianGrid,
@@ -12,12 +13,17 @@ import {
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { FORECAST_CHART_COLORS } from '../lib/forecastChartTheme'
-import { formatMonthLabel } from '../lib/forecastUi'
+import {
+  formatMonthLabel,
+  resolveFactForecastChartRange,
+  windowForecastHistory,
+} from '../lib/forecastUi'
 import type { ForecastBlock, ForecastHistoryRow } from '../types'
 
 type ForecastChartProps = {
   history: ForecastHistoryRow[]
   forecast: ForecastBlock
+  orgCreatedAt?: string | null
 }
 
 type ChartRow = {
@@ -54,25 +60,21 @@ function ChartTooltip({
   if (!row) return null
 
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-sm">
+    <div className="max-w-[min(100vw-2rem,16rem)] rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-sm">
       <p className="mb-1 font-medium text-foreground">{label}</p>
       <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
         {row.isForecast ? 'Прогноз' : 'Факт'}
       </p>
       {row.isForecast ? (
         <>
-          <p style={{ color: FORECAST_CHART_COLORS.expensesForecast }}>
-            Затраты (ожидаемо): {money(row.expensesForecast)}
-          </p>
-          <p style={{ color: FORECAST_CHART_COLORS.incomeForecast }}>
-            Доходы (ожидаемо): {money(row.incomeForecast)}
-          </p>
+          <p className="text-destructive">Затраты (ожидаемо): {money(row.expensesForecast)}</p>
+          <p className="text-success">Доходы (ожидаемо): {money(row.incomeForecast)}</p>
           {row.rangeBase != null && row.rangeSpan != null ? (
             <p className="text-muted-foreground">
               Диапазон затрат: {money(row.rangeBase)} — {money(row.rangeBase + row.rangeSpan)}
             </p>
           ) : null}
-          <p>
+          <p className="text-foreground">
             Прибыль (ожидаемо):{' '}
             {money(
               row.expensesForecast != null && row.incomeForecast != null
@@ -83,11 +85,9 @@ function ChartTooltip({
         </>
       ) : (
         <>
-          <p style={{ color: FORECAST_CHART_COLORS.expensesFact }}>
-            Затраты: {money(row.expenses)}
-          </p>
-          <p style={{ color: FORECAST_CHART_COLORS.incomeFact }}>Доходы: {money(row.income)}</p>
-          <p>Прибыль: {money(row.margin)}</p>
+          <p className="text-destructive">Затраты: {money(row.expenses)}</p>
+          <p className="text-success">Доходы: {money(row.income)}</p>
+          <p className="text-foreground">Прибыль: {money(row.margin)}</p>
         </>
       )}
     </div>
@@ -111,21 +111,30 @@ function buildChartData(
     isForecast: false,
   }))
 
-  const lastFactLabel = chartData[chartData.length - 1]?.monthLabel ?? null
+  const lastFactWithData = [...history]
+    .reverse()
+    .find((row) => row.totalExpenses > 0 || row.totalIncome > 0)
+  const lastFactIndex = lastFactWithData
+    ? chartData.findIndex((row) => row.month === lastFactWithData.month)
+    : chartData.length - 1
+  const lastFactLabel =
+    lastFactIndex >= 0 ? (chartData[lastFactIndex]?.monthLabel ?? null) : null
   let forecastMonthLabel: string | null = null
 
-  if (forecast.insufficientData || forecast.predictedExpenses == null || history.length === 0) {
+  if (
+    forecast.insufficientData ||
+    forecast.predictedExpenses == null ||
+    !lastFactWithData
+  ) {
     return { chartData, forecastMonthLabel, lastFactLabel }
   }
 
-  const last = history[history.length - 1]
-  const [y, m] = last.month.split('-').map(Number)
+  const [y, m] = lastFactWithData.month.split('-').map(Number)
   const d = new Date(y, m, 1)
   const forecastMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   forecastMonthLabel = formatMonthLabel(forecastMonth)
 
-  // Bridge: connect dashed forecast line from last fact point
-  const lastRow = chartData[chartData.length - 1]
+  const lastRow = lastFactIndex >= 0 ? chartData[lastFactIndex] : null
   if (lastRow) {
     lastRow.expensesForecast = lastRow.expenses
     lastRow.incomeForecast = lastRow.income
@@ -137,7 +146,8 @@ function buildChartData(
   const rangeSpan =
     lower != null && upper != null ? Math.max(0, upper - Math.max(0, lower)) : null
 
-  chartData.push({
+  const existingForecastIdx = chartData.findIndex((row) => row.month === forecastMonth)
+  const forecastRow: ChartRow = {
     month: forecastMonth,
     monthLabel: forecastMonthLabel,
     expenses: null,
@@ -148,15 +158,37 @@ function buildChartData(
     rangeBase,
     rangeSpan,
     isForecast: true,
-  })
+  }
+
+  if (existingForecastIdx >= 0) {
+    chartData[existingForecastIdx] = {
+      ...chartData[existingForecastIdx],
+      ...forecastRow,
+      expenses: null,
+      income: null,
+      margin: null,
+    }
+  } else {
+    chartData.push(forecastRow)
+  }
 
   return { chartData, forecastMonthLabel, lastFactLabel }
 }
 
-export function ForecastChart({ history, forecast }: ForecastChartProps) {
-  const hasFact = history.some((row) => row.totalExpenses > 0 || row.totalIncome > 0)
-  const lowHistory = history.filter((r) => r.totalExpenses > 0 || r.totalIncome > 0).length < 4
-  const { chartData, lastFactLabel } = buildChartData(history, forecast)
+export function ForecastChart({ history, forecast, orgCreatedAt = null }: ForecastChartProps) {
+  const windowedHistory = useMemo(
+    () => windowForecastHistory(history, orgCreatedAt),
+    [history, orgCreatedAt],
+  )
+  const range = useMemo(
+    () => resolveFactForecastChartRange(orgCreatedAt),
+    [orgCreatedAt],
+  )
+
+  const hasFact = windowedHistory.some((row) => row.totalExpenses > 0 || row.totalIncome > 0)
+  const lowHistory =
+    windowedHistory.filter((r) => r.totalExpenses > 0 || r.totalIncome > 0).length < 4
+  const { chartData, lastFactLabel } = buildChartData(windowedHistory, forecast)
   const showForecast =
     !forecast.insufficientData && forecast.predictedExpenses != null && hasFact
 
@@ -168,8 +200,8 @@ export function ForecastChart({ history, forecast }: ForecastChartProps) {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Нет расходов и отгрузок за выбранный период — график не строится. Добавьте записи в
-            разделах «Расходы» и «Отгрузки».
+            Нет расходов и отгрузок за выбранный период — график не строится. Добавьте записи во
+            вкладках «Затраты» и «Доходы» или в разделе «Отгрузки».
           </p>
         </CardContent>
       </Card>
@@ -177,23 +209,43 @@ export function ForecastChart({ history, forecast }: ForecastChartProps) {
   }
 
   return (
-    <Card>
-      <CardHeader className="space-y-1">
+    <Card className="min-w-0 overflow-hidden">
+      <CardHeader className="space-y-1 px-4 sm:px-6">
         <CardTitle className="text-base">Что было и что ожидается</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Факт — из расходов и отгрузок. Прогноз — ориентир на следующий период.
+          Факт — из затрат, доходов и отгрузок. Прогноз — ориентир на следующий период. Окно
+          графика: 12 месяцев с даты создания организации
+          {range.startMonth !== range.endMonth
+            ? ` (${formatMonthLabel(range.startMonth)} — ${formatMonthLabel(range.endMonth)})`
+            : null}
+          .
           {lowHistory ? ' Истории пока мало — линии ориентировочные.' : null}
         </p>
       </CardHeader>
-      <CardContent className="space-y-2">
-        <div className="h-72 w-full">
+      <CardContent className="space-y-3 px-2 sm:px-6">
+        <div className="h-56 w-full min-w-0 sm:h-72">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-              <XAxis dataKey="monthLabel" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} width={56} />
+            <ComposedChart
+              data={chartData}
+              margin={{ top: 8, right: 4, left: -8, bottom: 4 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+              <XAxis
+                dataKey="monthLabel"
+                tick={{ fontSize: 10 }}
+                interval="preserveStartEnd"
+                minTickGap={8}
+                angle={-30}
+                textAnchor="end"
+                height={48}
+              />
+              <YAxis tick={{ fontSize: 10 }} width={44} />
               <Tooltip content={<ChartTooltip />} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Legend
+                wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+                iconSize={10}
+                verticalAlign="bottom"
+              />
               {showForecast && lastFactLabel ? (
                 <ReferenceLine
                   x={lastFactLabel}
@@ -202,13 +254,12 @@ export function ForecastChart({ history, forecast }: ForecastChartProps) {
                   label={{
                     value: 'Факт → прогноз',
                     position: 'insideTopLeft',
-                    fontSize: 10,
+                    fontSize: 9,
                     fill: FORECAST_CHART_COLORS.divider,
                   }}
                 />
               ) : null}
 
-              {/* Uncertainty band: stacked transparent base + muted span */}
               <Area
                 type="monotone"
                 dataKey="rangeBase"
@@ -248,7 +299,7 @@ export function ForecastChart({ history, forecast }: ForecastChartProps) {
                 strokeDasharray="6 4"
                 strokeWidth={2}
                 strokeOpacity={0.95}
-                dot={{ r: 4, fill: FORECAST_CHART_COLORS.incomeForecast }}
+                dot={{ r: 3, fill: FORECAST_CHART_COLORS.incomeForecast }}
                 connectNulls
               />
               <Line
@@ -268,25 +319,25 @@ export function ForecastChart({ history, forecast }: ForecastChartProps) {
                 strokeDasharray="6 4"
                 strokeWidth={2}
                 strokeOpacity={0.95}
-                dot={{ r: 4, fill: FORECAST_CHART_COLORS.expensesForecast }}
+                dot={{ r: 3, fill: FORECAST_CHART_COLORS.expensesForecast }}
                 connectNulls
               />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
-        <ul className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+        <ul className="grid gap-1 px-2 text-xs text-muted-foreground sm:grid-cols-2 sm:px-0">
           <li>
-            <span className="font-medium text-foreground">Доходы:</span> отгрузки (кг × цена)
+            <span className="font-medium text-foreground">Доходы:</span> отгрузки и ручные доходы
           </li>
           <li>
-            <span className="font-medium text-foreground">Затраты:</span> модуль «Расходы»
+            <span className="font-medium text-foreground">Затраты:</span> вкладка «Затраты»
           </li>
           <li>
             <span className="font-medium text-foreground">Факт:</span> сплошная линия
           </li>
           <li>
-            <span className="font-medium text-foreground">Прогноз:</span> пунктир + серый диапазон
-            неопределённости затрат
+            <span className="font-medium text-foreground">Прогноз:</span> пунктир + диапазон
+            неопределённости
           </li>
         </ul>
       </CardContent>

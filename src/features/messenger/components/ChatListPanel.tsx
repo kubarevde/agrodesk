@@ -25,31 +25,33 @@ export function ChatListPanel({
 }: ChatListPanelProps) {
   return (
     <div className="flex h-full min-h-0 flex-col border-r border-border bg-surface">
-      <div className="flex items-center gap-2 border-b border-border p-3">
-        <h1 className="min-w-0 flex-1 text-base font-semibold text-foreground">Мессенджер</h1>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={onNewDirect}
-          data-testid="new-direct-chat"
-          aria-label="Новый чат"
-        >
-          <MessageSquarePlus className="size-4" />
-          <span className="hidden sm:inline">Новый чат</span>
-        </Button>
-        {isAdmin ? (
+      <div className="space-y-3 border-b border-border p-3">
+        <h1 className="text-base font-semibold text-foreground">Мессенджер</h1>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <Button
             type="button"
-            size="sm"
-            onClick={onNewGroup}
-            data-testid="new-group-chat"
-            aria-label="Новая группа"
+            className="min-h-11 w-full justify-center sm:min-h-10 sm:w-auto"
+            variant="outline"
+            onClick={onNewDirect}
+            data-testid="new-direct-chat"
+            aria-label="Создать чат"
           >
-            <UsersRound className="size-4" />
-            <span className="hidden sm:inline">Новая группа</span>
+            <MessageSquarePlus className="size-4 shrink-0" />
+            Создать чат
           </Button>
-        ) : null}
+          {isAdmin ? (
+            <Button
+              type="button"
+              className="min-h-11 w-full justify-center sm:min-h-10 sm:w-auto"
+              onClick={onNewGroup}
+              data-testid="new-group-chat"
+              aria-label="Создать группу"
+            >
+              <UsersRound className="size-4 shrink-0" />
+              Создать группу
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
