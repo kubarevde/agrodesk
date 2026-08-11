@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import date as date_type
 from decimal import Decimal
 from typing import Literal
