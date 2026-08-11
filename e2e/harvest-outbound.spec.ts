@@ -1,9 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
 import { loginDemoAdmin } from './helpers'
 
-const API = process.env.VITE_API_URL ?? 'http://127.0.0.1:8000'
+const API = process.env.VITE_API_PROXY_TARGET || process.env.VITE_API_URL || 'http://127.0.0.1:8001'
 
 async function authHeaders(page: Page): Promise<Record<string, string>> {
+  await page.waitForLoadState('domcontentloaded')
   const token = await page.evaluate(() => localStorage.getItem('agrodesk_token'))
   expect(token).toBeTruthy()
   return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
@@ -22,13 +23,27 @@ test.describe('harvest outbound via shipment requests', () => {
       headers,
       data: {
         name: `E2E harvest field ${Date.now()}`,
-        crop_code: 'wheat',
         area_ha: 5,
       },
     })
-    expect(fieldRes.ok()).toBeTruthy()
+    expect(fieldRes.ok(), await fieldRes.text()).toBeTruthy()
     const field = (await fieldRes.json()) as { id: string; crop_code: string | null }
-    const cropCode = (field.crop_code ?? 'wheat').trim() || 'wheat'
+    const cropCode = 'wheat'
+    const seasonYear = new Date().getFullYear()
+
+    // Crop lives on field_plantings (legacy field.crop_code ignored). No polygon → no whole-field flag.
+    const plantingRes = await page.request.post(`${API}/api/fields/${field.id}/plantings`, {
+      headers,
+      data: {
+        crop_code: cropCode,
+        area_ha: 5,
+        season_year: seasonYear,
+        status: 'planted',
+        occupies_whole_field: false,
+      },
+    })
+    expect(plantingRes.ok(), await plantingRes.text()).toBeTruthy()
+    const planting = (await plantingRes.json()) as { id: string }
 
     const itemRes = await page.request.post(`${API}/api/inventory`, {
       headers,
@@ -42,7 +57,7 @@ test.describe('harvest outbound via shipment requests', () => {
         crop_code: cropCode,
       },
     })
-    expect(itemRes.ok()).toBeTruthy()
+    expect(itemRes.ok(), await itemRes.text()).toBeTruthy()
     const item = (await itemRes.json()) as { id: string }
 
     const harvestRes = await page.request.post(`${API}/api/fields/${field.id}/harvest`, {
@@ -51,9 +66,11 @@ test.describe('harvest outbound via shipment requests', () => {
         inventory_item_id: item.id,
         quantity: 200,
         date: new Date().toISOString().slice(0, 10),
+        field_planting_id: planting.id,
+        harvest_status: 'partially_harvested',
       },
     })
-    expect(harvestRes.ok()).toBeTruthy()
+    expect(harvestRes.ok(), await harvestRes.text()).toBeTruthy()
 
     const afterIncome = await page.request.get(`${API}/api/inventory/${item.id}`, { headers })
     expect(afterIncome.ok()).toBeTruthy()

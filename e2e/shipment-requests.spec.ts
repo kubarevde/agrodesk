@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
-import { loginDemoAdmin } from './helpers'
+import { gotoPath, loginDemoAdmin } from './helpers'
 
-const API = process.env.VITE_API_URL ?? 'http://127.0.0.1:8000'
+const API = process.env.VITE_API_PROXY_TARGET || process.env.VITE_API_URL || 'http://127.0.0.1:8001'
 
 async function authHeaders(page: Page): Promise<Record<string, string>> {
   const token = await page.evaluate(() => localStorage.getItem('agrodesk_token'))
@@ -44,7 +44,7 @@ test.describe('shipment requests', () => {
     await loginDemoAdmin(page)
     const requestId = await createRequestViaApi(page)
 
-    await page.goto('/shipment-requests')
+    await gotoPath(page, '/shipment-requests')
     await page.getByRole('heading', { name: 'Заявки на отгрузку' }).waitFor({ timeout: 20_000 })
 
     const tableRow = page.locator(

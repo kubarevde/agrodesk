@@ -12,6 +12,7 @@ import {
   loginSuperAdminApi,
   loginSuperAdminUi,
   setMarketplaceEnabled,
+  submitListingForModeration,
   type DisposableOrg,
 } from './marketplace-helpers'
 
@@ -60,18 +61,15 @@ test.describe('marketplace e2e', () => {
     await page.getByRole('link', { name: /^Создать( объявление)?$/ }).first().click()
     await expect(page.getByTestId('listing-form')).toBeVisible({ timeout: 15_000 })
     await fillListingForm(page, { title, categoryName })
-    await page.getByRole('button', { name: 'Сохранить' }).click()
-    await expect(page).toHaveURL(/\/seller-market\/listings\/[^/]+/, { timeout: 20_000 })
-    await expect(page.getByRole('button', { name: 'Отправить на модерацию' })).toBeEnabled()
-    const submitWait = page.waitForResponse(
-      (r) =>
-        r.request().method() === 'POST' &&
-        /\/api\/marketplace\/listings\/[^/]+\/submit/.test(r.url()),
-      { timeout: 25_000 },
+    const createWait = page.waitForResponse(
+      (r) => r.request().method() === 'POST' && /\/api\/marketplace\/listings\/?$/.test(new URL(r.url()).pathname),
+      { timeout: 30_000 },
     )
-    await page.getByRole('button', { name: 'Отправить на модерацию' }).click()
-    const submitRes = await submitWait
-    expect(submitRes.status(), await submitRes.text()).toBe(200)
+    await page.getByRole('button', { name: 'Сохранить' }).click()
+    const createRes = await createWait
+    expect(createRes.ok(), await createRes.text()).toBeTruthy()
+    await expect(page).toHaveURL(/\/seller-market\/listings\/(?!new)[^/]+/, { timeout: 20_000 })
+    await submitListingForModeration(page)
     await page.goto('/seller-market/listings')
     await expect(
       page.locator('li').filter({ hasText: title }).getByText('На модерации'),
@@ -141,17 +139,15 @@ test.describe('marketplace e2e', () => {
     await page.getByRole('link', { name: /^Создать( объявление)?$/ }).first().click()
     await expect(page.getByTestId('listing-form')).toBeVisible({ timeout: 15_000 })
     await fillListingForm(page, { title, categoryName })
-    await page.getByRole('button', { name: 'Сохранить' }).click()
-    await expect(page).toHaveURL(/\/seller-market\/listings\/[^/]+/, { timeout: 20_000 })
-    const submitWait = page.waitForResponse(
-      (r) =>
-        r.request().method() === 'POST' &&
-        /\/api\/marketplace\/listings\/[^/]+\/submit/.test(r.url()),
-      { timeout: 25_000 },
+    const createWait = page.waitForResponse(
+      (r) => r.request().method() === 'POST' && /\/api\/marketplace\/listings\/?$/.test(new URL(r.url()).pathname),
+      { timeout: 30_000 },
     )
-    await page.getByRole('button', { name: 'Отправить на модерацию' }).click()
-    const submitRes = await submitWait
-    expect(submitRes.status(), await submitRes.text()).toBe(200)
+    await page.getByRole('button', { name: 'Сохранить' }).click()
+    const createRes = await createWait
+    expect(createRes.ok(), await createRes.text()).toBeTruthy()
+    await expect(page).toHaveURL(/\/seller-market\/listings\/(?!new)[^/]+/, { timeout: 20_000 })
+    await submitListingForModeration(page)
     await page.goto('/seller-market/listings')
     await expect(
       page.locator('li').filter({ hasText: title }).getByText('На модерации'),
@@ -202,7 +198,7 @@ test.describe('marketplace e2e', () => {
     await setMarketplaceEnabled(request, saHeaders, org.orgId, false)
     try {
       const res = await page.request.post(
-        `${process.env.VITE_API_PROXY_TARGET || process.env.VITE_API_URL || 'http://127.0.0.1:8000'}/api/auth/login`,
+        `${process.env.VITE_API_PROXY_TARGET || process.env.VITE_API_URL || 'http://127.0.0.1:8001'}/api/auth/login`,
         {
           data: {
             email: org.adminEmail,

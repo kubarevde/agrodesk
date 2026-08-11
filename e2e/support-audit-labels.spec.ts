@@ -1,10 +1,12 @@
 import { expect, test } from '@playwright/test'
+import { loginDemoAdmin } from './helpers'
 
 /**
- * Label-level checks for audit-log filters.
- * Requires an already authenticated session (same assumption as e2e/shifts.spec.ts).
+ * Label-level checks for audit-log filters and support categories.
+ * Requires seeded Demo AgroDesk (EMP000) via loginDemoAdmin.
  */
 test('история изменений: фильтр действий показывает русские подписи', async ({ page }) => {
+  await loginDemoAdmin(page)
   await page.goto('/audit-log')
   await expect(page.getByRole('heading', { name: 'История изменений' })).toBeVisible({
     timeout: 20_000,
@@ -23,6 +25,7 @@ test('история изменений: фильтр действий пока�
 })
 
 test('поддержка: форма нового обращения показывает русские категории', async ({ page }) => {
+  await loginDemoAdmin(page)
   await page.goto('/support/new')
   await expect(page.getByRole('heading', { name: 'Новое обращение' })).toBeVisible({
     timeout: 20_000,

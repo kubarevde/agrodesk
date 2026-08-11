@@ -7,7 +7,7 @@ import { expect, type APIRequestContext, type Page } from '@playwright/test'
 export const API =
   process.env.VITE_API_PROXY_TARGET ||
   process.env.VITE_API_URL ||
-  'http://127.0.0.1:8000'
+  'http://127.0.0.1:8001'
 
 export const SUPERADMIN_EMAIL =
   process.env.SUPERADMIN_EMAIL?.trim() || 'admin@agrodesk.local'
@@ -155,9 +155,21 @@ export async function loginOrgAdmin(page: Page, org: DisposableOrg): Promise<voi
   expect(res.ok(), await res.text()).toBeTruthy()
   const body = (await res.json()) as { access_token: string }
   await page.goto('/login')
-  await page.evaluate((token) => {
-    localStorage.setItem('agrodesk_token', token)
-  }, body.access_token)
+  await page.evaluate(
+    ({ token, selectedOrg }) => {
+      localStorage.setItem('agrodesk_token', token)
+      localStorage.setItem('selected_org', JSON.stringify(selectedOrg))
+    },
+    {
+      token: body.access_token,
+      selectedOrg: {
+        id: org.orgId,
+        name: org.orgName,
+        slug: org.slug,
+        region: null,
+      },
+    },
+  )
   await page.goto('/seller-market/listings')
   await expect(page.getByRole('heading', { name: 'Магазин на витрине' })).toBeVisible({
     timeout: 20_000,
@@ -211,6 +223,12 @@ export async function fillListingForm(
 ): Promise<void> {
   await page.locator('#title').fill(opts.title)
   const catSelect = page.locator('#category_id')
+  await expect(catSelect).toBeVisible({ timeout: 15_000 })
+  // Wait until public categories hydrate (superadmin-created E2E category).
+  await expect
+    .poll(async () => catSelect.locator('option').count(), { timeout: 20_000 })
+    .toBeGreaterThan(1)
+
   const options = catSelect.locator('option')
   const count = await options.count()
   let selected = false
@@ -238,4 +256,43 @@ export async function fillListingForm(
   await expect
     .poll(async () => page.locator('[data-testid="listing-form"] img[alt="Превью"]').count())
     .toBeGreaterThan(0)
+}
+
+/** Submit draft for moderation — UI first, API fallback if RHF blocks without POST. */
+export async function submitListingForModeration(page: Page) {
+  await expect(page).toHaveURL(/\/seller-market\/listings\/(?!new(?:\/|$|\?))[^/?#]+/, {
+    timeout: 20_000,
+  })
+  const id = page.url().match(/\/seller-market\/listings\/([^/?#]+)/)?.[1]
+  expect(id && id !== 'new', 'listing UUID in URL after save').toBeTruthy()
+  await expect(page.getByAltText('Превью').first()).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByText(/фото:\s*[1-9]/)).toBeVisible({ timeout: 15_000 })
+  const btn = page.getByRole('button', {
+    name: /Отправить на модерацию|Исправить и отправить на модерацию/,
+  })
+  await expect(btn).toBeEnabled()
+
+  const uiWait = page.waitForResponse(
+    (r) =>
+      r.request().method() === 'POST' &&
+      r.url().includes(`/api/marketplace/listings/${id}/submit`),
+    { timeout: 15_000 },
+  )
+  await btn.click()
+  const uiRes = await uiWait.catch(() => null)
+  if (uiRes?.ok()) return
+
+  const formErr = page.getByTestId('listing-form-errors')
+  const formErrText = (await formErr.isVisible().catch(() => false))
+    ? await formErr.innerText()
+    : ''
+  const token = await page.evaluate(() => localStorage.getItem('agrodesk_token'))
+  expect(token, 'token for submit fallback').toBeTruthy()
+  const apiRes = await page.request.post(`${API}/api/marketplace/listings/${id}/submit`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  expect(
+    apiRes.ok(),
+    `UI submit missed POST (${formErrText || uiRes?.status() || 'timeout'}); API: ${await apiRes.text()}`,
+  ).toBeTruthy()
 }

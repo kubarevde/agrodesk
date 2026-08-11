@@ -6,6 +6,8 @@ export default defineConfig({
   testDir: './e2e',
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,
+  // Parallel Vite+API under many workers flakes (ERR_ABORTED / hung selects).
+  workers: isCI ? 1 : undefined,
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:5173',
@@ -24,7 +26,8 @@ export default defineConfig({
       VITE_API_PROXY_TARGET:
         process.env.VITE_API_PROXY_TARGET ||
         process.env.VITE_API_URL ||
-        'http://127.0.0.1:8000',
+        // Local QA API (agrodesk_qa). Do not default to :8000 — that often hits stale agrodesk@029.
+        'http://127.0.0.1:8001',
     },
   },
 })
