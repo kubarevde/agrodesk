@@ -251,6 +251,8 @@ async def build_timesheet_workbook(
                 fmt_time(shift.start_time),
                 fmt_time(shift.end_time),
                 hours,
+                (shift.description or '').strip(),
+                (shift.comment or '').strip(),
                 SHIFT_STATUS_LABELS.get(shift.status.value, shift.status.value),
             ]
         )
@@ -265,7 +267,20 @@ async def build_timesheet_workbook(
     ws_detail.title = 'Табель'
     write_table(
         ws_detail,
-        ['Дата', 'ФИО', 'Код', 'Объект', 'Тип работ', 'Техника', 'Начало', 'Конец', 'Часов', 'Статус'],
+        [
+            'Дата',
+            'ФИО',
+            'Код',
+            'Объект',
+            'Тип работ',
+            'Техника',
+            'Начало',
+            'Конец',
+            'Часов',
+            'Что сделано',
+            'Комментарий',
+            'Статус',
+        ],
         detail_rows,
     )
 
